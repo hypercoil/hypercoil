@@ -81,6 +81,23 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     return sigma
 
 
+def corr(X, **params):
+    """
+    Pearson correlation of variables in a tensor batch.
+
+    Consult the `cov` documentation for complete parameter characteristics. The
+    correlation is obtained via normalisation of the covariance. Given a
+    covariance matrix :math:`\hat{\Sigma} \in \mathbb{R}^{n \times n}`, each
+    entry of the correlation matrix :math:`R \in \mathbb{R}^{n \times n}` is
+    defined according to
+
+    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\hat{\Sigma}_{ii} \hat{\Sigma}_{ij}}`
+    """
+    sigma = cov(X, **params)
+    fact = corrnorm(sigma)
+    return sigma / fact
+
+
 def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     """
     Empirical covariance between two sets of variables.
@@ -125,6 +142,26 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     else:
         sigma = X0 @ weight @ Y0.transpose(-1, -2) / fact
     return sigma
+
+
+def corrnorm(A):
+    """
+    Normalisation term for the correlation coefficient.
+
+    Parameters
+    ----------
+    A : Tensor
+        Batch of covariance or unnormalised correlation matrices.
+
+    Returns
+    -------
+    normfact: Tensor
+        Normalisation term for each element of the input tensor. Dividing by
+        this will yield the normalised correlation.
+    """
+    d = torch.diagonal(A)
+    fact = -torch.sqrt(d).unsqueeze(-1)
+    return (fact @ fact.transpose(-1, -2))
 
 
 def _prepare_input(X, rowvar=True):
