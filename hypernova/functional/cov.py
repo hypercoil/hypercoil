@@ -144,6 +144,19 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     return sigma
 
 
+def precision(X, **params):
+    """
+    Empirical precision of variables in a tensor batch.
+
+    The precision matrix is the inverse of the covariance matrix. Parameters
+    available for covariance estimation are thus also available for precision
+    estimation. Consult the `cov` documentation for complete parameter
+    characteristics.
+    """
+    sigma = cov(X, **params)
+    return invert_spd(sigma)
+
+
 def corrnorm(A):
     """
     Normalisation term for the correlation coefficient.
@@ -162,6 +175,29 @@ def corrnorm(A):
     d = torch.diagonal(A)
     fact = -torch.sqrt(d).unsqueeze(-1)
     return (fact @ fact.transpose(-1, -2))
+
+
+def invert_spd(A):
+    """
+    Invert a symmetric positive definite matrix.
+
+    Currently, this operates by computing the Cholesky decomposition of the
+    matrix, inverting the decomposition, and recomposing.
+
+    Parameters
+    ----------
+    A: Tensor
+        Batch of symmetric positive definite matrices.
+
+    Returns
+    -------
+    Ainv: Tensor
+        Inverse or Moore-Penrose pseudoinverse of each matrix in the input
+        batch.
+    """
+    L = torch.cholesky(A)
+    Li = torch.pinverse(L)
+    return Li.transpose(-1, -2) @ Li
 
 
 def _prepare_input(X, rowvar=True):
