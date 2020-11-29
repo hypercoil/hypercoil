@@ -98,6 +98,25 @@ def corr(X, **params):
     return sigma / fact
 
 
+def partialcorr(X, **params):
+    """
+    Partial Pearson correlation of variables in a tensor batch.
+
+    Consult the `cov` documentation for complete parameter characteristics. The
+    partial correlation is obtained by conditioning the covariance of each pair
+    of variables on all other observed variables. It can be interpreted as a
+    measurement of the direct relationship between each variable pair. The
+    partial correlation is efficiently computed via successive inversion and
+    normalisation of the covariance matrix, followed by negation of off-
+    diagonal entries.
+    """
+    omega = precision(X, **params)
+    fact = corrnorm(omega)
+    pcorr = omega / fact
+    pcorr[~torch.eye(pcorr.size(-1), dtype=torch.bool)] *= -1
+    return pcorr
+
+
 def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     """
     Empirical covariance between two sets of variables.
