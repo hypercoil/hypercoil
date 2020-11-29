@@ -88,3 +88,21 @@ def test_paired():
     out = pairedcov(Xt, Yt).numpy()
     ref = np.cov(np.concatenate([X ,Y], -2))[:7, -3:]
     assert testf(out, ref)
+
+
+def test_corr():
+    out = corr(Xt).numpy()
+    ref = np.corrcoef(X)
+    assert testf(out, ref)
+
+
+def test_pcorr():
+    out = partialcorr(Xt).numpy()
+    ref = pd.DataFrame(X.T).pcorr().values
+    assert testf(out, ref)
+
+
+def test_ccov():
+    out = conditionalcov(Xt, Yt).numpy()
+    ref = torch.pinverse(precision(torch.cat([Xt ,Yt], -2))[:7, :7]).numpy()
+    assert testf(out, ref)
