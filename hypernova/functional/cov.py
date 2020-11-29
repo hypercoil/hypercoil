@@ -163,6 +163,86 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     return sigma
 
 
+def conditionalcov(X, Y, **params):
+    """
+    Conditional covariance of variables in a tensor batch.
+
+    The conditional covariance is the covariance of one set of variables X
+    conditioned on another set of variables Y. The conditional covariance is
+    computed from the covariance A of X , the covariance C of Y, and the
+    covariance B between X and Y. It is defined as the Schur complement of C:
+
+    :math:`\widetilde{Sigma} = A - B C^{-1} B^\intercal`
+
+    The conditional covariance is equivalent to the covariance of the first set
+    of variables after residualising them with respect to the second set of
+    variables (plus an intercept term). This can be interpreted as the
+    covariance of variables of interest (the first set) after controlling for
+    the effects of confounds or nuisance variables (the second set).
+
+    Dimension
+    ---------
+    - Input X: :math:`(N, *, C_X, obs)` or :math:`(N, *, obs, C_X)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      C_X denotes number of data channels or variables
+    - Input Y: :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      C_Y denotes number of data channels or variables
+    - Weight: :math:`(obs)` or :math:`(obs, obs)`
+    - Output: :math:`(N, *, C_X, C_X)`
+
+    Parameters
+    ----------
+    X : Tensor
+        Tensor containing samples of multivariate observations, with those
+        variables whose influence we wish to control for removed and separated
+        out into tensor Y. Each slice along the last axis corresponds to an
+        observation, and each slice along the penultimate axis corresponds to a
+        data channel or more generally a variable.
+    Y : Tensor
+        Tensor containing samples of multivariate observations, limited to
+        nuisance or confound variables whose influence we wish to control for.
+        Each slice along the last axis corresponds to an observation, and each
+        slice along the penultimate axis corresponds to a data channel or more
+        generally a variable.
+    rowvar, bias, ddof, weight, l2
+        Consult the `cov` documentation for complete parameter characteristics.
+
+    Returns
+    -------
+    sigma: Tensor
+        Conditional empirical covariance matrix of the variables in input
+        tensor X conditioned on the variables in input tensor Y.
+
+    See also
+    --------
+    conditionalcorr: Normalised conditional covariance (Pearson correlation)
+    partialcorr: Condition each variable on all other variables
+    """
+    A = cov(X, **params)
+    B = pairedcov(X, Y, **params)
+    C = cov(Y, **params)
+    return A - B @ invert_spd(C) @ B.transpose(-1, -2)
+
+
+def conditionalcorr(X, Y, **params):
+    """
+    Conditional Pearson correlation of variables in a tensor batch.
+
+    Consult the `conditionalcov` and `cov` documentation for complete parameter
+    characteristics. The conditional correlation is obtained via normalisation
+    of the conditional covariance. Given a conditional covariance matrix
+    :math:`\hat{\Sigma} \in \mathbb{R}^{n \times n}`, each entry of the
+    conditional correlation matrix :math:`R \in \mathbb{R}^{n \times n}`
+    is defined according to
+
+    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\hat{\Sigma}_{ii} \hat{\Sigma}_{ij}}`
+    """
+    sigma = conditionalcov(X, Y, **params)
+    fact = corrnorm(sigma)
+    return sigma / fact
+
+
 def precision(X, **params):
     """
     Empirical precision of variables in a tensor batch.
