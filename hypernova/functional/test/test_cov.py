@@ -19,8 +19,18 @@ ofunc = cov
 rfunc = np.cov
 testf = lambda out, ref: np.allclose(out, ref, atol=tol)
 
+x = np.random.rand(100)
 X = np.random.rand(7, 100)
+XM = np.random.rand(200, 7, 100)
+w = np.random.rand(100)
+W = np.random.rand(100, 100)
+Y = np.random.rand(3, 100)
+xt = torch.Tensor(x)
 Xt = torch.Tensor(X)
+XMt = torch.Tensor(XM)
+wt = torch.Tensor(w)
+Wt = torch.Tensor(W)
+Yt = torch.Tensor(Y)
 
 
 def covpattern(**args):
@@ -47,3 +57,34 @@ def test_cov_biased():
 def test_cov_custdof():
     args = {'ddof': 17}
     covpattern(**args)
+
+
+def test_cov_var():
+    out = ofunc(xt).numpy()
+    ref = rfunc(x)
+    assert testf(out, ref)
+
+
+def test_cov_weighted():
+    out = ofunc(Xt, weight=wt).numpy()
+    ref = rfunc(X, aweights=w)
+    assert testf(out, ref)
+
+
+def test_cov_Weighted():
+    out = ofunc(Xt, weight=Wt)
+
+
+def test_cov_multidim():
+    out = ofunc(XMt, weight=wt).numpy()
+    ref = np.stack([
+        rfunc(XM[i, :, :].squeeze(), aweights=w)
+        for i in range(XM.shape[0])
+    ])
+    assert testf(out, ref)
+
+
+def test_paired():
+    out = pairedcov(Xt, Yt).numpy()
+    ref = np.cov(np.concatenate([X ,Y], -2))[:7, -3:]
+    assert testf(out, ref)
