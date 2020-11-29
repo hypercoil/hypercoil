@@ -299,6 +299,36 @@ def invert_spd(A):
     return Li.transpose(-1, -2) @ Li
 
 
+def covariance(*pparams, **params):
+    """Alias for `cov`."""
+    return cov(*pparams, **params)
+
+
+def correlation(*pparams, **params):
+    """Alias for `corr`."""
+    return corr(*pparams, **params)
+
+
+def corrcoef(*pparams, **params):
+    """Alias for `corr`."""
+    return corr(*pparams, **params)
+
+
+def pcorr(*pparams, **params):
+    """Alias for `partialcorr`."""
+    return partialcorr(*pparams, **params)
+
+
+def ccov(*pparams, **params):
+    """Alias for `conditionalcov`."""
+    return conditionalcov(*pparams, **params)
+
+
+def ccorr(*pparams, **params):
+    """Alias for `conditionalcorr`."""
+    return conditionalcorr(*pparams, **params)
+
+
 def _prepare_input(X, rowvar=True):
     """
     Ensure that the input is conformant with the transposition expected by the
