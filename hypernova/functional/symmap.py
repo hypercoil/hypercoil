@@ -32,7 +32,7 @@ def symmap(input, map, spd=True, psi=0):
         Indicates that the matrices in the input batch are symmetric positive
         semidefinite; guards against numerical rounding errors and ensures all
         eigenvalues are nonnegative.
-    psi: float in [0, 1]
+    psi : float in [0, 1]
         Conditioning factor to promote positive definiteness. If this is in
         (0, 1], the original input will be replaced with a convex combination
         of the input and an identity matrix.
@@ -82,7 +82,7 @@ def symlog(input, recondition=0):
     ----------
     input : Tensor
         Batch of symmetric tensors to transform using the matrix logarithm.
-    recondition: float in [0, 1]
+    recondition : float in [0, 1]
         Conditioning factor to promote positive definiteness. If this is in
         (0, 1], the original input will be replaced with a convex combination
         of the input and an identity matrix.
@@ -154,7 +154,7 @@ def symsqrt(input, recondition=0):
     ----------
     input : Tensor
         Batch of symmetric tensors to transform using the matrix square root.
-    recondition: float in [0, 1]
+    recondition : float in [0, 1]
         Conditioning factor to promote positive definiteness. If this is in
         (0, 1], the original input will be replaced with a convex combination
         of the input and an identity matrix.
