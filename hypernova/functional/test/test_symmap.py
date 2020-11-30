@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from scipy.linalg import expm, logm, sqrtm, sinm, funm
 from hypernova import (
-    symxfm, symexp, symlog, symsqrt
+    symmap, symexp, symlog, symsqrt
 )
 
 
@@ -46,22 +46,22 @@ def test_sqrtm():
     assert testf(out, ref)
 
 
-def test_xfm():
-    out = symxfm(At, torch.sin).numpy()
+def test_map():
+    out = symmap(At, torch.sin).numpy()
     ref = funm(A, np.sin)
     assert testf(out, ref)
     ref = sinm(A)
     assert testf(out, ref)
 
 
-def test_xfm_multidim():
-    out = symxfm(AMt, torch.exp).numpy()
+def test_map_multidim():
+    out = symmap(AMt, torch.exp).numpy()
     ref = np.stack([expm(AMi) for AMi in AM])
     assert testf(out, ref)
 
 
 def test_singular():
-    out = symxfm(ASt, torch.log).numpy()
+    out = symmap(ASt, torch.log).numpy()
     assert np.all(np.logical_or(np.isnan(out), np.isinf(out)))
-    out = symxfm(ASt, torch.log, psi=1e-5).numpy()
+    out = symmap(ASt, torch.log, psi=1e-5).numpy()
     assert np.all(np.logical_not(np.logical_or(np.isnan(out), np.isinf(out))))
