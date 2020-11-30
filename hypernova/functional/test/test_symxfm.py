@@ -6,34 +6,62 @@ Unit tests for covariance, correlation, and derived measures
 """
 import numpy as np
 import torch
-from scipy.linalg import expm, logm, sqrtm
+from scipy.linalg import expm, logm, sqrtm, sinm, funm
 from hypernova import (
-    symexp, symlog, symsqrt
+    symxfm, symexp, symlog, symsqrt
 )
 
 
 tol = 5e-7
-testf = lambda out, ref: np.allclose(out, ref, atol=tol)
+rtol = 1e-4
+testf = lambda out, ref: np.allclose(out, ref, atol=tol, rtol=rtol)
 
 
 A = np.random.rand(10, 10)
+AM = np.random.rand(200, 10, 10)
+AS = np.random.rand(200, 10, 4)
 A = A @ A.T
+AM = AM @ np.swapaxes(AM, -1, -2)
+AS = AS @ np.swapaxes(AS, -1, -2)
 At = torch.Tensor(A)
+AMt = torch.Tensor(AM)
+ASt = torch.Tensor(AS)
 
 
 def test_expm():
     out = symexp(At).numpy()
     ref = expm(A)
-    testf(out, ref)
+    assert testf(out, ref)
 
 
 def test_logm():
     out = symlog(At).numpy()
     ref = logm(A)
-    testf(out, ref)
+    assert testf(out, ref)
 
 
 def test_sqrtm():
     out = symsqrt(At).numpy()
     ref = sqrtm(A)
-    testf(out, ref)
+    assert testf(out, ref)
+
+
+def test_xfm():
+    out = symxfm(At, torch.sin).numpy()
+    ref = funm(A, np.sin)
+    assert testf(out, ref)
+    ref = sinm(A)
+    assert testf(out, ref)
+
+
+def test_xfm_multidim():
+    out = symxfm(AMt, torch.exp).numpy()
+    ref = np.stack([expm(AMi) for AMi in AM])
+    assert testf(out, ref)
+
+
+def test_singular():
+    out = symxfm(ASt, torch.log).numpy()
+    assert np.all(np.logical_or(np.isnan(out), np.isinf(out)))
+    out = symxfm(ASt, torch.log, psi=1e-5).numpy()
+    assert np.all(np.logical_not(np.logical_or(np.isnan(out), np.isinf(out))))
