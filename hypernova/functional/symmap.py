@@ -2,15 +2,15 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Symmetric matrix powers
-~~~~~~~~~~~~~~~~~~~~~~~
+Symmetric matrix operations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Differentiable computation of matrix logarithm, exponential, and square root.
-For use with symmetric, positive semidefinite matrices.
+For use with symmetric (typically positive semidefinite) matrices.
 """
 import torch
 
 
-def symxfm(input, xfm, spd=True, psi=0):
+def symmap(input, map, spd=True, psi=0):
     """
     Apply a specified matrix-valued transformation to a batch of symmetric
     (probably positive semidefinite) tensors.
@@ -26,7 +26,7 @@ def symxfm(input, xfm, spd=True, psi=0):
     ----------
     input : Tensor
         Batch of symmetric tensors to transform.
-    xfm : dimension-conserving torch callable
+    map : dimension-conserving torch callable
         Transformation to apply as a matrix-valued function
     spd : bool (default True)
         Indicates that the matrices in the input batch are symmetric positive
@@ -54,8 +54,8 @@ def symxfm(input, xfm, spd=True, psi=0):
     L, Q = torch.symeig(input, eigenvectors=True)
     if spd:
         L = torch.maximum(L, torch.zeros_like(L))
-    Lxfm = torch.diag_embed(xfm(L))
-    return Q @ Lxfm @ Q.transpose(-1, -2)
+    Lmap = torch.diag_embed(map(L))
+    return Q @ Lmap @ Q.transpose(-1, -2)
 
 
 def symlog(input, recondition=0):
@@ -97,7 +97,7 @@ def symlog(input, recondition=0):
     output : Tensor
         Logarithm of each matrix in the input batch.
     """
-    return symxfm(input, torch.log, psi=recondition)
+    return symmap(input, torch.log, psi=recondition)
 
 
 def symexp(input):
@@ -126,7 +126,7 @@ def symexp(input):
     output : Tensor
         Exponential of each matrix in the input batch.
     """
-    return symxfm(input, torch.exp)
+    return symmap(input, torch.exp)
 
 
 def symsqrt(input, recondition=0):
@@ -169,4 +169,4 @@ def symsqrt(input, recondition=0):
     output : Tensor
         Square root of each matrix in the input batch.
     """
-    return symxfm(input, torch.sqrt, psi=recondition)
+    return symmap(input, torch.sqrt, psi=recondition)
