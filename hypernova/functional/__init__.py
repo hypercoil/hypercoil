@@ -9,3 +9,6 @@ from .cov import (
     precision, invert_spd, covariance, correlation, corrcoef, pcorr, ccov,
     ccorr
 )
+from .symxfm import (
+    symxfm, symexp, symlog, symsqrt
+)
