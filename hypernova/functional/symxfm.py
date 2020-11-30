@@ -33,11 +33,11 @@ def symxfm(input, xfm, spd=True, psi=0):
         semidefinite; guards against numerical rounding errors and ensures all
         eigenvalues are nonnegative.
     psi: float in [0, 1]
-        Conditioning factor to promote positive definiteness. If this is
-        nonnegative, the original input will be replaced with a convex
-        combination of the input and an identity matrix.
+        Conditioning factor to promote positive definiteness. If this is in
+        (0, 1], the original input will be replaced with a convex combination
+        of the input and an identity matrix.
 
-        :math:`\hat{X} = (1 - \psi) X + \psi I`
+        :math:`\widetilde{X} = (1 - \psi) X + \psi I`
 
         A suitable `psi` can be used to ensure that all eigenvalues are
         positive.
@@ -83,26 +83,90 @@ def symlog(input, recondition=0):
     input : Tensor
         Batch of symmetric tensors to transform using the matrix logarithm.
     recondition: float in [0, 1]
-        Conditioning factor to promote positive definiteness. If this is
-        nonnegative, the original input will be replaced with a convex
-        combination of the input and an identity matrix.
+        Conditioning factor to promote positive definiteness. If this is in
+        (0, 1], the original input will be replaced with a convex combination
+        of the input and an identity matrix.
 
         :math:`\hat{X} = (1 - \psi) X + \psi I`
 
-        A suitable `psi` can be used to ensure that all eigenvalues are
+        A suitable value can be used to ensure that all eigenvalues are
         positive and therefore guarantee that the matrix is in the domain.
 
     Returns
     -------
     output : Tensor
-        Transformation of each matrix in the input batch.
+        Logarithm of each matrix in the input batch.
     """
     return symxfm(input, torch.log, psi=recondition)
 
 
 def symexp(input):
+    """
+    Matrix exponential of a batch of symmetric, positive definite matrices.
+
+    Computed by diagonalising the matrix, computing the exponential of the
+    eigenvalues, and recomposing.
+
+    :math:`\exp X = Q_X \exp \Lambda_X Q_X^\intercal`
+
+    Dimension
+    ---------
+    - Input: :math:`(N, *, D, D)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      D denotes matrix row and column dimension
+    - Output: :math:`(N, *, D, D)`
+
+    Parameters
+    ----------
+    input : Tensor
+        Batch of symmetric tensors to transform using the matrix exponential.
+
+    Returns
+    -------
+    output : Tensor
+        Exponential of each matrix in the input batch.
+    """
     return symxfm(input, torch.exp)
 
 
-def symsqrt(input):
-    return symxfm(input, torch.sqrt)
+def symsqrt(input, recondition=0):
+    """
+    Matrix square root of a batch of symmetric, positive definite matrices.
+
+    Computed by diagonalising the matrix, computing the square root of the
+    eigenvalues, and recomposing.
+
+    :math:`\sqrt{X} = Q_X \sqrt{\Lambda_X} Q_X^\intercal`
+
+    Note that this will be infeasible for matrices with negative eigenvalues,
+    and potentially singular matrices due to numerical rounding errors. To
+    guard against the infeasible case, consider specifying a `recondition`
+    parameter.
+
+    Dimension
+    ---------
+    - Input: :math:`(N, *, D, D)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      D denotes matrix row and column dimension
+    - Output: :math:`(N, *, D, D)`
+
+    Parameters
+    ----------
+    input : Tensor
+        Batch of symmetric tensors to transform using the matrix square root.
+    recondition: float in [0, 1]
+        Conditioning factor to promote positive definiteness. If this is in
+        (0, 1], the original input will be replaced with a convex combination
+        of the input and an identity matrix.
+
+        :math:`\hat{X} = (1 - \psi) X + \psi I`
+
+        A suitable value can be used to ensure that all eigenvalues are
+        nonnegative and therefore guarantee that the matrix is in the domain.
+
+    Returns
+    -------
+    output : Tensor
+        Square root of each matrix in the input batch.
+    """
+    return symxfm(input, torch.sqrt, psi=recondition)
