@@ -8,8 +8,7 @@ Differentiable projection from the positive semidefinite cone into a proper
 subspace tangent to the Riemann manifold.
 """
 import torch
-from hypernova import symmap, symlog, symexp
-from cov import invert_spd
+from . import symmap, symlog, symexp, symsqrt, invert_spd
 
 
 def tangent_project_spd(input, reference, recondition=0):

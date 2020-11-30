@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 import pingouin
-from hypernova import (
+from hypernova.functional import (
     cov, corr, partialcorr, pairedcov, precision,
     conditionalcov, conditionalcorr
 )
