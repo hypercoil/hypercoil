@@ -8,7 +8,7 @@ Differentiable projection from the positive semidefinite cone into a proper
 subspace tangent to the Riemann manifold.
 """
 import torch
-from hypernova import symxfm, symlog, symexp
+from hypernova import symmap, symlog, symexp
 from cov import invert_spd
 
 
@@ -61,7 +61,7 @@ def tangent_project_spd(input, reference, recondition=0):
     --------
     cone_project_spd: The inverse projection, into the semidefinite cone.
     """
-    ref_sri = symxfm(reference, torch.rsqrt, psi=recondition)
+    ref_sri = symmap(reference, torch.rsqrt, psi=recondition)
     return symlog(ref_sri @ input @ ref_sri, recondition)
 
 
@@ -133,3 +133,22 @@ def mean_harm_spd(input):
 
 def mean_logeuc_spd(input):
     return symexp(symlog(input).mean(0))
+
+
+def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10):
+    ref = mean_euc_spd(input)
+    for i in range(max_iter):
+        tan = tangent_project_spd(input, ref, recondition)
+        reftan = tan.mean(0)
+        ref_old = ref
+        ref = cone_project_spd(reftan, ref, recondition)
+        if torch.all(torch.norm(ref, dim=(-1, -2)) < eps):
+            break
+    return ref
+
+
+def mean_kullback_spd(input, alpha, recondition=0):
+    S = symsqrt(mean_euc_spd(input), recondition)
+    R = symmap(mean_euc_spd(input), torch.rsqrt, psi=recondition)
+    T = R @ mean_harm_spd(input) @ R
+    return S @ symmap(T, lambda X: torch.pow(X, alpha)) @ S
