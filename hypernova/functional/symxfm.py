@@ -10,7 +10,7 @@ For use with symmetric, positive semidefinite matrices.
 import torch
 
 
-def symxfm(input, xfm, spd=True):
+def symxfm(input, xfm, spd=True, psi=0):
     """
     Apply a specified matrix-valued transformation to a batch of symmetric
     (probably positive semidefinite) tensors.
@@ -32,12 +32,25 @@ def symxfm(input, xfm, spd=True):
         Indicates that the matrices in the input batch are symmetric positive
         semidefinite; guards against numerical rounding errors and ensures all
         eigenvalues are nonnegative.
+    psi: float in [0, 1]
+        Conditioning factor to promote positive definiteness. If this is
+        nonnegative, the original input will be replaced with a convex
+        combination of the input and an identity matrix.
+
+        :math:`\hat{X} = (1 - \psi) X + \psi I`
+
+        A suitable `psi` can be used to ensure that all eigenvalues are
+        positive.
 
     Returns
     -------
     output : Tensor
         Transformation of each matrix in the input batch.
     """
+    if psi > 0:
+        if psi > 1:
+            raise ValueError('Nonconvex combination. Select psi in [0, 1].')
+        input = (1 - psi) * input + psi * torch.eye(input.size(-1))
     L, Q = torch.symeig(input, eigenvectors=True)
     if spd:
         L = torch.maximum(L, torch.zeros_like(L))
@@ -45,8 +58,46 @@ def symxfm(input, xfm, spd=True):
     return Q @ Lxfm @ Q.transpose(-1, -2)
 
 
-def symlog(input):
-    return symxfm(input, torch.log)
+def symlog(input, recondition=0):
+    """
+    Matrix logarithm of a batch of symmetric, positive definite matrices.
+
+    Computed by diagonalising the matrix, computing the logarithm of the
+    eigenvalues, and recomposing.
+
+    :math:`\log X = Q_X \log \Lambda_X Q_X^\intercal`
+
+    Note that this will be infeasible for singular or non-positive definite
+    matrices. To guard against the infeasible case, consider specifying a
+    `recondition` parameter.
+
+    Dimension
+    ---------
+    - Input: :math:`(N, *, D, D)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      D denotes matrix row and column dimension
+    - Output: :math:`(N, *, D, D)`
+
+    Parameters
+    ----------
+    input : Tensor
+        Batch of symmetric tensors to transform using the matrix logarithm.
+    recondition: float in [0, 1]
+        Conditioning factor to promote positive definiteness. If this is
+        nonnegative, the original input will be replaced with a convex
+        combination of the input and an identity matrix.
+
+        :math:`\hat{X} = (1 - \psi) X + \psi I`
+
+        A suitable `psi` can be used to ensure that all eigenvalues are
+        positive and therefore guarantee that the matrix is in the domain.
+
+    Returns
+    -------
+    output : Tensor
+        Transformation of each matrix in the input batch.
+    """
+    return symxfm(input, torch.log, psi=recondition)
 
 
 def symexp(input):
