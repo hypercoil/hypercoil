@@ -4,12 +4,44 @@
 """
 Polynomial convolution
 ~~~~~~~~~~~~~~~~~~~~~~
-Functions supporting polynomial convolution of time series.
+Functions supporting polynomial convolution of time series and other data.
 """
 import torch
 
 
 def polychan(X, degree=2, include_const=False):
+    """
+    Create a polynomial channel basis for the data.
+
+    Single-channel data are mapped across K channels, and raised to the ith
+    power at the ith channel.
+
+    Dimension
+    ---------
+    - Input: :math:`(N, *, C, obs)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      C denotes number of data channels or variables, obs denotes number of
+      observations
+    - Output: :math:`(N, K, *, C, obs)`
+      K denotes maximum polynomial degree to include
+
+    Parameters
+    ----------
+    X : Tensor
+        Dataset to expand as a polynomial basis. A new channel will be created
+        containing the same dataset raised to each power up to the specified
+        degree.
+    degree : int >= 2 (default 2)
+        Maximum polynomial degree to be included in the output basis.
+    include_const : bool (default False)
+        Indicates that a constant or intercept term corresponding to the zeroth
+        power should be included.
+
+    Returns
+    -------
+    out : Tensor
+        Input dataset expanded as a K-channel polynomial basis.
+    """
     if X.dim() > 2:
         pass
     elif X.dim() == 2:
