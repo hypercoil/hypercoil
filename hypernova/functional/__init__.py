@@ -9,6 +9,9 @@ from .cov import (
     precision, invert_spd, covariance, correlation, corrcoef, pcorr, ccov,
     ccorr
 )
+from .polynomial import (
+    polychan, polyconv
+)
 from .symmap import (
     symmap, symexp, symlog, symsqrt
 )
