@@ -22,3 +22,10 @@ def polychan(X, degree=2, include_const=False):
     if include_const:
         stack = [torch.ones_like(X)] + stack
     return torch.stack(stack, 1)
+
+
+def polyconv(X, weight, include_const=False, bias=None):
+    degree = weight.size(1) - include_const
+    padding = (0, weight.size(-1) // 2)
+    X = polychan(X, degree=degree, include_const=include_const)
+    return torch.conv2d(X, weight, bias=bias, stride=1, padding=padding)
