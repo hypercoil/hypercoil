@@ -13,7 +13,7 @@ from .fourier import (
     product_filter
 )
 from .polynomial import (
-    polychan, polyconv
+    polychan, polyconv2d
 )
 from .symmap import (
     symmap, symexp, symlog, symsqrt

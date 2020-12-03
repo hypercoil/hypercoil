@@ -6,7 +6,7 @@ Fourier-domain filter
 ~~~~~~~~~~~~~~~~~~~~~
 Convolve the signal via multiplication in the Fourier domain.
 """
-import torch
+import torch.fft
 
 
 def product_filter(X, weight, **params):

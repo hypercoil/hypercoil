@@ -7,7 +7,7 @@ Unit tests for Fourier-domain filtering
 import torch
 import numpy as np
 from scipy.fft import rfft, irfft
-from hypernova.fourier import (
+from hypernova.functional import (
     product_filter
 )
 
