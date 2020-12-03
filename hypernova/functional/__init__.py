@@ -10,7 +10,7 @@ from .cov import (
     ccorr
 )
 from .fourier import (
-    freqproduct
+    product_filter
 )
 from .polynomial import (
     polychan, polyconv
