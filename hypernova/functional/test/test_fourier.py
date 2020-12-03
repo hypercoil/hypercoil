@@ -25,6 +25,10 @@ def scipy_product_filter(X, weight):
     return irfft(weight * rfft(X))
 
 
+def uniform_attenuator():
+    return 0.5 * torch.ones(N // 2 + 1)
+
+
 def bandpass_filter():
     weight = torch.ones(N // 2 + 1)
     weight[:10] = 0
@@ -37,4 +41,11 @@ def test_bandpass():
     w = wt.numpy()
     out = product_filter(Xt, wt).numpy()
     ref = scipy_product_filter(X, w)
+    assert testf(out, ref)
+
+
+def test_attenuation():
+    wt = uniform_attenuator()
+    out = product_filter(Xt, wt).numpy()
+    ref = 0.5 * X
     assert testf(out, ref)
