@@ -6,7 +6,7 @@ Unit tests for polynomial convolution
 """
 import torch
 from hypernova.functional import (
-    polyconv
+    polyconv2d
 )
 
 
@@ -25,7 +25,7 @@ def known_filter():
     return weight.view(1, weight.size(0), 1, weight.size(1))
 
 
-def test_polyconv():
-    out = polyconv(X, known_filter())
+def test_polyconv2d():
+    out = polyconv2d(X, known_filter())
     ref = X + 0.3 * X ** 2 - 0.1 * X ** 3
     assert testf(out, ref)
