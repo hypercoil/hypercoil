@@ -9,6 +9,9 @@ from .cov import (
     precision, invert_spd, covariance, correlation, corrcoef, pcorr, ccov,
     ccorr
 )
+from .fourier import (
+    freqproduct
+)
 from .polynomial import (
     polychan, polyconv
 )
