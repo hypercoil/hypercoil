@@ -163,6 +163,24 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     return sigma
 
 
+def pairedcorr(X, Y, **params):
+    """
+    Empirical Pearson correlation between variables in two tensor batches.
+
+    Consult the `pairedcov`documentation for complete parameter details.
+    The empirical paired correlation is obtained via normalisation of the
+    paired covariance. Given a paired covariance matrix
+    :math:`\hat{\Sigma} \in \mathbb{R}^{n \times n}`, each entry of the
+    paired correlation matrix :math:`R \in \mathbb{R}^{n \times n}`
+    is defined according to
+
+    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\hat{\Sigma}_{ii} \hat{\Sigma}_{ij}}`
+    """
+    varX, varY = torch.var(X, 1), torch.var(Y, 1)
+    fact = torch.sqrt(varX.view(-1, 1) @ varY.view(1, -1))
+    return pairedcov(X, Y, **params) / fact
+
+
 def conditionalcov(X, Y, **params):
     """
     Conditional covariance of variables in a tensor batch.
