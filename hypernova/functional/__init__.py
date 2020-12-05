@@ -7,7 +7,7 @@ Functional interfaces
 from .cov import (
     cov, corr, partialcorr, pairedcov, conditionalcov, conditionalcorr,
     precision, invert_spd, covariance, correlation, corrcoef, pcorr, ccov,
-    ccorr
+    ccorr, pairedcorr
 )
 from .fourier import (
     product_filter
