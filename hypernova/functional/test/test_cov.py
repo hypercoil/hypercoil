@@ -9,7 +9,7 @@ import pandas as pd
 import torch
 import pingouin
 from hypernova.functional import (
-    cov, corr, partialcorr, pairedcov, precision,
+    cov, corr, partialcorr, pairedcov, pairedcorr, precision,
     conditionalcov, conditionalcorr
 )
 
@@ -93,6 +93,12 @@ def test_paired():
 def test_corr():
     out = corr(Xt).numpy()
     ref = np.corrcoef(X)
+    assert testf(out, ref)
+
+
+def test_pairedcorr():
+    out = pairedcorr(Xt, Yt).numpy()
+    ref = corr(torch.cat([Xt, Yt]))[:7, 7:].numpy()
     assert testf(out, ref)
 
 
