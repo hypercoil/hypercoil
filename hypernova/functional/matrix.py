@@ -9,16 +9,17 @@ Special matrix functions.
 def toeplitz(c, r=None, dim=None):
     if r is None:
         r = c.conj()
-    clen, rlen = c.size(-1), r.size(-1)
+    clen, rlen = c.size(0), r.size(0)
+    obj_shp = c.size()[1:]
     if dim is not None and dim is not (clen, rlen):
-        r_ = torch.zeros(dim[1], dtype=c.dtype, device=c.device)
-        c_ = torch.zeros(dim[0], dtype=c.dtype, device=c.device)
+        r_ = torch.zeros([*obj_shp, dim[1]], dtype=c.dtype, device=c.device)
+        c_ = torch.zeros([*obj_shp, dim[0]], dtype=c.dtype, device=c.device)
         r_[:rlen] = r
         c_[:clen] = c
         r, c = r_, c_
-    out_shp = c.size(-1), r.size(-1)
+    out_shp = c.size(0), r.size(0)
     # return _strided_view_toeplitz(r, c, out_shp)
-    X = torch.empty(*out_shp, dtype=c.dtype, device=c.device)
+    X = torch.empty([*out_shp, *obj_shp], dtype=c.dtype, device=c.device)
     for i, val in enumerate(c):
         m = min(i + out_shp[1], out_shp[0])
         for j in range(i, m):
@@ -27,7 +28,7 @@ def toeplitz(c, r=None, dim=None):
         m = min(i + out_shp[0], out_shp[1])
         for j in range(i, m):
             X[j - i, j] = val
-    return X
+    return X.permute(*range(2, X.dim()), 0, 1)
 
 
 def _strided_view_toeplitz(r, c, out_shp):
