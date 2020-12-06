@@ -7,6 +7,59 @@ Special matrix functions.
 
 
 def toeplitz(c, r=None, dim=None, fill_value=0):
+    """
+    Populate a block of tensors with Toeplitz banded structure.
+
+    Thanks to https://github.com/cornellius-gp/gpytorch/blob/master/gpytorch/utils/toeplitz.py
+    for ideas toward a faster implementation.
+
+    Dimension
+    ---------
+    - c: :math:`(C, *)`
+      C denotes the number of elements in the first column whose values are
+      propagated along the matrix diagonals. `*` denotes any number of
+      additional dimensions.
+    - r: :math:`(R, *)`
+      R denotes the number of elements in the first row whose values are
+      propagated along the matrix diagonals. `*` must be the same as in input
+      `c` or compatible via broadcasting.
+    - fill_value: :math:`(*)`
+    - Output: :math:`(*, C^{*}, R^{*})`
+      :math:`C^{*}` and :math:`{*}` default to C and R unless specified
+      otherwise in the `dim` argument.
+
+    Parameters
+    ----------
+    c: Tensor
+        Tensor of entries in the first column of each Toeplitz matrix. The
+        first axis corresponds to a single matrix column; additional dimensions
+        correspond to concatenation of Toeplitz matrices into a stack or block
+        tensor.
+    r: Tensor
+        Tensor of entries in the first row of each Toeplitz matrix. The first
+        axis corresponds to a single matrix row; additional dimensions
+        correspond to concatenation of Toeplitz matrices into a stack or block
+        tensor.
+    dim: 2-tuple of (int, int) or None (default)
+        Dimension of each Toeplitz banded matrix in the output block. If this
+        is None or unspecified, it defaults to the sizes of the first axes of
+        inputs `c` and `r`. Otherwise, the row and column inputs are extended
+        until their dimensions equal those specified here. This can be useful,
+        for instance, to create a large banded matrix with mostly zero
+        off-diagonals.
+    fill_value: Tensor or float (default 0)
+        Specifies the value that should be used to populate the off-diagonals
+        of each Toeplitz matrix if the specified row and column elements are
+        extended to conform with the specified `dim`. If this is a tensor, then
+        each entry corresponds to the fill value in a different data channel.
+        Has no effect if `dim` is None.
+
+    Returns
+    -------
+    out: Tensor
+        Block of Toeplitz matrices populated from the specified row and column
+        elements.
+    """
     if r is None:
         r = c.conj()
     clen, rlen = c.size(0), r.size(0)
