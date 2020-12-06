@@ -6,14 +6,17 @@ Special matrix functions.
 """
 
 
-def toeplitz(c, r=None, dim=None):
+def toeplitz(c, r=None, dim=None, fill_value=0):
     if r is None:
         r = c.conj()
     clen, rlen = c.size(0), r.size(0)
     obj_shp = c.size()[1:]
     if dim is not None and dim is not (clen, rlen):
-        r_ = torch.zeros([*obj_shp, dim[1]], dtype=c.dtype, device=c.device)
-        c_ = torch.zeros([*obj_shp, dim[0]], dtype=c.dtype, device=c.device)
+        r_ = torch.zeros([dim[1], *obj_shp], dtype=c.dtype, device=c.device)
+        c_ = torch.zeros([dim[0], *obj_shp], dtype=c.dtype, device=c.device)
+        if fill_value != 0:
+            r_ += fill_value
+            c_ += fill_value
         r_[:rlen] = r
         c_[:clen] = c
         r, c = r_, c_
