@@ -4,14 +4,35 @@
 """
 Special matrix functions.
 """
+import torch
+
+
+def invert_spd(A):
+    """
+    Invert a symmetric positive definite matrix.
+
+    Currently, this operates by computing the Cholesky decomposition of the
+    matrix, inverting the decomposition, and recomposing.
+
+    Parameters
+    ----------
+    A: Tensor
+        Batch of symmetric positive definite matrices.
+
+    Returns
+    -------
+    Ainv: Tensor
+        Inverse or Moore-Penrose pseudoinverse of each matrix in the input
+        batch.
+    """
+    L = torch.cholesky(A)
+    Li = torch.pinverse(L)
+    return Li.transpose(-1, -2) @ Li
 
 
 def toeplitz(c, r=None, dim=None, fill_value=0):
     """
     Populate a block of tensors with Toeplitz banded structure.
-
-    Thanks to https://github.com/cornellius-gp/gpytorch/blob/master/gpytorch/utils/toeplitz.py
-    for ideas toward a faster implementation.
 
     Dimension
     ---------
@@ -39,7 +60,9 @@ def toeplitz(c, r=None, dim=None, fill_value=0):
         Tensor of entries in the first row of each Toeplitz matrix. The first
         axis corresponds to a single matrix row; additional dimensions
         correspond to concatenation of Toeplitz matrices into a stack or block
-        tensor.
+        tensor. The first entry in each column should be the same as the first
+        entry in the corresponding column of `c`; otherwise, it will be
+        ignored.
     dim: 2-tuple of (int, int) or None (default)
         Dimension of each Toeplitz banded matrix in the output block. If this
         is None or unspecified, it defaults to the sizes of the first axes of
@@ -73,6 +96,16 @@ def toeplitz(c, r=None, dim=None, fill_value=0):
         r_[:rlen] = r
         c_[:clen] = c
         r, c = r_, c_
+    return _populate_toeplitz(c, r, obj_shp)
+
+
+def _populate_toeplitz(c, r, obj_shp):
+    """
+    Populate a block of Toeplitz matrices without any preprocessing.
+
+    Thanks to https://github.com/cornellius-gp/gpytorch/blob/master/gpytorch/utils/toeplitz.py
+    for ideas toward a faster implementation.
+    """
     out_shp = c.size(0), r.size(0)
     # return _strided_view_toeplitz(r, c, out_shp)
     X = torch.empty([*out_shp, *obj_shp], dtype=c.dtype, device=c.device)
