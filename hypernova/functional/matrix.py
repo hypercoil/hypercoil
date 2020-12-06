@@ -90,7 +90,7 @@ def toeplitz(c, r=None, dim=None, fill_value=0):
     if dim is not None and dim is not (clen, rlen):
         r_ = torch.zeros([dim[1], *obj_shp], dtype=c.dtype, device=c.device)
         c_ = torch.zeros([dim[0], *obj_shp], dtype=c.dtype, device=c.device)
-        if isinstance(fills, torch.Tensor) or fill_value != 0:
+        if isinstance(fill_value, torch.Tensor) or fill_value != 0:
             r_ += fill_value
             c_ += fill_value
         r_[:rlen] = r
