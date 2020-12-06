@@ -7,6 +7,7 @@ Covariance
 Differentiable estimation of covariance and derived measures
 """
 import torch
+from .matrix import invert_spd
 
 
 def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
@@ -292,29 +293,6 @@ def corrnorm(A):
     d = torch.diagonal(A)
     fact = -torch.sqrt(d).unsqueeze(-1)
     return (fact @ fact.transpose(-1, -2))
-
-
-def invert_spd(A):
-    """
-    Invert a symmetric positive definite matrix.
-
-    Currently, this operates by computing the Cholesky decomposition of the
-    matrix, inverting the decomposition, and recomposing.
-
-    Parameters
-    ----------
-    A: Tensor
-        Batch of symmetric positive definite matrices.
-
-    Returns
-    -------
-    Ainv: Tensor
-        Inverse or Moore-Penrose pseudoinverse of each matrix in the input
-        batch.
-    """
-    L = torch.cholesky(A)
-    Li = torch.pinverse(L)
-    return Li.transpose(-1, -2) @ Li
 
 
 def covariance(*pparams, **params):

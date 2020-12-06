@@ -6,11 +6,14 @@ Functional interfaces
 """
 from .cov import (
     cov, corr, partialcorr, pairedcov, conditionalcov, conditionalcorr,
-    precision, invert_spd, covariance, correlation, corrcoef, pcorr, ccov,
-    ccorr, pairedcorr
+    precision, pairedcorr, covariance, correlation, corrcoef, pcorr, ccov,
+    ccorr
 )
 from .fourier import (
     product_filter
+)
+from .matrix import (
+    invert_spd, toeplitz
 )
 from .polynomial import (
     polychan, polyconv2d
