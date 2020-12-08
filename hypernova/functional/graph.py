@@ -99,6 +99,10 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
     P : Tensor
         Block comprising modularity matrices corresponding to each input
         adjacency matrix.
+
+    See also
+    --------
+    relaxed_modularity: Compute the modularity given a community structure.
     """
     mod = A - gamma * null(A, **params)
     if normalise:
@@ -107,17 +111,20 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
     return mod
 
 
-def relaxed_modularity(A, C, C_o=None, O=None, gamma=1,
-                       null=girvan_newman_null, normalise=True,
-                       exclude_diag=False, **params):
-    B = modularity_matrix(A, gamma=gamma, null=null,
-                          normalise=normalise, **params)
-    if C_o is None:
-        C_o = C
-    if O is None:
-        C = C @ C_o.transpose(-1, -2)
+def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True):
+    C_o = C_o or C_i
+    if L is None:
+        C = C_i @ C_o.transpose(-1, -2)
     else:
-        C = C @ O @ C_o.transpose(-1, -2)
+        C = C_i @ L @ C_o.transpose(-1, -2)
     if exclude_diag:
         C[torch.eye(C.size(-1), dtype=torch.bool)] = 0
+    return C
+
+
+def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
+                       null=girvan_newman_null, normalise=True, **params):
+    B = modularity_matrix(A, gamma=gamma, null=null,
+                          normalise=normalise, **params)
+    C = coaffiliation(C, C_o=C_o, L=L, exclude_diag=exclude_diag)
     return (B * C).sum([-2, -1])
