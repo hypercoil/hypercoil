@@ -115,6 +115,15 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True):
     """
     Coaffiliation of vertices under a community structure.
 
+    Given community affiliation matrices
+    :math:`C^{(i)} \in \mathbb{R}^{I \times C}` for source nodes and
+    :math:`C^{(o)} \in \mathbb{R}^{O \times C}` for sink nodes, and given a
+    matrix of inter-community coupling coefficients
+    :math:`\Omega \in \mathbb{R}^{C \times C}`, the coaffiliation
+    :math:`H \in \mathbb{R}^{I \times O}` is computed as
+
+    :math:`H = C^{(i)} \Omega C^{(o)\intercal}`
+
     Dimension
     ---------
     - C_i: :math:`(*, I, C)`
@@ -139,10 +148,11 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True):
         assumed that the source and sink sets are the same, and `C_o` is set
         equal to `C_i`.
     L : Tensor or None (default None)
-        Probability of affiliation between communities. Each entry
+        The inter-community coupling matrix :math:`\Omega`, mapping the
+        probability of affiliation between communities. Each entry
         :math:`L_{ij}` encodes the probability of a vertex in community i
         connecting with a vertex in community j. If None, then a strictly
-        associative structure is assumed (equivalent to L equals identity),
+        assortative structure is assumed (equivalent to L equals identity),
         under which nodes in the same community preferentially coaffiliate
         while nodes in different communities remain disaffiliated.
     exclude_diag : bool (default True)
@@ -164,13 +174,20 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True):
 
 
 def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
-                       null=girvan_newman_null, normalise=True, **params):
+                       null=girvan_newman_null, normalise=True, directed=False,
+                       **params):
     """
     A relaxation of the modularity of a network given a community partition.
 
     This relaxation supports non-deterministic assignments of vertices to
-    communities and non-associative linkages between communities. It reverts to
+    communities and non-assortative linkages between communities. It reverts to
     standard behaviour when the inputs it is provided are standard.
+
+    The relaxed modularity is defined as the sum of all entries in the Hadamard
+    (elementwise) product between the modularity matrix and the coaffiliation
+    matrix.
+
+    :math:`Q = \mathbf{1}^\intercal \left( B \circ H \right) \mathbf{1}`
 
     Dimension
     ---------
@@ -203,7 +220,7 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
         Probability of affiliation between communities. Each entry
         :math:`L_{ij}` encodes the probability of a vertex in community i
         connecting with a vertex in community j. If None, then a strictly
-        associative structure is assumed (equivalent to L equals identity),
+        assortative structure is assumed (equivalent to L equals identity),
         under which nodes in the same community preferentially coaffiliate
         while nodes in different communities remain disaffiliated.
     exclude_diag : bool (default True)
@@ -221,6 +238,9 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
         matrix degree. This may not be necessary for many use cases -- for
         instance, where the arg max of a function of the modularity matrix is
         desired.
+    directed : bool (default False)
+        Indicates that the input adjacency matrices should be considered as a
+        directed graph.
     Any additional parameters are passed to the null model.
 
     Returns
@@ -231,4 +251,7 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
     B = modularity_matrix(A, gamma=gamma, null=null,
                           normalise=normalise, **params)
     C = coaffiliation(C, C_o=C_o, L=L, exclude_diag=exclude_diag)
-    return (B * C).sum([-2, -1])
+    Q = (B * C).sum([-2, -1])
+    if not directed:
+        return Q / 2
+    return Q
