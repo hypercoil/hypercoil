@@ -112,6 +112,47 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
 
 
 def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True):
+    """
+    Coaffiliation of vertices under a community structure.
+
+    Dimension
+    ---------
+    - C_i: :math:`(*, I, C)`
+      `*` denotes any number of intervening dimensions, I denotes number of
+      vertices in the source set, and C denotes the total number of communities
+      in the proposed partition.
+    - C_o: :math:`(*, O, C)`
+      O denotes number of vertices in the sink set. If the same set of vertices
+      emits and receives edges, then :math:`I = O`.
+    - L: :math:`(*, C, C)`
+
+    Parameters
+    ----------
+    C_i : Tensor
+        Community affiliation of vertices in the source set. Each slice is a
+        matrix :math:`C^{(i)} \in \mathbb{R}^{I \ times C}` that encodes the
+        uncertainty in each vertex's community assignment. :math:`C^{(i)}_{jk}`
+        denotes the probability that vertex j is assigned to community k. If
+        this is binary-valued, then it reflects a deterministic assignment.
+    C_o : Tensor or None (default None)
+        Community affiliation of vertices in the sink set. If None, then it is
+        assumed that the source and sink sets are the same, and `C_o` is set
+        equal to `C_i`.
+    L : Tensor or None (default None)
+        Probability of affiliation between communities. Each entry
+        :math:`L_{ij}` encodes the probability of a vertex in community i
+        connecting with a vertex in community j. If None, then a strictly
+        associative structure is assumed (equivalent to L equals identity),
+        under which nodes in the same community preferentially coaffiliate
+        while nodes in different communities remain disaffiliated.
+    exclude_diag : bool (default True)
+        Indicates that self-links are not factored into the coaffiliation.
+
+    Returns
+    -------
+    C : Tensor
+        Coaffiliation matrix for each input community structure.
+    """
     C_o = C_o or C_i
     if L is None:
         C = C_i @ C_o.transpose(-1, -2)
@@ -124,6 +165,69 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True):
 
 def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
                        null=girvan_newman_null, normalise=True, **params):
+    """
+    A relaxation of the modularity of a network given a community partition.
+
+    This relaxation supports non-deterministic assignments of vertices to
+    communities and non-associative linkages between communities. It reverts to
+    standard behaviour when the inputs it is provided are standard.
+
+    Dimension
+    ---------
+    - Input: :math:`(N, *, I, O)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      I denotes number of vertices in the source set and O denotes number of
+      vertices in the sink set. If the same set of vertices emits and receives
+      edges, then :math:`I = O`.
+    - C: :math:`(*, I, C)`
+      C denotes the total number of communities in the proposed partition.
+    - C_o: :math:`(*, O, C)`
+    - L: :math:`(*, C, C)`
+    - Output: :math:`(N, *)`
+
+    Parameters
+    ----------
+    A : Tensor
+        Block of adjacency matrices for which the modularity is to be computed.
+    C : Tensor
+        Community affiliation of vertices in the source set. Each slice is a
+        matrix :math:`C^{(i)} \in \mathbb{R}^{I \ times C}` that encodes the
+        uncertainty in each vertex's community assignment. :math:`C^{(i)}_{jk}`
+        denotes the probability that vertex j is assigned to community k. If
+        this is binary-valued, then it reflects a deterministic assignment.
+    C_o : Tensor or None (default None)
+        Community affiliation of vertices in the sink set. If None, then it is
+        assumed that the source and sink sets are the same, and `C_o` is set
+        equal to `C`.
+    L : Tensor or None (default None)
+        Probability of affiliation between communities. Each entry
+        :math:`L_{ij}` encodes the probability of a vertex in community i
+        connecting with a vertex in community j. If None, then a strictly
+        associative structure is assumed (equivalent to L equals identity),
+        under which nodes in the same community preferentially coaffiliate
+        while nodes in different communities remain disaffiliated.
+    exclude_diag : bool (default True)
+        Indicates that self-links are not factored into the coaffiliation.
+    gamma : nonnegative float (default 1)
+        Resolution parameter for the modularity matrix. A smaller value assigns
+        maximum modularity to partitions with large communities, while a larger
+        value assigns maximum modularity to partitions with many small
+        communities.
+    null : callable(A) (default `girvan_newman_null`)
+        Function of A that returns, for each adjacency matrix in the input
+        tensor block, a suitable null model.
+    normalise : bool (default True)
+        Indicates that the resulting matrix should be normalised by the total
+        matrix degree. This may not be necessary for many use cases -- for
+        instance, where the arg max of a function of the modularity matrix is
+        desired.
+    Any additional parameters are passed to the null model.
+
+    Returns
+    -------
+    Q : Tensor
+        Modularity of each input adjacency matrix.
+    """
     B = modularity_matrix(A, gamma=gamma, null=null,
                           normalise=normalise, **params)
     C = coaffiliation(C, C_o=C_o, L=L, exclude_diag=exclude_diag)
