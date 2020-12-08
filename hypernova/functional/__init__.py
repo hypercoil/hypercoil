@@ -12,6 +12,9 @@ from .cov import (
 from .fourier import (
     product_filter
 )
+from .graph import (
+    girvan_newman_null, modularity_matrix
+)
 from .matrix import (
     invert_spd, toeplitz
 )
