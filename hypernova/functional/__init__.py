@@ -13,7 +13,7 @@ from .fourier import (
     product_filter
 )
 from .graph import (
-    girvan_newman_null, modularity_matrix
+    girvan_newman_null, modularity_matrix, relaxed_modularity
 )
 from .matrix import (
     invert_spd, toeplitz

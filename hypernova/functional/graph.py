@@ -92,6 +92,7 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
         matrix degree. This may not be necessary for many use cases -- for
         instance, where the arg max of a function of the modularity matrix is
         desired.
+    Any additional parameters are passed to the null model.
 
     Returns
     -------
@@ -104,3 +105,16 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
         two_m = A.sum([-2, -1], keepdim=True)
         return mod / two_m
     return mod
+
+
+def relaxed_modularity(A, C, O=None, gamma=1, null=girvan_newman_null,
+                   normalise=True, exclude_diag=False, **params):
+    B = modularity_matrix(A, gamma=gamma, null=null,
+                          normalise=normalise, **params)
+    if O is None:
+        C = C @ C.transpose(-1, -2)
+    else:
+        C = C @ O @ C.transpose(-1, -2)
+    if exclude_diag:
+        C[torch.eye(C.size(-1), dtype=torch.bool)] = 0
+    return (B * C).sum([-2, -1])
