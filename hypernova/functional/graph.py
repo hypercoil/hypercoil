@@ -107,14 +107,17 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
     return mod
 
 
-def relaxed_modularity(A, C, O=None, gamma=1, null=girvan_newman_null,
-                   normalise=True, exclude_diag=False, **params):
+def relaxed_modularity(A, C, C_o=None, O=None, gamma=1,
+                       null=girvan_newman_null, normalise=True,
+                       exclude_diag=False, **params):
     B = modularity_matrix(A, gamma=gamma, null=null,
                           normalise=normalise, **params)
+    if C_o is None:
+        C_o = C
     if O is None:
-        C = C @ C.transpose(-1, -2)
+        C = C @ C_o.transpose(-1, -2)
     else:
-        C = C @ O @ C.transpose(-1, -2)
+        C = C @ O @ C_o.transpose(-1, -2)
     if exclude_diag:
         C[torch.eye(C.size(-1), dtype=torch.bool)] = 0
     return (B * C).sum([-2, -1])
