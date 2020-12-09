@@ -29,7 +29,7 @@ def crosshair_similarity(X, W):
       N denotes batch size, `*` denotes any number of intervening dimensions,
       :math:`C_{in}` denotes number of input data channels, H and W denote
       height and width of each input matrix.
-    - W: :math:`(C_{out}, C_{in}, H, W)`
+    - W: :math:`(*, C_{out}, C_{in}, H, W)`
       :math:`C_{out}` denotes number of output data channels.
     - Output: :math:`(N, *, C_{out}, H, W)`
 
@@ -44,8 +44,8 @@ def crosshair_similarity(X, W):
     W : Tensor
         Block of reference or template tensors or filters. The last two axes
         correspond to row and column dimensions, and the third to last
-        corresponds to the input data channels. The first axis corresponds to
-        output data channels.
+        corresponds to the input data channels. The fourth to last axis
+        corresponds to output data channels.
 
     Output
     ------
