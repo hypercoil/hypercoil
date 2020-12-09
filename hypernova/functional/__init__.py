@@ -16,7 +16,7 @@ from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity
 )
 from .matrix import (
-    invert_spd, toeplitz
+    invert_spd, expand_outer, toeplitz
 )
 from .polynomial import (
     polychan, polyconv2d
