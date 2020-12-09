@@ -26,6 +26,7 @@ comms = [np.where(aff==c)[0] for c in np.unique(aff)]
 C = np.eye(4)[aff]
 Xt = torch.Tensor(X)
 Ct = torch.Tensor(C)
+Lt = torch.rand(4, 4)
 
 
 def test_modularity_matrix():
@@ -35,7 +36,11 @@ def test_modularity_matrix():
 
 
 def test_modularity():
-    out = relaxed_modularity(Xt, Ct, exclude_diag=True) / 2
+    out = relaxed_modularity(Xt, Ct, exclude_diag=True, directed=False)
     ref = np.stack(
         [modularity_ref(modularity_matrix_ref(x), comms) for x in X])
     assert testf(out, ref)
+
+
+def test_nonassociative_block():
+    out = relaxed_modularity(Xt, Ct, L=Lt, exclude_diag=True) / 2
