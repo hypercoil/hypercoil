@@ -30,6 +30,54 @@ def invert_spd(A):
     return Li.transpose(-1, -2) @ Li
 
 
+def expand_outer(L, R=None, symmetry=None):
+    """
+    Multiply out a left and a right generator matrix as an outer product.
+
+    The rank of the output is limited according to the inner dimensions of the
+    input generators. This approach can be used to produce a low-rank output
+    or to share the generators' parameters across the rows and columns of the
+    output matrix.
+
+    Dimension
+    ---------
+    - L: :math:`(*, H, rank)`
+      H denotes the height of the expanded matrix, and rank denotes its maximum
+      rank.
+    - R: :math:`(*, W, rank)`
+      W denotes the width of the expanded matrix.
+    - Output: :math:`(*, H, W)`
+
+    Parameters
+    ----------
+    L : Tensor
+        Left generator of a low-rank matrix (:math:`L R^\intercal`).
+    R : Tensor or None (default None)
+        Right generator of a low-rank matrix (:math:`L R^\intercal`). If this
+        is None, then the output matrix is symmetric :math:`L L^\intercal`.
+    symmetry : 'cross', 'skew', or other (default None)
+        Symmetry constraint imposed on the generated low-rank template matrix.
+        * `cross` enforces symmetry by replacing the initial expansion with
+          the average of the initial expansion and its transpose,
+          :math:`\frac{1}{2} \left( L R^\intercal + R L^\intercal \right)`
+        * `skew` enforces skew-symmetry by subtracting from the initial
+          expansion its transpose,
+          :math:`\frac{1}{2} \left( L R^\intercal - R L^\intercal \right)`
+        * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
+          also be enforced by passing None for R or by passing the same input
+          for R and L. (This approach also guarantees that the output is
+          positive semidefinite.)
+    """
+    if R is None:
+        R = L
+    output = (L @ R.transpose(-2, -1)).unsqueeze(0)
+    if symmetry == 'cross':
+        return (output + output.transpose(-2, -1)) / 2
+    elif symmetry == 'skew':
+        return output - output.transpose(-2, -1) / 2
+    return output
+
+
 def toeplitz(c, r=None, dim=None, fill_value=0):
     """
     Populate a block of tensors with Toeplitz banded structure.
