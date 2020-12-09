@@ -41,6 +41,10 @@ def crosshair_dot(A, B, row=-2, col=-1):
     output: Tensor
         Tensor in which each entry contains the inner product between entries
         of the two input matrices computed over a crosshair-shaped kernel.
+
+    See also
+    --------
+    crosshair_dot_gen: Extend the kernel over more than 2 dimensions.
     """
     prod = A * B
     rows = prod.sum(row, keepdim=True)
@@ -115,3 +119,21 @@ def crosshair_norm_l1(A, row=-2, col=-1):
     rows = abs.sum(row, keepdim=True)
     cols = abs.sum(col, keepdim=True)
     return rows + cols - abs
+
+
+def crosshair_dot_gen(A, B, axes=(-2, -1)):
+    """
+    A generalised version of the crosshair dot product where the crosshair can
+    be extended over any number of dimensions. As it suffers poor performance
+    relative to the 2-D implementation and as its use cases are likely narrow,
+    its correctness is not tested.
+    """
+    prod = A * B
+    repeats = len(axes) - 1
+    axis_sum = [None for _ in axes]
+    for i, ax in enumerate(axes):
+        axis_sum[i] = prod.sum(ax, keepdim=True)
+    out = axis_sum[0]
+    for a in axis_sum[1:]:
+        out = out + a
+    return out - repeats * prod
