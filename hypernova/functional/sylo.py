@@ -6,64 +6,77 @@ Sylo
 ~~~~
 Sylo ("symmetric low-rank") kernel operator.
 """
-from .functions.crosssim import crosshair_similarity
+from .matrix import expand_outer
+from .crosssim import crosshair_similarity
 
 
-def sylo(input, weight, bias=None, symmetry=None,
+def sylo(X, L, R=None, bias=None, symmetry=None,
          similarity=crosshair_similarity):
     """
+    Sylo transformation of a tensor block.
+
     Compute a local measure of graph or matrix similarity between an input
-    and a bank of potentially symmetric, low-rank templates.
-    In summary, the steps are:
-    0. Shape: N x C_in x H x W
-    1. Low-rank mapping of local similarities between the input and each of
-       the weights
-       Shape: N x C_out x H x W
-    2. Biasing each filtered map
-       Shape: N x C_out x H x W
+    and a bank of potentially symmetric, low-rank templates. In summary, the
+    steps are:
+    1. Outer product expansion of the left and right weight vectors into a bank
+       of templates.
+    2. Low-rank mapping of local similarities between the input and each of the
+       templates.
+    3. Biasing each filtered map.
+
+    Dimension
+    ---------
+    - Input: :math:`(N, *, C_{in}, H, W)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      :math:`C_{in}` denotes number of input data channels, H and W denote
+      height and width of each input matrix.
+    - L: :math:`(*, C_{out}, C_{in}, H, rank)`
+      :math:`C_{out}` denotes number of output data channels, rank denotes the
+      maximum rank of each template in the reference bank.
+    - R: :math:`(*, C_{out}, C_{in}, W, rank)`
+    - bias: :math:`(*, C_{out})`
+
     Parameters
     ----------
-    input: Tensor
+    input : Tensor
         Input tensor of shape `N` x `C_in` x `H` x `W`.
-    weight: tuple(Tensor)
-        Low-rank basis that transforms the input via a local similarity
-        measure. Passed as (`L`, `R`), where `L` is of shape
-        `C_out` x `C_in` x `H` x `rank` and `R` is of shape
-        `C_out` x `C_in` x `W` x `rank`. One way to enforce symmetry of
-        learned templates is by passing the same tensor as `L` and `R`.
+    L, R : Tensors
+        Left and right precursors of a low-rank basis that transforms the input
+        via a local similarity measure. The tempalte basis itself is created
+        as the outer product between the left (column) and right (row) weight
+        vectors. One way to enforce symmetry and positive semidefiniteness of
+        learned templates is by passing the same tensor as `L` and `R`; this is
+        the default behaviour.
     bias: Tensor
-        Bias term of shape `C_out` to be added to the output.
-    symmetry: bool, 'cross', or 'skew'
-        Symmetry constraints to impose on expanded templates.
-        * If 'cross', the templates generated from the expansion of `weights`
-          are constrained to be symmetric; the templates are defined as the
-          average of the expansion and its transpose:
-          1/2 (L @ R.T + R @ L.T).
-        * If 'skew', the templates generated from the expansion of `weights`
-          are constrained to be skew-symmetric; the templates are defined as
-          the difference between the expansion and its transpose:
-          L @ R.T - R @ L.T
-        * Otherwise, no explicit symmetry constraints are placed on the
-          templates generated from the expansion of `weights`. Symmetry can
-          still be enforced by passing the same tensor twice for `weights`.
+        Bias term to be added to the output.
+    symmetry : 'cross', 'skew', or other (default None)
+        Symmetry constraint imposed on the generated low-rank template matrix.
+        * `cross` enforces symmetry by replacing the initial expansion with
+          the average of the initial expansion and its transpose,
+          :math:`\frac{1}{2} \left( L R^\intercal + R L^\intercal \right)`
+        * `skew` enforces skew-symmetry by subtracting from the initial
+          expansion its transpose,
+          :math:`\frac{1}{2} \left( L R^\intercal - R L^\intercal \right)`
+        * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
+          also be enforced by passing None for R or by passing the same input
+          for R and L. (This approach also guarantees that the output is
+          positive semidefinite.)
         This option will result in an error for nonsquare matrices or bipartite
         graphs. Note that the parameter count doubles if this is False.
-        Default: None
-    similarity: function
-        Definition of the similarity metric. This must be a function whose
-        inputs and outputs are:
-        * input 0: reference matrix (N x C_in x H x W)
-        * input 1: left template generator (C_out x C_in x H x R)
-        * input 2: right template generator (C_out x C_in x H x R)
-        * input 3: symmetry constraint ('cross', 'skew', or other)
-        * output (N x C_out x H x W)
-        Similarity is computed between each of the N matrices in the first
-        input stack and the (low-rank) matrix derived from the outer-product
-        expansion of the second and third inputs.
-        Default: `crosshair_similarity`
+    similarity: function (default `crosshair_similarity`)
+        Definition of the similarity metric. This must be a function that takes
+        as its first input the input tensor :math:`X` and as its second input
+        the expanded (and potentially symmetrised) weight tensor. Similarity is
+        computed between each of the N matrices in the first input stack and
+        the weight.
+
+    Returns
+    -------
+    output : Tensor
+        Input subject to a sylo transformation, as parametrised by the weights.
     """
-    L, R = weight
-    output = similarity(input, L, R, symmetry)
+    W = expand_outer(L, R, symmetry)
+    output = similarity(input, W, symmetry)
     if bias is not None:
-        output += bias.view(1, -1, 1, 1)
+        output += bias[..., None, None]
     return output
