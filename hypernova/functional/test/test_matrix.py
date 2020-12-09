@@ -12,7 +12,7 @@ from hypernova.functional import (
 )
 
 
-tol = 1e-6
+tol = 5e-3
 testf = lambda out, ref: np.allclose(out, ref, atol=tol)
 
 
@@ -33,7 +33,7 @@ ft = torch.Tensor(f)
 
 def test_invert_spd():
     out = invert_spd(At).numpy()
-    ref = np.linalg.inv(A)
+    ref = torch.inverse(At).numpy()
     assert testf(out, ref)
 
 

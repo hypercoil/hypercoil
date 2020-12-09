@@ -14,6 +14,12 @@ def invert_spd(A):
     Currently, this operates by computing the Cholesky decomposition of the
     matrix, inverting the decomposition, and recomposing.
 
+    Dimension
+    ---------
+    - Input: :math:`(*, D, D)`
+      D denotes the row or column dimension of the matrices to be inverted.
+    - Output: :math:`(*, D, D)`
+
     Parameters
     ----------
     A: Tensor
