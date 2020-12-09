@@ -9,6 +9,12 @@ from .cov import (
     precision, pairedcorr, covariance, correlation, corrcoef, pcorr, ccov,
     ccorr
 )
+from .crosssim import (
+    crosshair_similarity,
+    crosshair_l1_similarity,
+    crosshair_l2_similarity,
+    crosshair_cosine_similarity
+)
 from .fourier import (
     product_filter
 )
@@ -20,6 +26,9 @@ from .matrix import (
 )
 from .polynomial import (
     polychan, polyconv2d
+)
+from .sylo import (
+    sylo
 )
 from .symmap import (
     symmap, symexp, symlog, symsqrt
