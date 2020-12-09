@@ -15,150 +15,170 @@ from .crosshair import (
 from .matrix import expand_outer
 
 
-def crosshair_similarity(A, L, R=None, symmetry=None):
+def crosshair_similarity(X, W):
     """
-    Use a crosshair kernel to assess the local similarity between a
-    matrix A and low-rank templates L x R transpose.
+    Crosshair kernel inner product between a tensor block and a reference block
+    of template tensors.
 
-    The default crosshair similarity function defines similarity as a simple
-    dot product between the ravelled crosshair vectors.
+    Note that each output slice of this procedure is often a matrix
+    approximately of rank 1 (first singular value will dominate variance).
 
-    Note that the output of this procedure is a matrix approximately of
-    rank 1 (first singular value will dominate variance).
+    Dimension
+    ---------
+    - X: :math:`(N, *, C_{in}, H, W)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      :math:`C_{in}` denotes number of input data channels, H and W denote
+      height and width of each input matrix.
+    - W: :math:`(C_{out}, C_{in}, H, W)`
+      :math:`C_{out}` denotes number of output data channels.
+    - Output: :math:`(N, *, C_{out}, H, W)`
 
     Parameters
     ----------
-    A: Tensor (N x C_in x H x W)
-        The matrix in which features should be identified.
-    L: Tensor (C_out x C_in x H x rank)
-        Left generator of a low-rank matrix (L x R transpose) that specifies
-        a feature set to find in A.
-    R: Tensor or None (C_out x C_in x W x rank)
-        Right generator of a low-rank matrix (L x R transpose) that specifies
-        a feature set to find in A. If this is None, then the template matrix
-        is symmetric L x L transpose.
-    symmetry: 'cross', 'skew', or other
-        Symmetry constraint imposed on the generated low-rank template matrix.
-        * `cross` enforces symmetry by replacing the initial expansion with
-          the average of the initial expansion and its transpose.
-        * `skew` enforcesd skew-symmetry by subtracting from the initial
-          expansion its transpose.
-        * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
-          also be enforced by passing None for R or by passing the same input
-          for R and L.
+    X : Tensor
+        Block of input tensors in which features should be identified. The last
+        two axes correspond to the column and row dimensions of the matrices;
+        the third to last axis corresponds to the data channels viewed by each
+        reference template or filter. This is analogous to colour channels in a
+        convolutional layer.
+    W : Tensor
+        Block of reference or template tensors or filters. The last two axes
+        correspond to row and column dimensions, and the third to last
+        corresponds to the input data channels. The first axis corresponds to
+        output data channels.
+
+    Output
+    ------
+    out : Tensor
+        Output data channels resulting from applying the template to the input
+        dataset.
     """
-    B = expand_outer(L, R, symmetry)
-    return crosshair_dot(A.unsqueeze(1), B).sum(2)
+    return crosshair_dot(X.unsqueeze(-4), W).sum(-3)
 
 
-def crosshair_cosine_similarity(A, L, R=None, symmetry=None):
+def crosshair_cosine_similarity(X, W):
     """
-    Use a crosshair kernel to assess the local similarity between a
-    matrix A and low-rank templates L x R transpose.
+    Crosshair kernel cosine similarity between a tensor block and a reference
+    block of template tensors.
 
-    The crosshair cosine similarity function defines similarity as the cosine
-    similarity between the ravelled crosshair vectors.
+    Note that each output slice of this procedure is often a matrix
+    approximately of rank 1 (first singular value will dominate variance).
 
-    Note that the output of this procedure is a matrix approximately of
-    rank 1 (first singular value will dominate variance).
+    Dimension
+    ---------
+    - X: :math:`(N, *, C_{in}, H, W)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      :math:`C_{in}` denotes number of input data channels, H and W denote
+      height and width of each input matrix.
+    - W: :math:`(C_{out}, C_{in}, H, W)`
+      :math:`C_{out}` denotes number of output data channels.
+    - Output: :math:`(N, *, C_{out}, H, W)`
 
     Parameters
     ----------
-    A: Tensor (N x C_in x H x W)
-        The matrix in which features should be identified.
-    L: Tensor (C_out x C_in x H x rank)
-        Left generator of a low-rank matrix (L x R transpose) that specifies
-        a feature set to find in A.
-    R: Tensor or None (C_out x C_in x W x rank)
-        Right generator of a low-rank matrix (L x R transpose) that specifies
-        a feature set to find in A. If this is None, then the template matrix
-        is symmetric L x L transpose.
-    symmetry: 'cross', 'skew', or other
-        Symmetry constraint imposed on the generated low-rank template matrix.
-        * `cross` enforces symmetry by replacing the initial expansion with
-          the average of the initial expansion and its transpose.
-        * `skew` enforcesd skew-symmetry by subtracting from the initial
-          expansion its transpose.
-        * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
-          also be enforced by passing None for R or by passing the same input
-          for R and L.
+    X : Tensor
+        Block of input tensors in which features should be identified. The last
+        two axes correspond to the column and row dimensions of the matrices;
+        the third to last axis corresponds to the data channels viewed by each
+        reference template or filter. This is analogous to colour channels in a
+        convolutional layer.
+    W : Tensor
+        Block of reference or template tensors or filters. The last two axes
+        correspond to row and column dimensions, and the third to last
+        corresponds to the input data channels. The first axis corresponds to
+        output data channels.
+
+    Output
+    ------
+    out : Tensor
+        Output data channels resulting from applying the template to the input
+        dataset.
     """
-    B = expand_outer(L, R, symmetry)
-    num = crosshair_dot(A.unsqueeze(1), B)
-    denom0 = crosshair_norm_l2(A.unsqueeze(1))
-    denom1 = crosshair_norm_l2(B)
-    return (num / (denom0 * denom1)).sum(2)
+    num = crosshair_dot(X.unsqueeze(-4), W)
+    denom0 = crosshair_norm_l2(X.unsqueeze(-4))
+    denom1 = crosshair_norm_l2(W)
+    return (num / (denom0 * denom1)).sum(-3)
 
 
-def crosshair_l1_similarity(A, L, R=None, symmetry=None):
+def crosshair_l1_similarity(X, W):
     """
-    Use a crosshair kernel to assess the local similarity between a
-    matrix A and low-rank templates L x R transpose.
+    Crosshair kernel L1 distance between a tensor block and a reference block
+    of template tensors.
 
-    The crosshair L1 similarity function defines similarity as the L1 distance
-    between the ravelled crosshair vectors.
+    Note that each output slice of this procedure is often a matrix
+    approximately of rank 1 (first singular value will dominate variance).
 
-    Note that the output of this procedure is a matrix approximately of
-    rank 1 (first singular value will dominate variance).
+    Dimension
+    ---------
+    - X: :math:`(N, *, C_{in}, H, W)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      :math:`C_{in}` denotes number of input data channels, H and W denote
+      height and width of each input matrix.
+    - W: :math:`(C_{out}, C_{in}, H, W)`
+      :math:`C_{out}` denotes number of output data channels.
+    - Output: :math:`(N, *, C_{out}, H, W)`
 
     Parameters
     ----------
-    A: Tensor (N x C_in x H x W)
-        The matrix in which features should be identified.
-    L: Tensor (C_out x C_in x H x rank)
-        Left generator of a low-rank matrix (L x R transpose) that specifies
-        a feature set to find in A.
-    R: Tensor or None (C_out x C_in x W x rank)
-        Right generator of a low-rank matrix (L x R transpose) that specifies
-        a feature set to find in A. If this is None, then the template matrix
-        is symmetric L x L transpose.
-    symmetry: 'cross', 'skew', or other
-        Symmetry constraint imposed on the generated low-rank template matrix.
-        * `cross` enforces symmetry by replacing the initial expansion with
-          the average of the initial expansion and its transpose.
-        * `skew` enforcesd skew-symmetry by subtracting from the initial
-          expansion its transpose.
-        * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
-          also be enforced by passing None for R or by passing the same input
-          for R and L.
+    X : Tensor
+        Block of input tensors in which features should be identified. The last
+        two axes correspond to the column and row dimensions of the matrices;
+        the third to last axis corresponds to the data channels viewed by each
+        reference template or filter. This is analogous to colour channels in a
+        convolutional layer.
+    W : Tensor
+        Block of reference or template tensors or filters. The last two axes
+        correspond to row and column dimensions, and the third to last
+        corresponds to the input data channels. The first axis corresponds to
+        output data channels.
+
+    Output
+    ------
+    out : Tensor
+        Output data channels resulting from applying the template to the input
+        dataset.
     """
-    B = expand_outer(L, R, symmetry)
-    diff = A.unsqueeze(1) - B
-    return crosshair_norm_l1(diff).sum(2)
+    diff = X.unsqueeze(-4) - W
+    return crosshair_norm_l1(diff).sum(-3)
 
 
-def crosshair_l2_similarity(A, L, R=None, symmetry=None):
+def crosshair_l2_similarity(X, W):
     """
-    Use a crosshair kernel to assess the local similarity between a
-    matrix A and low-rank templates L x R transpose.
+    Crosshair kernel L2 distance between a tensor block and a reference block
+    of template tensors.
 
-    The crosshair L2 similarity function defines similarity as the L2 distance
-    between the ravelled crosshair vectors.
+    Note that each output slice of this procedure is often a matrix
+    approximately of rank 1 (first singular value will dominate variance).
 
-    Note that the output of this procedure is a matrix approximately of
-    rank 1 (first singular value will dominate variance).
+    Dimension
+    ---------
+    - X: :math:`(N, *, C_{in}, H, W)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      :math:`C_{in}` denotes number of input data channels, H and W denote
+      height and width of each input matrix.
+    - W: :math:`(C_{out}, C_{in}, H, W)`
+      :math:`C_{out}` denotes number of output data channels.
+    - Output: :math:`(N, *, C_{out}, H, W)`
 
     Parameters
     ----------
-    A: Tensor (N x C_in x H x W)
-        The matrix in which features should be identified.
-    L: Tensor (C_out x C_in x H x rank)
-        Left generator of a low-rank matrix (L x R transpose) that specifies
-        a feature set to find in A.
-    R: Tensor or None (C_out x C_in x W x rank)
-        Right generator of a low-rank matrix (L x R transpose) that specifies
-        a feature set to find in A. If this is None, then the template matrix
-        is symmetric L x L transpose.
-    symmetry: 'cross', 'skew', or other
-        Symmetry constraint imposed on the generated low-rank template matrix.
-        * `cross` enforces symmetry by replacing the initial expansion with
-          the average of the initial expansion and its transpose.
-        * `skew` enforcesd skew-symmetry by subtracting from the initial
-          expansion its transpose.
-        * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
-          also be enforced by passing None for R or by passing the same input
-          for R and L.
+    X : Tensor
+        Block of input tensors in which features should be identified. The last
+        two axes correspond to the column and row dimensions of the matrices;
+        the third to last axis corresponds to the data channels viewed by each
+        reference template or filter. This is analogous to colour channels in a
+        convolutional layer.
+    W : Tensor
+        Block of reference or template tensors or filters. The last two axes
+        correspond to row and column dimensions, and the third to last
+        corresponds to the input data channels. The first axis corresponds to
+        output data channels.
+
+    Output
+    ------
+    out : Tensor
+        Output data channels resulting from applying the template to the input
+        dataset.
     """
-    B = expand_outer(L, R, symmetry)
-    diff = A.unsqueeze(1) - B
-    return crosshair_norm_l2(diff).sum(2)
+    diff = X.unsqueeze(-4) - W
+    return crosshair_norm_l2(diff).sum(-3)
