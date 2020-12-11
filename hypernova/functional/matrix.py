@@ -32,8 +32,7 @@ def invert_spd(A):
         batch.
     """
     L = torch.cholesky(A)
-    Li = torch.pinverse(L)
-    return Li.transpose(-1, -2) @ Li
+    return torch.cholesky_inverse(L)
 
 
 def expand_outer(L, R=None, symmetry=None):
