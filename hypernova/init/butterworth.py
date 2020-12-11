@@ -57,6 +57,10 @@ def butterworth_init_(tensor, N, Wn, btype='bandpass', fs=None):
     Returns
     -------
     None. The input tensor is initialised in-place.
+
+    See also
+    --------
+    butterworth_correct_init_: correct, complex-valued initialisation
     """
     if fs is not None:
         Wn = 2 * Wn / fs
@@ -77,6 +81,36 @@ def butterworth_init_(tensor, N, Wn, btype='bandpass', fs=None):
 
 
 def butterworth_correct_init_(tensor, N, Wn, btype='bandpass', fs=None):
+    """
+    An initialisation that matches the Butterworth filter's attenuation
+    spectrum, by importing from scipy. The tensor must have a complex datatype
+    for the import to succeed.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        Tensor to initialise in-place. The import will include only the real
+        part (and will therefore be incorrect) if the provided tensor does not
+        have a complex datatype.
+    N : int
+        Filter order.
+    Wn : float or tuple(float, float)
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if `fs` is not provided,
+        and should be in the same units as `fs` if it is provided.
+    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+        Filter type to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+
+    Returns
+    -------
+    None. The input tensor is initialised in-place.
+    """
     from scipy.signal import butter, freqz
     b, a = butter(N, Wn, btype=btype, fs=fs)
     fs = fs or 2 * math.pi
@@ -85,6 +119,12 @@ def butterworth_correct_init_(tensor, N, Wn, btype='bandpass', fs=None):
 
 
 def _import_complex_numpy(array):
+    """
+    Hacky import of complex-valued array from numpy into torch. Hopefully this
+    can go away in the future. Simply calling torch.Tensor casts the input to
+    real, and we would otherwise have to specify a particular precision for the
+    import which might not match the precision desired.
+    """
     real = torch.Tensor(array.real)
     imag = torch.Tensor(array.imag)
     val = torch.stack([real, imag], -1)
