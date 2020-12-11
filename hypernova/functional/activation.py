@@ -15,7 +15,7 @@ def laplace(input, loc=0, width=1):
 
     The double exponential activation function is applied elementwise as
 
-    :math:`e^{\frac{|x - \mu|}{b}}`
+    :math:`e^{\frac{-|x - \mu|}{b}}`
 
     to inputs x with centre :math:`\mu` and width b. It constrains its outputs
     to the range (0, 1], mapping values closer to its centre to larger outputs.
@@ -42,4 +42,16 @@ def laplace(input, loc=0, width=1):
     out : Tensor
         Transformed input tensor.
     """
-    return torch.exp(torch.abs(input - loc) / width)
+    return torch.exp(-torch.abs(input - loc) / width)
+
+
+def absolute_laplace(input, loc=0, width=1):
+    abs = torch.abs(input - loc)
+    fact = torch.exp(-abs / width) / abs
+    return input * fact
+
+
+def absolute_sigmoid(input):
+    abs = torch.abs(input)
+    fact = torch.sigmoid(abs) / abs
+    return input * fact
