@@ -40,10 +40,11 @@ def laplace_init_(tensor, loc=None, width=None, norm=None):
     None. The input tensor is initialised in-place.
     """
     loc = loc or [(x - 1) / 2 for x in tensor.size()]
-    width = width or [1 for _ in range(X.dim())]
+    width = width or [1 for _ in range(tensor.dim())]
     width = torch.Tensor(width)
+    dim = len(loc)
     axes = []
-    for ax, l, w in zip(tensor.size(), loc, width):
+    for ax, l, w in zip(tensor.size()[-dim:], loc, width[-dim:]):
         new_ax = torch.arange(-l, -l + ax)
         new_ax = torch.exp(-torch.abs(new_ax) / w)
         axes += [new_ax]
