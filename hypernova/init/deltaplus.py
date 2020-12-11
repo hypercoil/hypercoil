@@ -19,11 +19,11 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2):
     ----------
     tensor : Tensor
         Tensor to initialise in-place.
-    loc : iterable or None (default None)
+    loc : tuple or None (default None)
         Location of the delta function in array coordinates.
     scale : float or None (default None)
         Height of the delta function.
-    std : float
+    var : float
         Variance of the Gaussian distribution from which the random noise is
         sampled.
 
@@ -34,7 +34,7 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2):
     loc = loc or tuple([x // 2 for x in tensor.size()])
     scale = scale or 1
     val = torch.zeros_like(tensor)
-    val[loc] += scale
-    val += torch.randn(tensor.size()) * std
+    val[(...,) + loc] += scale
+    val += torch.randn(tensor.size()) * var
     val.type(tensor.dtype)
     tensor[:] = val

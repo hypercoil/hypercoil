@@ -9,7 +9,7 @@ Initialise parameters to match a double exponential function.
 import torch
 
 
-def laplace_init_(tensor, loc=None, width=None, norm=None):
+def laplace_init_(tensor, loc=None, width=None, norm=None, var=0.02):
     """
     Laplace initialisation.
 
@@ -34,6 +34,9 @@ def laplace_init_(tensor, loc=None, width=None, norm=None):
         - 'sum' divides the output by its sum such that all entries in the
           initialised tensor sum to 1.
         - None indicates that the output should not be normalised.
+    var : float
+        Variance of the Gaussian distribution from which the random noise is
+        sampled.
 
     Returns
     -------
@@ -60,3 +63,5 @@ def laplace_init_(tensor, loc=None, width=None, norm=None):
         val /= val.sum()
     val.type(tensor.dtype)
     tensor[:] = val
+    if var != 0:
+        tensor += torch.randn(tensor.size()) * var
