@@ -74,3 +74,18 @@ def butterworth_init_(tensor, N, Wn, btype='bandpass', fs=None):
         hi = Wn
         vals = 1 / torch.sqrt(1 + (hi / frequencies) ** (2 * N))
     tensor[:] = vals
+
+
+def butterworth_correct_init_(tensor, N, Wn, btype='bandpass', fs=None):
+    from scipy.signal import butter, freqz
+    b, a = butter(N, Wn, btype=btype, fs=fs)
+    fs = fs or 2 * math.pi
+    vals = freqz(b, a, worN=(tensor.size(-1)), fs=fs, include_nyquist=True)[1]
+    tensor[:] = _import_complex_numpy(vals)
+
+
+def _import_complex_numpy(array):
+    real = torch.Tensor(array.real)
+    imag = torch.Tensor(array.imag)
+    val = torch.stack([real, imag], -1)
+    return torch.view_as_complex(val)
