@@ -44,3 +44,8 @@ def product_filter(X, weight, **params):
     Xf = torch.fft.rfft(X, n=n, **params)
     Xf_filt = weight * Xf
     return torch.fft.irfft(Xf_filt, n=n, **params)
+
+
+def product_filtfilt(X, weight, **params):
+    X_filt = product_filter(X, weight, **params)
+    return product_filter(X_filt.flip(-1), weight, **params)
