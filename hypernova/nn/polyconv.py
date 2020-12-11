@@ -15,30 +15,34 @@ from ..init.laplace import laplace_init_
 
 
 class PolyConv2D(Module):
-    def __init__(self, in_channels, out_channels, memory=3, kernel_width=1,
+    def __init__(self, degree, out_channels, memory=3, kernel_width=1,
                  padding=None, bias=False, include_const=False,
                  future_sight=False, init_=laplace_init_, init_params=None):
         super(PolyConv2D, self).__init__()
 
         if init_params is None:
+            init_params = {}
+        if 'loc' not in init_params:
             if include_const:
-                self.init_params = {'loc': (1, 0, memory)}
+                init_params['loc'] = (1, 0, memory)
             else:
-                self.init_params = {'loc': (0, 0, memory)}
+                init_params['loc'] = (0, 0, memory)
 
-        self.in_channels = in_channels
+        self.in_channels = degree + include_const
         self.out_channels = out_channels
         self.memory = memory
         self.kernel_length = 2 * memory + 1
         self.kernel_width = kernel_width
         self.padding = padding
+        self.degree = degree
         self.include_const = include_const
         self.future_sight = future_sight
         self.init_ = init_
+        self.init_params = init_params
 
         self.weight = Parameter(torch.Tensor(
-            out_channels,
-            in_channels,
+            self.out_channels,
+            self.in_channels,
             self.kernel_width,
             self.kernel_length))
 
