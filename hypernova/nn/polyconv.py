@@ -60,9 +60,23 @@ class PolyConv2D(Module):
     def reset_parameters(self):
         self.init_(self.weight, **self.init_params)
         if self.bias is not None:
-            fan_in, _ = init.calculate_fan_in_and_fan_out(self.weight)
+            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
             bound = 1 / math.sqrt(fan_in)
             init.uniform_(self.bias, -bound, bound)
+
+    def __repr__(self):
+        s = (
+            f'{self.__class__.__name__}(degree={self.degree}, out_channels='
+            f'{self.out_channels}, memory={self.memory}'
+        )
+        if self.future_sight:
+            s += f', future_sight={self.memory}'
+        if self.kernel_width > 1:
+            s += f', width={self.kernel_width}'
+        if self.bias is not None:
+            s += ', bias=True'
+        s += ')'
+        return s
 
     def forward(self, input):
         if self.future_sight:
