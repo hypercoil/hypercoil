@@ -4,8 +4,8 @@
 """
 IIR filter initialisation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-Tools for initialising parameters to match the frequency response curve of
-an IIR filter.
+Tools for initialising parameters to match the transfer function of an IIR
+filter.
 """
 import torch
 import math
@@ -84,6 +84,37 @@ class IIRFilterSpec(object):
 
 
 def iirfilter_init_(tensor, filter_specs, ood='clip'):
+    """
+    IIR filter-like transfer function initialisation.
+
+    Initialise a tensor such that its values follow the transfer function of
+    an IIR or ideal filter. For IIR filters, the transfer function is computed
+    as a frequency response curve in scipy.
+
+    Dimension
+    ---------
+    - tensor : :math:`(*, F, N)`
+      F denotes the total number of filters to initialise from the provided
+      specs, and N denotes the number of frequency bins.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        Tensor to initialise in-place. The import will include only the real
+        part (and will therefore be incorrect for most filters) if the provided
+        tensor does not have a complex datatype. Note that even if the transfer
+        function is strictly real, the gradient will almost certainly not be
+        and it is therefore critical that this tensor allow complex values.
+    filter_specs : list(IIRFilterSpec)
+        A list of filter specifications implemented as `IIRFilterSpec` objects
+        (`hypernova.init.IIRFilterSpec`).
+    ood : 'clip' or 'norm' (default `clip`)
+        Indicates how out-of-domain values should be handled at initialisation.
+        `clip` indicates that out-of-domain values should be clipped to the
+        closest allowed point and `norm` indicates that the entire spectrum
+        (in-domain and out-of-domain values) should be re-scaled so that it
+        fits in the domain bounds (not recommended).
+    """
     rg = tensor.requires_grad
     tensor.requires_grad = False
     worN = tensor.size(-1)
@@ -96,7 +127,7 @@ def iirfilter_init_(tensor, filter_specs, ood='clip'):
 
 def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
     """
-    Butterworth filter's response spectrum obtained via import from scipy.
+    Butterworth filter's transfer function obtained via import from scipy.
 
     Dimension
     ---------
@@ -129,7 +160,7 @@ def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
     Returns
     -------
     out : Tensor
-        The specified Butterworth frequency response.
+        The specified Butterworth transfer function.
     """
     from scipy.signal import butter
     filter_params, spectrum_params = {}, {}
@@ -143,7 +174,7 @@ def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
 
 def chebyshev1_spectrum(N, Wn, worN, rp, btype='bandpass', fs=None):
     """
-    Chebyshev I filter's response spectrum obtained via import from scipy.
+    Chebyshev I filter's transfer function obtained via import from scipy.
 
     Dimension
     ---------
@@ -178,7 +209,7 @@ def chebyshev1_spectrum(N, Wn, worN, rp, btype='bandpass', fs=None):
     Returns
     -------
     out : Tensor
-        The specified Chebyshev I frequency response.
+        The specified Chebyshev I transfer function.
     """
     from scipy.signal import cheby1
     filter_params = {
@@ -195,7 +226,7 @@ def chebyshev1_spectrum(N, Wn, worN, rp, btype='bandpass', fs=None):
 
 def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
     """
-    Chebyshev II filter's response spectrum obtained via import from scipy.
+    Chebyshev II filter's transfer function obtained via import from scipy.
 
     Dimension
     ---------
@@ -230,7 +261,7 @@ def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
     Returns
     -------
     out : Tensor
-        The specified Chebyshev II frequency response.
+        The specified Chebyshev II transfer function.
     """
     from scipy.signal import cheby2
     filter_params = {
@@ -247,7 +278,7 @@ def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
 
 def elliptic_spectrum(N, Wn, worN, rp, rs, btype='bandpass', fs=None):
     """
-    Elliptic filter's response spectrum obtained via import from scipy.
+    Elliptic filter's transfer function obtained via import from scipy.
 
     Dimension
     ---------
@@ -284,7 +315,7 @@ def elliptic_spectrum(N, Wn, worN, rp, rs, btype='bandpass', fs=None):
     Returns
     -------
     out : Tensor
-        The specified elliptic frequency response.
+        The specified elliptic transfer function.
     """
     from scipy.signal import ellip
     filter_params = {
@@ -302,7 +333,7 @@ def elliptic_spectrum(N, Wn, worN, rp, rs, btype='bandpass', fs=None):
 
 def bessel_spectrum(N, Wn, worN, norm='phase', btype='bandpass', fs=None):
     """
-    Bessel-Thompson filter's response spectrum obtained via import from scipy.
+    Bessel-Thompson filter's transfer function obtained via import from scipy.
 
     Dimension
     ---------
@@ -338,7 +369,7 @@ def bessel_spectrum(N, Wn, worN, norm='phase', btype='bandpass', fs=None):
     Returns
     -------
     out : Tensor
-        The specified elliptic frequency response.
+        The specified elliptic transfer function.
     """
     from scipy.signal import bessel
     filter_params = {
@@ -355,7 +386,7 @@ def bessel_spectrum(N, Wn, worN, norm='phase', btype='bandpass', fs=None):
 
 def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
     """
-    Ideal filter frequency response spectrum.
+    Ideal filter transfer function.
 
     Dimension
     ---------
@@ -383,7 +414,7 @@ def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
     Returns
     -------
     out : Tensor
-        The specified ideal frequency response.
+        The specified ideal transfer function.
     """
     Wn = _ensure_tensor(Wn)
     if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
@@ -409,8 +440,7 @@ def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
 def iirfilter_spectrum(iirfilter, N, Wn, worN, btype='bandpass', fs=None,
                        filter_params=None, spectrum_params=None):
     """
-    Frequency response spectrum for an IIR filter, obtained via import from
-    scipy.
+    Transfer function for an IIR filter, obtained via import from scipy.
 
     Dimension
     ---------
@@ -454,8 +484,9 @@ def iirfilter_spectrum(iirfilter, N, Wn, worN, btype='bandpass', fs=None,
     Returns
     -------
     out : Tensor
-        The specified filter's frequency response.
+        The specified filter's transfer function.
     """
+    import numpy as np
     from scipy.signal import freqz
     N = _ensure_ndarray(N).astype(int)
     Wn = _ensure_ndarray(Wn)
@@ -479,6 +510,7 @@ def _ensure_ndarray(obj):
     Ensure that the object is an iterable ndarray with dimension greater than
     or equal to 1. Another function we'd do well to get rid of in the future.
     """
+    import numpy as np
     try:
         i = iter(obj)
         return np.array(obj)
