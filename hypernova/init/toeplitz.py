@@ -40,7 +40,10 @@ def toeplitz_init_(tensor, c, r=None, fill_value=0):
     -------
     None. The input tensor is initialised in-place.
     """
+    rg = tensor.requires_grad
+    tensor.requires_grad = False
     dim = tensor.size()[-2:]
     val = toeplitz(c=c, r=r, dim=dim, fill_value=fill_value)
     val.type(tensor.dtype)
     tensor[:] = val
+    tensor.requires_grad = rg

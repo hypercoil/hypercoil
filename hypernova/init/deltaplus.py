@@ -31,6 +31,8 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2):
     -------
     None. The input tensor is initialised in-place.
     """
+    rg = tensor.requires_grad
+    tensor.requires_grad = False
     loc = loc or tuple([x // 2 for x in tensor.size()])
     scale = scale or 1
     val = torch.zeros_like(tensor)
@@ -38,3 +40,4 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2):
     val += torch.randn(tensor.size()) * var
     val.type(tensor.dtype)
     tensor[:] = val
+    tensor.requires_grad = rg

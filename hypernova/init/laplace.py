@@ -42,6 +42,8 @@ def laplace_init_(tensor, loc=None, width=None, norm=None, var=0.02):
     -------
     None. The input tensor is initialised in-place.
     """
+    rg = tensor.requires_grad
+    tensor.requires_grad = False
     loc = loc or [(x - 1) / 2 for x in tensor.size()]
     width = width or [1 for _ in range(tensor.dim())]
     width = torch.Tensor(width)
@@ -62,6 +64,7 @@ def laplace_init_(tensor, loc=None, width=None, norm=None, var=0.02):
     elif norm == 'sum':
         val /= val.sum()
     val.type(tensor.dtype)
-    tensor[:] = val
     if var != 0:
-        tensor += torch.randn(tensor.size()) * var
+        val = val + torch.randn(tensor.size()) * var
+    tensor.copy_(val)
+    tensor.requires_grad = rg

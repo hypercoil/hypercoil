@@ -62,6 +62,8 @@ def butterworth_init_(tensor, N, Wn, btype='bandpass', fs=None):
     --------
     butterworth_correct_init_: correct, complex-valued initialisation
     """
+    rg = tensor.requires_grad
+    tensor.requires_grad = False
     if fs is not None:
         Wn = 2 * Wn / fs
     frequencies = torch.linspace(0, 1, tensor.size(-1))
@@ -78,6 +80,7 @@ def butterworth_init_(tensor, N, Wn, btype='bandpass', fs=None):
         hi = Wn
         vals = 1 / torch.sqrt(1 + (hi / frequencies) ** (2 * N))
     tensor[:] = vals
+    tensor.requires_grad = rg
 
 
 def butterworth_correct_init_(tensor, N, Wn, btype='bandpass', fs=None):
@@ -112,10 +115,13 @@ def butterworth_correct_init_(tensor, N, Wn, btype='bandpass', fs=None):
     None. The input tensor is initialised in-place.
     """
     from scipy.signal import butter, freqz
+    rg = tensor.requires_grad
+    tensor.requires_grad = False
     b, a = butter(N, Wn, btype=btype, fs=fs)
     fs = fs or 2 * math.pi
     vals = freqz(b, a, worN=(tensor.size(-1)), fs=fs, include_nyquist=True)[1]
     tensor[:] = _import_complex_numpy(vals)
+    tensor.requires_grad = rg
 
 
 def _import_complex_numpy(array):
