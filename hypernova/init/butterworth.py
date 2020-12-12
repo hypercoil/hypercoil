@@ -11,7 +11,7 @@ import torch
 import math
 
 
-def butterworth_init_(tensor, N, Wn, btype='bandpass', fs=None):
+def butterworth_form_init_(tensor, N, Wn, btype='bandpass', fs=None):
     """
     Butterworth-like attenuation initialisation.
 
@@ -60,7 +60,7 @@ def butterworth_init_(tensor, N, Wn, btype='bandpass', fs=None):
 
     See also
     --------
-    butterworth_correct_init_: correct, complex-valued initialisation
+    butterworth_init_: correct, complex-valued initialisation
     """
     rg = tensor.requires_grad
     tensor.requires_grad = False
@@ -83,11 +83,19 @@ def butterworth_init_(tensor, N, Wn, btype='bandpass', fs=None):
     tensor.requires_grad = rg
 
 
-def butterworth_correct_init_(tensor, N, Wn, btype='bandpass', fs=None):
+def butterworth_init_(tensor, N, Wn, btype='bandpass', fs=None):
     """
     An initialisation that matches the Butterworth filter's attenuation
     spectrum, by importing from scipy. The tensor must have a complex datatype
     for the import to succeed.
+
+    Dimension
+    ---------
+    - tensor : :math:`(F, K)`
+      F denotes the total number of filter to initialise. K denotes the number
+      of frequency bins.
+    - N : :math:`(F)`
+    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
 
     Parameters
     ----------
@@ -95,14 +103,17 @@ def butterworth_correct_init_(tensor, N, Wn, btype='bandpass', fs=None):
         Tensor to initialise in-place. The import will include only the real
         part (and will therefore be incorrect) if the provided tensor does not
         have a complex datatype.
-    N : int
-        Filter order.
-    Wn : float or tuple(float, float)
+    N : int or Tensor
+        Filter order. If this is a tensor, then a separate filter will be
+        created for each entry in the tensor. Wn must be shaped to match.
+    Wn : float or tuple(float, float) or Tensor
         Critical or cutoff frequency. If this is a band-pass filter, then this
         should be a tuple, with the first entry specifying the high-pass cutoff
         and the second entry specifying the low-pass frequency. This should be
         specified relative to the Nyquist frequency if `fs` is not provided,
-        and should be in the same units as `fs` if it is provided.
+        and should be in the same units as `fs` if it is provided. To create
+        multiple filters, specify a tensor containing the critical frequencies
+        for each filter in a single row.
     btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
         Filter type to emulate: low-pass, high-pass, or band-pass. The
         interpretation of the critical frequency changes depending on the
@@ -117,11 +128,29 @@ def butterworth_correct_init_(tensor, N, Wn, btype='bandpass', fs=None):
     from scipy.signal import butter, freqz
     rg = tensor.requires_grad
     tensor.requires_grad = False
-    b, a = butter(N, Wn, btype=btype, fs=fs)
+    N = _ensure_ndarray(N)
+    Wn = _ensure_ndarray(Wn)
+    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+        Wn = Wn.reshape(-1, 2)
+    vals = [butter(N=n, Wn=wn, btype=btype, fs=fs) for n, wn in zip(N, Wn)]
     fs = fs or 2 * math.pi
-    vals = freqz(b, a, worN=(tensor.size(-1)), fs=fs, include_nyquist=True)[1]
+    vals = [freqz(b, a, worN=(tensor.size(-1)), fs=fs, include_nyquist=True)
+            for b, a in vals]
+    vals = np.stack([v for _, v in vals])
     tensor[:] = _import_complex_numpy(vals)
     tensor.requires_grad = rg
+
+
+def _ensure_ndarray(obj):
+    """
+    Ensure that the object is an iterable ndarray with dimension greater than
+    or equal to 1. Another function we'd do well to get rid of in the future.
+    """
+    try:
+        i = iter(obj)
+        return np.array(obj)
+    except TypeError:
+        return np.array([obj])
 
 
 def _import_complex_numpy(array):
