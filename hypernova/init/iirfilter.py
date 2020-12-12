@@ -42,11 +42,11 @@ class IIRFilterSpec(object):
         if self.ftype == 'ellip':
             self.spectrum = elliptic_spectrum(
                 N=self.N, Wn=self.Wn, rp=self.rp, rs=self.rs,
-                worN=worN, btype=self.btype, fs=self.fs)
+                btype=self.btype, worN=worN, fs=self.fs)
         if self.ftype == 'bessel':
             self.spectrum = bessel_spectrum(
-                N=self.N, Wn=self.Wn, btype=self.btype,
-                worN=worN, norm=self.norm, fs=self.fs)
+                N=self.N, Wn=self.Wn, norm=self.norm,
+                btype=self.btype, worN=worN, fs=self.fs)
         if self.ftype == 'ideal':
             self.spectrum = ideal_spectrum(
                 N=self.N, Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
@@ -77,7 +77,7 @@ class IIRFilterSpec(object):
 
 def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
     """
-    Obtain the Butterworth filter's attenuation spectrum via import from scipy.
+    Obtain the Butterworth filter's response spectrum via import from scipy.
 
     Dimension
     ---------
@@ -116,6 +116,219 @@ def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
     filter_params, spectrum_params = {}, {}
     return iirfilter_spectrum(
         iirfilter=butter,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+def chebyshev1_spectrum(N, Wn, worN, rp, btype='bandpass', fs=None):
+    """
+    Obtain the Chebyshev I filter's response spectrum via import from scipy.
+
+    Dimension
+    ---------
+    - N : :math:`(F)`
+      F denotes the total number of filter to initialise.
+    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
+
+    Parameters
+    ----------
+    N : int or Tensor
+        Filter order. If this is a tensor, then a separate filter will be
+        created for each entry in the tensor. Wn must be shaped to match.
+    Wn : float or tuple(float, float) or Tensor
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if `fs` is not provided,
+        and should be in the same units as `fs` if it is provided. To create
+        multiple filters, specify a tensor containing the critical frequencies
+        for each filter in a single row.
+    worN : int
+        Number of frequency bins to include in the computed spectrum.
+    rp : float
+        Pass-band ripple parameter.
+    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+        Filter type to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+
+    Returns
+    -------
+    out : Tensor
+        The specified Chebyshev I frequency response.
+    """
+    from scipy.signal import cheby1
+    filter_params = {
+        'rp': rp
+    }
+    spectrum_params = {}
+    return iirfilter_spectrum(
+        iirfilter=cheby1,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
+    """
+    Obtain the Chebyshev II filter's response spectrum via import from scipy.
+
+    Dimension
+    ---------
+    - N : :math:`(F)`
+      F denotes the total number of filter to initialise.
+    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
+
+    Parameters
+    ----------
+    N : int or Tensor
+        Filter order. If this is a tensor, then a separate filter will be
+        created for each entry in the tensor. Wn must be shaped to match.
+    Wn : float or tuple(float, float) or Tensor
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if `fs` is not provided,
+        and should be in the same units as `fs` if it is provided. To create
+        multiple filters, specify a tensor containing the critical frequencies
+        for each filter in a single row.
+    worN : int
+        Number of frequency bins to include in the computed spectrum.
+    rs : float
+        Stop-band ripple parameter.
+    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+        Filter type to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+
+    Returns
+    -------
+    out : Tensor
+        The specified Chebyshev II frequency response.
+    """
+    from scipy.signal import cheby2
+    filter_params = {
+        'rs': rs
+    }
+    spectrum_params = {}
+    return iirfilter_spectrum(
+        iirfilter=cheby2,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+def elliptic_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
+    """
+    Obtain the elliptic filter's response spectrum via import from scipy.
+
+    Dimension
+    ---------
+    - N : :math:`(F)`
+      F denotes the total number of filter to initialise.
+    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
+
+    Parameters
+    ----------
+    N : int or Tensor
+        Filter order. If this is a tensor, then a separate filter will be
+        created for each entry in the tensor. Wn must be shaped to match.
+    Wn : float or tuple(float, float) or Tensor
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if `fs` is not provided,
+        and should be in the same units as `fs` if it is provided. To create
+        multiple filters, specify a tensor containing the critical frequencies
+        for each filter in a single row.
+    worN : int
+        Number of frequency bins to include in the computed spectrum.
+    rp : float
+        Pass-band ripple parameter.
+    rs : float
+        Stop-band ripple parameter.
+    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+        Filter type to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+
+    Returns
+    -------
+    out : Tensor
+        The specified elliptic frequency response.
+    """
+    from scipy.signal import ellip
+    filter_params = {
+        'rp': rp,
+        'rs': rs
+    }
+    spectrum_params = {}
+    return iirfilter_spectrum(
+        iirfilter=ellip,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+def bessel_spectrum(N, Wn, worN, norm='phase', btype='bandpass', fs=None):
+    """
+    Obtain the Bessel-Thompson filter's response spectrum via import from
+    scipy.
+
+    Dimension
+    ---------
+    - N : :math:`(F)`
+      F denotes the total number of filter to initialise.
+    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
+
+    Parameters
+    ----------
+    N : int or Tensor
+        Filter order. If this is a tensor, then a separate filter will be
+        created for each entry in the tensor. Wn must be shaped to match.
+    Wn : float or tuple(float, float) or Tensor
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if `fs` is not provided,
+        and should be in the same units as `fs` if it is provided. To create
+        multiple filters, specify a tensor containing the critical frequencies
+        for each filter in a single row.
+    worN : int
+        Number of frequency bins to include in the computed spectrum.
+    norm : 'phase', 'delay' or 'mag'
+        Critical frequency normalisation. Consult the `scipy.signal.bessel`
+        documentation for details.
+    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+        Filter type to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+
+    Returns
+    -------
+    out : Tensor
+        The specified elliptic frequency response.
+    """
+    from scipy.signal import bessel
+    filter_params = {
+        'norm': norm
+    }
+    spectrum_params = {}
+    return iirfilter_spectrum(
+        iirfilter=bessel,
         N=N, Wn=Wn, worN=worN,
         btype=btype, fs=fs,
         filter_params=filter_params,
