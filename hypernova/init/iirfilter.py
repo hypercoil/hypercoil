@@ -12,7 +12,7 @@ import math
 
 
 class IIRFilterSpec(object):
-    def __init__(self, N, Wn, ftype='butter', btype='bandpass',
+    def __init__(self, Wn, N=1, ftype='butter', btype='bandpass',
                  fs=None, rp=None, rs=None, norm='phase',
                  domain='atanh', bounds=(-3, 3)):
         self.N = N
@@ -77,7 +77,7 @@ class IIRFilterSpec(object):
 
 def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
     """
-    Obtain the Butterworth filter's response spectrum via import from scipy.
+    Butterworth filter's response spectrum obtained via import from scipy.
 
     Dimension
     ---------
@@ -124,7 +124,7 @@ def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
 
 def chebyshev1_spectrum(N, Wn, worN, rp, btype='bandpass', fs=None):
     """
-    Obtain the Chebyshev I filter's response spectrum via import from scipy.
+    Chebyshev I filter's response spectrum obtained via import from scipy.
 
     Dimension
     ---------
@@ -176,7 +176,7 @@ def chebyshev1_spectrum(N, Wn, worN, rp, btype='bandpass', fs=None):
 
 def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
     """
-    Obtain the Chebyshev II filter's response spectrum via import from scipy.
+    Chebyshev II filter's response spectrum obtained via import from scipy.
 
     Dimension
     ---------
@@ -228,7 +228,7 @@ def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
 
 def elliptic_spectrum(N, Wn, worN, rp, rs, btype='bandpass', fs=None):
     """
-    Obtain the elliptic filter's response spectrum via import from scipy.
+    Elliptic filter's response spectrum obtained via import from scipy.
 
     Dimension
     ---------
@@ -283,8 +283,7 @@ def elliptic_spectrum(N, Wn, worN, rp, rs, btype='bandpass', fs=None):
 
 def bessel_spectrum(N, Wn, worN, norm='phase', btype='bandpass', fs=None):
     """
-    Obtain the Bessel-Thompson filter's response spectrum via import from
-    scipy.
+    Bessel-Thompson filter's response spectrum obtained via import from scipy.
 
     Dimension
     ---------
@@ -337,7 +336,7 @@ def bessel_spectrum(N, Wn, worN, norm='phase', btype='bandpass', fs=None):
 
 def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
     """
-    Obtain an ideal filter's response spectrum.
+    Ideal filter frequency response spectrum.
 
     Dimension
     ---------
@@ -390,6 +389,54 @@ def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
 
 def iirfilter_spectrum(iirfilter, N, Wn, worN, btype='bandpass', fs=None,
                        filter_params=None, spectrum_params=None):
+    """
+    Frequency response spectrum for an IIR filter, obtained via import from
+    scipy.
+
+    Dimension
+    ---------
+    - N : :math:`(F)`
+      F denotes the total number of filter to initialise.
+    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
+
+    Parameters
+    ----------
+    iirfilter : callable
+        `scipy.signal` filter function corresponding to the filter to be
+        estimated, for instance `butter` for a Butterworth filter.
+    N : int or Tensor
+        Filter order. If this is a tensor, then a separate filter will be
+        created for each entry in the tensor. Wn must be shaped to match.
+    Wn : float or tuple(float, float) or Tensor
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if `fs` is not provided,
+        and should be in the same units as `fs` if it is provided. To create
+        multiple filters, specify a tensor containing the critical frequencies
+        for each filter in a single row.
+    worN : int
+        Number of frequency bins to include in the computed spectrum.
+    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+        Filter type to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+    filter_params : dict
+        Additional parameters to pass to the `iirfilter` callable other than
+        those passed directly to this function (for instance, pass- and
+        stop-band ripples).
+    spectrum_params : dict
+        Additional parameters to pass to the `freqz` function that computes
+        the frequency response spectrum other than those passed directly to
+        this function.
+
+    Returns
+    -------
+    out : Tensor
+        The specified filter's frequency response.
+    """
     from scipy.signal import freqz
     N = _ensure_ndarray(N).astype(int)
     Wn = _ensure_ndarray(Wn)
