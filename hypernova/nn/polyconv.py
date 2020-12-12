@@ -15,6 +15,75 @@ from ..init.laplace import laplace_init_
 
 
 class PolyConv2D(Module):
+    """
+    2D convolution over a polynomial expansion of an input signal..
+
+    In a degree-K polynomial convolution, each channel of the input dataset is
+    mapped across K channels, and raised to the ith power at the ith channel.
+    The convolution kernel's ith input channel thus views the input dataset
+    raised to the ith power.
+
+    Dimension
+    ---------
+    - Input: :math:`(N, *, P, O)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      P denotes number of variables, O denotes number of observations.
+    - Output: :math:`(N, *, C_{out}, P, O)`
+      :math:`C_{out}` denotes number of output channels.
+
+    Parameters
+    ----------
+    degree : int (default 2)
+        Maximum degree of the polynomial expansion.
+    out_channels : int (default 1)
+        Number of output channels produced by the convolution.
+    memory : int (default 3)
+        Kernel memory. The number of previous observations viewable by the
+        kernel.
+    kernel_width : int (default 1)
+        Number of adjoining variables simultaneously viewed by the kernel.
+        Unless the variables are ordered and evenly sampled, this should either
+        be 1 or P. Setting this equal to 1 applies the same kernel to all
+        variables, while setting it equal to P applies a unique kernel for
+        each variable.
+    padding : int or None (default None)
+        Number of zero-padding frames added to both sides of the input.
+    bias : bool (default False)
+        Indicates that a learnable bias should be added channel-wise to the
+        output.
+    include_const : bool (default False)
+        Indicates that a constant term should be included in the polynomial
+        expansion. This is almost equivalent to `bias`, and it is advised to
+        use `bias` instead because it both is more efficient and exhibits more
+        appropriate edge behaviours.
+    future_sight : bool (default False)
+        Indicates that the kernel should also view a number of observations
+        equal to `memory` in the future.
+    init_ : in-place callable (default laplace_init_)
+        Function for initialising the filter weight. By default, the filter
+        weight is initialised as a discretised double exponential centred on
+        the present time point and the first power such that it approximates
+        identity, with a small amount of Gaussian noise added.
+    init_params : dict or None (default None)
+        Additional parameters to pass to the initialisation function `init_`.
+
+    Attributes
+    ----------
+    weight : Tensor :math:`(C_{out}, C_{in}, 2M + 1, W)`
+        Learnable kernel weights for polynomial convolution. :math:`C_{out}` is
+        the total number of learnable kernels; :math:`C_{in}` is the number of
+        input channels (most often the maximum polynomial degree); M is the
+        kernel memory, and W is the kernel width. The values are initialised
+        following the `init_` function.
+    bias : Tensor :math:`(C_{out})`
+        Learnable bias for polynomial convolution. If `bias` is True, then the
+        values of these weights are sampled from a uniform distribution whose
+        bounds are the positive and negative inverse square root of the
+        fan-out.
+    mask : Tensor :math:`(C_{out}, C_{in}, 2M + 1, W)`
+        Used to limit future sight by zeroing entries in the weight that
+        correspond to future observations.
+    """
     def __init__(self, degree=2, out_channels=1, memory=3, kernel_width=1,
                  padding=None, bias=False, include_const=False,
                  future_sight=False, init_=laplace_init_, init_params=None):
