@@ -15,7 +15,7 @@ from ..init.laplace import laplace_init_
 
 
 class PolyConv2D(Module):
-    def __init__(self, degree, out_channels, memory=3, kernel_width=1,
+    def __init__(self, degree=2, out_channels=1, memory=3, kernel_width=1,
                  padding=None, bias=False, include_const=False,
                  future_sight=False, init_=laplace_init_, init_params=None):
         super(PolyConv2D, self).__init__()
@@ -46,11 +46,6 @@ class PolyConv2D(Module):
             self.kernel_width,
             self.kernel_length))
 
-        if not future_sight:
-            self.mask = Parameter(torch.ones_like(self.weight))
-            self.mask.requires_grad = False
-            self.mask[:, :, :, (memory + 1):] = 0
-
         if bias:
             self.bias = Parameter(torch.Tensor(out_channels))
         else:
@@ -63,6 +58,16 @@ class PolyConv2D(Module):
             fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
             bound = 1 / math.sqrt(fan_in)
             init.uniform_(self.bias, -bound, bound)
+
+        if self.future_sight:
+            self.mask = None
+        else:
+            self.mask = Parameter(torch.ones_like(self.weight))
+            self.mask.requires_grad = False
+            self.weight.requires_grad = False
+            self.mask[:, :, :, (self.memory + 1):] = 0
+            self.weight[:] = self.weight * self.mask
+            self.weight.requires_grad = True
 
     def __repr__(self):
         s = (
