@@ -226,7 +226,7 @@ def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
         spectrum_params=spectrum_params)
 
 
-def elliptic_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
+def elliptic_spectrum(N, Wn, worN, rp, rs, btype='bandpass', fs=None):
     """
     Obtain the elliptic filter's response spectrum via import from scipy.
 
@@ -335,10 +335,63 @@ def bessel_spectrum(N, Wn, worN, norm='phase', btype='bandpass', fs=None):
         spectrum_params=spectrum_params)
 
 
+def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
+    """
+    Obtain an ideal filter's response spectrum.
+
+    Dimension
+    ---------
+    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
+
+    Parameters
+    ----------
+    Wn : float or tuple(float, float) or Tensor
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if `fs` is not provided,
+        and should be in the same units as `fs` if it is provided. To create
+        multiple filters, specify a tensor containing the critical frequencies
+        for each filter in a single row.
+    worN : int
+        Number of frequency bins to include in the computed spectrum.
+    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+        Filter type to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+
+    Returns
+    -------
+    out : Tensor
+        The specified ideal frequency response.
+    """
+    Wn = torch.Tensor(_ensure_ndarray(Wn))
+    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+        Wn = Wn.view(-1, 2)
+    if fs is not None:
+        Wn = 2 * Wn / fs
+    frequencies = torch.linspace(0, 1, worN)
+    if btype == 'lowpass':
+        response = frequencies < Wn.view(-1, 1)
+    elif btype == 'highpass':
+        response = frequencies > Wn.view(-1, 1)
+    elif btype == 'bandpass':
+        response_hp = frequencies > Wn[:, 0].view(-1, 1)
+        response_lp = frequencies < Wn[:, 1].view(-1, 1)
+        response = response_hp * response_lp
+    elif btype == 'bandstop':
+        response_hp = frequencies < Wn[:, 0].view(-1, 1)
+        response_lp = frequencies > Wn[:, 1].view(-1, 1)
+        response = response_hp + response_lp
+    return response
+
+
 def iirfilter_spectrum(iirfilter, N, Wn, worN, btype='bandpass', fs=None,
                        filter_params=None, spectrum_params=None):
     from scipy.signal import freqz
-    N = _ensure_ndarray(N)
+    N = _ensure_ndarray(N).astype(int)
     Wn = _ensure_ndarray(Wn)
     if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
         Wn = Wn.reshape(-1, 2)
