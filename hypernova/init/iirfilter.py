@@ -53,7 +53,7 @@ class IIRFilterSpec(object):
                 btype=self.btype, worN=worN, fs=self.fs)
         if self.ftype == 'ideal':
             self.spectrum = ideal_spectrum(
-                N=self.N, Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
+                Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
         self.transform_and_bound_spectrum(ood)
 
     def transform_and_bound_spectrum(self, ood):
@@ -81,6 +81,17 @@ class IIRFilterSpec(object):
         s = (f'IIRFilterSpec(ftype={self.ftype}, '
              f'n_filters={self.n_filters}, domain={self.domain})')
         return s
+
+
+def iirfilter_init_(tensor, filter_specs, ood='clip'):
+    rg = tensor.requires_grad
+    tensor.requires_grad = False
+    worN = tensor.size(-1)
+    for fspec in filter_specs:
+        fspec.initialise_spectrum(worN, ood)
+    spectra = torch.cat([fspec.spectrum for fspec in filter_specs])
+    tensor[:] = spectra
+    tensor.requires_grad = rg
 
 
 def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
@@ -392,7 +403,7 @@ def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
         response_hp = frequencies < Wn[:, 0].view(-1, 1)
         response_lp = frequencies > Wn[:, 1].view(-1, 1)
         response = response_hp + response_lp
-    return response
+    return response.float()
 
 
 def iirfilter_spectrum(iirfilter, N, Wn, worN, btype='bandpass', fs=None,
