@@ -4,7 +4,7 @@
 """
 IIR filter initialisation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-Tools for initialising parameters to match the frequency attenuation curve of
+Tools for initialising parameters to match the frequency response curve of
 an IIR filter.
 """
 import torch
@@ -53,16 +53,14 @@ class IIRFilterSpec(object):
         self.transform_and_bound_spectrum(ood)
 
     def transform_and_bound_spectrum(self, ood):
-        if self.domain == 'linear':
-            return None
-
         ampl = torch.abs(spectrum)
         phase = torch.angle(spectrum)
-
+        if self.domain == 'linear':
+            return None
         elif self.domain == 'atanh':
             ampl = self._handle_ood(ampl, bound=1, ood=ood)
             ampl = torch.atanh(ampl)
-            self._bound_and_recompose()
+            self._bound_and_recompose(ampl, phase)
 
     def _handle_ood(self, ampl, bound, ood):
         if ood == 'clip':
@@ -75,3 +73,95 @@ class IIRFilterSpec(object):
         ampl[ampl < self.bounds[0]] = self.bounds[0]
         ampl[ampl > self.bounds[1]] = self.bounds[1]
         self.spectrum = ampl * torch.exp(phase * 1j)
+
+
+def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
+    """
+    Obtain the Butterworth filter's attenuation spectrum via import from scipy.
+
+    Dimension
+    ---------
+    - N : :math:`(F)`
+      F denotes the total number of filter to initialise.
+    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
+
+    Parameters
+    ----------
+    N : int or Tensor
+        Filter order. If this is a tensor, then a separate filter will be
+        created for each entry in the tensor. Wn must be shaped to match.
+    Wn : float or tuple(float, float) or Tensor
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if `fs` is not provided,
+        and should be in the same units as `fs` if it is provided. To create
+        multiple filters, specify a tensor containing the critical frequencies
+        for each filter in a single row.
+    worN : int
+        Number of frequency bins to include in the computed spectrum.
+    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+        Filter type to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+
+    Returns
+    -------
+    out : Tensor
+        The specified Butterworth frequency response.
+    """
+    from scipy.signal import butter
+    filter_params, spectrum_params = {}, {}
+    return iirfilter_spectrum(
+        iirfilter=butter,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+def iirfilter_spectrum(iirfilter, N, Wn, worN, btype='bandpass', fs=None,
+                       filter_params=None, spectrum_params=None):
+    from scipy.signal import freqz
+    N = _ensure_ndarray(N)
+    Wn = _ensure_ndarray(Wn)
+    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+        Wn = Wn.reshape(-1, 2)
+    vals = [
+        iirfilter(N=n, Wn=wn, btype=btype, fs=fs, **filter_params)
+        for n, wn in zip(N, Wn)
+    ]
+    fs = fs or 2 * math.pi
+    vals = [
+        freqz(b, a, worN=worN, fs=fs, include_nyquist=True, **spectrum_params)
+        for b, a in vals
+    ]
+    vals = np.stack([v for _, v in vals])
+    return _import_complex_numpy(vals)
+
+
+def _ensure_ndarray(obj):
+    """
+    Ensure that the object is an iterable ndarray with dimension greater than
+    or equal to 1. Another function we'd do well to get rid of in the future.
+    """
+    try:
+        i = iter(obj)
+        return np.array(obj)
+    except TypeError:
+        return np.array([obj])
+
+
+def _import_complex_numpy(array):
+    """
+    Hacky import of complex-valued array from numpy into torch. Hopefully this
+    can go away in the future. Simply calling torch.Tensor casts the input to
+    real, and we would otherwise have to specify a particular precision for the
+    import which might not match the precision desired.
+    """
+    real = torch.Tensor(array.real)
+    imag = torch.Tensor(array.imag)
+    val = torch.stack([real, imag], -1)
+    return torch.view_as_complex(val)
