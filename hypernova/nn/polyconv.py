@@ -8,7 +8,6 @@ Modules supporting polynomial convolution of time series and other data.
 """
 import math
 import torch
-from torch import nn
 from torch.nn import Module, Parameter, init
 from ..functional import polyconv2d
 from ..init.laplace import laplace_init_
