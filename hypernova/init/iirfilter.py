@@ -14,7 +14,11 @@ import math
 class IIRFilterSpec(object):
     def __init__(self, Wn, N=1, ftype='butter', btype='bandpass',
                  fs=None, rp=None, rs=None, norm='phase',
-                 domain='atanh', bounds=(-3, 3)):
+                 domain='atanh', bound=3):
+        N = _ensure_tensor(N)
+        Wn = _ensure_tensor(Wn)
+        if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+            Wn = Wn.view(-1, 2)
         self.N = N
         self.Wn = Wn
         self.ftype = ftype
@@ -24,7 +28,7 @@ class IIRFilterSpec(object):
         self.rs = rs
         self.norm = norm
         self.domain = domain
-        self.bounds = bounds
+        self.bound = bound
         self.n_filters = len(self.N)
 
     def initialise_spectrum(self, worN, ood='clip'):
@@ -53,14 +57,14 @@ class IIRFilterSpec(object):
         self.transform_and_bound_spectrum(ood)
 
     def transform_and_bound_spectrum(self, ood):
-        ampl = torch.abs(spectrum)
-        phase = torch.angle(spectrum)
+        ampl = torch.abs(self.spectrum)
+        phase = torch.angle(self.spectrum)
         if self.domain == 'linear':
             return None
         elif self.domain == 'atanh':
             ampl = self._handle_ood(ampl, bound=1, ood=ood)
             ampl = torch.atanh(ampl)
-            self._bound_and_recompose(ampl, phase)
+            self._bound_and_recompose(ampl, phase, ood=ood)
 
     def _handle_ood(self, ampl, bound, ood):
         if ood == 'clip':
@@ -69,10 +73,14 @@ class IIRFilterSpec(object):
             ampl /= (ampl.max(0) / bound)
         return ampl
 
-    def _bound_and_recompose(self, ampl, phase):
-        ampl[ampl < self.bounds[0]] = self.bounds[0]
-        ampl[ampl > self.bounds[1]] = self.bounds[1]
+    def _bound_and_recompose(self, ampl, phase, ood):
+        ampl = self._handle_ood(ampl, self.bound, ood)
         self.spectrum = ampl * torch.exp(phase * 1j)
+
+    def __repr__(self):
+        s = (f'IIRFilterSpec(ftype={self.ftype}, '
+             f'n_filters={self.n_filters}, domain={self.domain})')
+        return s
 
 
 def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
@@ -366,7 +374,7 @@ def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
     out : Tensor
         The specified ideal frequency response.
     """
-    Wn = torch.Tensor(_ensure_ndarray(Wn))
+    Wn = _ensure_tensor(Wn)
     if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
         Wn = Wn.view(-1, 2)
     if fs is not None:
@@ -465,6 +473,18 @@ def _ensure_ndarray(obj):
         return np.array(obj)
     except TypeError:
         return np.array([obj])
+
+
+def _ensure_tensor(obj):
+    """
+    Ensure that the object is an iterable tensor with dimension greater than
+    or equal to 1. Another function we'd do well to get rid of in the future.
+    """
+    try:
+        i = iter(obj)
+        return torch.Tensor(obj)
+    except TypeError:
+        return torch.Tensor([obj])
 
 
 def _import_complex_numpy(array):
