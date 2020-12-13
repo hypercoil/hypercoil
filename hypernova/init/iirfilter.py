@@ -12,6 +12,83 @@ import math
 
 
 class IIRFilterSpec(object):
+    """
+    Specification for an IIR or ideal filter.
+
+    Dimension
+    ---------
+    - N : :math:`(F)`
+      F denotes the total number of filter to initialise.
+    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
+
+    Parameters
+    ----------
+    Wn : float or tuple(float, float) or Tensor
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if `fs` is not provided,
+        and should be in the same units as `fs` if it is provided. To create
+        multiple filters, specify a tensor containing the critical frequencies
+        for each filter in a single row.
+    N : int or Tensor (default 1)
+        Filter order. If this is a tensor, then a separate filter will be
+        created for each entry in the tensor. Wn must be shaped to match. Not
+        used for ideal filters.
+    ftype : one of ('butter', 'cheby1', 'cheby2', 'ellip', 'bessel', 'ideal')
+        Filter class to emulate: Butterworth, Chebyshev I, Chebyshev II,
+        elliptic, Bessel-Thompson, or ideal.
+    btype : 'bandpass' (default) or 'bandstop' or 'lowpass' or 'highpass'
+        Filter pass-band to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+    rp : float (default 0.1)
+        Pass-band ripple. Used only for Chebyshev I and elliptic filters.
+    rs : float (default 20)
+        Stop-band ripple. Used only for Chebyshev II and elliptic filters.
+    norm : 'phase' or 'mag' or 'delay' (default 'phase')
+        Critical frequency normalisation. Consult the `scipy.signal.bessel`
+        documentation for details.
+    bound : float (default 3)
+        Maximum tolerable amplitude in the transfer function. Any values in
+        excess will be adjusted according to the `ood` option when a spectrum
+        is initialised.
+
+    Attributes
+    ----------
+    spectrum : Tensor
+        Populated when the `initialise_spectrum` method is called.
+
+    Methods
+    -------
+    initialise_spectrum(worN, domain, ood)
+        Initialises a frequency spectrum or transfer function for the specified
+        filter with `worN` frequency bins between 0 and Nyquist, inclusive.
+
+        Parameters
+        ----------
+        worN : int
+            Number of frequency bins between 0 and Nyquist, inclusive.
+        domain : 'linear' or 'atanh' (default 'atanh')
+            Domain of the output spectrum. `linear` yields the raw transfer
+            function, while `atanh` transforms the amplitudes of each bin by
+            the inverse tanh (atanh) function. This transformation can be
+            useful if the transfer function will be used as a learnable
+            parameter whose amplitude will be transformed by the tanh function,
+            thereby constraining it to [0, 1] and preventing explosive gain.
+        ood : 'clip' or 'norm' (default `clip`)
+            Indicates how the initialisation handles out-of-domain values.
+            `clip` indicates that out-of-domain values should be clipped to the
+            closest allowed point and `norm` indicates that the entire spectrum
+            (in-domain and out-of-domain values) should be re-scaled so that it
+            fits in the domain bounds (not recommended).
+
+        Returns
+        -------
+        None: the `spectrum` attribute is populated instead.
+    """
     def __init__(self, Wn, N=1, ftype='butter', btype='bandpass',
                  fs=None, rp=0.1, rs=20, norm='phase', bound=3):
         N = _ensure_tensor(N)
