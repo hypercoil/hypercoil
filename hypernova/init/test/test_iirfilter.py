@@ -6,7 +6,6 @@ Unit tests for IIR filter initialisation
 """
 import numpy as np
 import torch
-from hypernova.nn import PolyConv2D
 from hypernova.init.iirfilter import (
     IIRFilterSpec,
     iirfilter_init_,
