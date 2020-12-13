@@ -87,7 +87,7 @@ class IIRFilterSpec(object):
             the inverse tanh (atanh) function. This transformation can be
             useful if the transfer function will be used as a learnable
             parameter whose amplitude will be transformed by the tanh function,
-            thereby constraining it to [0, 1] and preventing explosive gain.
+            thereby constraining it to [0, 1) and preventing explosive gain.
         ood : 'clip' or 'norm' (default `clip`)
             Indicates how the initialisation handles out-of-domain values.
             `clip` indicates that out-of-domain values should be clipped to the
@@ -126,6 +126,10 @@ class IIRFilterSpec(object):
         Wn = _ensure_tensor(Wn)
         if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
             Wn = Wn.view(-1, 2)
+        if N.size(0) == 1 and Wn.size(0) > N.size(0):
+            N = N.repeat(Wn.size(0), 1)
+        elif Wn.size(0) == 1 and Wn.size(0) < N.size(0):
+            Wn = Wn.repeat(N.size(0), 1)
         self.N = N
         self.Wn = Wn
         self.ftype = ftype
