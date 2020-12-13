@@ -251,6 +251,10 @@ def iirfilter_init_(tensor, filter_specs, domain='atanh', ood='clip'):
         closest allowed point and `norm` indicates that the entire spectrum
         (in-domain and out-of-domain values) should be re-scaled so that it
         fits in the domain bounds (not recommended).
+
+    Returns
+    -------
+    None. The input tensor is initialised in-place.
     """
     rg = tensor.requires_grad
     tensor.requires_grad = False
@@ -263,6 +267,36 @@ def iirfilter_init_(tensor, filter_specs, domain='atanh', ood='clip'):
 
 
 def clamp_init_(points_tensor, values_tensor, filter_specs):
+    """
+    Filter clamp initialisation.
+
+    Initialise two tensors such that the first masks the points of a filter's
+    transfer function to be clamped and the second contains the clamping
+    values.
+
+    Dimension
+    ---------
+    - points_tensor : :math:`(*, F, N)`
+      F denotes the total number of filters to initialise from the provided
+      specs, and N denotes the number of frequency bins.
+    - values_tensor : :math:`(K)`
+      K denotes the total number of values to be clamped.
+
+    Parameters
+    ----------
+    points_tensor : Tensor
+        Mask tensor to initialise in-place. This should be of dtype
+        `torch.bool` or similar so that it can operate as a mask.
+    values_tensor : Tensor
+        Tensor containing clamping values to initialise in-place.
+    filter_specs : list(IIRFilterSpec)
+        A list of filter specifications implemented as `IIRFilterSpec` objects
+        (`hypernova.init.IIRFilterSpec`).
+
+    Returns
+    -------
+    None. The input tensors are initialised in-place.
+    """
     rgp = points_tensor.requires_grad
     rgv = values_tensor.requires_grad
     points_tensor.requires_grad = False
