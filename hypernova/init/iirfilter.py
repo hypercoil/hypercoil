@@ -51,6 +51,16 @@ class IIRFilterSpec(object):
     norm : 'phase' or 'mag' or 'delay' (default 'phase')
         Critical frequency normalisation. Consult the `scipy.signal.bessel`
         documentation for details.
+    clamps : list(dict)
+        Frequencies whose responses should be clampable to particular values.
+        Each element of the list is a dictionary corresponding to a single
+        filter; the list should therefore have a length of `F`. Each key/value
+        pair in each dictionary should correspond to a frequency (relative to
+        Nyquist or `fs` if provided) and the clampable response at that
+        frequency. For instance {0.1: 0, 0.5: 1} enables clamping of the
+        frequency bin closest to 0.1 to 0 (full stop) and the bin closest to
+        0.5 to 1 (full pass). Note that the clamp must be applied using the
+        `get_clamps` method.
     bound : float (default 3)
         Maximum tolerable amplitude in the transfer function. Any values in
         excess will be adjusted according to the `ood` option when a spectrum
@@ -88,6 +98,27 @@ class IIRFilterSpec(object):
         Returns
         -------
         None: the `spectrum` attribute is populated instead.
+
+    get_clamps(worN)
+        Returns a mask and a set of values that can be used to clamp each
+        filter's transfer function at a specified set of frequencies.
+
+        To apply the clamp, use:
+
+        spectrum[points] = values
+
+        Parameters
+        ----------
+        worN : int
+            Number of frequency bins between 0 and Nyquist, inclusive.
+
+        Returns
+        -------
+        points : Tensor
+            Boolean mask indicating the frequency bins that are clampable.
+        values : Tensor
+            Values to which the response function is clampable at the specified
+            frequencies.
     """
     def __init__(self, Wn, N=1, ftype='butter', btype='bandpass', fs=None,
                  rp=0.1, rs=20, norm='phase', clamps=None, bound=3):
