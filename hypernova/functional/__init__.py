@@ -16,7 +16,8 @@ from .crosssim import (
     crosshair_cosine_similarity
 )
 from .fourier import (
-    product_filter
+    product_filter,
+    product_filtfilt
 )
 from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity
