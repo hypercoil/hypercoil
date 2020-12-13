@@ -16,6 +16,83 @@ from ..init.iirfilter import iirfilter_init_, clamp_init_
 
 
 class FrequencyDomainFilter(Module):
+    """
+    Filtering or convolution via transfer function multiplication in the
+    frequency domain.
+
+    Each time series in the input dataset is transformed into the frequency
+    domain, where it is multiplied by the complex-valued transfer function of
+    each filter in the module's bank. Each filtered frequency spectrum is then
+    transformed back into the time domain. To ensure a zero-phase filter, the
+    filtered time series are reversed and the process is repeated.
+
+    Dimension
+    ---------
+    - Input: :math:`(N, *, C, T)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      C denotes number of variables or data channels, T denotes number of time
+      points or observations.
+    - Output: :math:`(N, *, F, C, T)`
+      F denotes number of filters.
+
+    Parameters
+    ----------
+    filter_specs : list(IIRFilterSpec)
+        A list of filter specifications implemented as `IIRFilterSpec` objects
+        (`hypernova.init.IIRFilterSpec`). These determine the filter bank that
+        is applied to the input. Consult the `IIRFilterSpec` documentation for
+        further details.
+    dim : int or None
+        Number of frequency bins. This must be conformant with the time series
+        supplied as input. If you are uncertain about the dimension in the
+        frequency domain, it is possible to instead provide the `time_dim`
+        argument (the length of the time series), but either `time_dim` or
+        `dim` (but not both) must be specified.
+    time_dim : int or None
+        Number of time points in the input time series. Either `time_dim` or
+        `dim` (but not both) must be specified.
+    filter : callable (default product_filtfilt)
+        Callable function that takes as its arguments an input time series and
+        a set of transfer functions. It transforms the input into the frequency
+        domain, multiplies it by the transfer function bank, and transforms it
+        back. By default, the `product_filtfilt` function is used to ensure a
+        zero-phase filter.
+    domain : 'linear' or 'atanh' (default 'atanh')
+        Domain of the raw transfer function parameters. `linear` yields the
+        untransformed transfer function, while `atanh` transforms the
+        amplitudes of each bin by the inverse tanh (atanh) function. If the
+        weights are in the `atanh` domain, then their amplitudes are
+        transformed by the tanh function prior to convolution with the input.
+        Using the `atanh` domain thereby constrains transfer function
+        amplitudes to [0, 1) and prevents explosive gain.
+
+    Attributes
+    ----------
+    weight : Tensor :math:`(F, D)`
+        Filter bank transfer functions in the module's domain. F denotes the
+        total number of filters in the bank, and D denotes the dimension of the
+        input dataset in the frequency domain. The weights are initialised to
+        emulate each  of the filters specified in the `filter_specs` parameter
+        following the `iirfilter_init_` function.
+    constrained_weight : Tensor :math:`(F, D)`
+        The transfer function weights as seen by the input dataset in the
+        frequency domain. This entails mapping the weights out of the `atanh`
+        predomain and applying any clamps declared in the input specifications.
+    clamp_points : Tensor :math:`(F, D)`
+        Boolean-valued tensor mask indexing points in the transfer function
+        that should be clamped to particular values. Any points so indexed will
+        not be learnable. If this is None, then no clamp is applied.
+    clamp_values : Tensor :math:`(V)`
+        Tensor containing values to which the transfer functions are clamped. V
+        denotes the total number of values to be clamped across all transfer
+        functions. If this is None, then no clamp is applied.
+    activation : callable
+        Activation function that maps the internal module weights into the
+        frequency domain of the data. If the module domain is `atanh`, then
+        this is the `amplitude_tanh` function that passes the amplitude of each
+        value through a tanh function while preserving its phase. If the domain
+        is `linear` there is no activation function.
+    """
     def __init__(self, filter_specs, dim=None, time_dim=None,
                  filter=product_filtfilt, domain='atanh'):
         super(FrequencyDomainFilter, self).__init__()
