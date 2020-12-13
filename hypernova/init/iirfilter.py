@@ -4,8 +4,8 @@
 """
 IIR filter initialisation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-Tools for initialising parameters to match the transfer function of an IIR
-filter.
+Tools for initialising parameters to match the transfer function of an IIR or
+ideal filter.
 """
 import torch
 import math
@@ -13,8 +13,7 @@ import math
 
 class IIRFilterSpec(object):
     def __init__(self, Wn, N=1, ftype='butter', btype='bandpass',
-                 fs=None, rp=None, rs=None, norm='phase',
-                 domain='atanh', bound=3):
+                 fs=None, rp=0.1, rs=20, norm='phase', bound=3):
         N = _ensure_tensor(N)
         Wn = _ensure_tensor(Wn)
         if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
@@ -27,11 +26,10 @@ class IIRFilterSpec(object):
         self.rp = rp
         self.rs = rs
         self.norm = norm
-        self.domain = domain
         self.bound = bound
         self.n_filters = len(self.N)
 
-    def initialise_spectrum(self, worN, ood='clip'):
+    def initialise_spectrum(self, worN, domain='atanh', ood='clip'):
         if self.ftype == 'butter':
             self.spectrum = butterworth_spectrum(
                 N=self.N, Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
@@ -54,14 +52,14 @@ class IIRFilterSpec(object):
         if self.ftype == 'ideal':
             self.spectrum = ideal_spectrum(
                 Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
-        self.transform_and_bound_spectrum(ood)
+        self._transform_and_bound_spectrum(domain, ood)
 
-    def transform_and_bound_spectrum(self, ood):
+    def _transform_and_bound_spectrum(self, domain, ood):
         ampl = torch.abs(self.spectrum)
         phase = torch.angle(self.spectrum)
-        if self.domain == 'linear':
+        if domain == 'linear':
             return None
-        elif self.domain == 'atanh':
+        elif domain == 'atanh':
             ampl = self._handle_ood(ampl, bound=1, ood=ood)
             ampl = torch.atanh(ampl)
             self._bound_and_recompose(ampl, phase, ood=ood)
@@ -78,12 +76,11 @@ class IIRFilterSpec(object):
         self.spectrum = ampl * torch.exp(phase * 1j)
 
     def __repr__(self):
-        s = (f'IIRFilterSpec(ftype={self.ftype}, '
-             f'n_filters={self.n_filters}, domain={self.domain})')
+        s = (f'IIRFilterSpec(ftype={self.ftype}, n_filters={self.n_filters})')
         return s
 
 
-def iirfilter_init_(tensor, filter_specs, ood='clip'):
+def iirfilter_init_(tensor, filter_specs, domain='atanh', ood='clip'):
     """
     IIR filter-like transfer function initialisation.
 
@@ -119,7 +116,7 @@ def iirfilter_init_(tensor, filter_specs, ood='clip'):
     tensor.requires_grad = False
     worN = tensor.size(-1)
     for fspec in filter_specs:
-        fspec.initialise_spectrum(worN, ood)
+        fspec.initialise_spectrum(worN, domain, ood)
     spectra = torch.cat([fspec.spectrum for fspec in filter_specs])
     tensor[:] = spectra
     tensor.requires_grad = rg
