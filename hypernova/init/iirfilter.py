@@ -262,6 +262,27 @@ def iirfilter_init_(tensor, filter_specs, domain='atanh', ood='clip'):
     tensor.requires_grad = rg
 
 
+def clamp_init_(points_tensor, values_tensor, filter_specs):
+    rgp = points_tensor.requires_grad
+    rgv = values_tensor.requires_grad
+    points_tensor.requires_grad = False
+    values_tensor.requires_grad = False
+    worN = points_tensor.size(-1)
+    points, values = [], []
+    for fspec in filter_specs:
+        mask, vals = fspec.get_clamps(worN)
+        points.append(mask)
+        values.append(vals)
+    if len(points) > 1:
+        points, values = torch.cat(points, 0), torch.cat(values)
+    else:
+        points, values = points[0], values[0]
+    points_tensor[:] = points
+    values_tensor[:] = values
+    points_tensor.requires_grad = rgp
+    values_tensor.requires_grad = rgv
+
+
 def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
     """
     Butterworth filter's transfer function obtained via import from scipy.
