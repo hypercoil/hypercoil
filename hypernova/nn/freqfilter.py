@@ -170,7 +170,7 @@ class FrequencyDomainFilter(Module):
 
     def forward(self, input):
         if input.size(0) > 1 and input.dim() > 1:
-            input.unsqueeze_(-3)
+            input = input.unsqueeze(-3)
             weight = self.constrained_weight.unsqueeze(-2)
         else:
             weight = self.constrained_weight
