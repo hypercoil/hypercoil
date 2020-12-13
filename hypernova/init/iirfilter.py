@@ -584,6 +584,8 @@ def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
     """
     Ideal filter transfer function.
 
+    Note that the exact specified cutoff frequencies are permitted to pass.
+
     Dimension
     ---------
     - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
@@ -619,16 +621,16 @@ def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
         Wn = 2 * Wn / fs
     frequencies = torch.linspace(0, 1, worN)
     if btype == 'lowpass':
-        response = frequencies < Wn.view(-1, 1)
+        response = frequencies <= Wn.view(-1, 1)
     elif btype == 'highpass':
-        response = frequencies > Wn.view(-1, 1)
+        response = frequencies >= Wn.view(-1, 1)
     elif btype == 'bandpass':
-        response_hp = frequencies > Wn[:, 0].view(-1, 1)
-        response_lp = frequencies < Wn[:, 1].view(-1, 1)
+        response_hp = frequencies >= Wn[:, 0].view(-1, 1)
+        response_lp = frequencies <= Wn[:, 1].view(-1, 1)
         response = response_hp * response_lp
     elif btype == 'bandstop':
-        response_hp = frequencies < Wn[:, 0].view(-1, 1)
-        response_lp = frequencies > Wn[:, 1].view(-1, 1)
+        response_hp = frequencies <= Wn[:, 0].view(-1, 1)
+        response_lp = frequencies >= Wn[:, 1].view(-1, 1)
         response = response_hp + response_lp
     return response.float()
 
