@@ -9,7 +9,8 @@ import torch
 from hypernova.nn import PolyConv2D
 from hypernova.init.iirfilter import (
     IIRFilterSpec,
-    iirfilter_init_
+    iirfilter_init_,
+    clamp_init_
 )
 
 
@@ -28,7 +29,23 @@ filter_specs = [
     IIRFilterSpec(Wn=Wn, N=N, ftype='cheby2', rs=20, rp=0.1)
 ]
 Z = torch.complex(torch.Tensor(21, 13, 50), torch.Tensor(21, 13, 50))
+clamped_specs = [
+    IIRFilterSpec(Wn=[0.1, 0.3]),
+    IIRFilterSpec(Wn=Wn, clamps=[{}, {0.1: 1}]),
+    IIRFilterSpec(Wn=[0.1, 0.3], clamps=[{0.1: 0, 0.5:1}]),
+    IIRFilterSpec(Wn=Wn, N=N, clamps=[{0.05: 1, 0.1: 0}, {0.2: 0, 0.5: 1}])
+]
+P = torch.Tensor(6, 30)
+V = torch.Tensor(7)
+P2 = torch.Tensor(1, 30)
+V2 = torch.Tensor(0)
 
 
 def test_iirfilter():
     iirfilter_init_(Z, filter_specs)
+    assert sum([spec.n_filters for spec in filter_specs]) == Z.size(-2)
+
+
+def test_clamps():
+    clamp_init_(P, V, clamped_specs)
+    clamp_init_(P2, V2, [clamped_specs[0]])
