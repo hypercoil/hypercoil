@@ -15,7 +15,7 @@ from ..init.laplace import laplace_init_
 
 class PolyConv2D(Module):
     """
-    2D convolution over a polynomial expansion of an input signal..
+    2D convolution over a polynomial expansion of an input signal.
 
     In a degree-K polynomial convolution, each channel of the input dataset is
     mapped across K channels, and raised to the ith power at the ith channel.
