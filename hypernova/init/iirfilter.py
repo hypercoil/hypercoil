@@ -18,7 +18,7 @@ class IIRFilterSpec(object):
     Dimension
     ---------
     - N : :math:`(F)`
-      F denotes the total number of filter to initialise.
+      F denotes the total number of filters to initialise.
     - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
 
     Parameters
@@ -89,8 +89,8 @@ class IIRFilterSpec(object):
         -------
         None: the `spectrum` attribute is populated instead.
     """
-    def __init__(self, Wn, N=1, ftype='butter', btype='bandpass',
-                 fs=None, rp=0.1, rs=20, norm='phase', bound=3):
+    def __init__(self, Wn, N=1, ftype='butter', btype='bandpass', fs=None,
+                 rp=0.1, rs=20, norm='phase', clamps=None, bound=3):
         N = _ensure_tensor(N)
         Wn = _ensure_tensor(Wn)
         if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
@@ -103,6 +103,7 @@ class IIRFilterSpec(object):
         self.rp = rp
         self.rs = rs
         self.norm = norm
+        self.clamps = clamps
         self.bound = bound
         self.n_filters = len(self.N)
 
@@ -151,6 +152,33 @@ class IIRFilterSpec(object):
     def _bound_and_recompose(self, ampl, phase, ood):
         ampl = self._handle_ood(ampl, self.bound, ood)
         self.spectrum = ampl * torch.exp(phase * 1j)
+
+    def get_clamps(self, worN):
+        frequencies = torch.linspace(0, 1, worN)
+        points, values = [], []
+        for clamps in self.clamps:
+            mask, vals = self._filter_clamps(clamps, frequencies)
+            points.append(mask)
+            values.append(vals)
+        if len(masks) > 1:
+            return torch.stack(points), torch.cat(values)
+        return mask, vals
+
+    def _filter_clamps(self, clamps, frequencies):
+        clamp_points = torch.Tensor(list(clamps.keys()))
+        clamp_values = torch.Tensor(list(clamps.values()))
+        fs = self.fs or 1
+        clamp_points /= fs
+        dist = torch.abs(clamp_points.view(-1, 1) - frequencies)
+        mask = torch.eye(worN)[dist.argmin(-1)]
+        clamp_points = mask.sum(0).bool()
+        try:
+            assert clamp_points.sum() == len(clamp_values)
+        except AssertionError as e:
+            e.args += ('Unable to separately resolve clamped frequencies',)
+            e.args += ('Increase either the spacing or the number of bins',)
+            raise
+        return clamp_points, clamp_values
 
     def __repr__(self):
         s = (f'IIRFilterSpec(ftype={self.ftype}, n_filters={self.n_filters})')
