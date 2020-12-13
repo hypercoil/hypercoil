@@ -189,4 +189,12 @@ def amplitude_tanh(input):
     """
     ampl = torch.abs(input)
     phase = torch.angle(input)
-    return torch.tanh(ampl) * torch.exp(phase * 1j)
+    # TODO : update to use the complex exponential when torch enables it...
+    # see here : https://discuss.pytorch.org/t/complex-functions-exp-does- ...
+    # not-support-automatic-differentiation-for-outputs-with-complex-dtype/98039
+    # Supposedly it was updated, but it still isn't working after calling
+    # pip install torch --upgrade
+    # https://github.com/pytorch/pytorch/issues/43349
+    # https://github.com/pytorch/pytorch/pull/47194
+    return torch.tanh(ampl) * (torch.cos(phase) + 1j * torch.sin(phase))
+    #return torch.tanh(ampl) * torch.exp(phase * 1j)
