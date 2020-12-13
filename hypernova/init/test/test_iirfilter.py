@@ -26,7 +26,7 @@ filter_specs = [
     IIRFilterSpec(Wn=[0.1, 0.2], N=[2, 2], btype='lowpass'),
     IIRFilterSpec(Wn=Wn, N=N, ftype='cheby1', rp=0.1),
     IIRFilterSpec(Wn=Wn, N=N, ftype='cheby2', rs=20),
-    IIRFilterSpec(Wn=Wn, N=N, ftype='cheby2', rs=20, rp=0.1)
+    IIRFilterSpec(Wn=Wn, N=N, ftype='ellip', rs=20, rp=0.1)
 ]
 Z = torch.complex(torch.Tensor(21, 13, 50), torch.Tensor(21, 13, 50))
 clamped_specs = [
@@ -39,6 +39,7 @@ P = torch.Tensor(6, 30)
 V = torch.Tensor(7)
 P2 = torch.Tensor(1, 30)
 V2 = torch.Tensor(0)
+Z2 = torch.complex(torch.Tensor(21, 6, 50), torch.Tensor(21, 6, 50))
 
 
 def test_iirfilter():
@@ -49,3 +50,4 @@ def test_iirfilter():
 def test_clamps():
     clamp_init_(P, V, clamped_specs)
     clamp_init_(P2, V2, [clamped_specs[0]])
+    iirfilter_init_(Z2, clamped_specs)
