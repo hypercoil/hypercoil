@@ -134,9 +134,9 @@ class IIRFilterSpec(object):
         self.rp = rp
         self.rs = rs
         self.norm = norm
-        self.clamps = clamps
+        self.clamps = clamps or []
         self.bound = bound
-        self.n_filters = len(self.N)
+        self.n_filters = Wn.size(0)
 
     def initialise_spectrum(self, worN, domain='atanh', ood='clip'):
         if self.ftype == 'butter':
@@ -187,22 +187,26 @@ class IIRFilterSpec(object):
     def get_clamps(self, worN):
         frequencies = torch.linspace(0, 1, worN)
         points, values = [], []
+        if len(self.clamps) == 0:
+            return torch.zeros((self.n_filters, worN)).bool(), torch.Tensor([])
         for clamps in self.clamps:
-            mask, vals = self._filter_clamps(clamps, frequencies)
+            mask, vals = self._filter_clamps(clamps, frequencies, worN)
             points.append(mask)
             values.append(vals)
-        if len(masks) > 1:
-            return torch.stack(points), torch.cat(values)
+        if len(points) > 1:
+            return torch.cat(points, 0), torch.cat(values)
         return mask, vals
 
-    def _filter_clamps(self, clamps, frequencies):
+    def _filter_clamps(self, clamps, frequencies, worN):
         clamp_points = torch.Tensor(list(clamps.keys()))
         clamp_values = torch.Tensor(list(clamps.values()))
+        if len(clamp_values) == 0:
+            return torch.zeros((1, worN)).bool(), torch.Tensor([])
         fs = self.fs or 1
         clamp_points /= fs
         dist = torch.abs(clamp_points.view(-1, 1) - frequencies)
         mask = torch.eye(worN)[dist.argmin(-1)]
-        clamp_points = mask.sum(0).bool()
+        clamp_points = mask.sum(0).view(1, -1).bool()
         try:
             assert clamp_points.sum() == len(clamp_values)
         except AssertionError as e:
