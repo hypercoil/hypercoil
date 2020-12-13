@@ -4,6 +4,9 @@
 """
 Neural network modules
 """
+from .freqfilter import (
+    FrequencyDomainFilter
+)
 from .polyconv import (
     PolyConv2D
 )
