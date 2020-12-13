@@ -81,3 +81,12 @@ class FrequencyDomainFilter(Module):
 
     def forward(self, input):
         return self.filter(input, self.constrained_weight)
+
+    def __repr__(self):
+        s = f'{self.__class__.__name__}(domain={self.domain}, [\n'
+        for spec in self.filter_specs:
+            s += '    '
+            s += spec.__repr__()
+            s += '\n'
+        s += '])'
+        return s
