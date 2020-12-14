@@ -23,6 +23,13 @@ def spsd_std_mean(dim=100, rank=None, std=0.05, iter=1000):
     ]).mean()
 
 
+def spsd_mean_mean(dim=100, rank=None, std=0.05, iter=1000):
+    return torch.Tensor(
+        [spsd_noise([dim], std=std, rank=rank).mean()
+        for _ in range(iter)
+    ]).mean()
+
+
 def test_spsd_std():
     out = spsd_std_mean()
     ref = 0.05
@@ -33,3 +40,19 @@ def test_spsd_std():
     out = spsd_std_mean(std=0.03, rank=7)
     ref = 0.03
     assert testf(out, ref)
+
+
+def test_spsd_spsd():
+    out = spsd_noise([100])
+    assert np.allclose(out, out.T, atol=1e-7)
+    # ignore effectively-zero eigenvalues
+    L = np.linalg.eigvals(out)
+    L[np.abs(L) < 1e-7] = 0
+    assert np.all(L >= 0)
+
+    out = spsd_noise([100], rank=3)
+    assert np.allclose(out, out.T, atol=1e-7)
+    # ignore effectively-zero eigenvalues
+    L = np.linalg.eigvals(out)
+    L[np.abs(L) < 1e-7] = 0
+    assert np.all(L >= 0)
