@@ -26,7 +26,8 @@ from .matrix import (
     invert_spd, expand_outer, toeplitz
 )
 from .noise import (
-    diag_noise, spsd_noise, diag_dropout_mask, spsd_dropout_mask
+    DiagonalNoiseSource, SPSDNoiseSource,
+    DiagonalDropoutSource, SPSDDropoutSource
 )
 from .polynomial import (
     polychan, polyconv2d
