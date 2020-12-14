@@ -40,6 +40,7 @@ identity_spec = [
 Z1 = torch.rand(99)
 Z2 = torch.rand(1, 99)
 Z3 = torch.rand(7, 99)
+Z4 = torch.rand(1, 7, 99)
 
 
 def test_shape_forward():
@@ -50,6 +51,8 @@ def test_shape_forward():
     assert out.size() == torch.Size([13, 99])
     out = filt(Z3)
     assert out.size() == torch.Size([13, 7, 99])
+    out = filt(Z4)
+    assert out.size() == torch.Size([1, 13, 7, 99])
 
 
 def test_shape_clamped_forward():
@@ -60,6 +63,8 @@ def test_shape_clamped_forward():
     assert out.size() == torch.Size([6, 99])
     out = filt(Z3)
     assert out.size() == torch.Size([6, 7, 99])
+    out = filt(Z4)
+    assert out.size() == torch.Size([1, 6, 7, 99])
 
 
 def test_identity_forward():

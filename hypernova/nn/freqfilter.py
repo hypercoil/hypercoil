@@ -6,9 +6,8 @@ Frequency-domain filter
 ~~~~~~~~~~~~~~~~~~~~~~~
 Modules supporting filtering/convolution as a product in the frequency domain.
 """
-import math
 import torch
-from torch.nn import Module, Parameter, init
+from torch.nn import Module, Parameter
 from itertools import chain
 from ..functional import product_filtfilt
 from ..functional.activation import amplitude_tanh
@@ -169,7 +168,7 @@ class FrequencyDomainFilter(Module):
         return s
 
     def forward(self, input):
-        if input.size(0) > 1 and input.dim() > 1:
+        if input.dim() > 1 and input.size(-2) > 1:
             input = input.unsqueeze(-3)
             weight = self.constrained_weight.unsqueeze(-2)
         else:
