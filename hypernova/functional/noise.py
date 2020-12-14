@@ -10,12 +10,13 @@ import math
 import torch
 
 
-def diag_noise(dim, std=0.05, training=True):
+def diag_noise(dim, std=0.05, offset=0, training=True):
+    dim = [*dim[:-1], dim[-1] - abs(offset)]
     if training:
         noise = std * torch.randn(*dim)
-        return torch.diag_embed(noise)
+        return torch.diag_embed(noise, offset)
     else:
-        return torch.zeros((*dim, dim[-1]))
+        return 0
 
 
 def spsd_noise(dim, rank=None, std=0.05, training=True):
@@ -62,11 +63,14 @@ def spsd_noise(dim, rank=None, std=0.05, training=True):
         Block of symmetric positive semidefinite matrices sampled from the
         noise source.
     """
-    rank = rank or dim[-1]
-    noise = torch.empty((*dim, rank))
-    var = std / math.sqrt(rank + (rank ** 2) / dim[-1])
-    noise.normal_(std=math.sqrt(var))
-    return noise @ noise.transpose(-1, -2)
+    if training:
+        rank = rank or dim[-1]
+        noise = torch.empty((*dim, rank))
+        var = std / math.sqrt(rank + (rank ** 2) / dim[-1])
+        noise.normal_(std=math.sqrt(var))
+        return noise @ noise.transpose(-1, -2)
+    else:
+        return 0
 
 
 def diag_dropout_mask(dim, p=0.5, training=True):
@@ -74,7 +78,7 @@ def diag_dropout_mask(dim, p=0.5, training=True):
         mask = (torch.rand(*dim) < p) / p
         return torch.diag_embed(mask)
     else:
-        return torch.ones((*dim, dim[-1]))
+        return 1
 
 
 def spsd_dropout_mask(dim, p=0.5, rank=1, training=True):
@@ -82,4 +86,4 @@ def spsd_dropout_mask(dim, p=0.5, rank=1, training=True):
         mask = (torch.rand(*dim, rank) < p) / p
         return mask @ mask.T / rank
     else:
-        return torch.ones((*dim, dim[-1]))
+        return 1
