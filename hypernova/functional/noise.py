@@ -10,7 +10,15 @@ import math
 import torch
 
 
-def spsd_noise(dim, rank=None, std=0.05):
+def diag_noise(dim, std=0.05, training=True):
+    if training:
+        noise = std * torch.randn(*dim)
+        return torch.diag_embed(noise)
+    else:
+        return torch.zeros((*dim, dim[-1]))
+
+
+def spsd_noise(dim, rank=None, std=0.05, training=True):
     """
     Symmetric positive semidefinite noise source.
 
@@ -59,3 +67,19 @@ def spsd_noise(dim, rank=None, std=0.05):
     var = std / math.sqrt(rank + (rank ** 2) / dim[-1])
     noise.normal_(std=math.sqrt(var))
     return noise @ noise.transpose(-1, -2)
+
+
+def diag_dropout_mask(dim, p=0.5, training=True):
+    if training:
+        mask = (torch.rand(*dim) < p) / p
+        return torch.diag_embed(mask)
+    else:
+        return torch.ones((*dim, dim[-1]))
+
+
+def spsd_dropout_mask(dim, p=0.5, rank=1, training=True):
+    if training:
+        mask = (torch.rand(*dim, rank) < p) / p
+        return mask @ mask.T / rank
+    else:
+        return torch.ones((*dim, dim[-1]))
