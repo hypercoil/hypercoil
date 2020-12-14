@@ -7,7 +7,7 @@ Unit tests for noise sources
 import numpy as np
 import torch
 from hypernova.functional import (
-    spsd_noise
+    SPSDNoiseSource
 )
 
 
@@ -17,16 +17,16 @@ testf = lambda out, ref: np.isclose(out, ref, atol=atol, rtol=rtol)
 
 
 def spsd_std_mean(dim=100, rank=None, std=0.05, iter=1000):
+    spsdns = SPSDNoiseSource(rank=rank, std=std)
     return torch.Tensor(
-        [spsd_noise([dim], std=std, rank=rank).std()
-        for _ in range(iter)
+        [spsdns.sample([dim]).std() for _ in range(iter)
     ]).mean()
 
 
 def spsd_mean_mean(dim=100, rank=None, std=0.05, iter=1000):
+    spsdns = SPSDNoiseSource(rank=rank, std=std)
     return torch.Tensor(
-        [spsd_noise([dim], std=std, rank=rank).mean()
-        for _ in range(iter)
+        [spsdns.sample([dim]).mean() for _ in range(iter)
     ]).mean()
 
 
@@ -43,14 +43,16 @@ def test_spsd_std():
 
 
 def test_spsd_spsd():
-    out = spsd_noise([100])
+    spsdns = SPSDNoiseSource()
+    out = spsdns.sample([100])
     assert np.allclose(out, out.T, atol=1e-7)
     # ignore effectively-zero eigenvalues
     L = np.linalg.eigvals(out)
     L[np.abs(L) < 1e-7] = 0
     assert np.all(L >= 0)
 
-    out = spsd_noise([100], rank=3)
+    spsdns = SPSDNoiseSource(rank=3)
+    out = spsdns.sample([100])
     assert np.allclose(out, out.T, atol=1e-7)
     # ignore effectively-zero eigenvalues
     L = np.linalg.eigvals(out)
