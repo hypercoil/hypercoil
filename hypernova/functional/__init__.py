@@ -25,6 +25,9 @@ from .graph import (
 from .matrix import (
     invert_spd, expand_outer, toeplitz
 )
+from .noise import (
+    spsd_noise
+)
 from .polynomial import (
     polychan, polyconv2d
 )
