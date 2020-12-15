@@ -7,6 +7,7 @@ Domains
 Functional image and preimage mappers.
 """
 import torch
+#from .activation import complex_decompose, complex_recompose
 
 
 class _OutOfDomainHandler(object):
@@ -65,18 +66,35 @@ class Normalise(_OutOfDomainHandler):
 
 
 class _Domain(object):
-    def __init__(self, handler=None, bound=None):
+    def __init__(self, handler=None, bound=None, scale=1, limits=None):
         self.handler = handler or Clip()
         bound = bound or [-float('inf'), float('inf')]
+        limits = limits or [-float('inf'), float('inf')]
         self.bound = torch.Tensor(bound)
+        self.limits = torch.Tensor(limits)
+        self.scale = scale
 
     def test(self, x):
-        if self.bound is None:
-            return True
         return self.handler.test(x, self.bound)
 
     def handle_ood(self, x):
         return self.handler.apply(x)
+
+    def preimage(self, x):
+        x = self.handler.apply(x, self.bound)
+        i = self.preimage_map(x / self.scale)
+        i = self.handler.apply(i, self.limits)
+        return i
+
+    def image(self, x):
+        return self.scale * self.image_map(x)
+
+
+class _PhaseAmplitudeDomain(_Domain):
+    def preimage(self, x):
+        ampl, phase = complex_decompose(x)
+        ampl = super(_PhaseAmplitudeDomain, self).preimage(ampl)
+        return complex_recompose(ampl, phase)
 
 
 class Identity(_Domain):
@@ -100,52 +118,22 @@ class Linear(_Domain):
 
 
 class Logit(_Domain):
-    def __init__(self, scale=1, handler=None):
-        super(Logit, self).__init__(handler=handler, bound=(0, scale))
-        self.scale = scale
-
-    def preimage(self, x, limits=(-4.5, 4.5)):
-        x = self.handler.apply(x, self.bound)
-        i = torch.logit(x / self.scale)
-        if limits is not None:
-            i = self.handler.apply(i, limits)
-        return i
-
-    def image(self, x):
-        return self.scale * torch.sigmoid(x)
+    def __init__(self, scale=1, handler=None, limits=(-4.5, 4.5)):
+        super(Logit, self).__init__(
+            handler=handler, bound=(0, scale),
+            scale=scale, limits=limits)
+        self.preimage_map = torch.logit
+        self.image_map = torch.sigmoid
 
 
 class Atanh(_Domain):
-    def __init__(self, scale=1, handler=None):
-        super(Atanh, self).__init__(handler=handler, bound=(-scale, scale))
-        self.scale = scale
-
-    def preimage(self, x, limits=(-3, 3)):
-        x = self.handler.apply(x, self.bound)
-        i = torch.atanh(x / self.scale)
-        if limits is not None:
-            i = self.handler.apply(i, limits)
-        return i
-
-    def image(self, x):
-        return self.scale * torch.tanh(x)
+    def __init__(self, scale=1, handler=None, limits=(-3, 3)):
+        super(Atanh, self).__init__(
+            handler=handler, bound=(-scale, scale),
+            scale=scale, limits=limits)
+        self.preimage_map = torch.atanh
+        self.image_map = torch.tanh
 
 
-class AmplitudeAtanh(_Domain):
-    def __init__(self, scale=1, handler=None):
-        super(AmplitudeAtanh, self).__init__(
-            handler=handler, bound=(-scale, scale))
-        self.scale = scale
-
-    def preimage(self, x, limits=(-3, 3)):
-        ampl, phase = complex_decompose(x)
-        ampl = self.handler.apply(ampl, self.bound)
-        ampl = torch.atanh(ampl / self.scale)
-        if limits is not None:
-            ampl = self.handler.apply(ampl, limits)
-        return complex_recompose(ampl, phase)
-
-    def image(self, x):
-        ampl, phase = complex_decompose(x)
-        ampl = self.scale * torch.tanh(ampl)
-        return complex_recompose(ampl, phase)
+class AmplitudeAtanh(_PhaseAmplitudeDomain, Atanh):
+    pass
