@@ -7,7 +7,7 @@ Domains
 Functional image and preimage mappers.
 """
 import torch
-#from .activation import complex_decompose, complex_recompose
+from .activation import complex_decompose, complex_recompose
 
 
 class _OutOfDomainHandler(object):
@@ -27,6 +27,7 @@ class Clip(_OutOfDomainHandler):
 
     def apply(self, x, bound):
         out = x.detach().clone()
+        bound = torch.Tensor(bound)
         out[out > bound[-1]] = bound[-1]
         out[out < bound[0]] = bound[0]
         return out
@@ -46,6 +47,7 @@ class Normalise(_OutOfDomainHandler):
         #
         # It could hardly be handled worse.
         out = x.detach().clone()
+        bound = torch.Tensor(bound)
         if axis is None:
             upper = out.max()
             lower = out.min()
@@ -94,6 +96,11 @@ class _PhaseAmplitudeDomain(_Domain):
     def preimage(self, x):
         ampl, phase = complex_decompose(x)
         ampl = super(_PhaseAmplitudeDomain, self).preimage(ampl)
+        return complex_recompose(ampl, phase)
+
+    def image(self, x):
+        ampl, phase = complex_decompose(x)
+        ampl = super(_PhaseAmplitudeDomain, self).image(ampl)
         return complex_recompose(ampl, phase)
 
 
