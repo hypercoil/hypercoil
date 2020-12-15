@@ -7,9 +7,11 @@ Laplace initialisation
 Initialise parameters to match a double exponential function.
 """
 import torch
+from functools import reduce
 
 
-def laplace_init_(tensor, loc=None, width=None, norm=None, var=0.02):
+def laplace_init_(tensor, loc=None, width=None, norm=None,
+                  var=0.02, excl_axis=None):
     """
     Laplace initialisation.
 
@@ -37,6 +39,10 @@ def laplace_init_(tensor, loc=None, width=None, norm=None, var=0.02):
     var : float
         Variance of the Gaussian distribution from which the random noise is
         sampled.
+    excl_axis : list or None (default None)
+        List of axes across which a double exponential is not computed. Instead
+        the double exponential computed across the remaining axes is broadcast
+        across the excluded axes.
 
     Returns
     -------
@@ -48,17 +54,19 @@ def laplace_init_(tensor, loc=None, width=None, norm=None, var=0.02):
     width = width or [1 for _ in range(tensor.dim())]
     width = torch.Tensor(width)
     dim = len(loc)
+    excl_axis = excl_axis or []
     axes = []
     for ax, l, w in zip(tensor.size()[-dim:], loc, width[-dim:]):
         new_ax = torch.arange(-l, -l + ax)
         new_ax = torch.exp(-torch.abs(new_ax) / w)
         axes += [new_ax]
-    val = axes[0]
     shape = [-1]
-    for ax in axes[1:]:
-        shape = [1] + shape
-        new = ax.view(shape)
-        val = val[..., None] * new
+    val = []
+    for i, ax in enumerate(reversed(axes)):
+        if -(i + 1) not in excl_axis and (dim - i - 1) not in excl_axis:
+            val = [ax.view(shape)] + val
+        shape += [1]
+    val = reduce(torch.multiply, val)
     if norm == 'max':
         val /= val.max()
     elif norm == 'sum':
