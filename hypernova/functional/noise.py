@@ -14,15 +14,18 @@ class IIDSource(object):
     """
     Superclass for i.i.d. noise and dropout sources. Implements methods that
     toggle between test and train mode.
+
+    There's nothing about this implementation level that requires the i.i.d.
+    assumption.
     """
     def __init__(self, training):
         self.training = training
 
-    def train(self):
-        self.training = True
+    def train(self, mode=True):
+        self.training = mode
 
-    def test(self):
-        self.training = False
+    def eval(self):
+        self.train(False)
 
 
 class IIDNoiseSource(IIDSource):
@@ -64,7 +67,7 @@ class IIDDropoutSource(IIDSource):
     """
     def __init__(self, p=0.5, training=True):
         super(IIDDropoutSource, self).__init__(training)
-        self.p = p
+        self.p = 1 - p
 
     def inject(self, tensor):
         if self.training:
@@ -91,7 +94,7 @@ class DiagonalNoiseSource(IIDNoiseSource):
 
     Methods
     ----------
-    test
+    eval
         Switch the source into inference mode.
 
     train
@@ -165,7 +168,7 @@ class SPSDNoiseSource(IIDNoiseSource):
 
     Methods
     ----------
-    test
+    eval
         Switch the source into inference mode.
 
     train
@@ -244,7 +247,7 @@ class DiagonalDropoutSource(IIDDropoutSource):
 
     Methods
     ----------
-    test
+    eval
         Switch the source into inference mode.
 
     train
@@ -315,7 +318,7 @@ class SPSDDropoutSource(IIDDropoutSource):
 
     Methods
     ----------
-    test
+    eval
         Switch the source into inference mode.
 
     train
@@ -360,3 +363,39 @@ class SPSDDropoutSource(IIDDropoutSource):
             return mask @ mask.transpose(-1, -2) / rank
         else:
             return 1
+
+
+class IdentitySource(IIDSource):
+    """
+    A source that does nothing at all.
+    """
+    def __init__(self, training=True):
+        super(IdentitySource, self).__init__(training)
+
+    def inject(self, tensor):
+        return tensor
+
+
+class IdentityNoiseSource(IdentitySource):
+    """
+    A source that does nothing at all, implemented with additive identity.
+    """
+    def __init__(self, training=True):
+        super(IdentityNoiseSource, self).__init__(training)
+        self.std = 0
+
+    def sample(self, dim):
+        return 0
+
+
+class IdentityDropoutSource(IdentitySource):
+    """
+    A source that does nothing at all, implemented with multiplicative
+    identity.
+    """
+    def __init__(self, training=True):
+        super(IdentityDropoutSource, self).__init__(training)
+        self.p = 1
+
+    def sample(self, dim):
+        return 1
