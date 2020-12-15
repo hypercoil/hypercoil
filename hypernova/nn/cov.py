@@ -8,6 +8,10 @@ Modules supporting covariance estimation.
 """
 import torch
 from torch.nn import Module, Parameter, init
+from ..functional.activation import laplace
+from ..functional.matrix import toeplitz
+from ..init.laplace import laplace_init_
+from ..init.toeplitz import toeplitz_init_
 
 
 class _Cov(Module):
@@ -56,8 +60,11 @@ class _Cov(Module):
 
     @property
     def weight(self):
-        preweight = self.activation(self.preweight)
-        return self.inject_noise(preweight)
+        return self.activation(self.preweight)
+
+    @property
+    def postweight(self):
+        return self.inject_noise(self.weight)
 
     def _set_activation(self):
         if self.domain == 'identity':
@@ -82,23 +89,22 @@ class _UnaryCov(_Cov):
         )
 
     def forward(self, input):
-        if self.out_channels > 1 and input.dim() > 2 and input.size(-3) > 1:
+        if input.dim() > 2 and self.out_channels > 1 and input.size(-3) > 1:
             input = input.unsqueeze(-3)
         return self.estimator(
             input,
             rowvar=self.rowvar,
             bias=self.bias,
             ddof=self.ddof,
-            weight=self.weight,
+            weight=self.postweight,
             l2=self.l2
         )
 
-
-class UnaryCovarianceUW(_UnaryCov):
+class _UnweightedCov(_Cov):
     def __init__(self, dim, estimator, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
                  noise=None, dropout=None):
-        super(UnaryCovarianceUW, self).__init__(
+        super(_UnweightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             domain='identity', out_channels=out_channels
