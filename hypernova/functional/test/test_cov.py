@@ -30,6 +30,7 @@ Xt = torch.Tensor(X)
 XMt = torch.Tensor(XM)
 wt = torch.Tensor(w)
 Wt = torch.Tensor(W)
+WMt = torch.diag_embed(torch.rand(3, 100))
 Yt = torch.Tensor(Y)
 
 
@@ -69,6 +70,13 @@ def test_cov_weighted():
     out = ofunc(Xt, weight=wt).numpy()
     ref = rfunc(X, aweights=w)
     assert testf(out, ref)
+
+
+def test_cov_multiweighted():
+    out = cov(Xt, weight=WMt)
+    ref = cov(Xt, weight=WMt[0, :])
+    assert testf(out[0, :], ref)
+    assert out.size() == torch.Size([3, 7, 7])
 
 
 def test_cov_Weighted():
