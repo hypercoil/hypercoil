@@ -100,6 +100,28 @@ class _UnaryCov(_Cov):
             l2=self.l2
         )
 
+
+class _BinaryCov(_Cov):
+    def __init__(self, dim, estimator, max_lag, out_channels=1,
+                 rowvar=True, bias=False, ddof=None, l2=0,
+                 noise=None, dropout=None, domain=('logit', 2)):
+        super(_BinaryCov, self).__init__(
+            dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
+            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
+            domain=domain, out_channels=out_channels
+        )
+
+    def forward(self, x, y):
+        return self.estimator(
+            x, y,
+            rowvar=self.rowvar,
+            bias=self.bias,
+            ddof=self.ddof,
+            weight=self.postweight,
+            l2=self.l2
+        )
+
+
 class _UnweightedCov(_Cov):
     def __init__(self, dim, estimator, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
