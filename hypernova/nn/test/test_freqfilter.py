@@ -7,6 +7,7 @@ Unit tests for frequency-domain filter layer
 import numpy as np
 import torch
 from hypernova.nn import FrequencyDomainFilter
+from hypernova.functional.domain import Identity
 from hypernova.init.iirfilter import (
     IIRFilterSpec,
     iirfilter_init_,
@@ -68,6 +69,6 @@ def test_shape_clamped_forward():
 
 
 def test_identity_forward():
-    filt = FrequencyDomainFilter(identity_spec, dim=50, domain='linear')
+    filt = FrequencyDomainFilter(identity_spec, dim=50, domain=Identity())
     out = filt(Z1)
     assert (out - Z1).max() < 1e-5

@@ -10,7 +10,7 @@ import torch
 from torch.nn import Module, Parameter
 from itertools import chain
 from ..functional import product_filtfilt
-from ..functional.activation import amplitude_tanh
+from ..functional.domain import AmplitudeAtanh, Clip
 from ..init.iirfilter import iirfilter_init_, clamp_init_
 
 
@@ -93,15 +93,14 @@ class FrequencyDomainFilter(Module):
         is `linear` there is no activation function.
     """
     def __init__(self, filter_specs, dim=None, time_dim=None,
-                 filter=product_filtfilt, domain='atanh'):
+                 filter=product_filtfilt, domain=None):
         super(FrequencyDomainFilter, self).__init__()
 
         self.filter_specs = filter_specs
         self.dim = self._set_dimension(dim, time_dim)
         self.channels = sum([spec.n_filters for spec in self.filter_specs])
         self.filter = filter
-        self.domain = domain
-        self.activation = self._set_activation()
+        self.domain = domain or AmplitudeAtanh(handler=Clip())
         self.clamp_points, self.clamp_values = self._check_clamp()
 
         self.preweight = Parameter(torch.complex(
@@ -126,12 +125,6 @@ class FrequencyDomainFilter(Module):
             else:
                 dim = time_dim // 2 + 1
         return dim
-
-    def _set_activation(self):
-        if self.domain =='linear':
-            return lambda x: x
-        elif self.domain == 'atanh':
-            return amplitude_tanh
 
     def _check_clamp(self):
         clamps = list(chain.from_iterable(
@@ -158,7 +151,7 @@ class FrequencyDomainFilter(Module):
 
     @property
     def weight(self):
-        return self._apply_clamps(self.activation(self.preweight))
+        return self._apply_clamps(self.domain.image(self.preweight))
 
     def __repr__(self):
         s = f'{self.__class__.__name__}(domain={self.domain}, filters=[\n'

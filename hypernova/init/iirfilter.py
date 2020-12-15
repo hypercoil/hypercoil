@@ -9,6 +9,7 @@ ideal filter.
 """
 import torch
 import math
+from ..functional.domain import AmplitudeAtanh, Clip
 
 
 class IIRFilterSpec(object):
@@ -81,6 +82,8 @@ class IIRFilterSpec(object):
         ----------
         worN : int
             Number of frequency bins between 0 and Nyquist, inclusive.
+        # TODO
+        ... This has been refactored and must be updated.
         domain : 'linear' or 'atanh' (default 'atanh')
             Domain of the output spectrum. `linear` yields the raw transfer
             function, while `atanh` transforms the amplitudes of each bin by
@@ -142,7 +145,8 @@ class IIRFilterSpec(object):
         self.bound = bound
         self.n_filters = Wn.size(0)
 
-    def initialise_spectrum(self, worN, domain='atanh', ood='clip'):
+    def initialise_spectrum(self, worN, domain=None):
+        domain = domain or AmplitudeAtanh(handler=Clip())
         if self.ftype == 'butter':
             self.spectrum = butterworth_spectrum(
                 N=self.N, Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
@@ -165,28 +169,7 @@ class IIRFilterSpec(object):
         if self.ftype == 'ideal':
             self.spectrum = ideal_spectrum(
                 Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
-        self._transform_and_bound_spectrum(domain, ood)
-
-    def _transform_and_bound_spectrum(self, domain, ood):
-        ampl = torch.abs(self.spectrum)
-        phase = torch.angle(self.spectrum)
-        if domain == 'linear':
-            return None
-        elif domain == 'atanh':
-            ampl = self._handle_ood(ampl, bound=1, ood=ood)
-            ampl = torch.atanh(ampl)
-            self._bound_and_recompose(ampl, phase, ood=ood)
-
-    def _handle_ood(self, ampl, bound, ood):
-        if ood == 'clip':
-            ampl[ampl > bound] = bound
-        elif ood == 'norm' and ampl.max(0) > bound:
-            ampl /= (ampl.max(0) / bound)
-        return ampl
-
-    def _bound_and_recompose(self, ampl, phase, ood):
-        ampl = self._handle_ood(ampl, self.bound, ood)
-        self.spectrum = ampl * torch.exp(phase * 1j)
+        self.spectrum = domain.preimage(self.spectrum)
 
     def get_clamps(self, worN):
         frequencies = torch.linspace(0, 1, worN)
@@ -224,7 +207,7 @@ class IIRFilterSpec(object):
         return s
 
 
-def iirfilter_init_(tensor, filter_specs, domain='atanh', ood='clip'):
+def iirfilter_init_(tensor, filter_specs, domain=None):
     """
     IIR filter-like transfer function initialisation.
 
@@ -264,7 +247,7 @@ def iirfilter_init_(tensor, filter_specs, domain='atanh', ood='clip'):
     tensor.requires_grad = False
     worN = tensor.size(-1)
     for fspec in filter_specs:
-        fspec.initialise_spectrum(worN, domain, ood)
+        fspec.initialise_spectrum(worN, domain)
     spectra = torch.cat([fspec.spectrum for fspec in filter_specs])
     tensor[:] = spectra
     tensor.requires_grad = rg
