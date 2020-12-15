@@ -62,3 +62,90 @@ class Normalise(_OutOfDomainHandler):
             out /= ((upper - lower) / (unew - lnew))
             out += (lnew - out.min(axis))
         return out
+
+
+class _Domain(object):
+    def __init__(self, handler=None, bound=None):
+        self.handler = handler or Clip()
+        bound = bound or [-float('inf'), float('inf')]
+        self.bound = torch.Tensor(bound)
+
+    def test(self, x):
+        if self.bound is None:
+            return True
+        return self.handler.test(x, self.bound)
+
+    def handle_ood(self, x):
+        return self.handler.apply(x)
+
+
+class Identity(_Domain):
+    def preimage(self, x):
+        return x
+
+    def image(self, x):
+        return x
+
+
+class Linear(_Domain):
+    def __init__(self, scale=1):
+        super(Linear, self).__init__()
+        self.scale = scale
+
+    def preimage(self, x):
+        return x / self.scale
+
+    def image(self, x):
+        return self.scale * x
+
+
+class Logit(_Domain):
+    def __init__(self, scale=1, handler=None):
+        super(Logit, self).__init__(handler=handler, bound=(0, scale))
+        self.scale = scale
+
+    def preimage(self, x, limits=(-4.5, 4.5)):
+        x = self.handler.apply(x, self.bound)
+        i = torch.logit(x / self.scale)
+        if limits is not None:
+            i = self.handler.apply(i, limits)
+        return i
+
+    def image(self, x):
+        return self.scale * torch.sigmoid(x)
+
+
+class Atanh(_Domain):
+    def __init__(self, scale=1, handler=None):
+        super(Atanh, self).__init__(handler=handler, bound=(-scale, scale))
+        self.scale = scale
+
+    def preimage(self, x, limits=(-3, 3)):
+        x = self.handler.apply(x, self.bound)
+        i = torch.atanh(x / self.scale)
+        if limits is not None:
+            i = self.handler.apply(i, limits)
+        return i
+
+    def image(self, x):
+        return self.scale * torch.tanh(x)
+
+
+class AmplitudeAtanh(_Domain):
+    def __init__(self, scale=1, handler=None):
+        super(AmplitudeAtanh, self).__init__(
+            handler=handler, bound=(-scale, scale))
+        self.scale = scale
+
+    def preimage(self, x, limits=(-3, 3)):
+        ampl, phase = complex_decompose(x)
+        ampl = self.handler.apply(ampl, self.bound)
+        ampl = torch.atanh(ampl / self.scale)
+        if limits is not None:
+            ampl = self.handler.apply(ampl, limits)
+        return complex_recompose(ampl, phase)
+
+    def image(self, x):
+        ampl, phase = complex_decompose(x)
+        ampl = self.scale * torch.tanh(ampl)
+        return complex_recompose(ampl, phase)
