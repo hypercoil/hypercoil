@@ -192,3 +192,69 @@ class _UnweightedCov(_Cov):
 
     def reset_parameters(self):
         self.preweight[:] = torch.eye(self.dim)
+
+
+class UnaryCovariance(_UnaryCov, _WeightedCov):
+    def __init__(self, dim, estimator, max_lag=1, out_channels=1,
+                 rowvar=True, bias=False, ddof=None, l2=0,
+                 noise=None, dropout=None, domain=('logit', 2)):
+        super(UnaryCovariance, self).__init__(
+            dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
+            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
+            domain=domain, out_channels=out_channels
+        )
+
+
+class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
+    def __init__(self, dim, estimator, max_lag=1, out_channels=1,
+                 rowvar=True, bias=False, ddof=None, l2=0,
+                 noise=None, dropout=None, domain=('logit', 2)):
+        super(UnaryCovarianceTW, self).__init__(
+            dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
+            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
+            domain=domain, out_channels=out_channels
+        )
+
+
+class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
+    def __init__(self, dim, estimator, out_channels=1,
+                 rowvar=True, bias=False, ddof=None, l2=0,
+                 noise=None, dropout=None):
+        super(UnaryCovarianceUW, self).__init__(
+            dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
+            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
+            domain='identity', out_channels=out_channels
+        )
+
+
+class BinaryCovariance(_BinaryCov, _WeightedCov):
+    def __init__(self, dim, estimator, max_lag=1, out_channels=1,
+                 rowvar=True, bias=False, ddof=None, l2=0,
+                 noise=None, dropout=None, domain=('logit', 2)):
+        super(BinaryCovariance, self).__init__(
+            dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
+            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
+            domain=domain, out_channels=out_channels
+        )
+
+
+class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
+    def __init__(self, dim, estimator, max_lag=1, out_channels=1,
+                 rowvar=True, bias=False, ddof=None, l2=0,
+                 noise=None, dropout=None, domain=('logit', 2)):
+        super(BinaryCovarianceTW, self).__init__(
+            dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
+            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
+            domain=domain, out_channels=out_channels
+        )
+
+
+class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
+    def __init__(self, dim, estimator, out_channels=1,
+                 rowvar=True, bias=False, ddof=None, l2=0,
+                 noise=None, dropout=None):
+        super(BinaryCovarianceUW, self).__init__(
+            dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
+            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
+            domain='identity', out_channels=out_channels
+        )
