@@ -122,6 +122,60 @@ class _BinaryCov(_Cov):
         )
 
 
+class _WeightedCov(_Cov):
+    def __init__(self, dim, estimator, max_lag, out_channels=1,
+                 rowvar=True, bias=False, ddof=None, l2=0,
+                 noise=None, dropout=None, domain=('logit', 2)):
+        super(_WeightedCov, self).__init__(
+            dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
+            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
+            domain=domain, out_channels=out_channels
+        )
+        self.prepreweight = Parameter(torch.Tensor(
+            self.out_channels, self.dim, self.dim
+        ))
+        self.mask = Parameter(torch.Tensor(
+            self.dim, self.dim
+        ).bool(), requires_grad=False)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        toeplitz_init_(self.mask, torch.Tensor([1 for _ in range(self.max_lag + 1)]))
+        toeplitz_init_(self.prepreweight, laplace(torch.arange(self.max_lag + 1)))
+
+    @property
+    def preweight(self):
+        return self.prepreweight * self.mask
+
+
+class _ToeplitzWeightedCov(_Cov):
+    def __init__(self, dim, estimator, max_lag=1, out_channels=1,
+                 rowvar=True, bias=False, ddof=None, l2=0,
+                 noise=None, dropout=None, domain=('logit', 2)):
+        super(_ToeplitzWeightedCov, self).__init__(
+            dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
+            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
+            domain=domain, out_channels=out_channels
+        )
+        self.prepreweight_c = Parameter(torch.Tensor(
+            self.max_lag + 1, self.out_channels
+        ))
+        self.prepreweight_r = Parameter(torch.Tensor(
+            self.max_lag + 1, self.out_channels
+        ))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        laplace_init_(self.prepreweight_c, loc=(0, 0), excl_axis=[1])
+        laplace_init_(self.prepreweight_r, loc=(0, 0), excl_axis=[1])
+
+    @property
+    def preweight(self):
+        return toeplitz(c=self.prepreweight_c,
+                        r=self.prepreweight_r,
+                        dim=(self.dim, self.dim))
+
+
 class _UnweightedCov(_Cov):
     def __init__(self, dim, estimator, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
