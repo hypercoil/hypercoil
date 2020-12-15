@@ -10,7 +10,7 @@ import math
 import torch
 
 
-class IIDSource(object):
+class _IIDSource(object):
     """
     Superclass for i.i.d. noise and dropout sources. Implements methods that
     toggle between test and train mode.
@@ -28,7 +28,7 @@ class IIDSource(object):
         self.train(False)
 
 
-class IIDNoiseSource(IIDSource):
+class _IIDNoiseSource(_IIDSource):
     """
     Superclass for i.i.d. noise sources. Implements a method for injecting
     sampled noise additively into an existing tensor.
@@ -42,7 +42,7 @@ class IIDNoiseSource(IIDSource):
     IIDDropoutSource : For multiplicative sample injection.
     """
     def __init__(self, std=0.05, training=True):
-        super(IIDNoiseSource, self).__init__(training)
+        super(_IIDNoiseSource, self).__init__(training)
         self.std = std
 
     def inject(self, tensor):
@@ -52,7 +52,7 @@ class IIDNoiseSource(IIDSource):
             return tensor
 
 
-class IIDDropoutSource(IIDSource):
+class _IIDDropoutSource(_IIDSource):
     """
     Superclass for i.i.d. noise sources. Implements a method for injecting
     sampled noise multiplicatively into an existing tensor.
@@ -66,7 +66,7 @@ class IIDDropoutSource(IIDSource):
     IIDNoiseSource : For additive sample injection.
     """
     def __init__(self, p=0.5, training=True):
-        super(IIDDropoutSource, self).__init__(training)
+        super(_IIDDropoutSource, self).__init__(training)
         self.p = 1 - p
 
     def inject(self, tensor):
@@ -76,7 +76,7 @@ class IIDDropoutSource(IIDSource):
             return tensor
 
 
-class DiagonalNoiseSource(IIDNoiseSource):
+class DiagonalNoiseSource(_IIDNoiseSource):
     """
     Zero-mean diagonal noise source.
 
@@ -142,7 +142,7 @@ class DiagonalNoiseSource(IIDNoiseSource):
             return 0
 
 
-class SPSDNoiseSource(IIDNoiseSource):
+class SPSDNoiseSource(_IIDNoiseSource):
     """
     Symmetric positive semidefinite noise source. Note that diagonal entries
     are effectively sampled from a very different distribution than
@@ -228,7 +228,7 @@ class SPSDNoiseSource(IIDNoiseSource):
             return 0
 
 
-class DiagonalDropoutSource(IIDDropoutSource):
+class DiagonalDropoutSource(_IIDDropoutSource):
     """
     Diagonal dropout source.
 
@@ -293,7 +293,7 @@ class DiagonalDropoutSource(IIDDropoutSource):
             return 1
 
 
-class SPSDDropoutSource(IIDDropoutSource):
+class SPSDDropoutSource(_IIDDropoutSource):
     """
     Symmetric positive semidefinite dropout source. Note that diagonal entries
     are effectively sampled from a very different distribution than
@@ -365,7 +365,7 @@ class SPSDDropoutSource(IIDDropoutSource):
             return 1
 
 
-class IdentitySource(IIDSource):
+class IdentitySource(_IIDSource):
     """
     A source that does nothing at all.
     """
