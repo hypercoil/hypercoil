@@ -67,13 +67,13 @@ class FrequencyDomainFilter(Module):
 
     Attributes
     ----------
-    weight : Tensor :math:`(F, D)`
+    preweight : Tensor :math:`(F, D)`
         Filter bank transfer functions in the module's domain. F denotes the
         total number of filters in the bank, and D denotes the dimension of the
         input dataset in the frequency domain. The weights are initialised to
         emulate each  of the filters specified in the `filter_specs` parameter
         following the `iirfilter_init_` function.
-    constrained_weight : Tensor :math:`(F, D)`
+    weight : Tensor :math:`(F, D)`
         The transfer function weights as seen by the input dataset in the
         frequency domain. This entails mapping the weights out of the `atanh`
         predomain and applying any clamps declared in the input specifications.
@@ -104,7 +104,7 @@ class FrequencyDomainFilter(Module):
         self.activation = self._set_activation()
         self.clamp_points, self.clamp_values = self._check_clamp()
 
-        self.weight = Parameter(torch.complex(
+        self.preweight = Parameter(torch.complex(
             torch.Tensor(self.channels, self.dim),
             torch.Tensor(self.channels, self.dim)
         ))
@@ -112,7 +112,7 @@ class FrequencyDomainFilter(Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        iirfilter_init_(self.weight, self.filter_specs, domain=self.domain)
+        iirfilter_init_(self.preweight, self.filter_specs, domain=self.domain)
         if self.clamp_points is not None:
             clamp_init_(self.clamp_points,
                         self.clamp_values,
@@ -157,8 +157,8 @@ class FrequencyDomainFilter(Module):
         return weight
 
     @property
-    def constrained_weight(self):
-        return self._apply_clamps(self.activation(self.weight))
+    def weight(self):
+        return self._apply_clamps(self.activation(self.preweight))
 
     def __repr__(self):
         s = f'{self.__class__.__name__}(domain={self.domain}, filters=[\n'
@@ -170,7 +170,7 @@ class FrequencyDomainFilter(Module):
     def forward(self, input):
         if input.dim() > 1 and input.size(-2) > 1:
             input = input.unsqueeze(-3)
-            weight = self.constrained_weight.unsqueeze(-2)
+            weight = self.weight.unsqueeze(-2)
         else:
-            weight = self.constrained_weight
+            weight = self.weight
         return self.filter(input, weight)
