@@ -187,8 +187,22 @@ def amplitude_tanh(input):
     out : Tensor
         Transformed input tensor.
     """
-    ampl = torch.abs(input)
-    phase = torch.angle(input)
+    ampl, phase = complex_decompose(input)
+    return complex_recompose(torch.tanh(ampl), phase)
+
+
+def amplitude_atanh(input):
+    ampl, phase = complex_decompose(input)
+    return complex_recompose(torch.atanh(ampl), phase)
+
+
+def complex_decompose(complex):
+    ampl = torch.abs(complex)
+    phase = torch.angle(complex)
+    return ampl, phase
+
+
+def complex_recompose(ampl, phase):
     # TODO : update to use the complex exponential when torch enables it...
     # see here : https://discuss.pytorch.org/t/complex-functions-exp-does- ...
     # not-support-automatic-differentiation-for-outputs-with-complex-dtype/98039
@@ -196,5 +210,5 @@ def amplitude_tanh(input):
     # pip install torch --upgrade
     # https://github.com/pytorch/pytorch/issues/43349
     # https://github.com/pytorch/pytorch/pull/47194
-    return torch.tanh(ampl) * (torch.cos(phase) + 1j * torch.sin(phase))
-    #return torch.tanh(ampl) * torch.exp(phase * 1j)
+    return ampl * (torch.cos(phase) + 1j * torch.sin(phase))
+    #return ampl * torch.exp(phase * 1j)
