@@ -72,7 +72,7 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     weight, w_sum, (avg,) = _prepare_weight_and_avg((X,), weight)
     fact = _prepare_denomfact(w_sum, ddof, bias, weight)
 
-    X0 = X - avg.expand_as(X)
+    X0 = X - avg
     if weight is None:
         sigma = X0 @ X0.transpose(-1, -2) / fact
     else:
@@ -114,7 +114,7 @@ def partialcorr(X, **params):
     omega = precision(X, **params)
     fact = corrnorm(omega)
     pcorr = omega / fact
-    pcorr[~torch.eye(pcorr.size(-1), dtype=torch.bool)] *= -1
+    pcorr[..., ~torch.eye(pcorr.size(-1), dtype=torch.bool)] *= -1
     return pcorr
 
 
@@ -155,8 +155,8 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     weight, w_sum, (Xavg, Yavg) = _prepare_weight_and_avg((X, Y), weight)
     fact = _prepare_denomfact(w_sum, ddof, bias, weight)
 
-    X0 = X - Xavg.expand_as(X)
-    Y0 = Y - Yavg.expand_as(Y)
+    X0 = X - Xavg
+    Y0 = Y - Yavg
     if weight is None:
         sigma = X0 @ Y0.transpose(-1, -2) / fact
     else:
@@ -290,7 +290,7 @@ def corrnorm(A):
         Normalisation term for each element of the input tensor. Dividing by
         this will yield the normalised correlation.
     """
-    d = torch.diagonal(A)
+    d = torch.diagonal(A, dim1=-2, dim2=-1)
     fact = -torch.sqrt(d).unsqueeze(-1)
     return (fact @ fact.transpose(-1, -2))
 
@@ -347,8 +347,8 @@ def _prepare_weight_and_avg(vars, weight=None):
     avg = []
     if weight is not None:
         if weight.dim() == 1:
-            weight = torch.diagflat(weight)
-        w_sum = weight.sum()
+            weight = torch.diag_embed(weight)
+        w_sum = weight.sum([-1, -2], keepdim=True)
         #TODO
         # We'll need to ensure that this is correct
         # for the nondiagonal case. The tests still don't.
@@ -376,5 +376,6 @@ def _prepare_denomfact(w_sum, ddof=None, bias=False, weight=None):
         # I don't have the intuition here yet: should this be
         # weight * weight or weight @ weight ? This affects only
         # the nondiagonal case.
-        fact = w_sum - ddof * (weight @ weight).sum() / w_sum
+        fact = w_sum - ddof * (weight @ weight.transpose(-1, -2)).sum(
+            [-1, -2], keepdim=True) / w_sum
     return fact
