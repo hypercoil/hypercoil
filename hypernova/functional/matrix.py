@@ -32,7 +32,8 @@ def invert_spd(A):
         batch.
     """
     L = torch.cholesky(A)
-    return torch.cholesky_inverse(L)
+    Li = torch.pinverse(L)
+    return Li.transpose(-1, -2) @ Li
 
 
 def expand_outer(L, R=None, symmetry=None):
@@ -75,7 +76,7 @@ def expand_outer(L, R=None, symmetry=None):
     """
     if R is None:
         R = L
-    output = (L @ R.transpose(-2, -1)).unsqueeze(0)
+    output = L @ R.transpose(-2, -1)
     if symmetry == 'cross':
         return (output + output.transpose(-2, -1)) / 2
     elif symmetry == 'skew':
