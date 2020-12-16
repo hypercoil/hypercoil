@@ -11,6 +11,28 @@ from .activation import complex_decompose, complex_recompose
 
 
 class _OutOfDomainHandler(object):
+    """
+    System for evaluating and modifying out-of-domain entries prior to preimage
+    mapping to ensure that `nan` values are not introduced.
+
+    Methods
+    -------
+    test(x, bound)
+        Evaluate whether each entry in a tensor falls within bounds.
+
+        Parameters
+        ----------
+        x : Tensor
+            Tensor whose entries should be evaluated.
+        bound : (float min, float max)
+            Minimum and maximum permitted values for the test to return True.
+
+        Returns
+        -------
+        result : Tensor
+            Boolean-valued tensor indicating whether each entry of the input is
+            in the prescribed bounds.
+    """
     def __init__(self):
         pass
 
@@ -22,9 +44,52 @@ class _OutOfDomainHandler(object):
 
 
 class Clip(_OutOfDomainHandler):
-    def __init__(self):
-        super(Clip, self).__init__()
+    """
+    Handle out-of-domain values by clipping them to the closest allowed point.
 
+    Methods
+    -------
+    apply(x, bound)
+        Clip values in the specified tensor to the specified bounds.
+
+        Parameters
+        ----------
+        x : Tensor
+            Tensor whose out-of-domain entries are to be clipped.
+        bound : (float min, float max)
+            Minimum and maximum permitted values; values greater than the
+            maximum will be clipped to the maximum and values less than the
+            minimum will be clipped to the minimum.
+
+        Returns
+        -------
+        out : Tensor
+            Copy of the input tensor with out-of-domain entries clipped.
+
+    test(x, bound)
+        Evaluate whether each entry in a tensor falls within bounds.
+
+        Parameters
+        ----------
+        x : Tensor
+            Tensor whose entries should be evaluated.
+        bound : (float min, float max)
+            Minimum and maximum permitted values. Any values outside the
+            prescribed interval are clipped.
+
+        Returns
+        -------
+        result : Tensor
+            Boolean-valued tensor indicating whether each entry of the input is
+            in the prescribed bounds.
+
+    ood : 'clip' or 'norm' (default `clip`)
+        Indicates how the initialisation handles out-of-domain values.
+        `clip` indicates that out-of-domain values should be clipped to the
+        closest allowed point and `norm` indicates that the entire spectrum
+        (in-domain and out-of-domain values) should be re-scaled so that it
+        fits in the domain bounds (not recommended).
+    """
     def apply(self, x, bound):
         out = x.detach().clone()
         bound = torch.Tensor(bound)
@@ -34,9 +99,58 @@ class Clip(_OutOfDomainHandler):
 
 
 class Normalise(_OutOfDomainHandler):
-    def __init__(self):
-        super(Normalise, self).__init__()
+    """
+    Normalise entries in the specified tensor so that all are in an interval
+    specified by bounds.
 
+    Note that this handler is in general much more radical than clipping. In
+    particular, if any entry at all is out of bounds, nearly all entries in
+    the tensor will be edited, and a single extreme outlier can destroy the
+    variance in the dataset. If you are considering using this because most of
+    the data you expect to see will be outside of the prescribed domain,
+    consider using a different domain first (for instance, using the `scale`
+    parameter to accommodate a larger feasible interval).
+
+    The normalisation procedure works by mapping the original range of
+    observations, [obs_min, obs_max], to
+    [max(obs_min, lbound), min(obs_max, ubound)] while preserving relative
+    distances between observations.
+
+    Methods
+    -------
+    apply(x, bound)
+        Re-scale all values in the specified tensor to fall in the specified
+        interval.
+
+        Parameters
+        ----------
+        x : Tensor
+            Tensor whose out-of-domain entries are to be normalised.
+        bound : (float min, float max)
+            Minimum and maximum permitted values.
+
+        Returns
+        -------
+        out : Tensor
+            Copy of the input tensor with all entries normalised.
+
+    test(x, bound)
+        Evaluate whether each entry in a tensor falls within bounds.
+
+        Parameters
+        ----------
+        x : Tensor
+            Tensor whose entries should be evaluated.
+        bound : (float min, float max)
+            Minimum and maximum permitted values. Any values outside the
+            prescribed interval are clipped.
+
+        Returns
+        -------
+        result : Tensor
+            Boolean-valued tensor indicating whether each entry of the input is
+            in the prescribed bounds.
+    """
     def apply(self, x, bound, axis=None):
         # This annoying conditional is necessary despite torch documentation
         # suggesting the contrary:
@@ -68,6 +182,45 @@ class Normalise(_OutOfDomainHandler):
 
 
 class _Domain(object):
+    """
+    Functional domain mapper.
+
+    Map a tensor to either its image or its preimage under some function in a
+    safe manner that handles out-of-domain entries to avoid nan and error
+    values. Used as a superclass for parameter-constraining mappers.
+
+    Parameters/Attributes
+    ---------------------
+    scale : float (default 1)
+        Scale factor applied to the image under the specified function. Can be
+        used to relax or tighten bounds.
+    bound : (float min, float max) (default -inf, inf)
+        Minimum and maximum tolerated values in the input to the preimage
+        mapper. Subclasses do not expose this parameter.
+    limits : (float min, float max) (default -inf, inf)
+        Minimum and maximum values in the preimage itself. Used for two
+        purposes: avoiding infinities when the tensor's values include the
+        supremum or infimum of an asymptotic function and restricting parameter
+        values to a range where the gradient has not vanished.
+    handler : _OutOfDomainHandler object (default Clip)
+        Object specifying a method for handling out-of-domain entries.
+
+    Methods
+    -------
+    preimage(x)
+        Map a tensor to its preimage under the transformation. Any values
+        outside the transformation's range are first handled.
+
+    image(x)
+        Map a tensor to its image under the transformation.
+
+    handle_ood(x)
+        Apply an out-of-domain handler to ensure that all tensor entries are
+        within bounds.
+
+    test(x)
+        Evaluate whether each entry in a tensor falls within bounds.
+    """
     def __init__(self, handler=None, bound=None, scale=1, limits=None):
         self.handler = handler or Clip()
         bound = bound or [-float('inf'), float('inf')]
@@ -93,6 +246,48 @@ class _Domain(object):
 
 
 class _PhaseAmplitudeDomain(_Domain):
+    """
+    Phase/amplitude functional domain mapper.
+
+    Map the amplitude of a complex-valued tensor to either its image or its
+    preimage under some function in a safe manner that handles out-of-domain
+    entries to avoid nan and error values. Used as a superclass for parameter-
+    constraining mappers.
+
+    Parameters/Attributes
+    ---------------------
+    scale : float (default 1)
+        Scale factor applied to the image under the specified function. Can be
+        used to relax or tighten bounds.
+    bound : (float min, float max) (default -inf, inf)
+        Minimum and maximum tolerated values in the input to the preimage
+        mapper. Subclasses do not expose this parameter.
+    limits : (float min, float max) (default -inf, inf)
+        Minimum and maximum values in the preimage itself. Used for two
+        purposes: avoiding infinities when the tensor's values include the
+        supremum or infimum of an asymptotic function and restricting parameter
+        values to a range where the gradient has not vanished.
+    handler : _OutOfDomainHandler object (default Clip)
+        Object specifying a method for handling out-of-domain entries.
+
+    Methods
+    -------
+    preimage(x)
+        Map the amplitude of a complex-valued tensor to its preimage under the
+        transformation. Any values outside the transformation's range are first
+        handled.
+
+    image(x)
+        Map the amplitude of a complex-valued a tensor to its image under the
+        transformation.
+
+    handle_ood(x)
+        Apply an out-of-domain handler to ensure that all tensor entries are
+        within bounds.
+
+    test(x)
+        Evaluate whether each entry in a tensor falls within bounds.
+    """
     def preimage(self, x):
         ampl, phase = complex_decompose(x)
         ampl = super(_PhaseAmplitudeDomain, self).preimage(ampl)
@@ -105,6 +300,23 @@ class _PhaseAmplitudeDomain(_Domain):
 
 
 class Identity(_Domain):
+    """
+    Identity domain mapper.
+
+    Methods
+    -------
+    preimage(x)
+        Returns exactly the unmodified input.
+
+    image(x)
+        Returns exactly the unmodified input.
+
+    handle_ood(x)
+        Does nothing.
+
+    test(x)
+        Returns True for all finite numerical entries.
+    """
     def preimage(self, x):
         return x
 
@@ -113,6 +325,30 @@ class Identity(_Domain):
 
 
 class Linear(_Domain):
+    """
+    Linear domain mapper.
+
+    Parameters/Attributes
+    ---------------------
+    scale : float (default 1)
+        Slope of the linear map. Scale factor applied to the image. The
+        multiplicative inverse (reciprocal) is applied before the preimage is
+        computed.
+
+    Methods
+    -------
+    preimage(x)
+        Map a tensor to its preimage under the linear transformation.
+
+    image(x)
+        Map a tensor to its image under the linear transformation.
+
+    handle_ood(x)
+        Does nothing.
+
+    test(x)
+        Returns True for all finite numerical entries.
+    """
     def __init__(self, scale=1):
         super(Linear, self).__init__()
         self.scale = scale
@@ -125,6 +361,42 @@ class Linear(_Domain):
 
 
 class Logit(_Domain):
+    """
+    Logistic/sigmoid domain mapper. Constrain tensor values between 0 and some
+    finite scale value.
+
+    Parameters/Attributes
+    ---------------------
+    scale : float (default 1)
+        Maximum value attainable by the logistic map. Scale factor applied to
+        the image. The multiplicative inverse (reciprocal) is applied before
+        the preimage is computed.
+    limits : (float min, float max) (default -4.5, 4.5)
+        Minimum and maximum values in the preimage itself. Used for two
+        purposes: avoiding infinities when the tensor's values include the
+        supremum or infimum of an asymptotic function (i.e., 0 or `scale`) and
+        restricting parameter values to a range where the gradient has not
+        vanished.
+    handler : _OutOfDomainHandler object (default Clip)
+        Object specifying a method for handling out-of-domain entries.
+
+    Methods
+    -------
+    preimage(x)
+        Map a tensor to its preimage under the sigmoid transformation (using
+        the logit function).
+
+    image(x)
+        Map a tensor to its image under the sigmoid transformation.
+
+    handle_ood(x)
+        Handles tensor values that are outside of the scaled sigmoid's range
+        (0, `scale`).
+
+    test(x)
+        Indicates whether each entry of a tensor is in the range of the scaled
+        sigmoid (0, `scale`).
+    """
     def __init__(self, scale=1, handler=None, limits=(-4.5, 4.5)):
         super(Logit, self).__init__(
             handler=handler, bound=(0, scale),
@@ -134,6 +406,42 @@ class Logit(_Domain):
 
 
 class Atanh(_Domain):
+    """
+    Hyperbolic tangent domain mapper. Constrain tensor values between some
+    finite scale value and its negation.
+
+    Parameters/Attributes
+    ---------------------
+    scale : float (default 1)
+        Maximum/minimum value attained by the hyperbolic tangent map. Scale
+        factor applied to the image. The multiplicative inverse (reciprocal) is
+        applied before the preimage is computed.
+    limits : (float min, float max) (default -3, 3)
+        Minimum and maximum values in the preimage itself. Used for two
+        purposes: avoiding infinities when the tensor's values include the
+        supremum or infimum of an asymptotic function (i.e., -`scale` or
+        `scale`) and restricting parameter values to a range where the gradient
+        has not vanished.
+    handler : _OutOfDomainHandler object (default Clip)
+        Object specifying a method for handling out-of-domain entries.
+
+    Methods
+    -------
+    preimage(x)
+        Map a tensor to its preimage under the hyperbolic tangent
+        transformation (using the atanh function).
+
+    image(x)
+        Map a tensor to its image under the hyperbolic tangent transformation.
+
+    handle_ood(x)
+        Handles tensor values that are outside of the scaled hyperbolic tangent
+        range (-`scale`, `scale`).
+
+    test(x)
+        Indicates whether each entry of a tensor is in the range of the scaled
+        hyperbolic tangent (-`scale`, `scale`).
+    """
     def __init__(self, scale=1, handler=None, limits=(-3, 3)):
         super(Atanh, self).__init__(
             handler=handler, bound=(-scale, scale),
@@ -143,4 +451,43 @@ class Atanh(_Domain):
 
 
 class AmplitudeAtanh(_PhaseAmplitudeDomain, Atanh):
+    """
+    Hyperbolic tangent amplitude domain mapper. Constrain the amplitudes of a
+    complex-valued tensor between zero and some finite scale value.
+
+    Parameters/Attributes
+    ---------------------
+    scale : float (default 1)
+        Maximum/minimum value attained by the hyperbolic tangent map. Scale
+        factor applied to the image. The multiplicative inverse (reciprocal) is
+        applied before the preimage is computed. (Note that the amplitude used
+        as the argument to the hyperbolic tangent is never negative and so the
+        effective minimum is zero.)
+    limits : (float min, float max) (default -3, 3)
+        Minimum and maximum values in the preimage itself. Used for two
+        purposes: avoiding infinities when the tensor's values include the
+        supremum or infimum of an asymptotic function (i.e., `scale`) and
+        restricting parameter values to a range where the gradient has not
+        vanished.
+    handler : _OutOfDomainHandler object (default Clip)
+        Object specifying a method for handling out-of-domain entries.
+
+    Methods
+    -------
+    preimage(x)
+        Map the amplitude of a complex-valued tensor to its preimage under the
+        hyperbolic tangent transformation (using the atanh function).
+
+    image(x)
+        Map the amplitude of a complex-valued tensor to its image under the
+        hyperbolic tangent transformation.
+
+    handle_ood(x)
+        Handles tensor values that are outside of the scaled hyperbolic tangent
+        range (-`scale`, `scale`).
+
+    test(x)
+        Indicates whether each entry of a tensor is in the range of the scaled
+        hyperbolic tangent (-`scale`, `scale`).
+    """
     pass
