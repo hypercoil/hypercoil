@@ -82,21 +82,15 @@ class IIRFilterSpec(object):
         ----------
         worN : int
             Number of frequency bins between 0 and Nyquist, inclusive.
-        # TODO
-        ... This has been refactored and must be updated.
-        domain : 'linear' or 'atanh' (default 'atanh')
-            Domain of the output spectrum. `linear` yields the raw transfer
-            function, while `atanh` transforms the amplitudes of each bin by
-            the inverse tanh (atanh) function. This transformation can be
-            useful if the transfer function will be used as a learnable
-            parameter whose amplitude will be transformed by the tanh function,
-            thereby constraining it to [0, 1) and preventing explosive gain.
-        ood : 'clip' or 'norm' (default `clip`)
-            Indicates how the initialisation handles out-of-domain values.
-            `clip` indicates that out-of-domain values should be clipped to the
-            closest allowed point and `norm` indicates that the entire spectrum
-            (in-domain and out-of-domain values) should be re-scaled so that it
-            fits in the domain bounds (not recommended).
+        domain : Domain object (default AmplitudeAtanh)
+            A domain object from `hypernova.functional.domain`, used to specify
+            the domain of the output spectrum. An `Identity` object yields the
+            raw transfer function, while an `AmplitudeAtanh` object transforms
+            the amplitudes of each bin by the inverse tanh (atanh) function.
+            This transformation can be useful if the transfer function will be
+            used as a learnable parameter whose amplitude will be transformed
+            by the tanh function, thereby constraining it to [0, 1) and
+            preventing explosive gain.
 
         Returns
         -------
@@ -232,12 +226,15 @@ def iirfilter_init_(tensor, filter_specs, domain=None):
     filter_specs : list(IIRFilterSpec)
         A list of filter specifications implemented as `IIRFilterSpec` objects
         (`hypernova.init.IIRFilterSpec`).
-    ood : 'clip' or 'norm' (default `clip`)
-        Indicates how out-of-domain values should be handled at initialisation.
-        `clip` indicates that out-of-domain values should be clipped to the
-        closest allowed point and `norm` indicates that the entire spectrum
-        (in-domain and out-of-domain values) should be re-scaled so that it
-        fits in the domain bounds (not recommended).
+    domain : Domain object (default AmplitudeAtanh)
+        A domain object from `hypernova.functional.domain`, used to specify
+        the domain of the output spectrum. An `Identity` object yields the
+        raw transfer function, while an `AmplitudeAtanh` object transforms
+        the amplitudes of each bin by the inverse tanh (atanh) function.
+        This transformation can be useful if the initialised tensor will be
+        used as a learnable parameter whose amplitude will be transformed
+        by the tanh function, thereby constraining it to [0, 1) and
+        preventing explosive gain.
 
     Returns
     -------
