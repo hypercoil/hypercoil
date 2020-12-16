@@ -165,8 +165,8 @@ class _ToeplitzWeightedCov(_Cov):
         self.reset_parameters()
 
     def reset_parameters(self):
-        laplace_init_(self.prepreweight_c, loc=(0, 0), excl_axis=[1])
-        laplace_init_(self.prepreweight_r, loc=(0, 0), excl_axis=[1])
+        laplace_init_(self.prepreweight_c, loc=(0, 0), excl_axis=[1], var=0)
+        laplace_init_(self.prepreweight_r, loc=(0, 0), excl_axis=[1], var=0)
 
     @property
     def preweight(self):
@@ -507,9 +507,9 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
                  rowvar=True, bias=False, ddof=None, l2=0,
                  noise=None, dropout=None):
         super(UnaryCovarianceUW, self).__init__(
-            dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
+            dim=dim, estimator=estimator, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=None, out_channels=out_channels
+            out_channels=out_channels
         )
 
 
@@ -864,7 +864,7 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
                  rowvar=True, bias=False, ddof=None, l2=0,
                  noise=None, dropout=None):
         super(BinaryCovarianceUW, self).__init__(
-            dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
+            dim=dim, estimator=estimator, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=None, out_channels=out_channels
+            out_channels=out_channels
         )
