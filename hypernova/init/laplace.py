@@ -8,10 +8,11 @@ Initialise parameters to match a double exponential function.
 """
 import torch
 from functools import reduce
+from ..functional.domain import Identity
 
 
 def laplace_init_(tensor, loc=None, width=None, norm=None,
-                  var=0.02, excl_axis=None):
+                  var=0.02, excl_axis=None, domain=None):
     """
     Laplace initialisation.
 
@@ -43,11 +44,21 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
         List of axes across which a double exponential is not computed. Instead
         the double exponential computed across the remaining axes is broadcast
         across the excluded axes.
+    domain : Domain object (default Identity)
+        Used in conjunction with an activation function to constrain or
+        transform the values of the initialised tensor. For instance, using
+        the Atanh domain with default scale constrains the tensor as seen by
+        data to the range of the tanh function, (-1, 1). Domain objects can
+        be used with compatible modules and are documented further in
+        `hypernova.functional.domain`. If no domain is specified, the Identity
+        domain is used, which does not apply any transformations or
+        constraints.
 
     Returns
     -------
     None. The input tensor is initialised in-place.
     """
+    domain = domain or Identity()
     rg = tensor.requires_grad
     tensor.requires_grad = False
     loc = loc or [(x - 1) / 2 for x in tensor.size()]
@@ -71,6 +82,7 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
         val /= val.max()
     elif norm == 'sum':
         val /= val.sum()
+    val = domain.preimage(val)
     val.type(tensor.dtype)
     if var != 0:
         val = val + torch.randn(tensor.size()) * var

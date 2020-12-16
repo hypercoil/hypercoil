@@ -7,9 +7,10 @@ Delta-plus initialisation
 Initialise parameters as a set of delta functions, plus Gaussian noise.
 """
 import torch
+from ..functional.domain import Identity
 
 
-def deltaplus_init_(tensor, loc=None, scale=None, var=0.2):
+def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
     """
     Delta-plus initialisation.
 
@@ -26,17 +27,28 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2):
     var : float
         Variance of the Gaussian distribution from which the random noise is
         sampled.
+    domain : Domain object (default Identity)
+        Used in conjunction with an activation function to constrain or
+        transform the values of the initialised tensor. For instance, using
+        the Atanh domain with default scale constrains the tensor as seen by
+        data to the range of the tanh function, (-1, 1). Domain objects can
+        be used with compatible modules and are documented further in
+        `hypernova.functional.domain`. If no domain is specified, the Identity
+        domain is used, which does not apply any transformations or
+        constraints.
 
     Returns
     -------
     None. The input tensor is initialised in-place.
     """
+    domain = domain or Identity()
     rg = tensor.requires_grad
     tensor.requires_grad = False
     loc = loc or tuple([x // 2 for x in tensor.size()])
     scale = scale or 1
     val = torch.zeros_like(tensor)
     val[(...,) + loc] += scale
+    val = domain.preimage(val)
     val += torch.randn(tensor.size()) * var
     val.type(tensor.dtype)
     tensor[:] = val
