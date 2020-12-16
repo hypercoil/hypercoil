@@ -9,6 +9,7 @@ Modules supporting covariance estimation.
 import torch
 from torch.nn import Module, Parameter, init
 from ..functional.activation import laplace
+from ..functional.domain import Identity
 from ..functional.matrix import toeplitz
 from ..init.laplace import laplace_init_
 from ..init.toeplitz import toeplitz_init_
@@ -17,7 +18,7 @@ from ..init.toeplitz import toeplitz_init_
 class _Cov(Module):
     def __init__(self, dim, estimator, max_lag, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=('logit', 2)):
+                 noise=None, dropout=None, domain=None):
         super(_Cov, self).__init__()
 
         self.dim = dim
@@ -30,8 +31,7 @@ class _Cov(Module):
         self.l2 = l2
         self.noise = noise
         self.dropout = dropout
-        self.domain = domain
-        self.activation = self._set_activation()
+        self.domain = domain or Identity()
 
         if self.max_lag is None:
             self.mask = None
@@ -60,34 +60,14 @@ class _Cov(Module):
 
     @property
     def weight(self):
-        return self.activation(self.preweight)
+        return self.domain.image(self.preweight)
 
     @property
     def postweight(self):
         return self.inject_noise(self.weight)
 
-    def _set_activation(self):
-        if self.domain == 'identity':
-            return lambda x: x
-        func, scale = self.domain
-        if func =='linear':
-            return lambda x: scale * x
-        elif func == 'logit':
-            return lambda x: scale * torch.sigmoid(x)
-        elif func == 'atanh':
-            return lambda x: scale * torch.tanh(x)
-
 
 class _UnaryCov(_Cov):
-    def __init__(self, dim, estimator, max_lag, out_channels=1,
-                 rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=('logit', 2)):
-        super(_UnaryCov, self).__init__(
-            dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
-            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=domain, out_channels=out_channels
-        )
-
     def forward(self, input):
         if input.dim() > 2 and self.out_channels > 1 and input.size(-3) > 1:
             input = input.unsqueeze(-3)
@@ -102,15 +82,6 @@ class _UnaryCov(_Cov):
 
 
 class _BinaryCov(_Cov):
-    def __init__(self, dim, estimator, max_lag, out_channels=1,
-                 rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=('logit', 2)):
-        super(_BinaryCov, self).__init__(
-            dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
-            bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=domain, out_channels=out_channels
-        )
-
     def forward(self, x, y):
         return self.estimator(
             x, y,
@@ -125,13 +96,13 @@ class _BinaryCov(_Cov):
 class _WeightedCov(_Cov):
     def __init__(self, dim, estimator, max_lag, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=('logit', 2)):
+                 noise=None, dropout=None, domain=None):
         super(_WeightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             domain=domain, out_channels=out_channels
         )
-        self.prepreweight = Parameter(torch.Tensor(
+        self.preweight = Parameter(torch.Tensor(
             self.out_channels, self.dim, self.dim
         ))
         self.mask = Parameter(torch.Tensor(
@@ -140,18 +111,24 @@ class _WeightedCov(_Cov):
         self.reset_parameters()
 
     def reset_parameters(self):
-        toeplitz_init_(self.mask, torch.Tensor([1 for _ in range(self.max_lag + 1)]))
-        toeplitz_init_(self.prepreweight, laplace(torch.arange(self.max_lag + 1)))
+        toeplitz_init_(
+            self.mask,
+            torch.Tensor([1 for _ in range(self.max_lag + 1)])
+        )
+        toeplitz_init_(
+            self.preweight,
+            laplace(torch.arange(self.max_lag + 1))
+        )
 
     @property
-    def preweight(self):
-        return self.prepreweight * self.mask
+    def postweight(self):
+        return self.inject_noise(self.weight) * self.mask
 
 
 class _ToeplitzWeightedCov(_Cov):
     def __init__(self, dim, estimator, max_lag=1, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=('logit', 2)):
+                 noise=None, dropout=None, domain=None):
         super(_ToeplitzWeightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
@@ -183,7 +160,7 @@ class _UnweightedCov(_Cov):
         super(_UnweightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain='identity', out_channels=out_channels
+            domain=None, out_channels=out_channels
         )
         self.preweight = Parameter(torch.Tensor(
             self.out_channels, self.dim, self.dim
@@ -197,7 +174,7 @@ class _UnweightedCov(_Cov):
 class UnaryCovariance(_UnaryCov, _WeightedCov):
     def __init__(self, dim, estimator, max_lag=1, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=('logit', 2)):
+                 noise=None, dropout=None, domain=None):
         super(UnaryCovariance, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
@@ -208,7 +185,7 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
 class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
     def __init__(self, dim, estimator, max_lag=1, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=('logit', 2)):
+                 noise=None, dropout=None, domain=None):
         super(UnaryCovarianceTW, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
@@ -223,14 +200,14 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
         super(UnaryCovarianceUW, self).__init__(
             dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain='identity', out_channels=out_channels
+            domain=None, out_channels=out_channels
         )
 
 
 class BinaryCovariance(_BinaryCov, _WeightedCov):
     def __init__(self, dim, estimator, max_lag=1, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=('logit', 2)):
+                 noise=None, dropout=None, domain=None):
         super(BinaryCovariance, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
@@ -241,7 +218,7 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
 class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
     def __init__(self, dim, estimator, max_lag=1, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=('logit', 2)):
+                 noise=None, dropout=None, domain=None):
         super(BinaryCovarianceTW, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
@@ -256,5 +233,5 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
         super(BinaryCovarianceUW, self).__init__(
             dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain='identity', out_channels=out_channels
+            domain=None, out_channels=out_channels
         )
