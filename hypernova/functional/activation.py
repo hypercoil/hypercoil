@@ -192,17 +192,85 @@ def amplitude_tanh(input):
 
 
 def amplitude_atanh(input):
+    """
+    Inverse hyperbolic tangent (hyperbolic arctangent) activation function
+    applied to the amplitude only.
+
+    The amplitude (absolute value) of the input is transformed according to
+
+    :math:`\mathrm{arctanh} x`
+
+    while the phase (complex argument) is preserved. This function maps the
+    open unit disc in the complex plane into the entire complex plane: the
+    origin is mapped to itself and the circumference is mapped to infinity.
+
+    Dimension
+    ---------
+    As this activation function is applied elementwise, it conserves dimension;
+    the output will be of the same shape as the input.
+
+    Parameters
+    ----------
+    input : Tensor
+        Tensor whose amplitude is to be transformed elementwise by the
+        hyperbolic arctangent function.
+
+    Returns
+    -------
+    out : Tensor
+        Transformed input tensor.
+    """
     ampl, phase = complex_decompose(input)
     return complex_recompose(torch.atanh(ampl), phase)
 
 
 def complex_decompose(complex):
+    """
+    Decompose a complex-valued tensor into amplitude and phase components.
+
+    Dimension
+    ---------
+    Each output is of the same shape as the input.
+
+    Parameters
+    ----------
+    complex : Tensor
+        Complex-valued tensor.
+
+    Returns
+    -------
+    ampl : Tensor
+        Amplitude of each entry in the input tensor.
+    phase : Tensor
+        Phase of each entry in the input tensor, in radians.
+    """
     ampl = torch.abs(complex)
     phase = torch.angle(complex)
     return ampl, phase
 
 
 def complex_recompose(ampl, phase):
+    """
+    Reconstitute a complex-valed tensor from real-valued tensors denoting its
+    amplitude and its phase.
+
+    Dimension
+    ---------
+    Both inputs must be the same shape (or broadcastable). The output is the
+    same shape as the inputs.
+
+    Parameters
+    ----------
+    ampl : Tensor
+        Real-valued array storing complex number amplitudes.
+    phase : Tensor
+        Real-valued array storing complex number phases in radians.
+
+    Returns
+    -------
+    complex : Tensor
+        Complex numbers formed from the specified amplitudes and phases.
+    """
     # TODO : update to use the complex exponential when torch enables it...
     # see here : https://discuss.pytorch.org/t/complex-functions-exp-does- ...
     # not-support-automatic-differentiation-for-outputs-with-complex-dtype/98039
