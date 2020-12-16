@@ -56,14 +56,14 @@ class FrequencyDomainFilter(Module):
         domain, multiplies it by the transfer function bank, and transforms it
         back. By default, the `product_filtfilt` function is used to ensure a
         zero-phase filter.
-    domain : 'linear' or 'atanh' (default 'atanh')
-        Domain of the raw transfer function parameters. `linear` yields the
-        untransformed transfer function, while `atanh` transforms the
-        amplitudes of each bin by the inverse tanh (atanh) function. If the
-        weights are in the `atanh` domain, then their amplitudes are
-        transformed by the tanh function prior to convolution with the input.
-        Using the `atanh` domain thereby constrains transfer function
-        amplitudes to [0, 1) and prevents explosive gain.
+    domain : Domain object (default AmplitudeAtanh)
+        A domain object from `hypernova.functional.domain`, used to specify
+        the domain of the output spectrum. An `Identity` object yields the
+        raw transfer function, while an `AmplitudeAtanh` object transforms
+        the amplitudes of each bin by the inverse tanh (atanh) function prior
+        to convolution with the input. Using the AmplitudeAtanh domain thereby
+        constrains transfer function amplitudes to [0, 1) and prevents
+        explosive gain.
 
     Attributes
     ----------
@@ -75,7 +75,7 @@ class FrequencyDomainFilter(Module):
         following the `iirfilter_init_` function.
     weight : Tensor :math:`(F, D)`
         The transfer function weights as seen by the input dataset in the
-        frequency domain. This entails mapping the weights out of the `atanh`
+        frequency domain. This entails mapping the weights out of the specified
         predomain and applying any clamps declared in the input specifications.
     clamp_points : Tensor :math:`(F, D)`
         Boolean-valued tensor mask indexing points in the transfer function
@@ -87,10 +87,10 @@ class FrequencyDomainFilter(Module):
         functions. If this is None, then no clamp is applied.
     activation : callable
         Activation function that maps the internal module weights into the
-        frequency domain of the data. If the module domain is `atanh`, then
+        frequency domain of the data. If the module domain is arctanh, then
         this is the `amplitude_tanh` function that passes the amplitude of each
         value through a tanh function while preserving its phase. If the domain
-        is `linear` there is no activation function.
+        is `Identity` there is no activation function.
     """
     def __init__(self, filter_specs, dim=None, time_dim=None,
                  filter=product_filtfilt, domain=None):
