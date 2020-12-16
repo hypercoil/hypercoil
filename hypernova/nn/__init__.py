@@ -4,6 +4,10 @@
 """
 Neural network modules
 """
+from .cov import(
+    UnaryCovariance, UnaryCovarianceTW, UnaryCovarianceUW,
+    BinaryCovariance, BinaryCovarianceTW, BinaryCovarianceUW
+)
 from .freqfilter import (
     FrequencyDomainFilter
 )

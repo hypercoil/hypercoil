@@ -58,7 +58,7 @@ class FrequencyDomainFilter(Module):
         zero-phase filter.
     domain : Domain object (default AmplitudeAtanh)
         A domain object from `hypernova.functional.domain`, used to specify
-        the domain of the output spectrum. An `Identity` object yields the
+        the domain of the filter spectrum. An `Identity` object yields the
         raw transfer function, while an `AmplitudeAtanh` object transforms
         the amplitudes of each bin by the inverse tanh (atanh) function prior
         to convolution with the input. Using the AmplitudeAtanh domain thereby
@@ -85,12 +85,6 @@ class FrequencyDomainFilter(Module):
         Tensor containing values to which the transfer functions are clamped. V
         denotes the total number of values to be clamped across all transfer
         functions. If this is None, then no clamp is applied.
-    activation : callable
-        Activation function that maps the internal module weights into the
-        frequency domain of the data. If the module domain is arctanh, then
-        this is the `amplitude_tanh` function that passes the amplitude of each
-        value through a tanh function while preserving its phase. If the domain
-        is `Identity` there is no activation function.
     """
     def __init__(self, filter_specs, dim=None, time_dim=None,
                  filter=product_filtfilt, domain=None):

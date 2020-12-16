@@ -177,8 +177,8 @@ def pairedcorr(X, Y, **params):
 
     :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\hat{\Sigma}_{ii} \hat{\Sigma}_{ij}}`
     """
-    varX, varY = torch.var(X, 1), torch.var(Y, 1)
-    fact = torch.sqrt(varX.view(-1, 1) @ varY.view(1, -1))
+    varX, varY = torch.var(X, -1, keepdim=True), torch.var(Y, -1, keepdim=True)
+    fact = torch.sqrt(varX @ varY.transpose(-2, -1))
     return pairedcov(X, Y, **params) / fact
 
 
