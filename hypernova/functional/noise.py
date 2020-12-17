@@ -142,7 +142,7 @@ class DiagonalNoiseSource(_IIDNoiseSource):
             return 0
 
 
-class SPSDNoiseSource(_IIDNoiseSource):
+class LowRankNoiseSource(_IIDNoiseSource):
     """
     Symmetric positive semidefinite noise source. Note that diagonal entries
     are effectively sampled from a very different distribution than
@@ -214,7 +214,7 @@ class SPSDNoiseSource(_IIDNoiseSource):
             Tensor block with noise injected from the source.
     """
     def __init__(self, std=0.05, rank=None, training=True):
-        super(SPSDNoiseSource, self).__init__(std, training)
+        super(LowRankNoiseSource, self).__init__(std, training)
         self.rank = rank
 
     def sample(self, dim):
@@ -224,6 +224,21 @@ class SPSDNoiseSource(_IIDNoiseSource):
             var = self.std / math.sqrt(rank + (rank ** 2) / dim[-1])
             noise.normal_(std=math.sqrt(var))
             return noise @ noise.transpose(-1, -2)
+        else:
+            return 0
+
+
+class SPSDNoiseSource(_IIDNoiseSource):
+    def __init__(self, std=0.05, training=True):
+        super(SPSDNoiseSource, self).__init__(std, training)
+
+    def sample(self, dim):
+        if self.training:
+            noise = torch.empty((*dim, dim[-1]))
+            noise.normal_()
+            sym = noise + noise.transpose(-1, -2)
+            spd = torch.matrix_exp(sym)
+            return spd / (spd.std() / self.std)
         else:
             return 0
 
