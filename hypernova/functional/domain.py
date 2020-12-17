@@ -36,6 +36,9 @@ class _OutOfDomainHandler(object):
     def __init__(self):
         pass
 
+    def __repr__(self):
+        return f'{type(self).__name__}()'
+
     def test(self, x, bound):
         return torch.logical_and(
             x <= bound[-1],
@@ -181,7 +184,7 @@ class Normalise(_OutOfDomainHandler):
         return out
 
 
-class _Domain(object):
+class _Domain(torch.nn.Module):
     """
     Functional domain mapper.
 
@@ -222,12 +225,22 @@ class _Domain(object):
         Evaluate whether each entry in a tensor falls within bounds.
     """
     def __init__(self, handler=None, bound=None, scale=1, limits=None):
+        super(_Domain, self).__init__()
         self.handler = handler or Clip()
         bound = bound or [-float('inf'), float('inf')]
         limits = limits or [-float('inf'), float('inf')]
         self.bound = torch.Tensor(bound)
         self.limits = torch.Tensor(limits)
         self.scale = scale
+
+    def extra_repr(self):
+        s = []
+        if self.scale != 1:
+            s += [f'scale={self.scale}']
+        if not torch.all(torch.isinf(self.bound)):
+            s += [f'bound=({self.bound[0]}, {self.bound[1]})']
+            s += [f'handler={self.handler.__repr__()}']
+        return ', '.join(s)
 
     def test(self, x):
         return self.handler.test(x, self.bound)

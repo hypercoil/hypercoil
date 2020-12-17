@@ -11,7 +11,7 @@ import torch
 from .matrix import toeplitz
 
 
-class _IIDSource(object):
+class _IIDSource(torch.nn.Module):
     """
     Superclass for i.i.d. noise and dropout sources. Implements methods that
     toggle between test and train mode.
@@ -20,6 +20,7 @@ class _IIDSource(object):
     assumption.
     """
     def __init__(self, training):
+        super(_IIDSource, self).__init__()
         self.training = training
 
     def train(self, mode=True):
@@ -52,6 +53,9 @@ class _IIDNoiseSource(_IIDSource):
         else:
             return tensor
 
+    def extra_repr(self):
+        return f'std={self.std}'
+
 
 class _IIDDropoutSource(_IIDSource):
     """
@@ -75,6 +79,9 @@ class _IIDDropoutSource(_IIDSource):
             return tensor * self.sample(tensor.size()[:-1])
         else:
             return tensor
+
+    def extra_repr(self):
+        return f'p={self.p}'
 
 
 class DiagonalNoiseSource(_IIDNoiseSource):
