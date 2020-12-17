@@ -294,27 +294,32 @@ class DiagonalDropoutSource(_IIDDropoutSource):
 
 
 class BandDropoutSource(_IIDDropoutSource):
-    def __init__(self, p=0.5, bandwidth=0, training=True):
-        super(SPSDDropoutSource, self).__init__(p, training)
-        self.generator = torch.Tensor([0] * bandwidth)
+    def __init__(self, p=0.5, bandwidth=0, training=True, norm='blanket'):
+        super(BandDropoutSource, self).__init__(p, training)
+        self.generator = torch.Tensor([1] * (1 + bandwidth))
         self.bandwidth = bandwidth
         self.n = float('nan')
+        self.norm = norm
 
-    def create_bandmask(n):
+    def create_bandmask(self, n):
         self.n = n
-        self.bandmask = toeplitz(self.generator, dim=dim)
-        self.bandnorm = bandmask.sum()
-        self.normfact = self.bandnorm / (self.n * (1 - self.p) +
-                        (self.bandnorm - self.n) * (1 - self.p) ** 2)
+        self.bandmask = toeplitz(self.generator, dim=[self.n, self.n])
+        self.bandnorm = self.bandmask.sum()
+        if self.norm == 'blanket':
+            self.normfact = self.bandnorm / (self.n * (1 - self.p) +
+                            (self.bandnorm - self.n) * (1 - self.p) ** 2)
+        elif self.norm == 'diag':
+            self.normfact = torch.ones_like(self.bandmask) / (1 - self.p) ** 2
+            self.normfact[torch.eye(self.n).bool()] = 1 / (1 - self.p)
 
     def sample(self, dim):
         if self.training:
             n = dim[-1]
             if n != self.n:
                 self.create_bandmask(n)
-            mask = (torch.rand(*dim, 1) < self.p)
+            mask = (torch.rand(*dim, 1) < self.p).float()
             unnorm = mask @ mask.transpose(-1, -2) * self.bandmask
-            return unnorm / self.normfact
+            return unnorm * self.normfact
         else:
             return 1
 
