@@ -156,6 +156,10 @@ class _ToeplitzWeightedCov(_Cov):
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             domain=domain, out_channels=out_channels
         )
+        if self.max_lag is not None:
+            self.mask = Parameter(torch.Tensor(
+                self.dim, self.dim
+            ).bool(), requires_grad=False)
         self.prepreweight_c = Parameter(torch.Tensor(
             self.max_lag + 1, self.out_channels
         ))
@@ -165,14 +169,27 @@ class _ToeplitzWeightedCov(_Cov):
         self.reset_parameters()
 
     def reset_parameters(self):
-        laplace_init_(self.prepreweight_c, loc=(0, 0), excl_axis=[1], var=0)
-        laplace_init_(self.prepreweight_r, loc=(0, 0), excl_axis=[1], var=0)
+        toeplitz_init_(
+            self.mask,
+            torch.Tensor([1 for _ in range(self.max_lag + 1)])
+        )
+        laplace_init_(self.prepreweight_c, loc=(0, 0), excl_axis=[1],
+                      var=0, domain=self.domain)
+        laplace_init_(self.prepreweight_r, loc=(0, 0), excl_axis=[1],
+                      var=0, domain=self.domain)
 
     @property
     def preweight(self):
         return toeplitz(c=self.prepreweight_c,
                         r=self.prepreweight_r,
-                        dim=(self.dim, self.dim))
+                        dim=(self.dim, self.dim),
+                        fill_value=self.domain.preimage(torch.zeros(1)).item())
+
+    @property
+    def postweight(self):
+        if self.mask is not None:
+            return self.inject_noise(self.weight) * self.mask
+        return self.inject_noise(self.weight)
 
 
 class _UnweightedCov(_Cov):

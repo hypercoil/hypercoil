@@ -11,8 +11,9 @@ from hypernova.nn import (
     BinaryCovariance, BinaryCovarianceTW, BinaryCovarianceUW
 )
 from hypernova.functional.noise import (
-    DiagonalNoiseSource, DiagonalDropoutSource
+    DiagonalNoiseSource, DiagonalDropoutSource, BandDropoutSource
 )
+from hypernova.functional.domain import Logit
 
 
 testf = lambda x, y: np.allclose(x.detach(), y, atol=1e-5)
@@ -20,6 +21,9 @@ testf = lambda x, y: np.allclose(x.detach(), y, atol=1e-5)
 
 X = torch.rand(4, 13, 100)
 Y = torch.rand(4, 7, 100)
+dns = DiagonalNoiseSource()
+dds = DiagonalDropoutSource()
+bds = BandDropoutSource()
 
 
 def test_cov_uuw():
@@ -27,6 +31,10 @@ def test_cov_uuw():
     out = cov(X)
     ref = np.stack([np.corrcoef(x) for x in X])
     assert testf(out, ref)
+    cov = UnaryCovarianceUW(
+        100, estimator=hypernova.functional.pcorr,
+        out_channels=7, noise=dns) #, dropout=dds)
+    cov(X)
 
 
 def test_cov_utw():
@@ -34,6 +42,13 @@ def test_cov_utw():
     out = cov(X)
     ref = np.stack([np.corrcoef(x) for x in X])
     assert testf(out, ref)
+    cov = UnaryCovarianceTW(
+        100, estimator=hypernova.functional.pcorr, max_lag=3,
+        out_channels=7, noise=dns, dropout=bds, domain=Logit(4))
+    cov(X)
+    assert cov.prepreweight_c.size() == torch.Size([4, 7])
+    assert cov.weight[5, 15, 17] == cov.weight[5, 94, 96]
+    assert cov.postweight[3, 13, 17] == 0
 
 
 def test_cov_uw():
