@@ -122,7 +122,7 @@ def cone_project_spd(input, reference, recondition=0):
     return ref_sr @ torch.matrix_exp(input) @ ref_sr
 
 
-def mean_euc_spd(input):
+def mean_euc_spd(input, axis=0):
     """
     Batch-wise Euclidean mean of tensors in the positive semidefinite cone.
 
@@ -147,10 +147,10 @@ def mean_euc_spd(input):
     output : Tensor
         Euclidean mean of the input batch.
     """
-    return input.mean(0)
+    return input.mean(axis)
 
 
-def mean_harm_spd(input):
+def mean_harm_spd(input, axis=0):
     """
     Batch-wise harmonic mean of tensors in the positive semidefinite cone.
 
@@ -176,10 +176,10 @@ def mean_harm_spd(input):
     output : Tensor
         Harmonic mean of the input batch.
     """
-    return invert_spd(invert_spd(input).mean(0))
+    return invert_spd(invert_spd(input).mean(axis))
 
 
-def mean_logeuc_spd(input):
+def mean_logeuc_spd(input, axis=0):
     """
     Batch-wise log-Euclidean mean of tensors in the positive semidefinite cone.
 
@@ -205,10 +205,10 @@ def mean_logeuc_spd(input):
     output : Tensor
         Log-Euclidean mean of the input batch.
     """
-    return symexp(symlog(input).mean(0))
+    return symexp(symlog(input).mean(axis))
 
 
-def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10):
+def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10, axis=0):
     """
     Batch-wise geometric mean of tensors in the positive semidefinite cone.
 
@@ -262,10 +262,10 @@ def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10):
     output : Tensor
         Geometric mean of the input batch.
     """
-    ref = mean_euc_spd(input)
+    ref = mean_euc_spd(input, axis)
     for i in range(max_iter):
         tan = tangent_project_spd(input, ref, recondition)
-        reftan = tan.mean(0)
+        reftan = tan.mean(axis)
         ref_old = ref
         ref = cone_project_spd(reftan, ref, recondition)
         if torch.all(torch.norm(ref, dim=(-1, -2)) < eps):

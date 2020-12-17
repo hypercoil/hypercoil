@@ -149,8 +149,8 @@ class FrequencyDomainFilter(Module):
 
     def __repr__(self):
         s = f'{self.__class__.__name__}(domain={self.domain}, filters=[\n'
-        s += ',\n'.join([f'    {spec.__repr__()}'
-                        for spec in self.filter_specs])
+        s += ',\n'.join([f'  {spec.__repr__()}'
+                         for spec in self.filter_specs])
         s += '\n])'
         return s
 
