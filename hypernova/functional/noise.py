@@ -293,6 +293,33 @@ class DiagonalDropoutSource(_IIDDropoutSource):
             return 1
 
 
+class BandDropoutSource(_IIDDropoutSource):
+    def __init__(self, p=0.5, bandwidth=0, training=True):
+        super(SPSDDropoutSource, self).__init__(p, training)
+        self.generator = torch.Tensor([0] * bandwidth)
+        self.bandwidth = bandwidth
+        self.n = float('nan')
+
+    def create_bandmask(n):
+        self.n = n
+        self.bandmask = toeplitz(self.generator, dim=dim)
+        self.bandnorm = bandmask.sum()
+        self.normfact = self.bandnorm / (self.n * (1 - self.p) +
+                        (self.bandnorm - self.n) * (1 - self.p) ** 2)
+
+    def sample(self, dim):
+        if self.training:
+            n = dim[-1]
+            if n != self.n:
+                self.create_bandmask(n)
+            mask = (torch.rand(*dim, 1) < self.p)
+            unnorm = mask @ mask.transpose(-1, -2) * self.bandmask
+            return unnorm / self.normfact
+        else:
+            return 1
+
+
+
 class SPSDDropoutSource(_IIDDropoutSource):
     """
     Symmetric positive semidefinite dropout source. Note that diagonal entries
@@ -359,7 +386,6 @@ class SPSDDropoutSource(_IIDDropoutSource):
         if self.training:
             rank = self.rank or dim[-1]
             mask = (torch.rand(*dim, rank) < self.p) / self.p
-            print(mask)
             return mask @ mask.transpose(-1, -2) / rank
         else:
             return 1
