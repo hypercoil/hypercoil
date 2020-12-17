@@ -14,3 +14,6 @@ from .freqfilter import (
 from .polyconv import (
     PolyConv2D
 )
+from .spdnoise import (
+    SPDNoise
+)
