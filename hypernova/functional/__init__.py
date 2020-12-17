@@ -7,7 +7,7 @@ Functional interfaces
 from .cov import (
     cov, corr, partialcorr, pairedcov, conditionalcov, conditionalcorr,
     precision, pairedcorr, covariance, correlation, corrcoef, pcorr, ccov,
-    ccorr
+    ccorr, partialcov
 )
 from .crosssim import (
     crosshair_similarity,
