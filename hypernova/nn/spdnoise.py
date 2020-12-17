@@ -13,6 +13,42 @@ from ..functional.cov import corrnorm
 
 
 class SPDNoise(Module):
+    """
+    Symmetric positive definite noise injection that preserves positive
+    semidefiniteness.
+
+    The input tensor is added together with noise sampled from a source that
+    produces random symmetric positive semidefinite matrices. The result is
+    thus guaranteed to remain in the positive semidefinite cone if the input is
+    also positive semidefinite. The addition of noise is optionally followed by
+    a renormalisation.
+
+    Dimension
+    ---------
+    - Input: :math:`(*, N, N)`
+      `*` denotes any number of preceding dimensions and N denotes the size of
+      each square matrix.
+    - Output: :math:`(*, N, N)`
+
+    Parameters
+    ----------
+    std : nonnegative float
+        Elementwise standard deviation of the sampled noise.
+    norm : bool
+        Indicates that the noisy sample should be renormalised after the
+        injection of noise. The normalisation proceeds by computing the square
+        root of each entry along the diagonal and embedding the reciprocals of
+        the computed square roots into a new vector. The rank-1 outer product
+        of this vector with itself is then multiplied elementwise with the
+        noisy sample to normalise it. Because the outer product of a vector
+        with itself is necessarily positive semidefinite, the Schur product
+        theorem requires the result to be positive semidefinite.
+
+    Attributes
+    ----------
+    noise : SPSDNoiseSource
+        Symmetric positive semidefinite noise source.
+    """
     def __init__(self, std, norm=True):
         super(SPDNoise, self).__init__()
         self.norm = norm
