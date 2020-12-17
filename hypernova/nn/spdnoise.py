@@ -62,6 +62,9 @@ class SPDNoise(Module):
         super(_Cov, self).eval()
         self.noise.eval()
 
+    def __repr__(self):
+        return f'SPDNoise(std={self.noise.std}, norm={self.norm})'
+
     def forward(self, input):
         x = self.noise.inject(input)
         if self.norm:
