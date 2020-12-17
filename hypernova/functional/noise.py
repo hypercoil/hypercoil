@@ -8,6 +8,7 @@ Noise sources.
 """
 import math
 import torch
+from .matrix import toeplitz
 
 
 class _IIDSource(object):
@@ -144,12 +145,12 @@ class DiagonalNoiseSource(_IIDNoiseSource):
 
 class LowRankNoiseSource(_IIDNoiseSource):
     """
-    Symmetric positive semidefinite noise source. Note that diagonal entries
-    are effectively sampled from a very different distribution than
+    Low-rank symmetric positive semidefinite noise source. Note that diagonal
+    entries are effectively sampled from a very different distribution than
     off-diagonal entries. Be careful using this source; examine outputs for the
     dimension that you will be using before using it, as it exhibits some
-    potentially very undesirable properties. This will be revisited in the
-    future to determine if a better source can be provided.
+    potentially very undesirable properties, particularly when the rank becomes
+    larger.
 
     Parameters/Attributes
     ---------------------
@@ -197,7 +198,7 @@ class LowRankNoiseSource(_IIDNoiseSource):
         -------
         output : Tensor
             Block of symmetric, positive semidefinite matrices sampled from the
-            noise source.
+            low-rank noise source.
 
     inject(tensor)
         Inject noise sampled from the source into an existing tensor block.
@@ -229,6 +230,61 @@ class LowRankNoiseSource(_IIDNoiseSource):
 
 
 class SPSDNoiseSource(_IIDNoiseSource):
+    """
+    Symmetric positive semidefinite noise source.
+
+    Uses the matrix exponential to project a symmetric noise matrix into the
+    positive semidefinite cone. The symmetric matrix is diagonalised, its
+    eigenvalues are exponentiated thereby ensuring each is positive, and it
+    is recomposed. Note that due to numerical errors some extremely small
+    negative eigenvalues can occur in the sampled matrix.
+
+    Parameters/Attributes
+    ---------------------
+    std : float (default 0.05)
+        Approximate standard deviation across entries in each symmetric
+        positive semidefinite matrix sampled from the source.
+    training : bool
+        Indicates whether the source should operate under the assumption of
+        training or inference; at test time, a noise-free sample is returned.
+
+    Methods
+    ----------
+    eval
+        Switch the source into inference mode.
+
+    train
+        Switch the source into training mode.
+
+    sample(dim)
+        Sample a random symmetric positive (semi)definite matrix from the noise
+        source.
+
+        Parameters
+        ----------
+        dim : iterable
+            Dimension of the matrices sampled from the source.
+
+        Returns
+        -------
+        output : Tensor
+            Block of symmetric, positive semidefinite matrices sampled from the
+            noise source.
+
+    inject(tensor)
+        Inject noise sampled from the source into an existing tensor block.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            Tensor block into which to introduce the noise sampled from the
+            source.
+
+        Returns
+        -------
+        output : Tensor
+            Tensor block with noise injected from the source.
+    """
     def __init__(self, std=0.05, training=True):
         super(SPSDNoiseSource, self).__init__(std, training)
 
@@ -309,14 +365,89 @@ class DiagonalDropoutSource(_IIDDropoutSource):
 
 
 class BandDropoutSource(_IIDDropoutSource):
-    def __init__(self, p=0.5, bandwidth=0, training=True, norm='blanket'):
+    """
+    Dropout source for matrices with banded structure.
+
+    This source applies dropout to a block of banded matrices (all nonzero
+    entries within some finite offset of the main diagonal.) It creates a
+    dropout mask by multiplying together the band mask with a dropout mask
+    in which a random subset of rows and columns are zeroed.
+
+    Parameters/Attributes
+    ---------------------
+    p : float (default 0.5)
+        Approximate probability of dropout across columns in each symmetric
+        positive semidefinite masking matrix sampled from the source.
+    bandwidth : int or None (default None)
+        Maximum bandwidth of each masking matrix; maximum offset from the main
+        diagonal where nonzero entries are permitted. 0 indicates that the
+        matrix is diagonal (in which case `DiagonalDropoutSource` is faster and
+        more efficient).
+    training : bool
+        Indicates whether the source should operate under the assumption of
+        training or inference; at test time, a noise-free sample is returned.
+    norm : 'blanket' or 'diag' (default `diag`)
+        Entries along the main diagonal are sampled from a different
+        distribution compared with off-diagonal entries. In particular, the
+        probability of each entry along the diagonal surviving dropout is
+        1 - p, while the probability of each off diagonal entry surviving
+        dropout is :math:`(1 - p)^2`. This parameter indicates whether the same
+        correction term is applied to both on-diagonal and off-diagonal entries
+        (`blanket`) or whether a separate correction term is applied to
+        diagonal and off-diagonal entries after dropout.
+    generator, bandmask, bandnorm
+        Attributes related to a Boolean mask tensor indicating whether each
+        entry is in the permitted band.
+    normfact : float or Tensor
+        Dropout correction term.
+
+    Methods
+    ----------
+    eval
+        Switch the source into inference mode.
+
+    train
+        Switch the source into training mode.
+
+    sample(dim)
+        Sample a random masking matrix from the dropout source.
+
+        Parameters
+        ----------
+        dim : iterable
+            Dimension of the matrices sampled from the source. Note that, every
+            time the source is queried to sample matrices of a different
+            dimension, there will be a delay as the band mask is rebuilt. If
+            you are sampling repeatedly from sources with multiple sizes, it is
+            thus more time-efficient to use multiple BandDropoutSources.
+
+        Returns
+        -------
+        output : Tensor
+            Block of masking matrices sampled from the noise source.
+
+    inject(tensor)
+        Apply dropout sampled from the source to an existing tensor block.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            Tensor block into which to introduce the dropout sampled from the
+            source.
+
+        Returns
+        -------
+        output : Tensor
+            Tensor block with dropout applied from the source.
+    """
+    def __init__(self, p=0.5, bandwidth=0, training=True, norm='diag'):
         super(BandDropoutSource, self).__init__(p, training)
         self.generator = torch.Tensor([1] * (1 + bandwidth))
         self.bandwidth = bandwidth
         self.n = float('nan')
         self.norm = norm
 
-    def create_bandmask(self, n):
+    def _create_bandmask(self, n):
         self.n = n
         self.bandmask = toeplitz(self.generator, dim=[self.n, self.n])
         self.bandnorm = self.bandmask.sum()
@@ -331,7 +462,7 @@ class BandDropoutSource(_IIDDropoutSource):
         if self.training:
             n = dim[-1]
             if n != self.n:
-                self.create_bandmask(n)
+                self._create_bandmask(n)
             mask = (torch.rand(*dim, 1) < self.p).float()
             unnorm = mask @ mask.transpose(-1, -2) * self.bandmask
             return unnorm * self.normfact
@@ -352,7 +483,7 @@ class SPSDDropoutSource(_IIDDropoutSource):
     Parameters/Attributes
     ---------------------
     p : float (default 0.5)
-        Approximate probability of dropout across entries in each symmetric
+        Approximate probability of dropout across columns in each symmetric
         positive semidefinite masking matrix sampled from the source.
     rank : int or None (default None)
         Maximum rank of each masking matrix; inner dimension of the positive

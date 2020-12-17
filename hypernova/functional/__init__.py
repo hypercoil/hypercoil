@@ -27,7 +27,8 @@ from .matrix import (
 )
 from .noise import (
     DiagonalNoiseSource, SPSDNoiseSource,
-    DiagonalDropoutSource, SPSDDropoutSource
+    DiagonalDropoutSource, SPSDDropoutSource,
+    LowRankNoiseSource, BandDropoutSource
 )
 from .polynomial import (
     polychan, polyconv2d
