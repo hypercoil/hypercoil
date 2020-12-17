@@ -61,6 +61,22 @@ class _Cov(Module):
         if self.dropout is not None:
             self.dropout.eval()
 
+    def extra_repr(self):
+        s = f'estimator={self.estimator.__name__}, dim={self.dim}'
+        if self.out_channels > 1:
+            s += f', channels={self.out_channels}'
+        if self.max_lag > 0:
+            s += f', max_lag={self.max_lag}'
+        if not self.rowvar:
+            s += f', format=column'
+        if self.bias:
+            s += f', biased estimator'
+        if self.ddof is not None:
+            s += f', ddof={self.ddof}'
+        if self.l2 > 0:
+            s += f', l2={self.l2}'
+        return s
+
     @property
     def weight(self):
         return self.domain.image(self.preweight)
