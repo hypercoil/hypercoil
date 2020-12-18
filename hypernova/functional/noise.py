@@ -29,6 +29,9 @@ class _IIDSource(torch.nn.Module):
     def eval(self):
         self.train(False)
 
+    def forward(self, input):
+        return self.inject(input)
+
 
 class _IIDNoiseSource(_IIDSource):
     """
