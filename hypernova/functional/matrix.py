@@ -36,6 +36,24 @@ def invert_spd(A):
     return Li.transpose(-1, -2) @ Li
 
 
+def symmetric(X, skew=False):
+    if not skew:
+        return (X + X.transpose(-2, -1)) / 2
+    else:
+        return (X - X.transpose(-2, -1)) / 2
+
+
+def spd(X, eps=1e-4, method='svd'):
+    if method == 'eig':
+        L, _ = torch.symeig(symmetric(X))
+        lmin = L.amin(axis=-1) - eps
+        lmin = torch.minimum(lmin, torch.zeros(1)).squeeze()
+        return X - lmin[..., None, None] * torch.eye(X.size(-1))
+    elif method == 'svd':
+        Q, L, _ = torch.svd(X)
+        return symmetric(Q @ torch.diag_embed(L) @ Q.transpose(-1, -2))
+
+
 def expand_outer(L, R=None, symmetry=None):
     """
     Multiply out a left and a right generator matrix as an outer product.
@@ -77,10 +95,8 @@ def expand_outer(L, R=None, symmetry=None):
     if R is None:
         R = L
     output = L @ R.transpose(-2, -1)
-    if symmetry == 'cross':
-        return (output + output.transpose(-2, -1)) / 2
-    elif symmetry == 'skew':
-        return output - output.transpose(-2, -1) / 2
+    if symmetry == 'cross' or 'skew':
+        return symmetric(output, skew(symmetry=='skew'))
     return output
 
 
