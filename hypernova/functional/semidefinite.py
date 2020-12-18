@@ -19,7 +19,7 @@ def tangent_project_spd(input, reference, recondition=0):
     Given a tangency point :math:`\Omega`, each input :math:`\Theta` is
     projected as:
 
-    :math:`\bar{Theta} = \log_M \Omega^{-1/2} \Theta \Omega^{-1/2}`
+    :math:`\bar{\Theta} = \log_M \Omega^{-1/2} \Theta \Omega^{-1/2}`
 
     where :math:`\Omega^{-1/2}` denotes the inverse matrix square root of
     :math:`\Omega` and :math:`log_M` denotes the matrix-valued logarithm.
@@ -72,7 +72,7 @@ def cone_project_spd(input, reference, recondition=0):
     Given a tangency point :math:`\Omega`, each input :math:`\Theta` is
     projected as:
 
-    :math:`\bar{Theta} = \Omega^{1/2} \exp_M \Theta \Omega^{1/2}`
+    :math:`\bar{\Theta} = \Omega^{1/2} \exp_M \Theta \Omega^{1/2}`
 
     where :math:`\Omega^{1/2}` denotes the matrix square root of :math:`\Omega`
     and :math:`exp_M` denotes the matrix-valued exponential.
@@ -141,6 +141,8 @@ def mean_euc_spd(input, axis=0):
     ----------
     input : Tensor
         Batch of matrices over which the Euclidean mean is to be computed.
+    axis : int
+        Axis or axes over which the mean is computed.
 
     Returns
     -------
@@ -170,6 +172,8 @@ def mean_harm_spd(input, axis=0):
     ----------
     input : Tensor
         Batch of matrices over which the harmonic mean is to be computed.
+    axis : int
+        Axis or axes over which the mean is computed.
 
     Returns
     -------
@@ -199,6 +203,8 @@ def mean_logeuc_spd(input, axis=0):
     ----------
     input : Tensor
         Batch of matrices over which the log-Euclidean mean is to be computed.
+    axis : int
+        Axis or axes over which the mean is computed.
 
     Returns
     -------
@@ -256,6 +262,8 @@ def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10, axis=0):
     max_iter : nonnegative int
         The maximum number of iterations of gradient descent to run before
         termination.
+    axis : int
+        Axis or axes over which the mean is computed.
 
     Returns
     -------
