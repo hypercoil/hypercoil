@@ -8,12 +8,11 @@ Modules that project data between the positive semidefinite cone proper
 subspaces tangent to the cone.
 """
 import torch
-from torch.nn import Module, Parameter, init
+from torch.nn import Module, Parameter
 from ..functional import (
-    cone_project_spd, tangent_project_spd, invert_spd, mean_euc_spd,
-    mean_harm_spd, mean_logeuc_spd, mean_geom_spd, SPSDNoiseSource
+    cone_project_spd, tangent_project_spd
 )
-from ..init.semidefinite import mean_block_spd, mean_apply_block, tangency_init_
+from ..init.semidefinite import mean_block_spd, tangency_init_
 
 
 class _TangentProject(Module):
