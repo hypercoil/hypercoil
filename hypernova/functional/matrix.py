@@ -70,7 +70,7 @@ def symmetric(X, skew=False, axes=(-2, -1)):
         return (X - X.transpose(*axes)) / 2
 
 
-def spd(X, eps=1e-6, method='svd'):
+def spd(X, eps=1e-6, method='eig'):
     """
     Impose symmetric positive definiteness on a tensor block.
 
@@ -107,7 +107,9 @@ def spd(X, eps=1e-6, method='svd'):
           recomposition of the matrix that treats the left singular vectors and
           singular values output from SVD as though they were outputs of
           diagonalisation, thereby guaranteeing that no eigenvalue is smaller
-          than the least absolute value among all input eigenvalues.
+          than the least absolute value among all input eigenvalues. Note that
+          this margin is occasionally insufficient to avoid numerical error if
+          the same matrix is again decomposed.
 
       Returns
       -------
@@ -117,8 +119,8 @@ def spd(X, eps=1e-6, method='svd'):
     if method == 'eig':
         L, _ = torch.symeig(symmetric(X))
         lmin = L.amin(axis=-1) - eps
-        lmin = symmetric(torch.minimum(lmin, torch.zeros(1)).squeeze())
-        return X - lmin[..., None, None] * torch.eye(X.size(-1))
+        lmin = torch.minimum(lmin, torch.zeros(1)).squeeze()
+        return symmetric(X - lmin[..., None, None] * torch.eye(X.size(-1)))
     elif method == 'svd':
         Q, L, _ = torch.svd(symmetric(X))
         return symmetric(Q @ torch.diag_embed(L) @ Q.transpose(-1, -2))

@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from scipy.linalg import toeplitz as toeplitz_ref
 from hypernova.functional import (
-    invert_spd, toeplitz
+    invert_spd, toeplitz, symmetric, spd
 )
 
 
@@ -29,12 +29,37 @@ rt = torch.Tensor(r)
 Ct = torch.Tensor(C)
 Rt = torch.Tensor(R)
 ft = torch.Tensor(f)
+Bt = torch.rand(20, 10, 10)
+BLRt = torch.rand(20, 10, 2)
+BLRt = BLRt @ BLRt.transpose(-1, -2)
 
 
 def test_invert_spd():
-    out = invert_spd(At).numpy()
-    ref = torch.inverse(At).numpy()
+    out = invert_spd(At) @ At
+    ref = torch.eye(At.size(-1))
     assert testf(out, ref)
+
+
+def test_symmetric():
+    out = symmetric(Bt)
+    ref = out.transpose(-1, -2)
+    assert testf(out, ref)
+
+
+def test_spd():
+    out = spd(Bt)
+    ref = out.transpose(-1, -2)
+    assert testf(out, ref)
+    L, _ = torch.symeig(out)
+    assert torch.all(L > 0)
+
+
+def test_spd_singular():
+    out = spd(BLRt, method='eig')
+    ref = out.transpose(-1, -2)
+    assert testf(out, ref)
+    L, _ = torch.symeig(out)
+    assert torch.all(L > 0)
 
 
 def test_toeplitz():
