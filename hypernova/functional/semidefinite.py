@@ -8,7 +8,7 @@ Differentiable projection from the positive semidefinite cone into a proper
 subspace tangent to the Riemann manifold.
 """
 import torch
-from . import symmap, symlog, symexp, symsqrt, invert_spd
+from . import symmap, symlog, symexp, symsqrt, invert_spd, spd
 
 
 def tangent_project_spd(input, reference, recondition=0):
@@ -114,12 +114,14 @@ def cone_project_spd(input, reference, recondition=0):
     tangent_project_spd: The inverse projection, into a tangent subspace.
     """
     ref_sr = symsqrt(reference, recondition)
-    # Note that we recondition the exponential as well to ensure that this is
-    # a well-formed inverse of `tangent_project_spd`.
-    if recondition > 0:
-        recondition * input + (1 - recondition) * torch.eye(input.size(-1))
     # Note that we must use the much slower torch.matrix_exp for stability.
-    return ref_sr @ torch.matrix_exp(input) @ ref_sr
+    cone = ref_sr @ torch.matrix_exp(input) @ ref_sr
+    # Note that we undo the reconditioning to ensure that this is a well-formed
+    # inverse of `tangent_project_spd`.
+    if recondition > 0:
+        cone = 1 / (1 - recondition) * (
+            cone - recondition * torch.eye(input.size(-1)))
+    return spd(cone)
 
 
 def mean_euc_spd(input, axis=0):
