@@ -8,6 +8,7 @@ Differentiable computation of matrix logarithm, exponential, and square root.
 For use with symmetric (typically positive semidefinite) matrices.
 """
 import torch
+from . import symmetric
 
 
 def symmap(input, map, spd=True, psi=0):
@@ -51,11 +52,12 @@ def symmap(input, map, spd=True, psi=0):
         if psi > 1:
             raise ValueError('Nonconvex combination. Select psi in [0, 1].')
         input = (1 - psi) * input + psi * torch.eye(input.size(-1))
-    L, Q = torch.symeig(input, eigenvectors=True)
     if spd:
-        L = torch.maximum(L, torch.zeros_like(L))
+        Q, L, _ = torch.svd(symmetric(input))
+    else:
+        L, Q = torch.symeig(symmetric(input), eigenvectors=True)
     Lmap = torch.diag_embed(map(L))
-    return Q @ Lmap @ Q.transpose(-1, -2)
+    return symmetric(Q @ Lmap @ Q.transpose(-1, -2))
 
 
 def symlog(input, recondition=0):

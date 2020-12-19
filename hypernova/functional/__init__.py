@@ -23,7 +23,7 @@ from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity
 )
 from .matrix import (
-    invert_spd, expand_outer, toeplitz
+    invert_spd, expand_outer, spd, symmetric, toeplitz
 )
 from .noise import (
     DiagonalNoiseSource, SPSDNoiseSource,
