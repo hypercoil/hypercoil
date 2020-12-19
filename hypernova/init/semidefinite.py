@@ -17,6 +17,10 @@ def mean_block_spd(mean_specs, init_data):
     return torch.stack([spec(init_data) for spec in mean_specs]).squeeze(0)
 
 
+def mean_apply_block(mean_specs, data):
+    return torch.stack([spec(d) for spec, d in zip(mean_specs, data)])
+
+
 def tangency_init_(tensor, mean_specs, init_data, std=0):
     rg = tensor.requires_grad
     tensor.requires_grad = False
