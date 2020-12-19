@@ -14,6 +14,9 @@ from .freqfilter import (
 from .polyconv import (
     PolyConv2D
 )
+from .semidefinite import(
+    TangentProject, BatchTangentProject
+)
 from .spdnoise import (
     SPDNoise
 )
