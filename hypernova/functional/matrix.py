@@ -12,7 +12,9 @@ def invert_spd(A):
     Invert a symmetric positive definite matrix.
 
     Currently, this operates by computing the Cholesky decomposition of the
-    matrix, inverting the decomposition, and recomposing.
+    matrix, inverting the decomposition, and recomposing. If the Cholesky
+    decomposition fails because the input is singular, then it instead returns
+    the Moore-Penrose pseudoinverse.
 
     Dimension
     ---------
@@ -31,26 +33,94 @@ def invert_spd(A):
         Inverse or Moore-Penrose pseudoinverse of each matrix in the input
         batch.
     """
-    L = torch.cholesky(A)
-    Li = torch.pinverse(L)
-    return Li.transpose(-1, -2) @ Li
+    try:
+        L = torch.cholesky(A)
+        Li = torch.inverse(L)
+        return Li.transpose(-1, -2) @ Li
+    except RuntimeError:
+        return torch.pinverse(A)
 
 
-def symmetric(X, skew=False):
+def symmetric(X, skew=False, axes=(-2, -1)):
+    """
+    Impose symmetry on a tensor block.
+
+    The input tensor block is averaged with its transpose across the slice
+    delineated by the specified axes.
+
+    Parameters
+    ----------
+    X : Tensor
+        Input to be symmetrised.
+    skew : bool (default False)
+        Indicates whether skew-symmetry (antisymmetry) should be imposed on the
+        input.
+    axes : tuple(int, int) (default (-2, -1))
+        Axes that delineate the square slices of the input on which symmetry
+        is imposed. By default, symmetry is imposed on the last 2 slices.
+
+    Returns
+    -------
+    output : Tensor
+        Input with symmetry imposed across specified slices.
+    """
     if not skew:
-        return (X + X.transpose(-2, -1)) / 2
+        return (X + X.transpose(*axes)) / 2
     else:
-        return (X - X.transpose(-2, -1)) / 2
+        return (X - X.transpose(*axes)) / 2
 
 
-def spd(X, eps=1e-4, method='svd'):
+def spd(X, eps=1e-6, method='svd'):
+    """
+    Impose symmetric positive definiteness on a tensor block.
+
+    Each input matrix is first made symmetric. Next, the symmetrised inputs are
+    decomposed via diagonalisation or SVD. If the inputs are diagonalised, the
+    smallest eigenvalue is identified, and a scaled identity matrix is added to
+    the input such that the smallest eigenvalue of the resulting matrix is no
+    smaller than a specified threshold. If the inputs are decomposed via SVD,
+    then the matrix is reconstituted from the left singular vectors (which are
+    in theory identical to the right singular vectors up to sign for a
+    symmetric matrix) and the absolute values of the eigenvalues. Thus, the
+    maximum reconstruction error is in theory the minimum threshold for
+    diagonalisation and the absolute value of the smallest negative eigenvalue
+    for SVD.
+
+    Parameters
+    ----------
+    X : Tensor
+        Input to be made positive definite.
+    eps : float
+        Minimum threshold for the smallest eigenvalue identified in diagonal
+        eigendecomposition. If diagonalisation is used to impose positive
+        semidefiniteness, then this will be the minimum possible eigenvalue of
+        the output. If SVD is used to impose positive semidefiniteness, then
+        this is unused.
+    method : 'eig' or 'svd'
+        Method used to ensure that all eigenvalues are positive.
+        - `eig` denotes that the input matrices are symmetrised and then
+          diagonalised. The method returns the symmetrised sum of the input and
+          an identity matrix scaled to guarantee no eigenvalue is smaller than
+          `eps`.
+        - `svd` denotes that the input matrices are decomposed via singular
+          value decomposition after symmetrisation. The method returns a
+          recomposition of the matrix that treats the left singular vectors and
+          singular values output from SVD as though they were outputs of
+          diagonalisation, thereby guaranteeing that no eigenvalue is smaller
+          than the least absolute value among all input eigenvalues.
+
+      Returns
+      -------
+      output : Tensor
+          Input modified so that each slice is symmetric and positive definite.
+    """
     if method == 'eig':
         L, _ = torch.symeig(symmetric(X))
         lmin = L.amin(axis=-1) - eps
-        lmin = torch.minimum(lmin, torch.zeros(1)).squeeze()
+        lmin = symmetric(torch.minimum(lmin, torch.zeros(1)).squeeze())
         return X - lmin[..., None, None] * torch.eye(X.size(-1))
     elif method == 'svd':
-        Q, L, _ = torch.svd(X)
+        Q, L, _ = torch.svd(symmetric(X))
         return symmetric(Q @ torch.diag_embed(L) @ Q.transpose(-1, -2))
 
 
