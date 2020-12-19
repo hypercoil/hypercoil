@@ -78,19 +78,7 @@ class BatchTangentProject(_TangentProject):
                 self.inertia * self.weight + (1 - self.inertia) * weight
             ).detach()
         elif self.weight is None:
-            ref = invert_spd(torch.matrix_exp(input.mean(0)))
-            self.weight = torch.stack(self.out_channels * [ref])
-            print(self.weight.shape)
+            raise ValueError('Undefined weight: project into tangent space '
+                             'first to initialise.')
         out = super(BatchTangentProject, self).forward(input, dest)
-
-        if dest == 'cone':
-            if self.out_channels > 1:
-                weight = mean_apply_block(self.mean_specs, out)
-            else:
-                weight = self.mean_specs[0](out)
-            print(weight.shape)
-            self.weight = (
-                self.inertia * self.weight + (1 - self.inertia) * weight
-            ).detach()
-            print(self.weight.shape)
         return out
