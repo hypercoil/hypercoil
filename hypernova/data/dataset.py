@@ -6,8 +6,8 @@ Neuroimaging datasets
 ~~~~~~~~~~~~~~~~~~~~~
 Dataset objects for neuroimaging data.
 """
-import nibabel as nb
 from torch.utils.data import Dataset, DataLoader
+from .dataref import fmriprep_references
 
 
 class NeuroimagingDataset(Dataset):
