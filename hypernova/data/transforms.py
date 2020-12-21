@@ -43,3 +43,26 @@ class ReadNiftiTensor(ReadNeuroTensor):
 class ReadTableTensor(ReadNeuroTensor):
     def read(self, path):
         return pd.read_csv(path, sep='\t').values
+
+
+class ReadNeuroTensorBlock(object):
+    def __init__(self, dtype='torch.FloatTensor', nanfill=0):
+        self.dtype = dtype
+        self.nanfill = nanfill
+
+    def __call__(self, sample):
+        if isinstance(sample, list):
+            return torch.stack([self(s) for s in sample]).squeeze()
+        return self.transform(sample)
+
+
+class ReadNiftiTensorBlock(ReadNeuroTensorBlock):
+    def __init__(self, dtype='torch.FloatTensor', nanfill=0):
+        super(ReadNiftiTensorBlock, self).__init__(dtype, nanfill)
+        self.transform = ReadNiftiTensor(self.dtype, self.nanfill)
+
+
+class ReadTableTensorBlock(ReadNeuroTensorBlock):
+    def __init__(self, dtype='torch.FloatTensor', nanfill=0):
+        super(ReadTableTensorBlock, self).__init__(dtype, nanfill)
+        self.transform = ReadTableTensor(self.dtype, self.nanfill)
