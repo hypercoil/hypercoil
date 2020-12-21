@@ -22,7 +22,7 @@ class ReadNiftiTensor(object):
         img = nb.load(path)
         img = torch.Tensor(img.get_fdata()).type(self.dtype)
         img[torch.isnan(img)] = self.nanfill
-        return data
+        return img
 
 
 class ReadTableTensor(object):
@@ -36,3 +36,8 @@ class ReadTableTensor(object):
         data = torch.Tensor(data.values).type(self.dtype)
         data[torch.isnan(data)] = self.nanfill
         return data
+
+
+class IdentityTransform(object):
+    def __call__(self, sample):
+        return sample
