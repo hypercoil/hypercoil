@@ -30,7 +30,7 @@ class DataReference(object):
         pass
 
 
-class FunctionalConnectivityDataReference(DataReference):
+class fMRISubReference(DataReference):
     def __init__(
         self,
         data,
@@ -72,6 +72,64 @@ class FunctionalConnectivityDataReference(DataReference):
         if self.task:
             s += f', task={self.task}'
         s += ')'
+        return s
+
+
+class fMRIDataReference(DataReference):
+    def __init__(
+        self,
+        df,
+        idx,
+        labels=None,
+        data_transform=None,
+        confounds_transform=None,
+        label_transform=None):
+        self.df = df.loc(axis=0)[idx]
+        self.labels = labels
+        self.data_transform = data_transform
+        self.confounds_transform = confounds_transform
+        self.label_transform = label_transform
+
+        self.subrefs = self.make_subreferences()
+        ids = self.parse_ids(idx)
+        self.subject = ids.get('subject')
+        self.session = ids.get('session')
+        self.run = ids.get('run')
+        self.task = ids.get('task')
+
+    def parse_ids(self, idx):
+        ids = {}
+        for entity, value in zip(self.df.index.names, idx):
+            if not isinstance(value, slice):
+                ids[entity] = value
+        return ids
+
+    def make_subreferences(self):
+        subrefs = []
+        for idx, ref in data.iterrows():
+            ids = dict(zip(data.index.names, idx))
+            subrefs += [fMRISubReference(
+                data=ref.images,
+                data_transform=self.data_transform,
+                confounds=ref.confounds,
+                confounds_transform=self.confounds_transform,
+                label=self.labels,
+                label_transform=self.label_transform,
+                **ids)
+            ]
+        return subrefs
+
+    def __repr__(self):
+        s = f'{type(self).__name__}(sub={self.subject}'
+        if self.session:
+            s += f', ses={self.session}'
+        if self.run:
+            s += f', run={self.run}'
+        if self.task:
+            s += f', task={self.task}'
+        for sr in self.subrefs:
+            s += f',\n {sr}'
+        s += '\n)'
         return s
 
 
