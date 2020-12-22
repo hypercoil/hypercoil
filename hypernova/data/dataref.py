@@ -48,10 +48,10 @@ class fMRISubReference(fMRIReferenceBase):
     def __init__(
         self,
         data,
-        data_transform=None,
         confounds=None,
-        confounds_transform=None,
         label=None,
+        data_transform=None,
+        confounds_transform=None,
         label_transform=None,
         **ids):
         self.data_ref = data
@@ -115,10 +115,10 @@ class fMRIDataReference(fMRIReferenceBase):
             ids = dict(zip(self.df.index.names, idx))
             subrefs += [fMRISubReference(
                 data=ref.images,
-                data_transform=self.data_transform,
                 confounds=ref.confounds,
-                confounds_transform=self.confounds_transform,
                 label=self.labels,
+                data_transform=self.data_transform,
+                confounds_transform=self.confounds_transform,
                 label_transform=self.label_transform,
                 **ids)
             ]
@@ -154,13 +154,14 @@ def fmriprep_references(
     sub, ses, run, task = assemble_entities(layout, ignore)
     index, observations, levels = collate_product(
         sub, ses, run, task, observations, levels)
-    images, confounds = query_and_reference_all(layout, index, space)
+    images, confounds = query_all(layout, index, space)
     df = pd.DataFrame(
         data={'images': images, 'confounds': confounds},
         index=index)
     df = delete_null_levels(df, observations, levels)
+    df = delete_null_obs(df, observations, levels)
     obs = all_observations(df, observations, levels)
-    data_refs = make_references(obs)
+    data_refs = make_references(df, obs)
 
 
 def assemble_entities(layout, ignore=None):
@@ -259,7 +260,14 @@ def delete_null_levels(df, observations, levels):
     return df
 
 
-def query_and_reference_all(layout, index, space=None):
+def delete_null_obs(df, observations, levels):
+    for obs in all_observations(df, observations, levels):
+        if level_null(df, obs):
+            df = df.drop(df.loc(axis=0)[obs].index)
+    return df
+
+
+def query_all(layout, index, space=None):
     images = []
     confounds = []
     entities = index.names
@@ -290,5 +298,8 @@ def query_and_reference_all(layout, index, space=None):
 def make_references(df, obs):
     data_refs = []
     for o in obs:
-        data_refs += [fMRIDataReference(df.loc(axis=0)[o])]
+        try:
+            data_refs += [fMRIDataReference(df, o)]
+        except KeyError:
+            continue
     return data_refs
