@@ -30,7 +30,21 @@ class DataReference(object):
         pass
 
 
-class fMRISubReference(DataReference):
+class fMRIReferenceBase(DataReference):
+    @property
+    def data(self):
+        return self.data_transform(self.data_ref)
+
+    @property
+    def confounds(self):
+        return self.confounds_transform(self.confounds_ref)
+
+    @property
+    def label(self):
+        return self.label_transform(self.label_ref)
+
+
+class fMRISubReference(fMRIReferenceBase):
     def __init__(
         self,
         data,
@@ -51,18 +65,6 @@ class fMRISubReference(DataReference):
         self.run = ids.get('run')
         self.task = ids.get('task')
 
-    @property
-    def data(self):
-        return self.data_transform(self.data_ref)
-
-    @property
-    def confounds(self):
-        return self.confounds_transform(self.confounds_ref)
-
-    @property
-    def label(self):
-        return self.label_transform(self.label_ref)
-
     def __repr__(self):
         s = f'{type(self).__name__}(sub={self.subject}'
         if self.session:
@@ -75,7 +77,7 @@ class fMRISubReference(DataReference):
         return s
 
 
-class fMRIDataReference(DataReference):
+class fMRIDataReference(fMRIReferenceBase):
     def __init__(
         self,
         df,
@@ -86,11 +88,14 @@ class fMRIDataReference(DataReference):
         label_transform=None):
         self.df = df.loc(axis=0)[idx]
         self.labels = labels
-        self.data_transform = data_transform
-        self.confounds_transform = confounds_transform
-        self.label_transform = label_transform
+        self.data_transform = data_transform or ReadNiftiTensorBlock()
+        self.confounds_transform = confounds_transform or ReadTableTensorBlock()
+        self.label_transform = label_transform or IdentityTransform()
 
+        self.data_ref = self.df.images.values.tolist()
+        self.confounds_ref = self.df.confounds.values.tolist()
         self.subrefs = self.make_subreferences()
+
         ids = self.parse_ids(idx)
         self.subject = ids.get('subject')
         self.session = ids.get('session')
@@ -106,8 +111,8 @@ class fMRIDataReference(DataReference):
 
     def make_subreferences(self):
         subrefs = []
-        for idx, ref in data.iterrows():
-            ids = dict(zip(data.index.names, idx))
+        for idx, ref in self.df.iterrows():
+            ids = dict(zip(self.df.index.names, idx))
             subrefs += [fMRISubReference(
                 data=ref.images,
                 data_transform=self.data_transform,
