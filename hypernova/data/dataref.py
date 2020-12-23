@@ -6,11 +6,10 @@ Data references
 ~~~~~~~~~~~~~~~
 Interfaces between neuroimaging data and data loaders.
 """
-import bids
+import pandas as pd
+from itertools import product
 from .transforms import ReadNiftiTensor, ReadTableTensor, IdentityTransform
 
-
-bids.config.set_option('extension_initial_dot', True)
 
 BIDS_SCOPE = 'derivatives'
 BIDS_DTYPE = 'func'
@@ -85,11 +84,14 @@ class fMRIDataReference(fMRIReferenceBase):
         labels=None,
         data_transform=None,
         confounds_transform=None,
-        label_transform=None):
+        label_transform=None,
+        level_names=None):
+        if level_names is not None:
+            level_names = [tuple(level_names)]
         self.df = df.loc(axis=0)[idx]
         self.labels = labels
-        self.data_transform = data_transform or ReadNiftiTensorBlock()
-        self.confounds_transform = confounds_transform or ReadTableTensorBlock()
+        self.data_transform = data_transform or ReadNiftiTensorBlock(names=level_names)
+        self.confounds_transform = confounds_transform or ReadTableTensorBlock(names=level_names)
         self.label_transform = label_transform or IdentityTransform()
 
         self.data_ref = self.df.images.values.tolist()
@@ -138,30 +140,32 @@ class fMRIDataReference(fMRIReferenceBase):
         return s
 
 
-def fmriprep_references(
-    fmriprep_dir,
-    space=None,
-    additional_tables=None,
-    ignore=None,
-    label='subject',
-    observations=('subject',),
-    levels=('session', 'run', 'task'):
-
-    layout = bids.BIDSLayout(
+def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
+                        ignore=None, label='subject',
+                        observations=('subject',),
+                        levels=('session', 'run', 'task')):
+    #layout = bids.BIDSLayout(
+    #    fmriprep_dir,
+    #    derivatives=[fmriprep_dir],
+    #    validate=False)
+    layout = LightGrabber(
         fmriprep_dir,
-        derivatives=[fmriprep_dir],
-        validate=False)
+        patterns=['func/**/*preproc*.nii.gz',
+                  'func/**/*confounds*.tsv'])
     sub, ses, run, task = assemble_entities(layout, ignore)
-    index, observations, levels = collate_product(
+    index, observations, levels, entities = collate_product(
         sub, ses, run, task, observations, levels)
     images, confounds = query_all(layout, index, space)
     df = pd.DataFrame(
         data={'images': images, 'confounds': confounds},
         index=index)
+    df_aux = read_additional_tables(additional_tables, entities)
+    df = concat_frames(df, df_aux)
     df = delete_null_levels(df, observations, levels)
     df = delete_null_obs(df, observations, levels)
     obs = all_observations(df, observations, levels)
-    data_refs = make_references(df, obs)
+    data_refs = make_references(df, obs, levels)
+    return data_refs
 
 
 def assemble_entities(layout, ignore=None):
@@ -199,7 +203,7 @@ def collate_product(sub, ses, run, task, observations, levels):
     observations = [o for o in observations if o in entities]
     levels = [l for l in levels if l in entities]
     index = pd.MultiIndex.from_product(prod_gen, names=entities)
-    return index, observations, levels
+    return index, observations, levels, entities
 
 
 def get_filters(entities, query):
@@ -209,11 +213,22 @@ def get_filters(entities, query):
     return filters
 
 
+def read_additional_tables(paths, entities):
+    idx = list(range(len(entities)))
+    return [pd.read_csv(p, sep='\t', index_col=idx) for p in paths]
+
+
+def concat_frames(df, df_aux):
+    dfs = [df] + df_aux
+    return pd.concat(dfs, axis=1)
+
+
+
 def n_levels(df, label):
     try:
         return len(df.index.get_level_values(label).unique())
     except KeyError:
-        return None
+        return len(df[label].unique())
 
 
 def fill_idx_pattern(level, idx):
@@ -295,11 +310,11 @@ def query_all(layout, index, space=None):
     return images, confounds
 
 
-def make_references(df, obs):
+def make_references(df, obs, levels):
     data_refs = []
     for o in obs:
         try:
-            data_refs += [fMRIDataReference(df, o)]
+            data_refs += [fMRIDataReference(df, o, level_names=levels)]
         except KeyError:
             continue
     return data_refs
