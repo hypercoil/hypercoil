@@ -8,7 +8,7 @@ Interfaces between neuroimaging data and data loaders.
 """
 import pandas as pd
 from itertools import product
-from .transforms import ReadNiftiTensor, ReadTableTensor, IdentityTransform
+from .transforms import ReadNiftiTensor, ReadTableTensor, ToTensor
 
 
 BIDS_SCOPE = 'derivatives'
@@ -40,7 +40,13 @@ class fMRIReferenceBase(DataReference):
 
     @property
     def label(self):
-        return self.label_transform(self.label_ref)
+        return {k: t(v) for t, (k, v) in
+                zip(self.label_transform, self.label_ref.items())}
+
+    @property
+    def outcome(self):
+        return {k: t(v) for t, (k, v) in
+                zip(self.outcome_transform, self.outcome_ref.items())}
 
 
 class fMRISubReference(fMRIReferenceBase):
@@ -48,7 +54,8 @@ class fMRISubReference(fMRIReferenceBase):
         self,
         data,
         confounds=None,
-        label=None,
+        labels=None,
+        outcomes = None,
         data_transform=None,
         confounds_transform=None,
         label_transform=None,
@@ -57,7 +64,8 @@ class fMRISubReference(fMRIReferenceBase):
         self.data_transform = data_transform or ReadNiftiTensorBlock()
         self.confounds_ref = confounds
         self.confounds_transform = confounds_transform or ReadTableTensorBlock()
-        self.label_ref = label or 'sub'
+        self.label_ref = labels or []
+        self.outcome_ref = outcomes or []
         self.label_transform = label_transform or IdentityTransform()
         self.subject = ids.get('subject')
         self.session = ids.get('session')
@@ -82,20 +90,28 @@ class fMRIDataReference(fMRIReferenceBase):
         df,
         idx,
         labels=None,
+        outcomes = None,
         data_transform=None,
         confounds_transform=None,
         label_transform=None,
+        outcome_transform=None,
         level_names=None):
         if level_names is not None:
             level_names = [tuple(level_names)]
         self.df = df.loc(axis=0)[idx]
-        self.labels = labels
+        self.labels = labels or []
+        self.outcomes = outcomes or []
         self.data_transform = data_transform or ReadNiftiTensorBlock(names=level_names)
         self.confounds_transform = confounds_transform or ReadTableTensorBlock(names=level_names)
-        self.label_transform = label_transform or IdentityTransform()
+        self.label_transform = label_transform or [
+            EncodeOneHot(n_levels=l.max_label) for l in self.labels]
+        self.outcome_transform = outcome_transform or [
+            ToTensor() for _ in self.outcomes]
 
         self.data_ref = self.df.images.values.tolist()
         self.confounds_ref = self.df.confounds.values.tolist()
+        self.label_ref = {l.name: l(self.df) for l in self.labels}
+        self.outcome_ref = {o.name: o(self.df) for o in self.outcomes}
         self.subrefs = self.make_subreferences()
 
         ids = self.parse_ids(idx)
@@ -118,7 +134,8 @@ class fMRIDataReference(fMRIReferenceBase):
             subrefs += [fMRISubReference(
                 data=ref.images,
                 confounds=ref.confounds,
-                label=self.labels,
+                labels=self.labels,
+                outcomes=self.outcomes,
                 data_transform=self.data_transform,
                 confounds_transform=self.confounds_transform,
                 label_transform=self.label_transform,
@@ -140,8 +157,29 @@ class fMRIDataReference(fMRIReferenceBase):
         return s
 
 
+class CategoricalVariable(object):
+    def __init__(self, var, df):
+        values = get_col(df, var).unique()
+        self.name = var
+        self.max_label = len(values)
+        self.label_dict = dict(zip(values, range(self.max_label)))
+        self.reverse_dict = {v: k for k, v in self.label_dict.items()}
+
+    def __call__(self, df):
+        values = get_col(df, self.name)
+        return [self.label_dict[v] for v in values]
+
+
+class ContinuousVariable(object):
+    def __init__(self, var, df):
+        self.name = var
+
+    def __call__(self, df):
+        return get_col(df, self.name)
+
+
 def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
-                        ignore=None, label='subject',
+                        ignore=None, labels=('subject',), outcomes=None,
                         observations=('subject',),
                         levels=('session', 'run', 'task')):
     #layout = bids.BIDSLayout(
@@ -164,7 +202,8 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     df = delete_null_levels(df, observations, levels)
     df = delete_null_obs(df, observations, levels)
     obs = all_observations(df, observations, levels)
-    data_refs = make_references(df, obs, levels)
+    labels, outcomes = process_labels_and_outcomes(df, labels, outcomes)
+    data_refs = make_references(df, obs, levels, labels, outcomes)
     return data_refs
 
 
@@ -225,10 +264,14 @@ def concat_frames(df, df_aux):
 
 
 def n_levels(df, label):
+    return len(get_col(df, label).unique())
+
+
+def get_col(df, label):
     try:
-        return len(df.index.get_level_values(label).unique())
+        return df.index.get_level_values(label)
     except KeyError:
-        return len(df[label].unique())
+        return df[label]
 
 
 def fill_idx_pattern(level, idx):
@@ -310,11 +353,21 @@ def query_all(layout, index, space=None):
     return images, confounds
 
 
-def make_references(df, obs, levels):
+def process_labels_and_outcomes(df, labels, outcomes):
+    ls, os = [], []
+    for l in labels:
+        ls += [CategoricalVariable(l, df)]
+    for o in outcomes:
+        os += [ContinuousVariable(o, df)]
+    return ls, os
+
+
+def make_references(df, obs, levels, labels, outcomes):
     data_refs = []
     for o in obs:
         try:
-            data_refs += [fMRIDataReference(df, o, level_names=levels)]
+            data_refs += [fMRIDataReference(
+                df, o, level_names=levels, labels=labels, outcomes=outcomes)]
         except KeyError:
             continue
     return data_refs
