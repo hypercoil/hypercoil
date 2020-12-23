@@ -40,10 +40,16 @@ class LightBIDSObject(object):
         vals = {k: re.match(v, self.path) for k, v in regexs.items()}
         vals = {k: v.groupdict()[k] for k, v in vals.items() if v is not None}
         for k, v in vals.items():
-            self.__dict__[k] = v
+            try:
+                self.__dict__[k] = int(v)
+            except ValueError:
+                self.__dict__[k] = v
 
     def get(self, key):
-        return self.__dict__.get(key)
+        try:
+            return self.__dict__.get(int(key))
+        except ValueError:
+            return self.__dict__.get(key)
 
 
 class LightGrabber(object):
@@ -61,7 +67,7 @@ class LightGrabber(object):
 
     def get_subjects(self):
         try:
-            out = list(set([r.subject for r in lg.refs]))
+            out = list(set([r.subject for r in self.refs]))
             out.sort()
             return out
         except AttributeError:
@@ -69,7 +75,7 @@ class LightGrabber(object):
 
     def get_sessions(self):
         try:
-            out = list(set([r.session for r in lg.refs]))
+            out = list(set([r.session for r in self.refs]))
             out.sort()
             return out
         except AttributeError:
@@ -77,7 +83,7 @@ class LightGrabber(object):
 
     def get_runs(self):
         try:
-            out = list(set([r.run for r in lg.refs]))
+            out = list(set([r.run for r in self.refs]))
             out.sort()
             return out
         except AttributeError:
@@ -85,7 +91,7 @@ class LightGrabber(object):
 
     def get_tasks(self):
         try:
-            out = list(set([r.task for r in lg.refs]))
+            out = list(set([r.task for r in self.refs]))
             out.sort()
             return out
         except AttributeError:
