@@ -116,5 +116,13 @@ class EncodeOneHot(object):
         self.patterns = torch.eye(self.n_levels)
 
     def __call__(self, sample):
-        idx = torch.Tensor(sample).type('torch.LongTensor')
+        idx = torch.Tensor(sample).type(self.dtype)
         return self.patterns[idx]
+
+
+class ToTensor(object):
+    def __init__(self, dtype='torch.FloatTensor'):
+        self.dtype = dtype
+
+    def __call__(self, sample):
+        return torch.Tensor(sample).type(self.dtype)
