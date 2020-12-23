@@ -38,7 +38,8 @@ class NeuroimagingDataset(Dataset):
         return {
             'data': ref.data,
             'confounds': ref.confounds,
-            'label': ref.label
+            'label': ref.label,
+            'outcome': ref.outcome
         }
 
     def __repr__(self):
@@ -84,31 +85,40 @@ class BIDSDataset(NeuroimagingDataset):
             prod_gen += [task]
         return entities, list(product(*prod_gen))
 
+    def _list_coor(self, entities, arg):
+        if isinstance(arg, list):
+            return [self._list_coor(a) for a in arg]
+        return self._query_assets(entities, arg)
+
     def _get_filters(self, entities, query):
         filters = {}
         for k, v in zip(entities, query):
             filters[k] = v
         return filters
 
+    def _query_assets(self, entities, query):
+        filters = self._get_filters(entities, query)
+        image = layout.get(
+            scope=BIDS_SCOPE,
+            datatype=BIDS_DTYPE,
+            desc=BIDS_IMG_DESC,
+            space=space,
+            suffix=BIDS_IMG_SUFFIX,
+            extension=BIDS_IMG_EXT,
+            **filters)
+        confounds = layout.get(
+            scope=BIDS_SCOPE,
+            datatype=BIDS_DTYPE,
+            desc=BIDS_CONF_DESC,
+            suffix=BIDS_CONF_SUFFIX,
+            extension=BIDS_CONF_EXT,
+            **filters)
+        return filters, image, confounds
+
     def _query_and_reference_all(self, layout, entities, queries, space=None):
         data_refs = []
         for query in queries:
-            filters = self._get_filters(entities, query)
-            image = layout.get(
-                scope=BIDS_SCOPE,
-                datatype=BIDS_DTYPE,
-                desc=BIDS_IMG_DESC,
-                space=space,
-                suffix=BIDS_IMG_SUFFIX,
-                extension=BIDS_IMG_EXT,
-                **filters)
-            confounds = layout.get(
-                scope=BIDS_SCOPE,
-                datatype=BIDS_DTYPE,
-                desc=BIDS_CONF_DESC,
-                suffix=BIDS_CONF_SUFFIX,
-                extension=BIDS_CONF_EXT,
-                **filters)
+            filters, image, confounds = self._query_assets(entities, query)
             if not image or not confounds:
                 continue
             ref = FunctionalConnectivityDataReference(
@@ -123,10 +133,10 @@ class BIDSDataset(NeuroimagingDataset):
 
 class fMRIPrepDataset(BIDSDataset):
     def __init__(self, fmriprep_dir, space=None):
-        data_refs = self.fmriprep_references(fmriprep_dir, space)
+        data_refs = self._fmriprep_references(fmriprep_dir, space)
         super(fMRIPrepDataset, self).__init__(data_refs)
 
-    def fmriprep_references(self, fmriprep_dir, space=None,
+    def _fmriprep_references(self, fmriprep_dir, space=None,
                             additional_tables=None, ignore=None):
         layout = bids.BIDSLayout(
             fmriprep_dir,
@@ -136,4 +146,4 @@ class fMRIPrepDataset(BIDSDataset):
         return self._query_and_reference_all(layout, entities, queries, space)
 
     def add_data(self, fmriprep_dir, space=None):
-        self.data_refs += self.fmriprep_references(fmriprep_dir, space)
+        self.data_refs += self._fmriprep_references(fmriprep_dir, space)
