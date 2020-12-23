@@ -10,7 +10,7 @@ import torch
 import nibabel as nb
 import pandas as pd
 from abc import ABC, abstractmethod
-from bids.layout.models import BIDSFile
+from .. import LightBIDSObject
 
 
 class IdentityTransform(object):
@@ -25,7 +25,7 @@ class ReadNeuroTensor(ABC):
         self.all_names = names
 
     def __call__(self, sample):
-        path = sample.path if isinstance(sample, BIDSFile) else sample
+        path = sample.path if isinstance(sample, LightBIDSObject) else sample
         data = self.read(path)
         data = torch.Tensor(data).type(self.dtype)
         if self.nanfill is not None:
@@ -60,21 +60,24 @@ class ReadTableTensor(ReadNeuroTensor):
 
 
 class ReadNeuroTensorBlock(object):
-    def __init__(self, dtype='torch.FloatTensor', nanfill=None):
+    def __init__(self, dtype='torch.FloatTensor', nanfill=None, names=None):
         self.dtype = dtype
         self.nanfill = nanfill
+        self.names = names
 
-    def __call__(self, sample, new_names=None):
+    def __call__(self, sample):
         if isinstance(sample, list):
-            if new_names is not None:
-                nn = new_names[1:]
+            if isinstance(self.names, list) and len(self.names) > 1:
+                nn = self.names[1:]
             else:
-                nn = new_names
-            tensors = extend_and_conform([self(s, nn) for s in sample])
-            names = tensors[0].shape
+                nn = self.names
+            rec = [self.__class__(self.dtype, self.nanfill, nn) for _ in sample]
+            tensors = extend_and_conform([r(s) for r, s in zip(rec, sample)])
+            names = tensors[0].names
             tensors = torch.stack([t.rename(None) for t in tensors])
-            if new_names is not None:
-                tensors.names = names + new_names
+            if self.names is not None:
+                tensors.names = [
+                    '_x_'.join(n) for n in self.names] + list(names)
             return tensors
         return self.transform(sample)
 
@@ -86,7 +89,7 @@ def extend_and_conform(tensor_list):
 
 
 def extend_to_size(tensor, size):
-    out = torch.empty(*out_size) * float('nan')
+    out = torch.empty(*size) * float('nan')
     names = tensor.names
     tensor = tensor.rename(None)
     out[[slice(s) for s in tensor.size()]] = tensor
@@ -95,14 +98,14 @@ def extend_to_size(tensor, size):
 
 
 class ReadNiftiTensorBlock(ReadNeuroTensorBlock):
-    def __init__(self, dtype='torch.FloatTensor', nanfill=None):
-        super(ReadNiftiTensorBlock, self).__init__(dtype, nanfill)
+    def __init__(self, dtype='torch.FloatTensor', nanfill=None, names=None):
+        super(ReadNiftiTensorBlock, self).__init__(dtype, nanfill, names)
         self.transform = ReadNiftiTensor(self.dtype, self.nanfill)
 
 
 class ReadTableTensorBlock(ReadNeuroTensorBlock):
-    def __init__(self, dtype='torch.FloatTensor', nanfill=None):
-        super(ReadTableTensorBlock, self).__init__(dtype, nanfill)
+    def __init__(self, dtype='torch.FloatTensor', nanfill=None, names=None):
+        super(ReadTableTensorBlock, self).__init__(dtype, nanfill, names)
         self.transform = ReadTableTensor(self.dtype, self.nanfill)
 
 
