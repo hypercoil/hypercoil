@@ -241,12 +241,52 @@ shorthand_re = {
     'nss': '^non_steady_state_outlier[0-9]+',
     'spikes': '^motion_outlier[0-9]+'
 }
+shorthand_filters = {
+    'acc\(n=(?P<n>[0-9]+)\)': FirstN('^a_comp_cor_[0-9]+'),
+    'acc\(v=(?P<v>[0-9\.]+)\)': CumulVar('^a_comp_cor_[0-9]+'),
+    'tcc\(n=(?P<n>[0-9]+)\)': FirstN('^t_comp_cor_[0-9]+'),
+    'tcc\(v=(?P<v>[0-9\.]+)\)': CumulVar('^t_comp_cor_[0-9]+'),
+}
 
 
 def load_metadata(path):
     with open(path) as file:
         metadata = json.load(file)
     return metadata
+
+
+def numbered_string(s):
+    num = int(re.search('(?P<num>[0-9]+$)', s).groupdict()['num'])
+    string = re.sub('[0-9]+$', '', s)
+    return (string, num)
+
+
+class FirstN(object):
+    def __init__(self, pattern):
+        self.pattern = re.compile(pattern)
+
+    def __call__(self, metadata, n):
+        n = int(n)
+        matches = list(filter(self.pattern.match, metadata.keys()))
+        matches.sort(key=numbered_string)
+        return ' + '.join(matches[:n])
+
+
+class CumulVar(object):
+    def __init__(self, pattern):
+        self.pattern = re.compile(pattern)
+
+    def __call__(self, metadata, v):
+        v = float(v)
+        if v > 1: v /= 100
+        out = []
+        matches = list(filter(self.pattern.match, metadata.keys()))
+        for m in matches:
+            item = metadata.get(m)
+            if not item: break
+            out += [m]
+            if item['CumulativeVarianceExplained'] > v: break
+        return ' + '.join(out)
 
 
 
