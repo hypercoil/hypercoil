@@ -1,73 +1,91 @@
+# -*- coding: utf-8 -*-
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
-"""Select terms for a confound model, and compute any requisite expansions."""
-
+"""
+Model specifications
+~~~~~~~~~~~~~~~~~~~~
+Specifications for selecting particular columns from a data frame and adding
+expansion terms if necessary. Largely lifted and adapted from niworkflows.
+"""
 import re
 import numpy as np
 import pandas as pd
+from collections import OrderedDict
 from functools import reduce
-from collections import deque, OrderedDict
-from nipype.utils.filemanip import fname_presuffix
-from nipype.interfaces.base import (
-    traits, TraitedSpec, BaseInterfaceInputSpec, File, isdefined,
-    SimpleInterface
-)
 
 
-def temporal_derivatives(order, variables, data):
-    """
-    Compute temporal derivative terms by the method of backwards differences.
+class ModelSpec(object):
+    def __init__(self, spec, name=None, unscramble=True):
+        self.spec = spec
+        self.unscramble = unscramble
+        self.name = name or spec
 
-    Parameters
-    ----------
-    order: range or list(int)
-        A list of temporal derivative terms to include. For instance, [1, 2]
-        indicates that the first and second derivative terms should be added.
-        To retain the original terms, 0 *must* be included in the list.
-    variables: list(str)
-        List of variables for which temporal derivative terms should be
-        computed.
-    data: pandas DataFrame object
-        Table of values of all observations of all variables.
-
-    Returns
-    -------
-    variables_deriv: list
-        A list of variables to include in the final data frame after adding
-        the specified derivative terms.
-    data_deriv: pandas DataFrame object
-        Table of values of all observations of all variables, including any
-        specified derivative terms.
-
-    """
-    variables_deriv = OrderedDict()
-    data_deriv = OrderedDict()
-    if 0 in order:
-        data_deriv[0] = data[variables]
-        variables_deriv[0] = variables
-        order = set(order) - set([0])
-    for o in order:
-        variables_deriv[o] = ['{}_derivative{}'.format(v, o)
-                              for v in variables]
-        data_deriv[o] = np.tile(np.nan, data[variables].shape)
-        data_deriv[o][o:, :] = np.diff(data[variables], n=o, axis=0)
-    variables_deriv = reduce((lambda x, y: x + y), variables_deriv.values())
-    data_deriv = pd.DataFrame(columns=variables_deriv,
-                              data=np.concatenate([*data_deriv.values()],
-                                                  axis=1))
-
-    return (variables_deriv, data_deriv)
+    def __call__(self, df):
+        return parse_formula(self.spec, df, self.unscramble)
 
 
-def exponential_terms(order, variables, data):
+class ColumnTransform(object):
+    def __init__(self, transform, all, select,
+                 first=0, name='transform', identity=None):
+        self.transform = transform
+        self.all = re.compile(all)
+        self.select = re.compile(select)
+        self.first = first
+        self.name = name
+        self.identity = identity
+
+
+    def check_and_expand(self, expr, variables, data):
+        if re.search(self.all, expr):
+            order = self.all.findall(expr)
+            order = set(range(self.first, int(*order) + 1))
+        elif re.search(self.select, expr):
+            order = self.select.findall(expr)
+            order = self._order_as_range(*order)
+        variables, data = self(
+            order=order,
+            variables=variables,
+            data=data
+        )
+        return variables, data
+
+    def _order_as_range(order):
+        """Convert a hyphenated string representing order for derivative or
+        exponential terms into a range object that can be passed as input to
+        the appropriate expansion function."""
+        order = order.split('-')
+        order = [int(o) for o in order]
+        if len(order) > 1:
+            order = range(order[0], (order[-1] + 1))
+        return order
+
+    def __call__(self, order, variables, data):
+        variables_xfm, data_xfm = OrderedDict(), OrderedDict()
+        selected = data[variables]
+        if self.identity in order:
+            data_xfm[self.identity] = selected
+            variables_xfm[self.identity] = variables
+            order -= {self.identity}
+        for o in order:
+            variables_xfm[o] = [f'{v}_{self.name}{o}' for v in variables]
+            data_xfm[o] = self.transform(selected, o)
+        variables_xfm = reduce((lambda x, y: x + y), variables_xfm.values())
+        data_xfm = pd.DataFrame(
+            columns=variables_xfm,
+            data=np.concatenate([*data_xfm.values()], axis=1)
+        )
+        return variables_xfm, data_xfm
+
+
+class PowerTransform(ColumnTransform):
     """
     Compute exponential expansions.
 
     Parameters
     ----------
-    order: range or list(int)
-        A list of exponential terms to include. For instance, [1, 2]
-        indicates that the first and second exponential terms should be added.
+    order: set(int)
+        A set of exponential terms to include. For instance, {1, 2}
+        indicates that the first and second powers should be added.
         To retain the original terms, 1 *must* be included in the list.
     variables: list(str)
         List of variables for which exponential terms should be computed.
@@ -84,60 +102,58 @@ def exponential_terms(order, variables, data):
         specified exponential terms.
 
     """
-    variables_exp = OrderedDict()
-    data_exp = OrderedDict()
-    if 1 in order:
-        data_exp[1] = data[variables]
-        variables_exp[1] = variables
-        order = set(order) - set([1])
-    for o in order:
-        variables_exp[o] = ['{}_power{}'.format(v, o) for v in variables]
-        data_exp[o] = data[variables]**o
-    variables_exp = reduce((lambda x, y: x + y), variables_exp.values())
-    data_exp = pd.DataFrame(columns=variables_exp,
-                            data=np.concatenate([*data_exp.values()], axis=1))
-    return (variables_exp, data_exp)
+    def __init__(self):
+        super(PowerTransform, self).__init__(
+            transform=lambda data, order: data ** order,
+            all=r'\^\^([0-9]+)$',
+            select=r'\^([0-9]+[\-]?[0-9]*)$',
+            first=1,
+            name='power',
+            identity=1
+        )
 
 
-def _order_as_range(order):
-    """Convert a hyphenated string representing order for derivative or
-    exponential terms into a range object that can be passed as input to the
-    appropriate expansion function."""
-    order = order.split('-')
-    order = [int(o) for o in order]
-    if len(order) > 1:
-        order = range(order[0], (order[-1] + 1))
-    return order
+class DerivativeTransform(ColumnTransform):
+    """
+    Compute temporal derivative terms by the method of backwards differences.
+
+    Parameters
+    ----------
+    order: set(int)
+        A set of temporal derivative terms to include. For instance, {1, 2}
+        indicates that the first and second derivative terms should be added.
+        To retain the original terms, 0 *must* be included in the set.
+    variables: list(str)
+        List of variables for which temporal derivative terms should be
+        computed.
+    data: pandas DataFrame object
+        Table of values of all observations of all variables.
+
+    Returns
+    -------
+    variables_deriv: list
+        A list of variables to include in the final data frame after adding
+        the specified derivative terms.
+    data_deriv: pandas DataFrame object
+        Table of values of all observations of all variables, including any
+        specified derivative terms.
+
+    """
+    def __init__(self):
+        super(DerivativeTransform, self).__init__(
+            transform=lambda data, order: diff_nanpad(data, n=order, axis=0),
+            all=r'^dd([0-9]+)',
+            select=r'^d([0-9]+[\-]?[0-9]*)',
+            first=0,
+            name='derivative',
+            identity=0
+        )
 
 
-def _check_and_expand_exponential(expr, variables, data):
-    """Check if the current operation specifies exponential expansion. ^^6
-    specifies all powers up to the 6th, ^5-6 the 5th and 6th powers, ^6 the
-    6th only."""
-    if re.search(r'\^\^[0-9]+$', expr):
-        order = re.compile(r'\^\^([0-9]+)$').findall(expr)
-        order = range(1, int(*order) + 1)
-        variables, data = exponential_terms(order, variables, data)
-    elif re.search(r'\^[0-9]+[\-]?[0-9]*$', expr):
-        order = re.compile(r'\^([0-9]+[\-]?[0-9]*)').findall(expr)
-        order = _order_as_range(*order)
-        variables, data = exponential_terms(order, variables, data)
-    return variables, data
-
-
-def _check_and_expand_derivative(expr, variables, data):
-    """Check if the current operation specifies a temporal derivative. dd6x
-    specifies all derivatives up to the 6th, d5-6x the 5th and 6th, d6x the
-    6th only."""
-    if re.search(r'^dd[0-9]+', expr):
-        order = re.compile(r'^dd([0-9]+)').findall(expr)
-        order = range(0, int(*order) + 1)
-        (variables, data) = temporal_derivatives(order, variables, data)
-    elif re.search(r'^d[0-9]+[\-]?[0-9]*', expr):
-        order = re.compile(r'^d([0-9]+[\-]?[0-9]*)').findall(expr)
-        order = _order_as_range(*order)
-        (variables, data) = temporal_derivatives(order, variables, data)
-    return variables, data
+def diff_nanpad(a, n=1, axis=-1):
+    diff = np.empty_like(a) * float('nan')
+    diff[n:] = np.diff(a, n=n, axis=axis)
+    return diff
 
 
 def _check_and_expand_subformula(expression, parent_data, variables, data):
