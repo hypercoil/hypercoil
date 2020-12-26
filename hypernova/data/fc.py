@@ -12,26 +12,28 @@ from .shorthand import Shorthand, ShorthandFilter
 from .utils import diff_nanpad
 
 
-shorthand = {
-    'wm': 'white_matter',
-    'gsr': 'global_signal',
-    'rps': 'trans_x + trans_y + trans_z + rot_x + rot_y + rot_z',
-    'fd': 'framewise_displacement'
-}
-shorthand_re = {
-    'acc': '^a_comp_cor_[0-9]+',
-    'tcc': '^t_comp_cor_[0-9]+',
-    'dv': '^std_dvars$',
-    'dvall': '.*dvars$',
-    'nss': '^non_steady_state_outlier[0-9]+',
-    'spikes': '^motion_outlier[0-9]+'
-}
-shorthand_filters = {
-    'acc\<n=(?P<n>[0-9]+)\>': FirstN('^a_comp_cor_[0-9]+'),
-    'acc\<v=(?P<v>[0-9\.]+)\>': CumulVar('^a_comp_cor_[0-9]+'),
-    'tcc\<n=(?P<n>[0-9]+)\>': FirstN('^t_comp_cor_[0-9]+'),
-    'tcc\<v=(?P<v>[0-9\.]+)\>': CumulVar('^t_comp_cor_[0-9]+'),
-}
+def fc_shorthand():
+    shorthand = {
+        'wm': 'white_matter',
+        'gsr': 'global_signal',
+        'rps': 'trans_x + trans_y + trans_z + rot_x + rot_y + rot_z',
+        'fd': 'framewise_displacement'
+    }
+    shorthand_re = {
+        'acc': '^a_comp_cor_[0-9]+',
+        'tcc': '^t_comp_cor_[0-9]+',
+        'dv': '^std_dvars$',
+        'dvall': '.*dvars$',
+        'nss': '^non_steady_state_outlier[0-9]+',
+        'spikes': '^motion_outlier[0-9]+'
+    }
+    shorthand_filters = {
+        'acc\<n=(?P<n>[0-9]+)\>': FirstN('^a_comp_cor_[0-9]+'),
+        'acc\<v=(?P<v>[0-9\.]+)\>': CumulVar('^a_comp_cor_[0-9]+'),
+        'tcc\<n=(?P<n>[0-9]+)\>': FirstN('^t_comp_cor_[0-9]+'),
+        'tcc\<v=(?P<v>[0-9\.]+)\>': CumulVar('^t_comp_cor_[0-9]+'),
+    }
+    return shorthand, shorthand_re, shorthand_filters
 
 
 class FirstN(ShorthandFilter):
@@ -62,6 +64,7 @@ class FCShorthand(Shorthand):
             DerivativeTransform(),
             PowerTransform()
         ]
+        shorthand, shorthand_re, shorthand_filters = fc_shorthand()
         super(FCShorthand, self).__init__(
             rules=shorthand,
             regex=shorthand_re,
@@ -97,7 +100,7 @@ class PowerTransform(ColumnTransform):
     """
     def __init__(self):
         super(PowerTransform, self).__init__(
-            transform=lambda data, order: data ** order,
+            transform=lambda data, order: data.values ** order,
             all=r'\^\^([0-9]+)$',
             select=r'\^([0-9]+[\-]?[0-9]*)$',
             first=1,
