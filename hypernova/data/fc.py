@@ -9,7 +9,7 @@ Initialisations of base data classes for modelling functional connectivity.
 from .coltransforms import ColumnTransform
 from .model import ModelSpec
 from .shorthand import Shorthand, ShorthandFilter
-from .utils import diff_nanpad
+from .utils import diff_nanpad, match_metadata
 
 
 def fc_shorthand():
@@ -32,6 +32,7 @@ def fc_shorthand():
         'acc\<v=(?P<v>[0-9\.]+)\>': CumulVar('^a_comp_cor_[0-9]+'),
         'tcc\<n=(?P<n>[0-9]+)\>': FirstN('^t_comp_cor_[0-9]+'),
         'tcc\<v=(?P<v>[0-9\.]+)\>': CumulVar('^t_comp_cor_[0-9]+'),
+        'aroma': NoiseComponents('^aroma_motion_[0-9]+')
     }
     return shorthand, shorthand_re, shorthand_filters
 
@@ -39,7 +40,7 @@ def fc_shorthand():
 class FirstN(ShorthandFilter):
     def __call__(self, metadata, n):
         n = int(n)
-        matches = list(filter(self.pattern.match, metadata.keys()))
+        matches = match_metadata(self.pattern, metadata)
         matches.sort(key=numbered_string)
         return ' + '.join(matches[:n])
 
@@ -49,12 +50,22 @@ class CumulVar(ShorthandFilter):
         v = float(v)
         if v > 1: v /= 100
         out = []
-        matches = list(filter(self.pattern.match, metadata.keys()))
+        matches = match_metadata(self.pattern, metadata)
         for m in matches:
             item = metadata.get(m)
             if not item: break
             out += [m]
             if item['CumulativeVarianceExplained'] > v: break
+        return ' + '.join(out)
+
+
+class NoiseComponents(ShorthandFilter):
+    def __call__(self, metadata):
+        out = []
+        matches = match_metadata(self.pattern, metadata)
+        for m in matches:
+            item = metadata.get(m)
+            if item['MotionNoise']: out += [m]
         return ' + '.join(out)
 
 

@@ -67,3 +67,27 @@ def test_acc_spec():
     assert('trans_y' not in out.columns)
     assert('a_comp_cor_02' in out.columns)
     assert(out.shape[1] == 10)
+
+
+def test_aroma_expr():
+    model_formula = 'wm + csf + aroma'
+    shfc = hypernova.data.fc.FCShorthand()
+    df = pd.read_csv(confpath, sep='\t')
+    spec_sh = shfc(model_formula, df.columns, metadata)
+    assert(len(spec_sh.split(' + ')) == 41)
+    expr = hypernova.data.Expression(
+        spec_sh,
+        transforms=[hypernova.data.fc.PowerTransform(),
+                    hypernova.data.fc.DerivativeTransform()]
+    )
+    assert(expr.n_children == 41)
+
+
+def test_aroma_spec():
+    model_formula = 'wm + csf + aroma'
+    fcms = hypernova.data.FCConfoundModelSpec(model_formula, '36ev')
+    out = fcms(df, metadata)
+    assert('aroma_motion_57' in out.columns)
+    assert('aroma_motion_38' not in out.columns)
+    assert(out.shape[1] == 41)
+
