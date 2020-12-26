@@ -10,6 +10,7 @@ import re
 import pandas as pd
 from functools import reduce
 from collections import OrderedDict, deque
+from .utils import successive_pad_search
 
 
 class Expression(object):
@@ -43,7 +44,7 @@ class Expression(object):
     def parse(self, df, unscramble=False):
         self.purge()
         if self.n_children == 0:
-            self.data = df[self.expr]
+            self.data = successive_pad_search(df, self.expr, pad=0, k=5)
             return self.data
         for i, expr in enumerate(self.children):
             self.data[i] = expr.parse(df)
