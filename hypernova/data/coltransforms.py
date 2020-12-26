@@ -37,7 +37,7 @@ class ColumnTransform(object):
         )
         return data
 
-    def _order_as_range(order):
+    def _order_as_range(self, order):
         """Convert a hyphenated string representing order for derivative or
         exponential terms into a range object that can be passed as input to
         the appropriate expansion function."""
