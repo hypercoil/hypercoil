@@ -27,3 +27,18 @@ def numbered_string(s):
     num = int(re.search('(?P<num>[0-9]+$)', s).groupdict()['num'])
     string = re.sub('[0-9]+$', '', s)
     return (string, num)
+
+
+def match_metadata(pattern, metadata):
+    return list(filter(pattern.match, metadata.keys()))
+
+
+def successive_pad_search(df, key, pad=0, k=5):
+    for i in range(k):
+        try:
+            return df[key]
+        except KeyError:
+            p = '{:' + f'{pad}{i + 1}' + '}'
+            st, nu = numbered_string(key)
+            key = f'{st}' + p.format(nu)
+    raise KeyError
