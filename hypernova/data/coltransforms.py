@@ -9,6 +9,8 @@ Transforms applied to columns of a pandas DataFrame.
 import re
 import pandas as pd
 import numpy as np
+from collections import OrderedDict
+from functools import reduce
 
 
 class ColumnTransform(object):
@@ -50,17 +52,13 @@ class ColumnTransform(object):
         selected = data[variables]
         if self.identity in order:
             data_xfm[self.identity] = selected
-            variables_xfm[self.identity] = variables
             order -= {self.identity}
         for o in order:
-            variables_xfm[o] = [f'{v}_{self.name}{o}' for v in variables]
-            data_xfm[o] = self.transform(selected, o)
-        variables_xfm = reduce(
-            lambda x, y: x + y,
-            [list(v) for v in variables_xfm.values()])
-        data_xfm = pd.DataFrame(
-            columns=variables_xfm,
-            data=np.concatenate([*data_xfm.values()], axis=1)
+            data_xfm[o] = pd.DataFrame(
+                data=self.transform(selected, o),
+                columns=[f'{v}_{self.name}{o}' for v in variables])
+        data_xfm = pd.concat(
+            data_xfm.values(), axis=1
         )
         return data_xfm
 
