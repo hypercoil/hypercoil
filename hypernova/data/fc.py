@@ -13,13 +13,13 @@ from .utils import diff_nanpad, match_metadata
 
 
 def fc_shorthand():
-    shorthand = {
+    rules = {
         'wm': 'white_matter',
         'gsr': 'global_signal',
         'rps': 'trans_x + trans_y + trans_z + rot_x + rot_y + rot_z',
         'fd': 'framewise_displacement'
     }
-    shorthand_re = {
+    regex = {
         'acc': '^a_comp_cor_[0-9]+',
         'tcc': '^t_comp_cor_[0-9]+',
         'dv': '^std_dvars$',
@@ -27,35 +27,48 @@ def fc_shorthand():
         'nss': '^non_steady_state_outlier[0-9]+',
         'spikes': '^motion_outlier[0-9]+'
     }
-    shorthand_filters = {
-        'acc\<n=(?P<n>[0-9]+)\>': FirstN('^a_comp_cor_[0-9]+'),
-        'acc\<v=(?P<v>[0-9\.]+)\>': CumulVar('^a_comp_cor_[0-9]+'),
+    filters = {
+        'acc\<n=(?P<n>[0-9]+)(,)?(\s)?(mask=(?P<mask>[A-Za-z\+]*))?\>':
+            FirstN('^a_comp_cor_[0-9]+'),
+        'acc\<v=(?P<v>[0-9\.]+)(,)?(\s)?(mask=(?P<mask>[A-Za-z\+]*))?\>':
+            CumulVar('^a_comp_cor_[0-9]+'),
         'tcc\<n=(?P<n>[0-9]+)\>': FirstN('^t_comp_cor_[0-9]+'),
         'tcc\<v=(?P<v>[0-9\.]+)\>': CumulVar('^t_comp_cor_[0-9]+'),
         'aroma': NoiseComponents('^aroma_motion_[0-9]+')
     }
-    return shorthand, shorthand_re, shorthand_filters
+    return rules, regex, filters
 
 
 class FirstN(ShorthandFilter):
-    def __call__(self, metadata, n):
+    def __call__(self, metadata, n, mask=None):
+        print(mask)
         n = int(n)
         matches = match_metadata(self.pattern, metadata)
         matches.sort(key=numbered_string)
+        if mask:
+            masks = mask.split('+')
+            matches = [m for m in matches if metadata[m].get('Mask') in masks]
         return ' + '.join(matches[:n])
 
 
 class CumulVar(ShorthandFilter):
-    def __call__(self, metadata, v):
+    def __call__(self, metadata, v, mask=None):
         v = float(v)
         if v > 1: v /= 100
         out = []
         matches = match_metadata(self.pattern, metadata)
+        if mask:
+            masks = mask.split('+')
+            matches = [m for m in matches if metadata[m].get('Mask') in masks]
+        done = False
         for m in matches:
             item = metadata.get(m)
             if not item: break
+            if done:
+                done = item['CumulativeVarianceExplained'] > v
+                if done: continue
+            done = item['CumulativeVarianceExplained'] > v
             out += [m]
-            if item['CumulativeVarianceExplained'] > v: break
         return ' + '.join(out)
 
 
@@ -158,6 +171,37 @@ class DerivativeTransform(ColumnTransform):
 
 
 class FCConfoundModelSpec(ModelSpec):
+    """
+    model_formula: str
+        Expression for the model formula, e.g.
+        '(a + b)^^2 + dd1(c + (d + e)^3) + f'
+        Note that any expressions to be expanded *must* be in parentheses,
+        even if they include only a single variable (e.g., (x)^2, not x^2).
+    parent_data: pandas DataFrame
+        A tabulation of all values usable in the model formula. Each additive
+        term in `model_formula` should correspond either to a variable in this
+        data frame or to instructions for operating on a variable (for
+        instance, computing temporal derivatives or exponential terms).
+
+    Options
+    -------
+    Temporal derivative options:
+    * d6(variable) for the 6th temporal derivative
+    * dd6(variable) for all temporal derivatives up to the 6th
+    * d4-6(variable) for the 4th through 6th temporal derivatives
+    * 0 must be included in the temporal derivative range for the original
+      term to be returned when temporal derivatives are computed.
+
+    Exponential options:
+    * (variable)^6 for the 6th power
+    * (variable)^^6 for all powers up to the 6th
+    * (variable)^4-6 for the 4th through 6th powers
+    * 1 must be included in the powers range for the original term to be
+      returned when exponential terms are computed.
+
+    Temporal derivatives and exponential terms are computed for all terms
+    in the grouping symbols that they adjoin.
+    """
     def __init__(self, spec, name=None):
         name = name or 'confounds'
         super(FCConfoundModelSpec, self).__init__(
