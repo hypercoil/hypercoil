@@ -12,50 +12,59 @@ from .expression import Expression
 
 class ModelSpec(object):
     """
-    Parse a confound manipulation formula.
+    Model specification.
 
-    Recursively parse a model formula by breaking it into additive atoms
-    and tracking grouping symbol depth.
+    The specification comprises a model formula together with shorthand rules
+    and variable transformations that can be used to compose the model from a
+    provided DataFrame and optionally associated metadata.
 
-    Parameters
-    ----------
-    model_formula: str
-        Expression for the model formula, e.g.
-        '(a + b)^^2 + dd1(c + (d + e)^3) + f'
-        Note that any expressions to be expanded *must* be in parentheses,
-        even if they include only a single variable (e.g., (x)^2, not x^2).
-    parent_data: pandas DataFrame
-        A tabulation of all values usable in the model formula. Each additive
-        term in `model_formula` should correspond either to a variable in this
-        data frame or to instructions for operating on a variable (for
-        instance, computing temporal derivatives or exponential terms).
+    Parameters/Attributes
+    ---------------------
+    spec : str
+        Formula specifying the model to be built. Variables and transformation
+        instructions are written additively; the model is specified as their
+        sum. Each term in the sum is either a variable or a transformation of
+        another variable or sum of transformations/variables.
+    name : str or None (default None)
+        Model specification name. Included for functions that make use of
+        multiple model specifications, so that they can use this as a key for
+        hashing. If this is not provided, it will be set to the formula spec
+        by default.
+    shorthand : Shorthand object or None (default None)
+        Object specifying keywords and metadata filters in the specification
+        to be expanded or used to select additional variables. Consult the
+        Shorthand documentation for further information and the source code of
+        the FCShorthand class for an example implementation.
+    transforms : list(ColumnTransform objects) or None (default None)
+        List containing the column-wise transforms to be parsed in the
+        formula. Consult the ColumnTransform documentation for further
+        information and the source code of the DerivativeTransform and
+        PowerTransform classes for example implementations.
 
-    Returns
+    Methods
     -------
-    variables: list(str)
-        A list of variables included in the model parsed from the provided
+    __call__(df, metadata=None)
+        Recursively parse the model formula, and then select and transform the
+        columns of a data frame required to build the model specified by the
         formula.
-    data: pandas DataFrame
-        All values in the complete model.
 
-    Options
-    -------
-    Temporal derivative options:
-    * d6(variable) for the 6th temporal derivative
-    * dd6(variable) for all temporal derivatives up to the 6th
-    * d4-6(variable) for the 4th through 6th temporal derivatives
-    * 0 must be included in the temporal derivative range for the original
-      term to be returned when temporal derivatives are computed.
+        Parameters
+        ----------
+        df : DataFrame
+            DataFrame containing all necessary variables for building the
+            specified model. Relevant variables will be selected, transformed,
+            and composed from the columns of the provided DataFrame.
+        metadata : dict or None (default None)
+            Dictionary containing additional metadata for particular columns,
+            usable by the Shorthand object to filter variables that satisfy
+            particular criteria. Not used if no Shorthand is provided.
 
-    Exponential options:
-    * (variable)^6 for the 6th power
-    * (variable)^^6 for all powers up to the 6th
-    * (variable)^4-6 for the 4th through 6th powers
-    * 1 must be included in the powers range for the original term to be
-      returned when exponential terms are computed.
-
-    Temporal derivatives and exponential terms are computed for all terms
-    in the grouping symbols that they adjoin.
+        Returns
+        -------
+        data: pandas DataFrame
+            All variables and values in the specified model, built by
+            selecting, transforming, and composing specified columns of the
+            input DataFrame.
     """
     def __init__(self, spec, name=None, shorthand=None, transforms=None):
         self.spec = spec
@@ -70,3 +79,6 @@ class ModelSpec(object):
             formula = self.spec
         expr = Expression(formula, self.transforms)
         return expr(df)
+
+    def __repr__(self):
+        return f'ModelSpec(name={self.name}, formula={self.spec})'
