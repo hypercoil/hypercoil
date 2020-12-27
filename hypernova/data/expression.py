@@ -14,8 +14,46 @@ from .utils import successive_pad_search
 
 
 class Expression(object):
+    """
+    Parsable additive expression object.
+
+    An additive expression recursively decomposed into a parse tree comprising
+    sub-expressions and transform nodes. The expression can be applied to a
+    DataFrame to select, transform, and compose columns as needed to build the
+    model specified by the parent expression.
+
+    Parameters/Attributes
+    ---------------------
+    expr : str
+        Expression to be parsed.
+    transforms : list(ColumnTransform objects) or None (default None)
+        List containing the column-wise transforms to be parsed in the
+        formula. Consult the ColumnTransform documentation for further
+        information and the source code of the DerivativeTransform and
+        PowerTransform classes for example implementations.
+
+    Additional Attributes
+    ---------------------
+    transform : ColumnTransform object or None
+        Indicates whether the expression node is a transform node. If this is
+        None, then the node is an ordinary sub-expression; otherwise, it is a
+        transform node that applies the specified transformation to all child
+        expressions.
+    children : list(Expression objects)
+        List of Expression nodes that represent children or sub-expressions of
+        the node.
+    n_children : int
+        Number of immediate child nodes or subexpressions. A value of 0
+        indicates that the node is a leaf node.
+    data : DataFrame or list
+        Stores a working list of DataFrames computed by child nodes (initially
+        None); when the parse operation is called, each child node computes
+        a DataFrame that is stored in this attribute, and then the parent node
+        concatenates all DataFrames produced by child nodes and stores it
+        here.
+    """
     def __init__(self, expr, transforms=None):
-        self.transform = False
+        self.transform = None
         self.transforms = transforms
         self.expr = expr.strip()
         if self.is_parenthetical(self.expr):
@@ -37,11 +75,39 @@ class Expression(object):
             self.children += [
                 Expression(self.expr[expr_delimiter:], transforms)]
         else:
-            self.set_transform_node()
+            self._set_transform_node()
         self.purge()
         self.n_children = len(self.children)
 
     def parse(self, df, unscramble=False):
+        """
+        Parse the expression for a provided DataFrame.
+
+        For leaf nodes, the single column represented by the node is extracted
+        from the DataFrame. For parent nodes, the parse function is called
+        recursively for all children and the outputs received are composed
+        into a new DataFrame. For transform nodes, the outputs thus received
+        are then transformed.
+
+        Parameters
+        ----------
+        df : DataFrame
+            DataFrame containing the variables to be selected, transformed,
+            and composed to reflect the specified expression.
+        unscramble : bool (default False)
+            Indicates that the columns of the DataFrame assembled from all
+            children should be reordered to match the order found in the
+            input DataFrame. This is false by default, unless the expression's
+            built-in __call__ method is used instead, in which case it is true
+            for the parent expression and false for all children.
+
+        Returns
+        -------
+        self.data : DataFrame
+            New DataFrame comprising the columns specified in the expression,
+            selected, transformed, and composed from columns in the input
+            DataFrame.
+        """
         self.purge()
         if self.n_children == 0:
             self.data = successive_pad_search(df, self.expr, pad=0, k=5)
@@ -56,7 +122,11 @@ class Expression(object):
             self._unscramble_regressor_columns(df)
         return self.data
 
-    def set_transform_node(self):
+    def _set_transform_node(self):
+        """
+        Set the expression node to be a transform node and specify the
+        transform being performed.
+        """
         for t in self.transforms:
             if re.search(t.all, self.expr) or re.search(t.select, self.expr):
                 self.transform = t
@@ -65,13 +135,25 @@ class Expression(object):
         self._transform_arg_as_child()
 
     def purge(self):
+        """
+        Reset internal data references. Clear the data attribute of any
+        previously computed models in preparation for re-parsing for a new
+        input.
+        """
         self.data = [None for _ in self.children]
 
     def is_parenthetical(self, expr):
+        """
+        Return true if an expression is bounded by parentheses.
+        """
         return (expr[0] == '(' and expr[-1] == ')')
 
     def _transform_arg_as_child(self):
-        """Make the argument of the transform into a child node."""
+        """
+        If the current node is a transform node, create a new child node
+        containing the argument of the transform. This function is also
+        called for parenthetical sub-expressions.
+        """
         grouping_depth = 0
         for i, char in enumerate(self.expr):
             if char == '(':
@@ -87,8 +169,9 @@ class Expression(object):
                     return
 
     def _unscramble_regressor_columns(self, df):
-        """Reorder the columns of a confound matrix such that the columns are in
-        the same order as the input data with any expansion columns inserted
+        """
+        Reorder the columns of the output DataFrame such that they are in
+        the same order as the input data with any transformed columns inserted
         immediately after the originals.
         """
         matches = ['_power[0-9]+', '_derivative[0-9]+']
