@@ -67,6 +67,31 @@ def test_acc_spec():
     assert(out.shape[1] == 23)
 
 
+def test_accn_expr():
+    model_formula = 'd0-1(rps) + acc<n=5, mask=CSF+WM>'
+    spec_sh = shfc(model_formula, df.columns, metadata)
+    assert(spec_sh == (
+        'd0-1(trans_x + trans_y + trans_z + rot_x + rot_y + rot_z) + ' +
+        ' + '.join([f'a_comp_cor_{i:02}' for i in range(5)]) + ' + ' +
+        ' + '.join([f'a_comp_cor_{i:02}' for i in range(9, 14)])))
+    expr = hypernova.data.Expression(
+        spec_sh,
+        transforms=[hypernova.data.fc.PowerTransform(),
+                    hypernova.data.fc.DerivativeTransform()]
+    )
+    assert(expr.n_children == 11)
+    assert(expr.children[0].children[0].n_children == 6)
+
+
+def test_accn_spec():
+    model_formula = 'd0-1(rps) + acc<n=5, mask=CSF+WM>'
+    fcms = hypernova.data.FCConfoundModelSpec(model_formula, '36ev')
+    out = fcms(df, metadata)
+    assert('a_comp_cor_30' not in out.columns)
+    assert('a_comp_cor_02' in out.columns)
+    assert(out.shape[1] == 22)
+
+
 def test_aroma_expr():
     model_formula = 'wm + csf + aroma'
     spec_sh = shfc(model_formula, df.columns, metadata)

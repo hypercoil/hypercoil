@@ -9,7 +9,7 @@ Initialisations of base data classes for modelling functional connectivity.
 from .coltransforms import ColumnTransform
 from .model import ModelSpec
 from .shorthand import Shorthand, ShorthandFilter
-from .utils import diff_nanpad, match_metadata
+from .utils import diff_nanpad, match_metadata, numbered_string
 
 
 def fc_shorthand():
@@ -41,13 +41,16 @@ def fc_shorthand():
 
 class FirstN(ShorthandFilter):
     def __call__(self, metadata, n, mask=None):
-        print(mask)
         n = int(n)
         matches = match_metadata(self.pattern, metadata)
         matches.sort(key=numbered_string)
         if mask:
+            mmsk = []
             masks = mask.split('+')
-            matches = [m for m in matches if metadata[m].get('Mask') in masks]
+            for msk in masks:
+                filt = [m for m in matches if metadata[m].get('Mask') == msk]
+                mmsk += filt[:n]
+            return ' + '.join(mmsk)
         return ' + '.join(matches[:n])
 
 
