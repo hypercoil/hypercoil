@@ -29,7 +29,7 @@ class ColumnTransform(object):
             order = set(range(self.first, int(*order) + 1))
         elif re.search(self.select, expr):
             order = self.select.findall(expr)
-            order = self._order_as_range(*order)
+            order = set(self._order_as_range(*order))
         data = self(
             order=order,
             variables=variables,
@@ -38,9 +38,11 @@ class ColumnTransform(object):
         return data
 
     def _order_as_range(self, order):
-        """Convert a hyphenated string representing order for derivative or
-        exponential terms into a range object that can be passed as input to
-        the appropriate expansion function."""
+        """
+        Convert a hyphenated string representing order of the column transform
+        (if applicable) into a range object that can be passed as input to the
+        appropriate expansion function.
+        """
         order = order.split('-')
         order = [int(o) for o in order]
         if len(order) > 1:
