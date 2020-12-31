@@ -163,9 +163,8 @@ class Expression(object):
             elif char == ')':
                 grouping_depth -= 1
                 if grouping_depth == 0:
-                    self.children = [
-                        Expression(self.expr[expr_delimiter:i],
-                                   self.transforms)]
+                    self.children = [Expression(self.expr[expr_delimiter:i],
+                                                self.transforms)]
                     return
 
     def _unscramble_regressor_columns(self, df):
