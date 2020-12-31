@@ -13,6 +13,9 @@ from .utils import diff_nanpad, match_metadata, numbered_string
 
 
 def fc_shorthand():
+    """
+    Return the shorthand rules for functional connectivity.
+    """
     rules = {
         'wm': 'white_matter',
         'gsr': 'global_signal',
@@ -102,28 +105,16 @@ class FCShorthand(Shorthand):
 
 class PowerTransform(ColumnTransform):
     """
-    Compute exponential expansions.
+    Column transform that computes exponential expansions. The nth-order
+    transform returns the input data raised to the nth power.
 
-    Parameters
-    ----------
-    order: set(int)
-        A set of exponential terms to include. For instance, {1, 2}
-        indicates that the first and second powers should be added.
-        To retain the original terms, 1 *must* be included in the list.
-    variables: list(str)
-        List of variables for which exponential terms should be computed.
-    data: pandas DataFrame object
-        Table of values of all observations of all variables.
-
-    Returns
-    -------
-    variables_exp: list
-        A list of variables to include in the final data frame after adding
-        the specified exponential terms.
-    data_exp: pandas DataFrame object
-        Table of values of all observations of all variables, including any
-        specified exponential terms.
-
+    Formula specifications
+    ----------------------
+    * (variable)^6 for the 6th power
+    * (variable)^^6 for all powers up to the 6th
+    * (variable)^4-6 for the 4th through 6th powers
+    * 1 must be included in the powers range for the original term to be
+      returned when exponential terms are computed.
     """
     def __init__(self):
         super(PowerTransform, self).__init__(
@@ -138,29 +129,18 @@ class PowerTransform(ColumnTransform):
 
 class DerivativeTransform(ColumnTransform):
     """
-    Compute temporal derivative terms by the method of backwards differences.
+    Column transform that computes temporal derivatives as backward
+    differences. The nth-order transform returns the nth-order backward
+    difference of the input data, padding the output with NaNs so that its
+    shape matches that of the input.
 
-    Parameters
-    ----------
-    order: set(int)
-        A set of temporal derivative terms to include. For instance, {1, 2}
-        indicates that the first and second derivative terms should be added.
-        To retain the original terms, 0 *must* be included in the set.
-    variables: list(str)
-        List of variables for which temporal derivative terms should be
-        computed.
-    data: pandas DataFrame object
-        Table of values of all observations of all variables.
-
-    Returns
-    -------
-    variables_deriv: list
-        A list of variables to include in the final data frame after adding
-        the specified derivative terms.
-    data_deriv: pandas DataFrame object
-        Table of values of all observations of all variables, including any
-        specified derivative terms.
-
+    Formula specifications
+    ----------------------
+    * d6(variable) for the 6th temporal derivative
+    * dd6(variable) for all temporal derivatives up to the 6th
+    * d4-6(variable) for the 4th through 6th temporal derivatives
+    * 0 must be included in the temporal derivative range for the original
+      term to be returned when temporal derivatives are computed.
     """
     def __init__(self):
         super(DerivativeTransform, self).__init__(
@@ -175,19 +155,28 @@ class DerivativeTransform(ColumnTransform):
 
 class FCConfoundModelSpec(ModelSpec):
     """
-    model_formula: str
+    Model specification for confound models used to denoise data before
+    functional connectivity analysis.
+
+    Parameters
+    ----------
+    spec : str
         Expression for the model formula, e.g.
         '(a + b)^^2 + dd1(c + (d + e)^3) + f'
         Note that any expressions to be expanded *must* be in parentheses,
         even if they include only a single variable (e.g., (x)^2, not x^2).
-    parent_data: pandas DataFrame
-        A tabulation of all values usable in the model formula. Each additive
-        term in `model_formula` should correspond either to a variable in this
-        data frame or to instructions for operating on a variable (for
-        instance, computing temporal derivatives or exponential terms).
+    name : str
+        Name of the model. If none is provided, then the string 'confounds'
+        will be used by default. Note that this will lead to a hash collision
+        if multiple models are entered by name into a hash table.
 
-    Options
-    -------
+    Specification
+    -------------
+    Variables and transformation instructions are written additively; the
+    model is specified as their sum. Each term in the sum is either a variable
+    or a transformation of another variable or sum of transformations/
+    variables. Permitted transformations are temporal derivatives and powers.
+
     Temporal derivative options:
     * d6(variable) for the 6th temporal derivative
     * dd6(variable) for all temporal derivatives up to the 6th
@@ -204,6 +193,24 @@ class FCConfoundModelSpec(ModelSpec):
 
     Temporal derivatives and exponential terms are computed for all terms
     in the grouping symbols that they adjoin.
+
+    Example specs
+    -------------
+    (dd1(rps + wm + csf + gsr))^^2
+        36-parameter model: 6 realignment parameters (3 translational, 3
+        rotational), mean white matter and cerebrospinal fluid time series,
+        mean global time series, temporal derivatives of all time series, and
+        squares of the original time series and their derivatives.
+    aroma + wm + csf
+        ICA-AROMA noise time series concatenated with mean white matter and
+        cerebrospinal fluid time series.
+    acc(v=50, mask=CSF+WM) + rps
+        Anatomical CompCor time series sufficient to explain 50 percent of
+        variance in the white matter and CSF masks together with the 6
+        realignment parameters.
+    acc(n=6, mask=combined) + rps
+        First 6 anatomical CompCor time series from the combined WM/CSF mask
+        and the 6 realignment parameters.
     """
     def __init__(self, spec, name=None):
         name = name or 'confounds'
