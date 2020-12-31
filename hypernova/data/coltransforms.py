@@ -155,3 +155,32 @@ class ColumnTransform(object):
 
     def __repr__(self):
         return f'{type(self).__name__}()'
+
+
+class NoOrderCallable():
+    """
+    Wrap a one-argument function to create a callable that is compatible with
+    ColumnTransform. This will result in any order argument being ignored.
+    """
+    def __init__(self, transform):
+        self.transform = transform
+
+    def __call__(self, arg, order):
+        return self.transform(arg)
+
+
+class IteratedOrderCallable():
+    """
+    Wrap a one-argument function to create a callable that is compatible with
+    ColumnTransform. The order will specify how many times the function is
+    iteratively applied. This is not as efficient as a function that caches
+    previous results.
+    """
+    def __init__(self, transform):
+        self.transform = transform
+
+    def __call__(self, arg, order):
+        a = arg
+        for _ in range(order):
+            a = self.transform(a)
+        return a
