@@ -4,6 +4,7 @@
 """
 Unit tests for Fourier-domain filtering
 """
+import pytest
 import torch
 import numpy as np
 from scipy.fft import rfft, irfft
@@ -12,40 +13,38 @@ from hypernova.functional import (
 )
 
 
-tol = 1e-7
-testf = lambda out, ref: np.allclose(out, ref, atol=tol)
+class TestFourier:
 
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        self.tol = 1e-7
+        self.approx = lambda out, ref: np.allclose(out, ref, atol=self.tol)
 
-N = 100
-X = np.random.rand(7, N)
-Xt = torch.Tensor(X)
+        self.N = 100
+        self.X = np.random.rand(7, self.N)
+        self.Xt = torch.Tensor(self.X)
 
+    def scipy_product_filter(self, X, weight):
+        return irfft(weight * rfft(X))
 
-def scipy_product_filter(X, weight):
-    return irfft(weight * rfft(X))
+    def uniform_attenuator(self):
+        return 0.5 * torch.ones(self.N // 2 + 1)
 
+    def bandpass_filter(self):
+        weight = torch.ones(self.N // 2 + 1)
+        weight[:10] = 0
+        weight[20:] = 0
+        return weight
 
-def uniform_attenuator():
-    return 0.5 * torch.ones(N // 2 + 1)
+    def test_bandpass(self):
+        wt = self.bandpass_filter()
+        w = wt.numpy()
+        out = product_filter(self.Xt, wt).numpy()
+        ref = self.scipy_product_filter(self.X, w)
+        assert self.approx(out, ref)
 
-
-def bandpass_filter():
-    weight = torch.ones(N // 2 + 1)
-    weight[:10] = 0
-    weight[20:] = 0
-    return weight
-
-
-def test_bandpass():
-    wt = bandpass_filter()
-    w = wt.numpy()
-    out = product_filter(Xt, wt).numpy()
-    ref = scipy_product_filter(X, w)
-    assert testf(out, ref)
-
-
-def test_attenuation():
-    wt = uniform_attenuator()
-    out = product_filter(Xt, wt).numpy()
-    ref = 0.5 * X
-    assert testf(out, ref)
+    def test_attenuation(self):
+        wt = self.uniform_attenuator()
+        out = product_filter(self.Xt, wt).numpy()
+        ref = 0.5 * self.X
+        assert self.approx(out, ref)
