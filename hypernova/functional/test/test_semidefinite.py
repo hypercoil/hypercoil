@@ -4,6 +4,7 @@
 """
 Unit tests for operations in the positive semidefinite cone
 """
+import pytest
 import numpy as np
 import torch
 from nilearn.connectome.connectivity_matrices import (
@@ -12,21 +13,6 @@ from nilearn.connectome.connectivity_matrices import (
 from hypernova.functional import (
     tangent_project_spd, cone_project_spd, mean_geom_spd
 )
-
-
-tol = 5e-6
-rtol = 5e-5
-testf = lambda out, ref: np.allclose(out, ref, atol=tol, rtol=rtol)
-
-
-A = np.random.rand(10, 10)
-AM = np.random.rand(200, 10, 10)
-A = A @ A.T
-AM = AM @ np.swapaxes(AM, -1, -2)
-R = AM.mean(0)
-At = torch.Tensor(A)
-AMt = torch.Tensor(AM)
-Rt = torch.Tensor(R)
 
 
 def nilearn_tangent_project(input, ref):
@@ -48,37 +34,51 @@ def nilearn_cone_project(input, ref):
     return sqrt.dot(_form_symmetric(np.exp, ivals, ivecs)).dot(sqrt)
 
 
-def test_tangent_project():
-    out = tangent_project_spd(At, Rt).numpy()
-    ref = nilearn_tangent_project([A], R)
-    assert np.allclose(out, ref, atol=1e-1, rtol=1e-1)
-    out = tangent_project_spd(AMt, Rt).numpy()
-    ref = nilearn_tangent_project(AM, R)
-    # Note that this is a very weak condition! This would likely
-    # experience major improvement if pytorch develops a proper
-    # logm function.
-    assert np.allclose(out, ref, atol=2e-1, rtol=2e-1)
+class TestSemidefinite:
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        self.tol = 5e-6
+        self.rtol = 5e-5
+        self.approx = lambda out, ref: np.allclose(
+            out, ref, atol=self.tol, rtol=self.tol)
 
+        A = np.random.rand(10, 10)
+        AM = np.random.rand(200, 10, 10)
+        self.A = A @ A.T
+        self.AM = AM @ np.swapaxes(AM, -1, -2)
+        self.R = self.AM.mean(0)
+        self.At = torch.Tensor(self.A)
+        self.AMt = torch.Tensor(self.AM)
+        self.Rt = torch.Tensor(self.R)
 
-def test_cone_project():
-    V = nilearn_tangent_project([A], R).squeeze()
-    Vt = torch.Tensor(V)
-    out = cone_project_spd(Vt, Rt).numpy()
-    ref = nilearn_cone_project(V, R)
-    assert testf(out, ref)
-    out = cone_project_spd(AMt, Rt).numpy()
-    ref = np.stack([nilearn_cone_project(AMi, R) for AMi in AM])
-    assert testf(out, ref)
+    def test_tangent_project(self):
+        out = tangent_project_spd(self.At, self.Rt).numpy()
+        ref = nilearn_tangent_project([self.A], self.R)
+        assert np.allclose(out, ref, atol=1e-1, rtol=1e-1)
+        out = tangent_project_spd(self.AMt, self.Rt).numpy()
+        ref = nilearn_tangent_project(self.AM, self.R)
+        # Note that this is a very weak condition! This would likely
+        # experience major improvement if pytorch develops a proper
+        # logm function.
+        assert np.allclose(out, ref, atol=2e-1, rtol=2e-1)
 
+    def test_cone_project(self):
+        V = nilearn_tangent_project([self.A], self.R).squeeze()
+        Vt = torch.Tensor(V)
+        out = cone_project_spd(Vt, self.Rt).numpy()
+        ref = nilearn_cone_project(V, self.R)
+        assert self.approx(out, ref)
+        out = cone_project_spd(self.AMt, self.Rt).numpy()
+        ref = np.stack([nilearn_cone_project(AMi, self.R) for AMi in self.AM])
+        assert self.approx(out, ref)
 
-def test_proper_inverse():
-    Vt = tangent_project_spd(AMt, Rt, recondition=5e-4)
-    AM_rec = cone_project_spd(Vt, Rt, recondition=5e-4).numpy()
-    assert np.allclose(AM, AM_rec, atol=1e-2, rtol=1e-2)
+    def test_proper_inverse(self):
+        Vt = tangent_project_spd(self.AMt, self.Rt, recondition=5e-4)
+        AM_rec = cone_project_spd(Vt, self.Rt, recondition=5e-4).numpy()
+        assert np.allclose(self.AM, AM_rec, atol=1e-2, rtol=1e-2)
 
-
-def test_geometric_mean():
-    out = mean_geom_spd(AMt, recondition=1e-6).numpy()
-    ref = _geometric_mean([i for i in AM])
-    # Another fairly weak condition.
-    assert np.allclose(out, ref, atol=1e-2, rtol=1e-2)
+    def test_geometric_mean(self):
+        out = mean_geom_spd(self.AMt, recondition=1e-6).numpy()
+        ref = _geometric_mean([i for i in self.AM])
+        # Another fairly weak condition.
+        assert np.allclose(out, ref, atol=1e-2, rtol=1e-2)

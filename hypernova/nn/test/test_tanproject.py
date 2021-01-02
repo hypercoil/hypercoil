@@ -4,6 +4,7 @@
 """
 Unit tests for tangent/cone projection layer
 """
+import pytest
 import torch
 from hypernova.nn import TangentProject, BatchTangentProject
 from hypernova.init.semidefinite import (
@@ -14,38 +15,39 @@ from hypernova.init.semidefinite import (
 )
 
 
-testf = torch.allclose
+class TestTanProject:
 
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        A = torch.rand(30, 10, 100)
+        self.A = A @ A.transpose(-2, -1)
+        Z = torch.rand(100, 10, 10)
+        self.Z = Z + Z.transpose(-1, -2)
 
-A = torch.rand(30, 10, 100)
-A = A @ A.transpose(-2, -1)
-Z = torch.rand(100, 10, 10)
-Z = Z + Z.transpose(-1, -2)
+        self.approx = torch.allclose
 
+    def test_tangent_cone_forward(self):
+        tang = TangentProject(
+            self.A, mean_specs=[
+                SPDGeometricMean(psi=0.1),
+                SPDEuclideanMean(),
+                SPDEuclideanMean(),
+                SPDLogEuclideanMean(),
+                SPDHarmonicMean()],
+            recondition=1e-5)
+        Y = tang(self.A)
+        tang(Y, 'cone')
+        tang(self.Z, 'cone')
 
-def test_tangent_forward():
-    tang = TangentProject(
-        A, mean_specs=[
-            SPDGeometricMean(psi=0.1),
-            SPDEuclideanMean(),
-            SPDEuclideanMean(),
-            SPDLogEuclideanMean(),
-            SPDHarmonicMean()],
-        recondition=1e-5)
-    Y = tang(A)
-    tang(Y, 'cone')
-    tang(Z, 'cone')
-
-
-def test_batch_tangent_forward():
-    btang = BatchTangentProject(
-        mean_specs=[
-            SPDGeometricMean(psi=0.1),
-            SPDEuclideanMean(),
-            SPDEuclideanMean(),
-            SPDLogEuclideanMean(),
-            SPDHarmonicMean()],
-        recondition=1e-5)
-    Y = btang(A)
-    btang(Y, 'cone')
-    btang(Z, 'cone')
+    def test_batch_tangent_cone_forward(self):
+        btang = BatchTangentProject(
+            mean_specs=[
+                SPDGeometricMean(psi=0.1),
+                SPDEuclideanMean(),
+                SPDEuclideanMean(),
+                SPDLogEuclideanMean(),
+                SPDHarmonicMean()],
+            recondition=1e-5)
+        Y = btang(self.A)
+        btang(Y, 'cone')
+        btang(self.Z, 'cone')
