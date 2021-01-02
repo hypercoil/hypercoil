@@ -4,6 +4,7 @@
 """
 Unit tests for graph and network measures
 """
+import pytest
 import numpy as np
 import torch
 from hypernova.functional import (
@@ -16,31 +17,35 @@ from communities.utilities import (
 )
 
 
-tol = 5e-7
-testf = lambda out, ref: np.allclose(out, ref, atol=tol)
+class TestGraph:
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        self.tol = 5e-7
+        self.approx = lambda out, ref: np.allclose(out, ref, atol=self.tol)
 
-X = np.random.rand(3, 20, 20)
-X += X.swapaxes(-1, -2)
-aff = np.random.randint(0, 4, 20)
-comms = [np.where(aff==c)[0] for c in np.unique(aff)]
-C = np.eye(4)[aff]
-Xt = torch.Tensor(X)
-Ct = torch.Tensor(C)
-Lt = torch.rand(4, 4)
+        self.X = np.random.rand(3, 20, 20)
+        self.X += self.X.swapaxes(-1, -2)
+        self.aff = np.random.randint(0, 4, 20)
+        self.comms = [np.where(self.aff==c)[0] for c in np.unique(self.aff)]
+        self.C = np.eye(4)[self.aff]
+        self.Xt = torch.Tensor(self.X)
+        self.Ct = torch.Tensor(self.C)
+        self.Lt = torch.rand(4, 4)
 
+    def test_modularity_matrix(self):
+        out = modularity_matrix(self.Xt, normalise=True)
+        ref = np.stack([modularity_matrix_ref(x) for x in self.X])
+        assert self.approx(out, ref)
 
-def test_modularity_matrix():
-    out = modularity_matrix(Xt, normalise=True)
-    ref = np.stack([modularity_matrix_ref(x) for x in X])
-    assert testf(out, ref)
+    def test_modularity(self):
+        out = relaxed_modularity(self.Xt, self.Ct,
+                                 exclude_diag=True,
+                                 directed=False)
+        ref = np.stack(
+            [modularity_ref(modularity_matrix_ref(x), self.comms)
+             for x in self.X])
+        assert self.approx(out, ref)
 
-
-def test_modularity():
-    out = relaxed_modularity(Xt, Ct, exclude_diag=True, directed=False)
-    ref = np.stack(
-        [modularity_ref(modularity_matrix_ref(x), comms) for x in X])
-    assert testf(out, ref)
-
-
-def test_nonassociative_block():
-    out = relaxed_modularity(Xt, Ct, L=Lt, exclude_diag=True) / 2
+    def test_nonassociative_block(self):
+        out = relaxed_modularity(self.Xt, self.Ct,
+                                 L=self.Lt, exclude_diag=True) / 2

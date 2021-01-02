@@ -19,9 +19,6 @@ class TestModelSpec:
         'confmeta': 'desc-confounds_timeseries.json'
     }
 
-    def path_from_examples(self, key):
-        return pkgrf('hypernova', 'examples/{}'.format(self.filenames[key]))
-
     @pytest.fixture(autouse=True)
     def setup_class(self):
         self.confpath = self.path_from_examples('confdata')
@@ -29,6 +26,9 @@ class TestModelSpec:
         self.metadata = hypernova.data.load_metadata(self.metapath)
         self.shfc = hypernova.data.fc.FCShorthand()
         self.df = pd.read_csv(self.confpath, sep='\t')
+
+    def path_from_examples(self, key):
+        return pkgrf('hypernova', 'examples/{}'.format(self.filenames[key]))
 
     def expr_base(self, model_formula, expanded_spec, n_children):
         spec_sh = self.shfc(model_formula, self.df.columns, self.metadata)

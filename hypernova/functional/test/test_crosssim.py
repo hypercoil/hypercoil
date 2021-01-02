@@ -4,6 +4,7 @@
 """
 Unit tests for crosshair similarity operations
 """
+import pytest
 import torch
 from hypernova.functional.crosssim import (
     crosshair_similarity,
@@ -13,26 +14,25 @@ from hypernova.functional.crosssim import (
 )
 
 
-X = torch.rand(10, 3, 4, 7, 7)
-W = torch.rand(6, 4, 7, 7)
-exp_shape = torch.Size([10, 3, 6, 7, 7])
+class TestCrossSim:
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        self.X = torch.rand(10, 3, 4, 7, 7)
+        self.W = torch.rand(6, 4, 7, 7)
+        self.exp_shape = torch.Size([10, 3, 6, 7, 7])
 
+    def test_crosssim_shape(self):
+        out = crosshair_similarity(self.X, self.W)
+        assert out.size() == self.exp_shape
 
-def test_crosssim_shape():
-    out = crosshair_similarity(X, W)
-    assert out.size() == exp_shape
+    def test_crosssim_cosine_shape(self):
+        out = crosshair_cosine_similarity(self.X, self.W)
+        assert out.size() == self.exp_shape
 
+    def test_crosssim_l1_shape(self):
+        out = crosshair_l1_similarity(self.X, self.W)
+        assert out.size() == self.exp_shape
 
-def test_crosssim_cosine_shape():
-    out = crosshair_cosine_similarity(X, W)
-    assert out.size() == exp_shape
-
-
-def test_crosssim_l1_shape():
-    out = crosshair_l1_similarity(X, W)
-    assert out.size() == exp_shape
-
-
-def test_crosssim_l2_shape():
-    out = crosshair_l2_similarity(X, W)
-    assert out.size() == exp_shape
+    def test_crosssim_l2_shape(self):
+        out = crosshair_l2_similarity(self.X, self.W)
+        assert out.size() == self.exp_shape
