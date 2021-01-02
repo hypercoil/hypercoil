@@ -4,6 +4,7 @@
 """
 Unit tests for IIR filter initialisation
 """
+import pytest
 import numpy as np
 import torch
 from hypernova.init.iirfilter import (
@@ -13,40 +14,44 @@ from hypernova.init.iirfilter import (
 )
 
 
-testf = torch.allclose
+class TestIIRFilter:
 
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        N = torch.Tensor([[1], [4]])
+        Wn = torch.Tensor([[0.1, 0.3], [0.4, 0.6]])
+        self.filter_specs = [
+            IIRFilterSpec(Wn=[0.1, 0.3]),
+            IIRFilterSpec(Wn=Wn, N=N),
+            IIRFilterSpec(Wn=Wn, ftype='ideal'),
+            IIRFilterSpec(Wn=[0.1, 0.2], N=[2, 2], btype='lowpass'),
+            IIRFilterSpec(Wn=Wn, N=N, ftype='cheby1', rp=0.1),
+            IIRFilterSpec(Wn=Wn, N=N, ftype='cheby2', rs=20),
+            IIRFilterSpec(Wn=Wn, N=N, ftype='ellip', rs=20, rp=0.1)
+        ]
+        self.Z = torch.complex(torch.Tensor(21, 13, 50),
+                               torch.Tensor(21, 13, 50))
+        self.clamped_specs = [
+            IIRFilterSpec(Wn=[0.1, 0.3]),
+            IIRFilterSpec(Wn=Wn, clamps=[{}, {0.1: 1}]),
+            IIRFilterSpec(Wn=[0.1, 0.3], clamps=[{0.1: 0, 0.5:1}]),
+            IIRFilterSpec(Wn=Wn, N=N, clamps=[{0.05: 1, 0.1: 0},
+                                              {0.2: 0, 0.5: 1}])
+        ]
+        self.P = torch.Tensor(6, 30)
+        self.V = torch.Tensor(7)
+        self.P2 = torch.Tensor(1, 30)
+        self.V2 = torch.Tensor(0)
+        self.Z2 = torch.complex(torch.Tensor(21, 6, 50),
+                                torch.Tensor(21, 6, 50))
 
-N = torch.Tensor([[1], [4]])
-Wn = torch.Tensor([[0.1, 0.3], [0.4, 0.6]])
-filter_specs = [
-    IIRFilterSpec(Wn=[0.1, 0.3]),
-    IIRFilterSpec(Wn=Wn, N=N),
-    IIRFilterSpec(Wn=Wn, ftype='ideal'),
-    IIRFilterSpec(Wn=[0.1, 0.2], N=[2, 2], btype='lowpass'),
-    IIRFilterSpec(Wn=Wn, N=N, ftype='cheby1', rp=0.1),
-    IIRFilterSpec(Wn=Wn, N=N, ftype='cheby2', rs=20),
-    IIRFilterSpec(Wn=Wn, N=N, ftype='ellip', rs=20, rp=0.1)
-]
-Z = torch.complex(torch.Tensor(21, 13, 50), torch.Tensor(21, 13, 50))
-clamped_specs = [
-    IIRFilterSpec(Wn=[0.1, 0.3]),
-    IIRFilterSpec(Wn=Wn, clamps=[{}, {0.1: 1}]),
-    IIRFilterSpec(Wn=[0.1, 0.3], clamps=[{0.1: 0, 0.5:1}]),
-    IIRFilterSpec(Wn=Wn, N=N, clamps=[{0.05: 1, 0.1: 0}, {0.2: 0, 0.5: 1}])
-]
-P = torch.Tensor(6, 30)
-V = torch.Tensor(7)
-P2 = torch.Tensor(1, 30)
-V2 = torch.Tensor(0)
-Z2 = torch.complex(torch.Tensor(21, 6, 50), torch.Tensor(21, 6, 50))
+    def test_iirfilter(self):
+        iirfilter_init_(self.Z, self.filter_specs)
+        assert sum(
+            [spec.n_filters for spec in self.filter_specs]
+            ) == self.Z.size(-2)
 
-
-def test_iirfilter():
-    iirfilter_init_(Z, filter_specs)
-    assert sum([spec.n_filters for spec in filter_specs]) == Z.size(-2)
-
-
-def test_clamps():
-    clamp_init_(P, V, clamped_specs)
-    clamp_init_(P2, V2, [clamped_specs[0]])
-    iirfilter_init_(Z2, clamped_specs)
+    def test_clamps(self):
+        clamp_init_(self.P, self.V, self.clamped_specs)
+        clamp_init_(self.P2, self.V2, [self.clamped_specs[0]])
+        iirfilter_init_(self.Z2, self.clamped_specs)

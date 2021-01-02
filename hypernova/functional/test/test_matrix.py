@@ -4,6 +4,7 @@
 """
 Unit tests for specialised matrix operations
 """
+import pytest
 import torch
 import numpy as np
 from scipy.linalg import toeplitz as toeplitz_ref
@@ -12,84 +13,82 @@ from hypernova.functional import (
 )
 
 
-tol = 5e-3
-testf = lambda out, ref: np.allclose(out, ref, atol=tol)
+class TestMatrix:
+
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        self.tol = 5e-3
+        self.approx = lambda out, ref: np.allclose(out, ref, atol=self.tol)
 
 
-A = np.random.rand(10, 10)
-A = A @ A.T
-c = np.random.rand(3)
-r = np.random.rand(3)
-C = np.random.rand(3, 3)
-R = np.random.rand(4, 3)
-f = np.random.rand(3)
-At = torch.Tensor(A)
-ct = torch.Tensor(c)
-rt = torch.Tensor(r)
-Ct = torch.Tensor(C)
-Rt = torch.Tensor(R)
-ft = torch.Tensor(f)
-Bt = torch.rand(20, 10, 10)
-BLRt = torch.rand(20, 10, 2)
-BLRt = BLRt @ BLRt.transpose(-1, -2)
+        A = np.random.rand(10, 10)
+        self.A = A @ A.T
+        self.c = np.random.rand(3)
+        self.r = np.random.rand(3)
+        self.C = np.random.rand(3, 3)
+        self.R = np.random.rand(4, 3)
+        self.f = np.random.rand(3)
+        self.At = torch.Tensor(self.A)
+        self.ct = torch.Tensor(self.c)
+        self.rt = torch.Tensor(self.r)
+        self.Ct = torch.Tensor(self.C)
+        self.Rt = torch.Tensor(self.R)
+        self.ft = torch.Tensor(self.f)
+        self.Bt = torch.rand(20, 10, 10)
+        BLRt = torch.rand(20, 10, 2)
+        self.BLRt = BLRt @ BLRt.transpose(-1, -2)
 
+    def test_invert_spd(self):
+        out = invert_spd(self.At) @ self.At
+        ref = torch.eye(self.At.size(-1))
+        assert self.approx(out, ref)
 
-def test_invert_spd():
-    out = invert_spd(At) @ At
-    ref = torch.eye(At.size(-1))
-    assert testf(out, ref)
+    def test_symmetric(self):
+        out = symmetric(self.Bt)
+        ref = out.transpose(-1, -2)
+        assert self.approx(out, ref)
 
+    def test_spd(self):
+        out = spd(self.Bt)
+        ref = out.transpose(-1, -2)
+        assert self.approx(out, ref)
+        L, _ = torch.symeig(out)
+        assert torch.all(L > 0)
 
-def test_symmetric():
-    out = symmetric(Bt)
-    ref = out.transpose(-1, -2)
-    assert testf(out, ref)
+    def test_spd_singular(self):
+        out = spd(self.BLRt, method='eig')
+        ref = out.transpose(-1, -2)
+        assert self.approx(out, ref)
+        L, _ = torch.symeig(out)
+        assert torch.all(L > 0)
 
+    def test_toeplitz(self):
+        out = toeplitz(self.ct, self.rt).numpy()
+        ref = toeplitz_ref(self.c, self.r)
+        assert self.approx(out, ref)
 
-def test_spd():
-    out = spd(Bt)
-    ref = out.transpose(-1, -2)
-    assert testf(out, ref)
-    L, _ = torch.symeig(out)
-    assert torch.all(L > 0)
+    def test_toeplitz_stack(self):
+        out = toeplitz(self.Ct, self.Rt).numpy()
+        ref = np.stack([toeplitz_ref(c, r)
+                        for c, r in zip(self.C.T, self.R.T)])
+        assert self.approx(out, ref)
 
+    def test_toeplitz_extend(self):
+        dim = (8, 8)
+        out = toeplitz(self.Ct, self.Rt, dim=dim)
+        Cx, Rx = (np.zeros((dim[0], self.C.shape[1])),
+                  np.zeros((dim[1], self.R.shape[1])))
+        Cx[:self.C.shape[0], :] = self.C
+        Rx[:self.R.shape[0], :] = self.R
+        ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx.T, Rx.T)])
+        assert self.approx(out, ref)
 
-def test_spd_singular():
-    out = spd(BLRt, method='eig')
-    ref = out.transpose(-1, -2)
-    assert testf(out, ref)
-    L, _ = torch.symeig(out)
-    assert torch.all(L > 0)
-
-
-def test_toeplitz():
-    out = toeplitz(ct, rt).numpy()
-    ref = toeplitz_ref(c, r)
-    assert testf(out, ref)
-
-
-def test_toeplitz_stack():
-    out = toeplitz(Ct, Rt).numpy()
-    ref = np.stack([toeplitz_ref(c, r) for c, r in zip(C.T, R.T)])
-    assert testf(out, ref)
-
-
-def test_toeplitz_extend():
-    dim = (8, 8)
-    out = toeplitz(Ct, Rt, dim=dim)
-    Cx, Rx = np.zeros((dim[0], C.shape[1])), np.zeros((dim[1], R.shape[1]))
-    Cx[:C.shape[0], :] = C
-    Rx[:R.shape[0], :] = R
-    ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx.T, Rx.T)])
-    assert testf(out, ref)
-
-
-def test_toeplitz_fill():
-    dim = (8, 8)
-    out = toeplitz(Ct, Rt, dim=dim, fill_value=ft)
-    Cx, Rx = (np.zeros((dim[0], C.shape[1])) + f,
-              np.zeros((dim[1], R.shape[1])) + f)
-    Cx[:C.shape[0], :] = C
-    Rx[:R.shape[0], :] = R
-    ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx.T, Rx.T)])
-    assert testf(out, ref)
+    def test_toeplitz_fill(self):
+        dim = (8, 8)
+        out = toeplitz(self.Ct, self.Rt, dim=dim, fill_value=self.ft)
+        Cx, Rx = (np.zeros((dim[0], self.C.shape[1])) + self.f,
+                  np.zeros((dim[1], self.R.shape[1])) + self.f)
+        Cx[:self.C.shape[0], :] = self.C
+        Rx[:self.R.shape[0], :] = self.R
+        ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx.T, Rx.T)])
+        assert self.approx(out, ref)

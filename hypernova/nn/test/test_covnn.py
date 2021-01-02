@@ -4,6 +4,7 @@
 """
 Unit tests for covariance modules
 """
+import pytest
 import numpy as np
 import torch, hypernova
 from hypernova.nn import (
@@ -16,64 +17,65 @@ from hypernova.functional.noise import (
 from hypernova.functional.domain import Logit
 
 
-testf = lambda x, y: np.allclose(x.detach(), y, atol=1e-5)
+class TestCovNN:
 
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        self.approx = lambda x, y: np.allclose(x.detach(), y, atol=1e-5)
 
-X = torch.rand(4, 13, 100)
-Y = torch.rand(4, 7, 100)
-dns = DiagonalNoiseSource()
-dds = DiagonalDropoutSource()
-bds = BandDropoutSource()
+        self.X = torch.rand(4, 13, 100)
+        self.Y = torch.rand(4, 7, 100)
+        self.dns = DiagonalNoiseSource()
+        self.dds = DiagonalDropoutSource()
+        self.bds = BandDropoutSource()
 
+    def test_cov_uuw(self):
+        cov = UnaryCovarianceUW(100, estimator=hypernova.functional.corr)
+        out = cov(self.X)
+        ref = np.stack([np.corrcoef(x) for x in self.X])
+        assert self.approx(out, ref)
+        cov = UnaryCovarianceUW(
+            100, estimator=hypernova.functional.pcorr,
+            out_channels=7, noise=self.dns) #, dropout=dds)
+        cov(self.X)
 
-def test_cov_uuw():
-    cov = UnaryCovarianceUW(100, estimator=hypernova.functional.corr)
-    out = cov(X)
-    ref = np.stack([np.corrcoef(x) for x in X])
-    assert testf(out, ref)
-    cov = UnaryCovarianceUW(
-        100, estimator=hypernova.functional.pcorr,
-        out_channels=7, noise=dns) #, dropout=dds)
-    cov(X)
+    def test_cov_utw(self):
+        cov = UnaryCovarianceTW(100, estimator=hypernova.functional.corr)
+        out = cov(self.X)
+        ref = np.stack([np.corrcoef(x) for x in self.X])
+        assert self.approx(out, ref)
+        cov = UnaryCovarianceTW(
+            100, estimator=hypernova.functional.pcorr, max_lag=3,
+            out_channels=7, noise=self.dns, dropout=self.bds, domain=Logit(4))
+        cov(self.X)
+        assert cov.prepreweight_c.size() == torch.Size([4, 7])
+        assert cov.weight[5, 15, 17] == cov.weight[5, 94, 96]
+        assert cov.postweight[3, 13, 17] == 0
 
+    def test_cov_uw(self):
+        cov = UnaryCovariance(100, estimator=hypernova.functional.corr)
+        out = cov(self.X)
+        ref = np.stack([np.corrcoef(x) for x in self.X])
+        assert self.approx(out, ref)
 
-def test_cov_utw():
-    cov = UnaryCovarianceTW(100, estimator=hypernova.functional.corr)
-    out = cov(X)
-    ref = np.stack([np.corrcoef(x) for x in X])
-    assert testf(out, ref)
-    cov = UnaryCovarianceTW(
-        100, estimator=hypernova.functional.pcorr, max_lag=3,
-        out_channels=7, noise=dns, dropout=bds, domain=Logit(4))
-    cov(X)
-    assert cov.prepreweight_c.size() == torch.Size([4, 7])
-    assert cov.weight[5, 15, 17] == cov.weight[5, 94, 96]
-    assert cov.postweight[3, 13, 17] == 0
+    def test_cov_buw(self):
+        cov = BinaryCovarianceUW(
+            100, estimator=hypernova.functional.pairedcorr)
+        out = cov(self.X, self.Y)
+        ref = np.stack([np.corrcoef(x, y)[:13, -7:]
+                        for x, y in zip(self.X, self.Y)])
+        assert self.approx(out, ref)
 
+    def test_cov_btw(self):
+        cov = BinaryCovarianceTW(100, estimator=hypernova.functional.pairedcorr)
+        out = cov(self.X, self.Y)
+        ref = np.stack([np.corrcoef(x, y)[:13, -7:]
+                        for x, y in zip(self.X, self.Y)])
+        assert self.approx(out, ref)
 
-def test_cov_uw():
-    cov = UnaryCovariance(100, estimator=hypernova.functional.corr)
-    out = cov(X)
-    ref = np.stack([np.corrcoef(x) for x in X])
-    assert testf(out, ref)
-
-
-def test_cov_buw():
-    cov = BinaryCovarianceUW(100, estimator=hypernova.functional.pairedcorr)
-    out = cov(X, Y)
-    ref = np.stack([np.corrcoef(x, y)[:13, -7:] for x, y in zip(X, Y)])
-    assert testf(out, ref)
-
-
-def test_cov_btw():
-    cov = BinaryCovarianceTW(100, estimator=hypernova.functional.pairedcorr)
-    out = cov(X, Y)
-    ref = np.stack([np.corrcoef(x, y)[:13, -7:] for x, y in zip(X, Y)])
-    assert testf(out, ref)
-
-
-def test_cov_bw():
-    cov = BinaryCovariance(100, estimator=hypernova.functional.pairedcorr)
-    out = cov(X, Y)
-    ref = np.stack([np.corrcoef(x, y)[:13, -7:] for x, y in zip(X, Y)])
-    assert testf(out, ref)
+    def test_cov_bw(self):
+        cov = BinaryCovariance(100, estimator=hypernova.functional.pairedcorr)
+        out = cov(self.X, self.Y)
+        ref = np.stack([np.corrcoef(x, y)[:13, -7:]
+                        for x, y in zip(self.X, self.Y)])
+        assert self.approx(out, ref)
