@@ -53,9 +53,15 @@ class LightBIDSObject(object):
 
 
 class LightGrabber(object):
-    def __init__(self, root, template, patterns=None):
+    def __init__(self, root, template, patterns=None, queries=None):
         self.refs = []
         self.root = root
+        if queries:
+            qpatterns = [q.pattern for q in queries if q.pattern is not None]
+            if patterns:
+                patterns += qpatterns
+            else:
+                patterns = qpatterns
         patterns = patterns or ['*']
         for pattern in patterns:
             files = self.find_files(pattern)
@@ -88,9 +94,10 @@ class LightGrabber(object):
 
 
 class LightBIDSLayout(LightGrabber):
-    def __init__(self, root, patterns=None):
+    def __init__(self, root, patterns=None, queries=None):
         super(LightBIDSLayout, self).__init__(
             root=root,
             patterns=patterns,
+            queries=queries,
             template=LightBIDSObject
         )

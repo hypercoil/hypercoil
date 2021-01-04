@@ -187,14 +187,10 @@ class ContinuousVariable(object):
 
 
 class DataQuery(object):
-    def __init__(self, name='data', **filters):
+    def __init__(self, name='data', pattern=None, **filters):
         self.name = name
+        self.pattern = pattern
         self.filters = filters
-        for k, v in filters.items():
-            try:
-                self.__dict__[k] = int(v)
-            except Exception:
-                self.__dict__[k] = v
 
     def __call__(self, layout, **filters):
         return layout.get(**self.filters, **filters)
@@ -254,12 +250,9 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     #    fmriprep_dir,
     #    derivatives=[fmriprep_dir],
     #    validate=False)
-    layout = LightBIDSLayout(
-        fmriprep_dir,
-        patterns=['func/**/*preproc*.nii.gz',
-                  'func/**/*confounds*.tsv'])
     images = DataQuery(
         name='images',
+        pattern='func/**/*preproc*.nii.gz',
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_IMG_DESC,
@@ -267,11 +260,15 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         extension=BIDS_IMG_EXT)
     confounds = DataQuery(
         name='confounds',
+        pattern='func/**/*confounds*.tsv',
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_CONF_DESC,
         suffix=BIDS_CONF_SUFFIX,
         extension=BIDS_CONF_EXT)
+    layout = LightBIDSLayout(
+        fmriprep_dir,
+        queries=[images, confounds])
     return data_references(
         data_dir=fmriprep_dir,
         layout=layout,
