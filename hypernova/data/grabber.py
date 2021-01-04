@@ -53,46 +53,27 @@ class LightBIDSObject(object):
 
 
 class LightGrabber(object):
-    def __init__(self, root, patterns=None):
+    def __init__(self, root, template, patterns=None):
         self.refs = []
         self.root = root
         patterns = patterns or ['*']
         for pattern in patterns:
             files = self.find_files(pattern)
             for f in files:
-                self.refs += [LightBIDSObject(f)]
+                self.refs += [template(f)]
 
     def find_files(self, pattern):
         return pathlib.Path(self.root).glob(f'**/{pattern}')
 
-    def get_subjects(self):
+    def get_all(self, entity):
         try:
-            out = list(set([r.subject for r in self.refs]))
-            out.sort()
-            return out
-        except AttributeError:
-            return None
-
-    def get_sessions(self):
-        try:
-            out = list(set([r.session for r in self.refs]))
-            out.sort()
-            return out
-        except AttributeError:
-            return []
-
-    def get_runs(self):
-        try:
-            out = list(set([r.run for r in self.refs]))
-            out.sort()
-            return out
-        except AttributeError:
-            return []
-
-    def get_tasks(self):
-        try:
-            out = list(set([r.task for r in self.refs]))
-            out.sort()
+            out = list(set([r.get(entity) for r in self.refs]))
+            try:
+                out.sort()
+            except TypeError:
+                pass
+            if len(out) == 1 and out[0] is None:
+                return []
             return out
         except AttributeError:
             return []
@@ -104,3 +85,12 @@ class LightGrabber(object):
                 continue
             obj = [r for r in obj if r.get(k) == v]
         return obj
+
+
+class LightBIDSLayout(LightGrabber):
+    def __init__(self, root, patterns=None):
+        super(LightBIDSLayout, self).__init__(
+            root=root,
+            patterns=patterns,
+            template=LightBIDSObject
+        )

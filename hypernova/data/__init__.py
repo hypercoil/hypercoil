@@ -22,7 +22,8 @@ from .fc import (
 )
 from .grabber import (
 	LightBIDSObject,
-	LightGrabber
+	LightGrabber,
+	LightBIDSLayout
 )
 from .model import (
 	ModelSpec
