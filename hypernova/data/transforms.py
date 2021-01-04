@@ -10,7 +10,7 @@ import torch
 import nibabel as nb
 import pandas as pd
 from abc import ABC, abstractmethod
-from .. import LightBIDSObject
+from .grabber import LightBIDSObject
 
 
 class IdentityTransform(object):
@@ -116,8 +116,8 @@ class EncodeOneHot(object):
         self.patterns = torch.eye(self.n_levels)
 
     def __call__(self, sample):
-        idx = torch.Tensor(sample).type(self.dtype)
-        return self.patterns[idx]
+        idx = torch.Tensor(sample).type('torch.LongTensor')
+        return self.patterns[idx].type(self.dtype)
 
 
 class ToTensor(object):

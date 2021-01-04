@@ -8,7 +8,12 @@ Interfaces between neuroimaging data and data loaders.
 """
 import pandas as pd
 from itertools import product
-from .transforms import ReadNiftiTensor, ReadTableTensor, ToTensor
+from .grabber import LightGrabber
+from .transforms import (
+    ReadNiftiTensorBlock,
+    ReadTableTensorBlock,
+    ToTensor, EncodeOneHot
+)
 
 
 BIDS_SCOPE = 'derivatives'
@@ -63,7 +68,8 @@ class fMRISubReference(fMRIReferenceBase):
         self.data_ref = data
         self.data_transform = data_transform or ReadNiftiTensorBlock()
         self.confounds_ref = confounds
-        self.confounds_transform = confounds_transform or ReadTableTensorBlock()
+        self.confounds_transform = (
+            confounds_transform or ReadTableTensorBlock())
         self.label_ref = labels or []
         self.outcome_ref = outcomes or []
         self.label_transform = label_transform or IdentityTransform()
@@ -101,8 +107,10 @@ class fMRIDataReference(fMRIReferenceBase):
         self.df = df.loc(axis=0)[idx]
         self.labels = labels or []
         self.outcomes = outcomes or []
-        self.data_transform = data_transform or ReadNiftiTensorBlock(names=level_names)
-        self.confounds_transform = confounds_transform or ReadTableTensorBlock(names=level_names)
+        self.data_transform = (data_transform or
+                               ReadNiftiTensorBlock(names=level_names))
+        self.confounds_transform = (confounds_transform or
+                                    ReadTableTensorBlock(names=level_names))
         self.label_transform = label_transform or [
             EncodeOneHot(n_levels=l.max_label) for l in self.labels]
         self.outcome_transform = outcome_transform or [
@@ -182,10 +190,58 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
                         ignore=None, labels=('subject',), outcomes=None,
                         observations=('subject',),
                         levels=('session', 'run', 'task')):
+    """
+    Obtain data references for a directory containing data processed with
+    fMRIPrep.
+
+    Parameters
+    ----------
+    fmriprep_dir : str
+        Path to the top-level directory containing all neuroimaging data
+        preprocessed with fMRIPrep.
+    space : str or None (default None)
+        String indicating the stereotaxic coordinate space from which the
+        images are referenced.
+    additional_tables : list(str) or None (default None)
+        List of paths to files containing additional data. Each file should
+        include index columns corresponding to all identifiers present in the
+        dataset (e.g., subject, run, etc.).
+    ignore : dict(str: list) or None (default None)
+        Dictionary indicating identifiers to be ignored. Currently this
+        doesn't support any logical composition and takes logical OR over all
+        ignore specifications. In other words, data will be ignored if they
+        satisfy any of the ignore criteria.
+    labels : tuple or None (default ('subject',))
+        List of categorical outcome variables to include in data references.
+        These variables can be taken either from data identifiers or from
+        additional tables. Labels become available as prediction targets for
+        classification models. By default, the subject identifier is included.
+    outcomes : tuple or None (default None)
+        List of continuous outcome variables to include in data references.
+        These variables can be taken either from data identifiers or from
+        additional tables. Labels become available as prediction targets for
+        regression models. By default, the subject identifier is included.
+    observations : tuple (default ('subject',))
+        List of data identifiers whose levels are packaged into separate data
+        references. Each level should generally have the same values of any
+        outcome variables.
+    levels : tuple or None (default ('session', 'run, task'))
+        List of data identifiers whose levels are packaged as sublevels of the
+        same data reference. This permits easier augmentation of data via
+        pooling across sublevels.
+
+    Returns
+    -------
+    data_refs : list(fMRIPrepDataReference)
+        List of data reference objects created from files found in the input
+        directory.
+    """
     #layout = bids.BIDSLayout(
     #    fmriprep_dir,
     #    derivatives=[fmriprep_dir],
     #    validate=False)
+    labels = labels or []
+    outcomes = outcomes or []
     layout = LightGrabber(
         fmriprep_dir,
         patterns=['func/**/*preproc*.nii.gz',
@@ -209,8 +265,8 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
 
 def assemble_entities(layout, ignore=None):
     ignore = ignore or {
-        'sub': [],
-        'ses': [],
+        'subject': [],
+        'session': [],
         'run': [],
         'task': []
     }
@@ -219,8 +275,8 @@ def assemble_entities(layout, ignore=None):
     run = layout.get_runs()
     task = layout.get_tasks()
 
-    sub = [i for i in sub if i not in ignore['sub']]
-    ses = [i for i in ses if i not in ignore['ses']]
+    sub = [i for i in sub if i not in ignore['subject']]
+    ses = [i for i in ses if i not in ignore['session']]
     run = [i for i in run if i not in ignore['run']]
     task = [i for i in task if i not in ignore['task']]
     return sub, ses, run, task
@@ -253,6 +309,8 @@ def get_filters(entities, query):
 
 
 def read_additional_tables(paths, entities):
+    if paths is None:
+        return []
     idx = list(range(len(entities)))
     return [pd.read_csv(p, sep='\t', index_col=idx) for p in paths]
 
