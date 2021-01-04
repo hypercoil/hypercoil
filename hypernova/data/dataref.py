@@ -200,80 +200,6 @@ class DataQuery(object):
         return layout.get(**self.filters, **filters)
 
 
-def data_references(data_dir, layout, labels, outcomes, observations, levels,
-                    queries=None, filters=None, additional_tables=None,
-                    ignore=None):
-    """
-    Obtain data references for a specified directory.
-
-    Parameters
-    ----------
-    data_dir : str
-        Path to the top-level directory containing all data files.
-    layout : object
-        Object representing a dataset layout. It must implement the following
-        methods:
-        - `getall(i)`: returns a list of all values of `i` present in the
-                       dataset
-        - `get`: queries the dataset for matching entities
-    labels : tuple or None (default ('subject',))
-        List of categorical outcome variables to include in data references.
-        These variables can be taken either from data identifiers or from
-        additional tables. Labels become available as prediction targets for
-        classification models. By default, the subject identifier is included.
-    outcomes : tuple or None (default None)
-        List of continuous outcome variables to include in data references.
-        These variables can be taken either from data identifiers or from
-        additional tables. Labels become available as prediction targets for
-        regression models. By default, the subject identifier is included.
-    observations : tuple (default ('subject',))
-        List of data identifiers whose levels are packaged into separate data
-        references. Each level should generally have the same values of any
-        outcome variables.
-    levels : tuple or None (default ('session', 'run, task'))
-        List of data identifiers whose levels are packaged as sublevels of the
-        same data reference. This permits easier augmentation of data via
-        pooling across sublevels.
-    queries : list(DataQuery objects)
-
-    filters : dict
-        Filters to select data objects in the layout.
-    additional_tables : list(str) or None (default None)
-        List of paths to files containing additional data. Each file should
-        include index columns corresponding to all identifiers present in the
-        dataset (e.g., subject, run, etc.).
-    ignore : dict(str: list) or None (default None)
-        Dictionary indicating identifiers to be ignored. Currently this
-        doesn't support any logical composition and takes logical OR over all
-        ignore specifications. In other words, data will be ignored if they
-        satisfy any of the ignore criteria.
-
-    Returns
-    -------
-    data_refs : list(DataReference)
-        List of data reference objects created from files found in the input
-        directory.
-    """
-    labels = labels or []
-    outcomes = outcomes or []
-    ident = list(observations) + list(levels)
-    entities = assemble_entities(layout, ident, ignore)
-    index, observations, levels, entities = collate_product(
-        entities, observations, levels)
-    data = query_all(layout, index, queries, **filters)
-    df = pd.DataFrame(
-        data=data,
-        index=index)
-    df_aux = read_additional_tables(additional_tables, entities)
-    df = concat_frames(df, df_aux)
-    df = delete_null_levels(df, observations, levels)
-    df = delete_null_obs(df, observations, levels)
-    obs = all_observations(df, observations, levels)
-    labels, outcomes = process_labels_and_outcomes(df, labels, outcomes)
-    data_refs = make_references(df, obs, levels, labels, outcomes)
-    return data_refs
-
-
 def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
                         ignore=None, labels=('subject',), outcomes=None,
                         observations=('subject',),
@@ -358,6 +284,81 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         additional_tables=additional_tables,
         ignore=ignore
     )
+
+
+def data_references(data_dir, layout, labels, outcomes, observations, levels,
+                    queries=None, filters=None, additional_tables=None,
+                    ignore=None):
+    """
+    Obtain data references for a specified directory.
+
+    Parameters
+    ----------
+    data_dir : str
+        Path to the top-level directory containing all data files.
+    layout : object
+        Object representing a dataset layout. It must implement the following
+        methods:
+        - `getall(i)`: returns a list of all values of `i` present in the
+                       dataset
+        - `get`: queries the dataset for matching entities
+    labels : tuple or None (default ('subject',))
+        List of categorical outcome variables to include in data references.
+        These variables can be taken either from data identifiers or from
+        additional tables. Labels become available as prediction targets for
+        classification models. By default, the subject identifier is included.
+    outcomes : tuple or None (default None)
+        List of continuous outcome variables to include in data references.
+        These variables can be taken either from data identifiers or from
+        additional tables. Labels become available as prediction targets for
+        regression models. By default, the subject identifier is included.
+    observations : tuple (default ('subject',))
+        List of data identifiers whose levels are packaged into separate data
+        references. Each level should generally have the same values of any
+        outcome variables.
+    levels : tuple or None (default ('session', 'run, task'))
+        List of data identifiers whose levels are packaged as sublevels of the
+        same data reference. This permits easier augmentation of data via
+        pooling across sublevels.
+    queries : list(DataQuery objects)
+        Data queries used to locate files in the dataset. Each entry locates a
+        different file for each unique identifier combination.
+    filters : dict
+        Filters to select data objects in the layout.
+    additional_tables : list(str) or None (default None)
+        List of paths to files containing additional data. Each file should
+        include index columns corresponding to all identifiers present in the
+        dataset (e.g., subject, run, etc.).
+    ignore : dict(str: list) or None (default None)
+        Dictionary indicating identifiers to be ignored. Currently this
+        doesn't support any logical composition and takes logical OR over all
+        ignore specifications. In other words, data will be ignored if they
+        satisfy any of the ignore criteria.
+
+    Returns
+    -------
+    data_refs : list(DataReference)
+        List of data reference objects created from files found in the input
+        directory.
+    """
+    labels = labels or []
+    outcomes = outcomes or []
+    ident = list(observations) + list(levels)
+    entities = assemble_entities(layout, ident, ignore)
+    index, observations, levels, entities = collate_product(
+        entities, observations, levels)
+    data = query_all(layout, index, queries, **filters)
+    df = pd.DataFrame(
+        data=data,
+        index=index)
+    df_aux = read_additional_tables(additional_tables, entities)
+    df = concat_frames(df, df_aux)
+    df = delete_null_levels(df, observations, levels)
+    df = delete_null_obs(df, observations, levels)
+    obs = all_observations(df, observations, levels)
+    labels, outcomes = process_labels_and_outcomes(df, labels, outcomes)
+    data_refs = make_references(df, obs, levels, labels, outcomes)
+    return data_refs
 
 
 def assemble_entities(layout, ident, ignore=None):
@@ -445,11 +446,16 @@ def collate_product(values, observations, levels):
     return index, observations, levels, entities
 
 
-def get_filters(entities, query):
-    filters = {}
-    for k, v in zip(entities, query):
-        filters[k] = v
-    return filters
+def query_all(layout, index, queries, **filters):
+    results = {q.name: [] for q in queries}
+    entities = index.names
+    for ident in index:
+        ident_filters = dict(zip(entities, ident))
+        for q in queries:
+            result = q(layout, **ident_filters, **filters)
+            if not result: result = [None]
+            results[q.name] += result
+    return results
 
 
 def read_additional_tables(paths, entities):
@@ -464,21 +470,18 @@ def concat_frames(df, df_aux):
     return pd.concat(dfs, axis=1)
 
 
-
-def n_levels(df, label):
-    return len(get_col(df, label).unique())
-
-
-def get_col(df, label):
-    try:
-        return df.index.get_level_values(label)
-    except KeyError:
-        return df[label]
+def delete_null_levels(df, observations, levels):
+    for level in all_levels(df, observations, levels):
+        if level_null(df, level):
+            df = df.drop(df.loc(axis=0)[level].index)
+    return df
 
 
-def fill_idx_pattern(level, idx):
-    level = list(level)
-    return [i if i is not None else level.pop(0) for i in idx]
+def delete_null_obs(df, observations, levels):
+    for obs in all_observations(df, observations, levels):
+        if level_null(df, obs):
+            df = df.drop(df.loc(axis=0)[obs].index)
+    return df
 
 
 def all_levels(df, observations, levels):
@@ -513,30 +516,9 @@ def level_null(df, level):
     return (img_null | conf_null).all()
 
 
-def delete_null_levels(df, observations, levels):
-    for level in all_levels(df, observations, levels):
-        if level_null(df, level):
-            df = df.drop(df.loc(axis=0)[level].index)
-    return df
-
-
-def delete_null_obs(df, observations, levels):
-    for obs in all_observations(df, observations, levels):
-        if level_null(df, obs):
-            df = df.drop(df.loc(axis=0)[obs].index)
-    return df
-
-
-def query_all(layout, index, queries, **filters):
-    results = {q.name: [] for q in queries}
-    entities = index.names
-    for query in index:
-        ident_filters = get_filters(entities, query)
-        for q in queries:
-            result = q(layout, **ident_filters, **filters)
-            if not result: result = [None]
-            results[q.name] += result
-    return results
+def fill_idx_pattern(level, idx):
+    level = list(level)
+    return [i if i is not None else level.pop(0) for i in idx]
 
 
 def process_labels_and_outcomes(df, labels, outcomes):
@@ -557,3 +539,10 @@ def make_references(df, obs, levels, labels, outcomes):
         except KeyError:
             continue
     return data_refs
+
+
+def get_col(df, label):
+    try:
+        return df.index.get_level_values(label)
+    except KeyError:
+        return df[label]
