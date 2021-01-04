@@ -246,10 +246,6 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         List of data reference objects created from files found in the input
         directory.
     """
-    #layout = bids.BIDSLayout(
-    #    fmriprep_dir,
-    #    derivatives=[fmriprep_dir],
-    #    validate=False)
     images = DataQuery(
         name='images',
         pattern='func/**/*preproc*.nii.gz',
@@ -266,6 +262,10 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         desc=BIDS_CONF_DESC,
         suffix=BIDS_CONF_SUFFIX,
         extension=BIDS_CONF_EXT)
+    #layout = bids.BIDSLayout(
+    #    fmriprep_dir,
+    #    derivatives=[fmriprep_dir],
+    #    validate=False)
     layout = LightBIDSLayout(
         fmriprep_dir,
         queries=[images, confounds])
@@ -352,7 +352,7 @@ def data_references(data_dir, layout, labels, outcomes, observations, levels,
     df = _concat_frames(df, df_aux)
     df = delete_null_levels(df, observations, levels)
     df = delete_null_obs(df, observations, levels)
-    obs = all_observations(df, observations, levels)
+    obs = all_observations(df.index, observations, levels)
     labels, outcomes = process_labels_and_outcomes(df, labels, outcomes)
     data_refs = make_references(df, obs, levels, labels, outcomes)
     return data_refs
@@ -511,57 +511,128 @@ def _concat_frames(df, df_aux):
 
 
 def delete_null_levels(df, observations, levels):
-    return delete_nulls(df, observations, levels, all_levels)
+    """
+    Remove from the data frame any identifier combinations that are absent
+    from all observations.
+
+    Parameters
+    ----------
+    df : DataFrame
+        DataFrame from which to remove null identifier rows.
+    observations : list(str)
+        Identifier variables whose assignments separate observations from one
+        another.
+    levels : list(str)
+        Identifier variables that separate multiple measures of the same
+        observation.
+
+    Returns
+    -------
+    DataFrame
+        Input DataFrame with null levels removed.
+    """
+    return _delete_nulls(df, observations, levels, all_levels)
 
 
 def delete_null_obs(df, observations, levels):
-    return delete_nulls(df, observations, levels, all_observations)
+    """
+    Remove from the data frame any missing observations.
+
+    Parameters
+    ----------
+    df : DataFrame
+        DataFrame from which to remove null observation rows.
+    observations : list(str)
+        Identifier variables whose assignments separate observations from one
+        another.
+    levels : list(str)
+        Identifier variables that separate multiple measures of the same
+        observation.
+
+    Returns
+    -------
+    DataFrame
+        Input DataFrame with null observations removed.
+    """
+    return _delete_nulls(df, observations, levels, all_observations)
 
 
-def delete_nulls(df, observations, levels, all_combinations):
-    for c in all_combinations(df, observations, levels):
+def _delete_nulls(df, observations, levels, all_combinations):
+    """
+    Remove from the data frame any identifier combinations with missing data
+    across all other levels. Abstract function called by `delete_null_levels`
+    and `delete_null_obs`.
+    """
+    for c in all_combinations(df.index, observations, levels):
         if level_null(df, c):
             df = df.drop(df.loc(axis=0)[c].index)
     return df
 
 
-def all_levels(df, observations, levels):
-    return all_combinations(df, observations, levels, what='levels')
+def all_levels(index, observations, levels):
+    """
+    Obtain all extant within-observation identifier combinations in a
+    DataFrame MultiIndex.
+    """
+    return _all_combinations(index, combine=levels, control=observations)
 
 
-def all_observations(df, observations, levels):
-    return all_combinations(df, observations, levels, what='observations')
+def all_observations(index, observations, levels):
+    """
+    Obtain all extant observation identifier combinations in a DataFrame
+    MultiIndex.
+    """
+    return _all_combinations(index, combine=observations, control=levels)
 
 
-def all_combinations(df, observations, levels, what):
+def _all_combinations(index, combine, control):
+    """
+    Obtain slices into all subsets of a DataFrame that share common MultiIndex
+    subset assignments. Abstract function called by `all_levels` and
+    `all_observations`. This function only obtains slicing tuples; it does not
+    index the DataFrame to extract them.
+
+    Parameters
+    ----------
+    index : MultiIndex
+        Pandas MultiIndex from which all salient combinations are sliced.
+    combine : list(str)
+        Indexing variables to combine when creating each slice.
+    control : list(str)
+        Indexing variables to ignore when creating each slice.
+
+    Returns
+    -------
+    list(tuple)
+        List of indices into all unique MultiIndex assignments of `combine`
+        indexing variables.
+    """
     idx = []
     gen = []
-    for name, c in zip(df.index.names, df.index.levels):
-        if what == 'observations':
-            if name in observations:
-                idx += [None]
-                gen += [list(c)]
-            elif name in levels:
-                idx += [slice(None)]
-        elif what == 'levels':
-            if name in observations:
-                idx += [slice(None)]
-            elif name in levels:
-                idx += [None]
-                gen += [list(c)]
+    for name, c in zip(index.names, index.levels):
+        if name in combine:
+            idx += [None]
+            gen += [list(c)]
+        elif name in control:
+            idx += [slice(None)]
     combinations = product(*gen)
-    return [tuple(fill_idx_pattern(c, idx)) for c in combinations]
+    return [tuple(_fill_idx_pattern(c, idx)) for c in combinations]
+
+
+def _fill_idx_pattern(level, idx):
+    """
+    Complete the indexing pattern in `idx` using the items in `level`. Any
+    instance of None in `idx` will be replaced by the first unused element of
+    `level`. Helper function for `_all_combinations` routines.
+    """
+    level = list(level)
+    return [i if i is not None else level.pop(0) for i in idx]
 
 
 def level_null(df, level):
     img_null = df.loc(axis=0)[level].images.isnull()
     conf_null = df.loc(axis=0)[level].confounds.isnull()
     return (img_null | conf_null).all()
-
-
-def fill_idx_pattern(level, idx):
-    level = list(level)
-    return [i if i is not None else level.pop(0) for i in idx]
 
 
 def process_labels_and_outcomes(df, labels, outcomes):
