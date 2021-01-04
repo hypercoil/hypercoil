@@ -9,7 +9,6 @@ by a model.
 """
 import re, json
 import numpy as np
-from functools import filter
 
 
 def load_metadata(path):
