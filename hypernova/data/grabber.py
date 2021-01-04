@@ -65,7 +65,7 @@ class LightGrabber(object):
     def find_files(self, pattern):
         return pathlib.Path(self.root).glob(f'**/{pattern}')
 
-    def get_all(self, entity):
+    def getall(self, entity):
         try:
             out = list(set([r.get(entity) for r in self.refs]))
             try:

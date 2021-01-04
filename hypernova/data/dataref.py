@@ -263,35 +263,24 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     return data_refs
 
 
-def assemble_entities(layout, ignore=None):
-    ignore = ignore or {
-        'subject': [],
-        'session': [],
-        'run': [],
-        'task': []
-    }
-    sub = layout.get_subjects()
-    ses = layout.get_sessions()
-    run = layout.get_runs()
-    task = layout.get_tasks()
+def assemble_entities(layout, ident, ignore=None):
+    entities = {}
+    ignore = ignore or {}
+    for i in ident:
+        if ignore.get(i) is None:
+            ignore[i] = []
 
-    sub = [i for i in sub if i not in ignore['subject']]
-    ses = [i for i in ses if i not in ignore['session']]
-    run = [i for i in run if i not in ignore['run']]
-    task = [i for i in task if i not in ignore['task']]
-    return sub, ses, run, task
+    for i in ident:
+        entities[i] = layout.getall(i)
+        entities[i] = [n for n in entities[i] if n not in ignore[i]]
+
+    return entities
 
 
-def collate_product(sub, ses, run, task, observations, levels):
+def collate_product(values, observations, levels):
     entities = []
     prod_gen = []
-    levs = [
-        (sub, 'subject'),
-        (ses, 'session'),
-        (run, 'run'),
-        (task, 'task')
-    ]
-    for l, name in levs:
+    for name, l in values.items():
         if l:
             entities += [name]
             prod_gen += [l]
