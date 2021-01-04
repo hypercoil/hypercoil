@@ -8,7 +8,7 @@ Interfaces between neuroimaging data and data loaders.
 """
 import pandas as pd
 from itertools import product
-from .grabber import LightGrabber
+from .grabber import LightBIDSLayout
 from .transforms import (
     ReadNiftiTensorBlock,
     ReadTableTensorBlock,
@@ -186,8 +186,23 @@ class ContinuousVariable(object):
         return get_col(df, self.name)
 
 
+class DataQuery(object):
+    def __init__(self, name='data', **filters):
+        self.name = name
+        self.filters = filters
+        for k, v in filters.items():
+            try:
+                self.__dict__[k] = int(v)
+            except Exception:
+                self.__dict__[k] = v
+
+    def __call__(self, layout, **filters):
+        return layout.get(**self.filters, **filters)
+
+
 def data_references(data_dir, layout, labels, outcomes, observations, levels,
-                    filters=None, additional_tables=None, ignore=None):
+                    queries=None, filters=None, additional_tables=None,
+                    ignore=None):
     """
     Obtain data references for a specified directory.
 
@@ -219,6 +234,8 @@ def data_references(data_dir, layout, labels, outcomes, observations, levels,
         List of data identifiers whose levels are packaged as sublevels of the
         same data reference. This permits easier augmentation of data via
         pooling across sublevels.
+    queries : list(DataQuery objects)
+
     filters : dict
         Filters to select data objects in the layout.
     additional_tables : list(str) or None (default None)
@@ -243,9 +260,9 @@ def data_references(data_dir, layout, labels, outcomes, observations, levels,
     entities = assemble_entities(layout, ident, ignore)
     index, observations, levels, entities = collate_product(
         entities, observations, levels)
-    images, confounds = query_all(layout, index, space)
+    data = query_all(layout, index, queries, **filters)
     df = pd.DataFrame(
-        data={'images': images, 'confounds': confounds},
+        data=data,
         index=index)
     df_aux = read_additional_tables(additional_tables, entities)
     df = concat_frames(df, df_aux)
@@ -311,10 +328,24 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     #    fmriprep_dir,
     #    derivatives=[fmriprep_dir],
     #    validate=False)
-    layout = LightGrabber(
+    layout = LightBIDSLayout(
         fmriprep_dir,
         patterns=['func/**/*preproc*.nii.gz',
                   'func/**/*confounds*.tsv'])
+    images = DataQuery(
+        name='images',
+        scope=BIDS_SCOPE,
+        datatype=BIDS_DTYPE,
+        desc=BIDS_IMG_DESC,
+        suffix=BIDS_IMG_SUFFIX,
+        extension=BIDS_IMG_EXT)
+    confounds = DataQuery(
+        name='confounds',
+        scope=BIDS_SCOPE,
+        datatype=BIDS_DTYPE,
+        desc=BIDS_CONF_DESC,
+        suffix=BIDS_CONF_SUFFIX,
+        extension=BIDS_CONF_EXT)
     return data_references(
         data_dir=fmriprep_dir,
         layout=layout,
@@ -322,6 +353,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         outcomes=outcomes,
         observations=observations,
         levels=levels,
+        queries=[images, confounds],
         filters={'space': space},
         additional_tables=additional_tables,
         ignore=ignore
@@ -495,32 +527,16 @@ def delete_null_obs(df, observations, levels):
     return df
 
 
-def query_all(layout, index, space=None):
-    images = []
-    confounds = []
+def query_all(layout, index, queries, **filters):
+    results = {q.name: [] for q in queries}
     entities = index.names
     for query in index:
-        filters = get_filters(entities, query)
-        image = layout.get(
-            scope=BIDS_SCOPE,
-            datatype=BIDS_DTYPE,
-            desc=BIDS_IMG_DESC,
-            space=space,
-            suffix=BIDS_IMG_SUFFIX,
-            extension=BIDS_IMG_EXT,
-            **filters)
-        confound = layout.get(
-            scope=BIDS_SCOPE,
-            datatype=BIDS_DTYPE,
-            desc=BIDS_CONF_DESC,
-            suffix=BIDS_CONF_SUFFIX,
-            extension=BIDS_CONF_EXT,
-            **filters)
-        if not image: image = [None]
-        if not confound: confound = [None]
-        images += image
-        confounds += confound
-    return images, confounds
+        ident_filters = get_filters(entities, query)
+        for q in queries:
+            result = q(layout, **ident_filters, **filters)
+            if not result: result = [None]
+            results[q.name] += result
+    return results
 
 
 def process_labels_and_outcomes(df, labels, outcomes):
