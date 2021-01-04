@@ -242,7 +242,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
 
     Returns
     -------
-    data_refs : list(fMRIPrepDataReference)
+    data_refs : list(fMRIDataReference)
         List of data reference objects created from files found in the input
         directory.
     """
@@ -272,6 +272,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     return data_references(
         data_dir=fmriprep_dir,
         layout=layout,
+        reference=fMRIDataReference,
         labels=labels,
         outcomes=outcomes,
         observations=observations,
@@ -283,9 +284,9 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     )
 
 
-def data_references(data_dir, layout, labels, outcomes, observations, levels,
-                    queries=None, filters=None, additional_tables=None,
-                    ignore=None):
+def data_references(data_dir, layout, reference, labels, outcomes,
+                    observations, levels, queries=None, filters=None,
+                    additional_tables=None, ignore=None):
     """
     Obtain data references for a specified directory.
 
@@ -299,6 +300,8 @@ def data_references(data_dir, layout, labels, outcomes, observations, levels,
         - `getall(i)`: returns a list of all values of `i` present in the
                        dataset
         - `get`: queries the dataset for matching entities
+    reference : DataReference class
+        Class of DataReference to use.
     labels : tuple or None (default ('subject',))
         List of categorical outcome variables to include in data references.
         These variables can be taken either from data identifiers or from
@@ -349,12 +352,18 @@ def data_references(data_dir, layout, labels, outcomes, observations, levels,
         data=data,
         index=index)
     df_aux = read_additional_tables(additional_tables, entities)
+    #TODO
+    # Determine if we should concat first or delete nulls first. There's not
+    # a great sensible way to ensure null deletion occurs on the basis of data
+    # missing from the query frame vs. data missing from additional frames, if
+    # this is even desirable. This order would additionally impact the concat
+    # join type.
     df = _concat_frames(df, df_aux)
     df = delete_null_levels(df, observations, levels)
     df = delete_null_obs(df, observations, levels)
     obs = all_observations(df.index, observations, levels)
     labels, outcomes = process_labels_and_outcomes(df, labels, outcomes)
-    data_refs = make_references(df, obs, levels, labels, outcomes)
+    data_refs = make_references(reference, df, obs, levels, labels, outcomes)
     return data_refs
 
 
@@ -622,7 +631,7 @@ def _all_combinations(index, combine, control):
 def _fill_idx_pattern(level, idx):
     """
     Complete the indexing pattern in `idx` using the items in `level`. Any
-    instance of None in `idx` will be replaced by the first unused element of
+    instance of None in `idx` is replaced by the first unused element of
     `level`. Helper function for `_all_combinations` routines.
     """
     level = list(level)
@@ -630,12 +639,56 @@ def _fill_idx_pattern(level, idx):
 
 
 def level_null(df, level):
-    img_null = df.loc(axis=0)[level].images.isnull()
-    conf_null = df.loc(axis=0)[level].confounds.isnull()
-    return (img_null | conf_null).all()
+    """
+    Return True if the entry corresponding to a specified index level is null
+    for at least one variable across all rows of a DataFrame.
+
+    Parameters
+    ----------
+    df : DataFrame
+        DataFrame to check for a null level.
+    level : tuple
+        Tuple slicing into the DataFrame's index. The tuple should specify
+        index values for the input DataFrame.
+
+    Returns
+    -------
+    bool
+        Indicates whether the input level is null, i.e., whether the entry is
+        null for at least one variable in every row of the DataFrame
+        corresponding to that level.
+    """
+    any_null = False
+    for v in df.columns:
+        v_null = df.loc(axis=0)[level][v].isnull()
+        any_null = (any_null | v_null)
+    return any_null.all()
 
 
 def process_labels_and_outcomes(df, labels, outcomes):
+    """
+    Package categorical labels and continuous outcomes into variable objects
+    that facilitate sampling.
+
+    Parameters
+    ----------
+    df : DataFrame
+        DataFrame storing the values of label and outcome variables.
+    labels : list(str)
+        List of names of discrete-valued/categorical outcome variables in the
+        input DataFrame.
+    outcomes : list(str)
+        List of names of continuous-valued outcome variables in the input
+        DataFrame.
+
+    Returns
+    -------
+    labels : list(CategoricalVariable)
+        List of CategoricalVariable objects corresponding to each input label.
+    outcomes : list(ContinuousVariable)
+        List of ContinuousVariable objects corresponding to each input
+        outcome.
+    """
     ls, os = [], []
     for l in labels:
         ls += [CategoricalVariable(l, df)]
@@ -644,11 +697,37 @@ def process_labels_and_outcomes(df, labels, outcomes):
     return ls, os
 
 
-def make_references(df, obs, levels, labels, outcomes):
+def make_references(reference, df, obs, levels, labels, outcomes):
+    """
+    Create a data reference object for each observation in the dataset.
+
+    Parameters
+    ----------
+    reference : DataReference subclass
+        Subclass of DataReference to initialise for each observation.
+    df : DataFrame
+        DataFrame containing paths to data files and values of outcome
+        variables indexed for each observation and level of the dataset.
+    obs : list
+        List of identifiers for each observation in the dataset.
+    levels : list
+        List of identifiers that distinguish separate measures of each
+        observation in the dataset.
+    labels : list(CategoricalVariable)
+        List of objects representing each categorical outcome variable.
+    outcomes : list(ContinuousVariable)
+        List of objects representing each continuous outcome variable.
+
+    Returns
+    -------
+    data_refs : list(DataReference)
+        List containing a data reference object for each observation in the
+        dataset.
+    """
     data_refs = []
     for o in obs:
         try:
-            data_refs += [fMRIDataReference(
+            data_refs += [reference(
                 df, o, level_names=levels, labels=labels, outcomes=outcomes)]
         except KeyError:
             continue
