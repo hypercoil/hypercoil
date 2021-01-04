@@ -352,7 +352,7 @@ def data_references(data_dir, layout, labels, outcomes, observations, levels,
         data=data,
         index=index)
     df_aux = read_additional_tables(additional_tables, entities)
-    df = concat_frames(df, df_aux)
+    df = _concat_frames(df, df_aux)
     df = delete_null_levels(df, observations, levels)
     df = delete_null_obs(df, observations, levels)
     obs = all_observations(df, observations, levels)
@@ -447,6 +447,29 @@ def collate_product(values, observations, levels):
 
 
 def query_all(layout, index, queries, **filters):
+    """
+    Query a layout for all values assigned to entities in an index.
+
+    Parameters
+    ----------
+    layout : object
+        Object representing a dataset layout with a `get` method that
+        returns a list of all data files that match a specified query.
+    index : MultiIndex
+        Pandas MultiIndex object enumerating all possible combinations of
+        variable assignments among dataset identifiers.
+    queries : list(DataQuery)
+        Data queries used to locate files in the dataset. Each entry locates a
+        different file for each unique identifier combination.
+    filters : dict
+        Additional filters to apply for each query.
+
+    Returns
+    -------
+    results : dict
+        Results for each query in `queries` submitted to the `layout` after
+        applying any `filters` additionally specified.
+    """
     results = {q.name: [] for q in queries}
     entities = index.names
     for ident in index:
@@ -459,55 +482,78 @@ def query_all(layout, index, queries, **filters):
 
 
 def read_additional_tables(paths, entities):
+    """
+    Read a set of TSV-formatted data files into DataFrames with a specified
+    set of index columns.
+
+    Parameters
+    ----------
+    paths : list(str)
+        List of paths to additional TSV-formatted data files.
+    entities : list
+        List of identifier entities corresponding to index columns in the
+        data files. These must be the first columns in the data files.
+
+    Returns
+    -------
+    list(DataFrame)
+        List of DataFrames read from the files in `paths`.
+    """
     if paths is None:
         return []
     idx = list(range(len(entities)))
     return [pd.read_csv(p, sep='\t', index_col=idx) for p in paths]
 
 
-def concat_frames(df, df_aux):
+def _concat_frames(df, df_aux):
+    """
+    Concatenate a data frame with a list of additional data frames.
+    """
     dfs = [df] + df_aux
     return pd.concat(dfs, axis=1)
 
 
 def delete_null_levels(df, observations, levels):
-    for level in all_levels(df, observations, levels):
-        if level_null(df, level):
-            df = df.drop(df.loc(axis=0)[level].index)
-    return df
+    return delete_nulls(df, observations, levels, all_levels)
 
 
 def delete_null_obs(df, observations, levels):
-    for obs in all_observations(df, observations, levels):
-        if level_null(df, obs):
-            df = df.drop(df.loc(axis=0)[obs].index)
+    return delete_nulls(df, observations, levels, all_observations)
+
+
+def delete_nulls(df, observations, levels, all_combinations):
+    for c in all_combinations(df, observations, levels):
+        if level_null(df, c):
+            df = df.drop(df.loc(axis=0)[c].index)
     return df
 
 
 def all_levels(df, observations, levels):
-    idx = []
-    level_gen = []
-    for name, levs in zip(df.index.names, df.index.levels):
-        if name in observations:
-            idx += [slice(None)]
-        elif name in levels:
-            idx += [None]
-            level_gen += [list(levs)]
-    levs = product(*level_gen)
-    return [tuple(fill_idx_pattern(l, idx)) for l in levs]
+    return all_combinations(df, observations, levels, what='levels')
 
 
 def all_observations(df, observations, levels):
+    return all_combinations(df, observations, levels, what='observations')
+
+
+def all_combinations(df, observations, levels, what):
     idx = []
-    obs_gen = []
-    for name, obs in zip(df.index.names, df.index.levels):
-        if name in observations:
-            idx += [None]
-            obs_gen += [list(obs)]
-        elif name in levels:
-            idx += [slice(None)]
-    obs = product(*obs_gen)
-    return [tuple(fill_idx_pattern(o, idx)) for o in obs]
+    gen = []
+    for name, c in zip(df.index.names, df.index.levels):
+        if what == 'observations':
+            if name in observations:
+                idx += [None]
+                gen += [list(c)]
+            elif name in levels:
+                idx += [slice(None)]
+        elif what == 'levels':
+            if name in observations:
+                idx += [slice(None)]
+            elif name in levels:
+                idx += [None]
+                gen += [list(c)]
+    combinations = product(*gen)
+    return [tuple(fill_idx_pattern(c, idx)) for c in combinations]
 
 
 def level_null(df, level):
