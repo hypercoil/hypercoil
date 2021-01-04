@@ -264,6 +264,30 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
 
 
 def assemble_entities(layout, ident, ignore=None):
+    """
+    Assemble all entities corresponding to the specified identifiers from a
+    layout.
+
+    Parameters
+    ----------
+    layout : object
+        Object representing a dataset layout with a `getall` method that
+        returns a list of all values of its argument entity present in the
+        dataset.
+    ident : list(str)
+        List of identifier variables present in the dataset and its layout.
+    ignore : dict(str: list) or None (default None)
+        Dictionary indicating identifiers to be ignored. Currently this
+        doesn't support any logical composition and takes logical OR over all
+        ignore specifications. In other words, data will be ignored if they
+        satisfy any of the ignore criteria.
+
+    Returns
+    -------
+    entities : dict
+        Dictionary enumerating the existing levels of each identifier variable
+        in the dataset.
+    """
     entities = {}
     ignore = ignore or {}
     for i in ident:
@@ -278,6 +302,40 @@ def assemble_entities(layout, ident, ignore=None):
 
 
 def collate_product(values, observations, levels):
+    """
+    Collate a product of all possible combinations of within-observation
+    variable assignments.
+
+    This returns all possible combinations, including potentially invalid ones
+    that are absent in the actual dataset. Additional functions like
+    `delete_null_levels` and `delete_null_obs` can help remove the invalid
+    combinations returned by `collate_product`.
+
+    Parameters
+    ----------
+    values : dict
+        Dictionary enumerating the existing levels of each identifier variable
+        in the dataset.
+    observations : list(str)
+        List of identifier variables that distinguish observations from one
+        another.
+    levels : list(str)
+        List of identifier variables that denote sub-levels of a single
+        observation.
+
+    Returns
+    -------
+    index : MultiIndex
+        Pandas MultiIndex object enumerating all possible combinations of
+        variable assignments in the input `values`.
+    observations : list
+        The input `observations`, filtered to exclude levels absent from the
+        data.
+    levels : list
+        The input `levels`, filtered to exclude levels absent from the data.
+    entities : list
+        List of all identifier levels present in the data.
+    """
     entities = []
     prod_gen = []
     for name, l in values.items():
