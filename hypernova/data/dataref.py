@@ -29,9 +29,25 @@ BIDS_CONF_EXT = '.tsv'
 
 
 class DataReference(object):
-    """Does nothing. Yet."""
-    def __init__(self):
-        pass
+    def __init__(self, data, idx, level_names=None,
+                 labels=None, outcomes=None):
+        self.df = data.loc(axis=0)[idx]
+        if level_names is not None:
+            self.level_names = [tuple(level_names)]
+        else:
+            self.level_names = []
+        self.labels = labels or []
+        self.outcomes = outcomes or []
+        self.label_ref = {l.name: l(self.df) for l in self.labels}
+        self.outcome_ref = {o.name: o(self.df) for o in self.outcomes}
+        self.ids = self.parse_ids(idx)
+
+    def parse_ids(self, idx):
+        ids = {}
+        for entity, value in zip(self.df.index.names, idx):
+            if not isinstance(value, slice):
+                ids[entity] = value
+        return ids
 
 
 class fMRIReferenceBase(DataReference):
@@ -91,26 +107,20 @@ class fMRISubReference(fMRIReferenceBase):
 
 
 class fMRIDataReference(fMRIReferenceBase):
-    def __init__(
-        self,
-        df,
-        idx,
-        labels=None,
-        outcomes = None,
-        data_transform=None,
-        confounds_transform=None,
-        label_transform=None,
-        outcome_transform=None,
-        level_names=None):
-        if level_names is not None:
-            level_names = [tuple(level_names)]
+    def __init__(self, df, idx, labels=None, outcomes=None,
+                 data_transform=None, confounds_transform=None,
+                 label_transform=None, outcome_transform=None,
+                 level_names=None):
+        super(fMRIDataReference, self).__init__(
+            data=df, idx=idx, level_names=level_names,
+            labels=labels, outcomes=outcomes)
         self.df = df.loc(axis=0)[idx]
-        self.labels = labels or []
-        self.outcomes = outcomes or []
-        self.data_transform = (data_transform or
-                               ReadNiftiTensorBlock(names=level_names))
-        self.confounds_transform = (confounds_transform or
-                                    ReadTableTensorBlock(names=level_names))
+
+        self.data_transform = (
+            data_transform or ReadNiftiTensorBlock(names=self.level_names))
+        self.confounds_transform = (
+            confounds_transform or ReadTableTensorBlock(
+                names=self.level_names))
         self.label_transform = label_transform or [
             EncodeOneHot(n_levels=l.max_label) for l in self.labels]
         self.outcome_transform = outcome_transform or [
@@ -118,22 +128,12 @@ class fMRIDataReference(fMRIReferenceBase):
 
         self.data_ref = self.df.images.values.tolist()
         self.confounds_ref = self.df.confounds.values.tolist()
-        self.label_ref = {l.name: l(self.df) for l in self.labels}
-        self.outcome_ref = {o.name: o(self.df) for o in self.outcomes}
         self.subrefs = self.make_subreferences()
 
-        ids = self.parse_ids(idx)
-        self.subject = ids.get('subject')
-        self.session = ids.get('session')
-        self.run = ids.get('run')
-        self.task = ids.get('task')
-
-    def parse_ids(self, idx):
-        ids = {}
-        for entity, value in zip(self.df.index.names, idx):
-            if not isinstance(value, slice):
-                ids[entity] = value
-        return ids
+        self.subject = self.ids.get('subject')
+        self.session = self.ids.get('session')
+        self.run = self.ids.get('run')
+        self.task = self.ids.get('task')
 
     def make_subreferences(self):
         subrefs = []
@@ -187,9 +187,12 @@ class ContinuousVariable(object):
 
 
 class DataQuery(object):
-    def __init__(self, name='data', pattern=None, **filters):
+    def __init__(self, name='data', pattern=None,
+                 transform=None, metadata=None, **filters):
         self.name = name
         self.pattern = pattern
+        self.transform = transform
+        self.metadata = metadata
         self.filters = filters
 
     def __call__(self, layout, **filters):
