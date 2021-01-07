@@ -4,34 +4,15 @@
 """
 Data interfaces
 """
-from .coltransforms import (
-	ColumnTransform
-)
 from .dataref import (
-	fMRIDataReference,
-	fMRISubReference,
-	CategoricalVariable,
-	ContinuousVariable,
-	fmriprep_references
-)
-from .expression import (
-	Expression
-)
-from .fc import (
-	FCConfoundModelSpec
+    fMRIDataReference,
+    fMRISubReference,
+    CategoricalVariable,
+    ContinuousVariable,
+    fmriprep_references
 )
 from .grabber import (
-	LightBIDSObject,
-	LightGrabber,
-	LightBIDSLayout
-)
-from .model import (
-	ModelSpec
-)
-from .shorthand import (
-	Shorthand,
-	ShorthandFilter
-)
-from .utils import (
-	load_metadata
+    LightBIDSObject,
+    LightGrabber,
+    LightBIDSLayout
 )

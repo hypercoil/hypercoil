@@ -23,8 +23,8 @@ class TestModelSpec:
     def setup_class(self):
         self.confpath = self.path_from_examples('confdata')
         self.metapath = self.path_from_examples('confmeta')
-        self.metadata = hypernova.data.load_metadata(self.metapath)
-        self.shfc = hypernova.data.fc.FCShorthand()
+        self.metadata = hypernova.formula.load_metadata(self.metapath)
+        self.shfc = hypernova.formula.fc.FCShorthand()
         self.df = pd.read_csv(self.confpath, sep='\t')
 
     def path_from_examples(self, key):
@@ -34,15 +34,15 @@ class TestModelSpec:
         spec_sh = self.shfc(model_formula, self.df.columns, self.metadata)
         if expanded_spec:
             assert(spec_sh == expanded_spec)
-        expr = hypernova.data.Expression(
+        expr = hypernova.formula.Expression(
             spec_sh,
-            transforms=[hypernova.data.fc.PowerTransform(),
-                        hypernova.data.fc.DerivativeTransform()]
+            transforms=[hypernova.formula.fc.PowerTransform(),
+                        hypernova.formula.fc.DerivativeTransform()]
         )
         assert(expr.n_children == n_children)
 
     def spec_base(self, model_formula, name, shape):
-        fcms = hypernova.data.FCConfoundModelSpec(model_formula, name)
+        fcms = hypernova.formula.FCConfoundModelSpec(model_formula, name)
         out = fcms(self.df, self.metadata)
         assert(out.shape[1] == shape)
         return out
