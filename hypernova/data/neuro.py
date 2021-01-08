@@ -17,21 +17,21 @@ from .transforms import (
 class fMRIReferenceBase(DataReference):
     @property
     def data(self):
-        return self.data_transform(self.data_ref)
+        return self.data_ref()
 
     @property
     def confounds(self):
-        return self.confounds_transform(self.confounds_ref)
+        return self.confounds_ref()
 
     @property
     def label(self):
-        return {k: t(v) for t, (k, v) in
-                zip(self.label_transform, self.label_ref.items())}
+        return {k: l.transform(v) for l, (k, v) in
+                zip(self.labels, self.label_ref.items())}
 
     @property
     def outcome(self):
-        return {k: t(v) for t, (k, v) in
-                zip(self.outcome_transform, self.outcome_ref.items())}
+        return {k: o.transform(v) for o, (k, v) in
+                zip(self.outcomes, self.outcome_ref.items())}
 
 
 class fMRISubReference(fMRIReferenceBase):
@@ -71,27 +71,18 @@ class fMRISubReference(fMRIReferenceBase):
 
 
 class fMRIDataReference(fMRIReferenceBase):
-    def __init__(self, df, idx, labels=None, outcomes=None,
+    def __init__(self, df, idx,
+                 variables=None, labels=None, outcomes=None,
                  data_transform=None, confounds_transform=None,
                  label_transform=None, outcome_transform=None,
                  level_names=None):
         super(fMRIDataReference, self).__init__(
             data=df, idx=idx, level_names=level_names,
-            labels=labels, outcomes=outcomes)
+            variables=variables, labels=labels, outcomes=outcomes)
         self.df = df.loc(axis=0)[idx]
 
-        self.data_transform = (
-            data_transform or ReadNiftiTensorBlock(names=self.level_names))
-        self.confounds_transform = (
-            confounds_transform or ReadTableTensorBlock(
-                names=self.level_names))
-        self.label_transform = label_transform or [
-            EncodeOneHot(n_levels=l.max_label) for l in self.labels]
-        self.outcome_transform = outcome_transform or [
-            ToTensor() for _ in self.outcomes]
-
-        self.data_ref = self.df.images.values.tolist()
-        self.confounds_ref = self.df.confounds.values.tolist()
+        self.data_ref = self.variables[0]
+        self.confounds_ref = self.variables[1]
         self.subrefs = self.make_subreferences()
 
         self.subject = self.ids.get('subject')
@@ -108,11 +99,11 @@ class fMRIDataReference(fMRIReferenceBase):
                 confounds=ref.confounds,
                 labels=self.labels,
                 outcomes=self.outcomes,
-                data_transform=self.data_transform,
-                confounds_transform=self.confounds_transform,
-                label_transform=self.label_transform,
-                **ids)
-            ]
+                data_transform=self.variables[0].transform,
+                confounds_transform=self.variables[1].transform,
+                label_transform=self.labels[0].transform,
+                **ids
+            )]
         return subrefs
 
     def __repr__(self):
@@ -127,4 +118,3 @@ class fMRIDataReference(fMRIReferenceBase):
             s += f',\n {sr}'
         s += '\n)'
         return s
-
