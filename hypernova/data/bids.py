@@ -7,10 +7,15 @@ BIDS interfaces
 Interfaces for loading BIDS-conformant neuroimaging data.
 """
 # import bids
+from ..formula import FCConfoundModelSpec
 from .dataref import data_references, DataQuery
 from .grabber import LightBIDSLayout
 from .neuro import fMRIDataReference
-from .variables import NiftiBlockVariable, TableBlockVariable
+from .variables import (
+    VariableInitialiser,
+    NiftiBlockVariable,
+    TableBlockVariable
+)
 
 
 BIDS_SCOPE = 'derivatives'
@@ -27,7 +32,7 @@ BIDS_CONF_EXT = '.tsv'
 
 def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
                         ignore=None, labels=('subject',), outcomes=None,
-                        observations=('subject',),
+                        model=None, observations=('subject',),
                         levels=('session', 'run', 'task')):
     """
     Obtain data references for a directory containing data processed with
@@ -75,6 +80,8 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         List of data reference objects created from files found in the input
         directory.
     """
+    if model is not None:
+        model = FCConfoundModelSpec(model)
     images = DataQuery(
         name='images',
         pattern='func/**/*preproc*.nii.gz',
@@ -87,7 +94,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     confounds = DataQuery(
         name='confounds',
         pattern='func/**/*confounds*.tsv',
-        variable=TableBlockVariable,
+        variable=VariableInitialiser(TableBlockVariable, spec=model),
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_CONF_DESC,
