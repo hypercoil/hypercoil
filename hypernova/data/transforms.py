@@ -63,10 +63,12 @@ class ReadTableTensor(ReadNeuroTensor):
 
 
 class ReadNeuroTensorBlock(object):
-    def __init__(self, dtype='torch.FloatTensor', nanfill=None, names=None):
+    def __init__(self, dtype='torch.FloatTensor',
+                 nanfill=None, names=None, **params):
         self.dtype = dtype
         self.nanfill = nanfill
         self.names = names
+        self.params = params
 
     def __call__(self, sample):
         if isinstance(sample, list):
@@ -74,13 +76,14 @@ class ReadNeuroTensorBlock(object):
                 nn = self.names[1:]
             else:
                 nn = self.names
-            rec = [self.__class__(self.dtype, self.nanfill, nn) for _ in sample]
+            rec = [self.__class__(self.dtype, self.nanfill, nn, **self.params)
+                   for _ in sample]
             tensors = extend_and_conform([r(s) for r, s in zip(rec, sample)])
             names = tensors[0].names
             tensors = torch.stack([t.rename(None) for t in tensors])
             if self.names is not None:
                 tensors.names = [
-                    '_x_'.join(n) for n in self.names] + list(names)
+                    '_x_'.join(n) for n in [self.names]] + list(names)
             return tensors
         return self.transform(sample)
 
@@ -108,9 +111,11 @@ class ReadNiftiTensorBlock(ReadNeuroTensorBlock):
 
 class ReadTableTensorBlock(ReadNeuroTensorBlock):
     def __init__(self, dtype='torch.FloatTensor',
-                 nanfill=None, spec=None, names=None):
-        super(ReadTableTensorBlock, self).__init__(dtype, nanfill, names)
-        self.transform = ReadTableTensor(self.dtype, self.nanfill, spec=spec)
+                 nanfill=None, names=None, **params):
+        super(ReadTableTensorBlock, self).__init__(
+            dtype, nanfill, names, **params)
+        self.transform = ReadTableTensor(
+            self.dtype, self.nanfill, **self.params)
 
 
 class EncodeOneHot(object):

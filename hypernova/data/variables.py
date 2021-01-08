@@ -31,11 +31,10 @@ class DatasetVariable(ABC):
         pass
 
     def __call__(self):
-        return self.transform(self.assignment)
+        return {self.name: self.transform(self.assignment)}
 
     def __repr__(self):
-        s = f'{type(self).__name__}('
-        s += f'name={self.name}, '
+        s = f'{self.name}={type(self).__name__}('
         s += f'assigned={self.assignment is not None}, '
         s += f'transform={type(self.transform).__name__}'
         s += ')'
@@ -81,3 +80,12 @@ class TableBlockVariable(DatasetVariable):
 
     def assign(self, df):
         self.assignment = get_col(df, self.name).values.tolist()
+
+
+class VariableInitialiser(object):
+    def __init__(self, var, **params):
+        self.var = var
+        self.params = params
+
+    def __call__(self, name, levels=None):
+        return self.var(name=name, levels=levels, **self.params)
