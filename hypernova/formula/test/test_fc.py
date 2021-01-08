@@ -86,9 +86,9 @@ class TestModelSpec:
         self.expr_base(
             model_formula='d0-1(rps) + acc<n=5, mask=CSF+WM>',
             expanded_spec=(
-                'd0-1(trans_x + trans_y + trans_z + rot_x + rot_y + rot_z) + ' +
-                ' + '.join([f'a_comp_cor_{i:02}' for i in range(5)]) + ' + ' +
-                ' + '.join([f'a_comp_cor_{i:02}' for i in range(9, 14)])),
+                'd0-1(trans_x + trans_y + trans_z + rot_x + rot_y + rot_z) + '
+                + ' + '.join([f'a_comp_cor_{i:02}' for i in range(5)]) + ' + '
+                + ' + '.join([f'a_comp_cor_{i:02}' for i in range(9, 14)])),
             n_children=11
         )
 
