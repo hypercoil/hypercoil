@@ -51,11 +51,14 @@ class ReadNiftiTensor(ReadNeuroTensor):
 
 
 class ReadTableTensor(ReadNeuroTensor):
-    def __init__(self, dtype='torch.FloatTensor', nanfill=None):
+    def __init__(self, dtype='torch.FloatTensor', nanfill=None, spec=None):
         names = ('var', 't')
         super(ReadTableTensor, self).__init__(dtype, nanfill, names)
+        self.spec = spec
 
     def read(self, path):
+        if self.spec is not None:
+            return self.spec(pd.read_csv(path, sep='\t')).values
         return pd.read_csv(path, sep='\t').values
 
 
@@ -104,9 +107,10 @@ class ReadNiftiTensorBlock(ReadNeuroTensorBlock):
 
 
 class ReadTableTensorBlock(ReadNeuroTensorBlock):
-    def __init__(self, dtype='torch.FloatTensor', nanfill=None, names=None):
+    def __init__(self, dtype='torch.FloatTensor',
+                 nanfill=None, spec=None, names=None):
         super(ReadTableTensorBlock, self).__init__(dtype, nanfill, names)
-        self.transform = ReadTableTensor(self.dtype, self.nanfill)
+        self.transform = ReadTableTensor(self.dtype, self.nanfill, spec=spec)
 
 
 class EncodeOneHot(object):
