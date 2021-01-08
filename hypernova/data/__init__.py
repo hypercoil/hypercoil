@@ -4,15 +4,19 @@
 """
 Data interfaces
 """
-from .dataref import (
-    fMRIDataReference,
-    fMRISubReference,
-    CategoricalVariable,
-    ContinuousVariable,
+from .bids import (
     fmriprep_references
 )
 from .grabber import (
     LightBIDSObject,
     LightGrabber,
     LightBIDSLayout
+)
+from .neuro import (
+    fMRIDataReference,
+    fMRISubReference
+)
+from .variables import (
+    CategoricalVariable,
+    ContinuousVariable
 )
