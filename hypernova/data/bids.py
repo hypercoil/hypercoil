@@ -10,6 +10,7 @@ Interfaces for loading BIDS-conformant neuroimaging data.
 from .dataref import data_references, DataQuery
 from .grabber import LightBIDSLayout
 from .neuro import fMRIDataReference
+from .variables import NiftiBlockVariable, TableBlockVariable
 
 
 BIDS_SCOPE = 'derivatives'
@@ -77,6 +78,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     images = DataQuery(
         name='images',
         pattern='func/**/*preproc*.nii.gz',
+        variable=NiftiBlockVariable,
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_IMG_DESC,
@@ -85,6 +87,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     confounds = DataQuery(
         name='confounds',
         pattern='func/**/*confounds*.tsv',
+        variable=TableBlockVariable,
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_CONF_DESC,

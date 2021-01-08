@@ -13,16 +13,17 @@ from .variables import CategoricalVariable, ContinuousVariable
 
 class DataReference(object):
     def __init__(self, data, idx, level_names=None,
-                 labels=None, outcomes=None):
+                 variables=None, labels=None, outcomes=None):
         self.df = data.loc(axis=0)[idx]
+        self.variables = variables or []
+        self.labels = labels or []
+        self.outcomes = outcomes or []
+        for var in (self.variables + outcomes + labels):
+            var.assign(self.df)
         if level_names is not None:
             self.level_names = [tuple(level_names)]
         else:
             self.level_names = []
-        self.labels = labels or []
-        self.outcomes = outcomes or []
-        self.label_ref = {l.name: l(self.df) for l in self.labels}
-        self.outcome_ref = {o.name: o(self.df) for o in self.outcomes}
         self.ids = self.parse_ids(idx)
 
     def parse_ids(self, idx):
@@ -34,10 +35,11 @@ class DataReference(object):
 
 
 class DataQuery(object):
-    def __init__(self, name='data', pattern=None,
+    def __init__(self, name='data', pattern=None, variable=None,
                  transform=None, metadata=None, **filters):
         self.name = name
         self.pattern = pattern
+        self.variable = variable
         self.transform = transform
         self.metadata = metadata
         self.filters = filters
@@ -125,7 +127,9 @@ def data_references(data_dir, layout, reference, labels, outcomes,
     df = delete_null_obs(df, observations, levels)
     obs = all_observations(df.index, observations, levels)
     labels, outcomes = process_labels_and_outcomes(df, labels, outcomes)
-    data_refs = make_references(reference, df, obs, levels, labels, outcomes)
+    variables = process_variables(levels, queries)
+    data_refs = make_references(reference, df, obs, levels,
+                                variables, labels, outcomes)
     return data_refs
 
 
@@ -459,7 +463,17 @@ def process_labels_and_outcomes(df, labels, outcomes):
     return ls, os
 
 
-def make_references(reference, df, obs, levels, labels, outcomes):
+def process_variables(levels, queries):
+    variables = []
+    for q in queries:
+        var = q.variable(name=q.name, levels=levels)
+        if q.transform is not None:
+            var.transform = q.transform
+        variables += [var]
+    return variables
+
+
+def make_references(reference, df, obs, levels, variables, labels, outcomes):
     """
     Create a data reference object for each observation in the dataset.
 
@@ -490,7 +504,11 @@ def make_references(reference, df, obs, levels, labels, outcomes):
     for o in obs:
         try:
             data_refs += [reference(
-                df, o, level_names=levels, labels=labels, outcomes=outcomes)]
+                df, o,
+                level_names=levels,
+                variables=variables,
+                labels=labels,
+                outcomes=outcomes)]
         except KeyError:
             continue
     return data_refs
