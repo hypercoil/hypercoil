@@ -15,17 +15,25 @@ from .variables import CategoricalVariable, ContinuousVariable
 class DataReference(object):
     def __init__(self, data, idx, level_names=None,
                  variables=None, labels=None, outcomes=None):
-        self.df = data.loc(axis=0)[idx]
+        self.df = data.loc(axis=0)[self._cast_loc(idx)]
+        if not isinstance(self.df, pd.DataFrame):
+            self.df = self.df.to_frame()
         self.variables = variables or []
         self.labels = labels or []
         self.outcomes = outcomes or []
         for var in (self.variables + self.outcomes + self.labels):
             var.assign(self.df)
-        if level_names is not None:
+        if level_names:
             self.level_names = [tuple(level_names)]
         else:
             self.level_names = []
         self.ids = self.parse_ids(idx)
+
+    def _cast_loc(self, loc):
+        if any([isinstance(l, slice) for l in loc]):
+            return tuple(loc)
+        else:
+            return list(loc)
 
     def parse_ids(self, idx):
         ids = {}
