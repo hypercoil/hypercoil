@@ -16,8 +16,6 @@ class DataReference(object):
     def __init__(self, data, idx, level_names=None,
                  variables=None, labels=None, outcomes=None):
         self.df = data.loc(axis=0)[self._cast_loc(idx)]
-        if not isinstance(self.df, pd.DataFrame):
-            self.df = self.df.to_frame()
         self.variables = variables or []
         self.labels = labels or []
         self.outcomes = outcomes or []
@@ -33,7 +31,7 @@ class DataReference(object):
         if any([isinstance(l, slice) for l in loc]):
             return tuple(loc)
         else:
-            return list(loc)
+            return [tuple(loc)]
 
     def parse_ids(self, idx):
         ids = {}

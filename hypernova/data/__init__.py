@@ -13,8 +13,7 @@ from .grabber import (
     LightBIDSLayout
 )
 from .neuro import (
-    fMRIDataReference,
-    fMRISubReference
+    fMRIDataReference
 )
 from .variables import (
     CategoricalVariable,
