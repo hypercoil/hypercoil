@@ -8,6 +8,7 @@ Interfaces between neuroimaging data and data loaders.
 """
 import pandas as pd
 from itertools import product
+from collections import ChainMap
 from .variables import CategoricalVariable, ContinuousVariable
 
 
@@ -18,7 +19,7 @@ class DataReference(object):
         self.variables = variables or []
         self.labels = labels or []
         self.outcomes = outcomes or []
-        for var in (self.variables + outcomes + labels):
+        for var in (self.variables + self.outcomes + self.labels):
             var.assign(self.df)
         if level_names is not None:
             self.level_names = [tuple(level_names)]
@@ -32,6 +33,35 @@ class DataReference(object):
             if not isinstance(value, slice):
                 ids[entity] = value
         return ids
+
+    def get_var(self, name):
+        for var in (self.variables + self.outcomes + self.labels):
+            if var.name == name: return var
+
+    def __getattr__(self, key):
+        var = self.get_var(key)
+        if var is None:
+            raise AttributeError(f'Invalid variable: {key}')
+        return var()[var.name]
+
+    @property
+    def label(self):
+        asgt = [var() for var in self.labels]
+        return dict(ChainMap(*asgt))
+
+    @property
+    def outcome(self):
+        asgt = [var() for var in self.outcomes]
+        return dict(ChainMap(*asgt))
+
+    @property
+    def data(self):
+        asgt = [var() for var in self.variables]
+        return dict(ChainMap(*asgt))
+
+    def __call__(self):
+        asgt = [v() for v in (self.variables + self.outcomes + self.labels)]
+        return dict(ChainMap(*asgt))
 
 
 class DataQuery(object):
