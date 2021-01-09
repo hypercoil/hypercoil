@@ -176,6 +176,7 @@ class IteratedOrderCallable():
     iteratively applied. This is not as efficient as a function that caches
     previous results.
     """
+    # TODO: use dynamic programming
     def __init__(self, transform):
         self.transform = transform
 

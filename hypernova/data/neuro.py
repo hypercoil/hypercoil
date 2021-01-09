@@ -14,27 +14,7 @@ from .transforms import (
 )
 
 
-class fMRIReferenceBase(DataReference):
-    @property
-    def data(self):
-        return self.data_ref()
-
-    @property
-    def confounds(self):
-        return self.confounds_ref()
-
-    @property
-    def label(self):
-        return {k: l.transform(v) for l, (k, v) in
-                zip(self.labels, self.label_ref.items())}
-
-    @property
-    def outcome(self):
-        return {k: o.transform(v) for o, (k, v) in
-                zip(self.outcomes, self.outcome_ref.items())}
-
-
-class fMRISubReference(fMRIReferenceBase):
+class fMRISubReference(DataReference):
     def __init__(
         self,
         data,
@@ -70,19 +50,13 @@ class fMRISubReference(fMRIReferenceBase):
         return s
 
 
-class fMRIDataReference(fMRIReferenceBase):
-    def __init__(self, df, idx,
-                 variables=None, labels=None, outcomes=None,
-                 data_transform=None, confounds_transform=None,
-                 label_transform=None, outcome_transform=None,
-                 level_names=None):
+class fMRIDataReference(DataReference):
+    def __init__(self, df, idx, level_names=None,
+                 variables=None, labels=None, outcomes=None):
         super(fMRIDataReference, self).__init__(
             data=df, idx=idx, level_names=level_names,
             variables=variables, labels=labels, outcomes=outcomes)
-        self.df = df.loc(axis=0)[idx]
 
-        self.data_ref = self.variables[0]
-        self.confounds_ref = self.variables[1]
         self.subrefs = self.make_subreferences()
 
         self.subject = self.ids.get('subject')
