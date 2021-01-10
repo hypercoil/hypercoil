@@ -7,11 +7,19 @@ Neuroimaging data transforms
 Dataset transformations for packaging neuroimaging data into Pytorch tensors.
 """
 import torch
-import nibabel as nb
-import pandas as pd
-from abc import ABC, abstractmethod
-from ..formula import ModelSpec
-from .grabber import LightBIDSObject
+from .functional import (
+    to_tensor,
+    to_named_tensor,
+    nanfill,
+    apply_model_specs,
+    apply_transform,
+    transform_block,
+    unzip_blocked_dict,
+    consolidate_block,
+    read_data_frame,
+    read_neuro_image,
+    vector_encode
+)
 
 
 class Compose(object):
@@ -34,9 +42,7 @@ class ToTensor(object):
         self.dtype = dtype
 
     def __call__(self, data):
-        if isinstance(data, pd.DataFrame):
-            data = data.values
-        return torch.Tensor(data).type(self.dtype)
+        return to_tensor(data, dtype=self.dtype)
 
 
 class ToNamedTensor(ToTensor):
@@ -47,28 +53,23 @@ class ToNamedTensor(ToTensor):
         super(ToNamedTensor, self).__init__(dtype)
 
     def __call__(self, data):
-        out = super(ToNamedTensor, self).__call__(data)
-        out.names = self.names(out)
-        return out
+        names = self._names(data)
+        return to_named_tensor(data, dtype=dtype, names=names)
 
-    def names(self, data):
+    def _names(self, data):
+        check = torch.Tensor(data)
         if self.truncate == 'last':
-            return self.all_names[:data.dim()]
+            return self.all_names[:check.dim()]
         elif self.truncate == 'first':
-            return self.all_names[-data.dim():]
+            return self.all_names[-check.dim():]
 
 
 class NaNFill(object):
-    def __init__(self, nanfill=None):
-        self.nanfill = nanfill
+    def __init__(self, fill=None):
+        self.fill = fill
 
     def __call__(self, data):
-        if self.nanfill is not None:
-            if isinstance(data. np.ndarray):
-                data[np.isnan(data)] = self.nanfill
-            elif isinstance(data, torch.Tensor):
-                data[torch.isnan(data)] = self.nanfill
-        return data
+        return nanfill(data, fill=self.fill)
 
 
 class ApplyModelSpecs(object):
@@ -76,7 +77,7 @@ class ApplyModelSpecs(object):
         self.models = models
 
     def __call__(self, data):
-        return {m.name: m(data) for m in self.models}
+        return apply_model_specs(data, models=self.models)
 
 
 class ApplyTransform(object):
@@ -84,10 +85,7 @@ class ApplyTransform(object):
         self.transform = transform
 
     def __call__(self, iterable):
-        if isinstance(iterable, dict):
-            return {k: self.transform(v) for k, v in iterable.items()}
-        else:
-            return [self.transform(v) for v in iterable]
+        return apply_transform(iterable, transform=self.transform)
 
 
 class BlockTransform(object):
@@ -95,9 +93,7 @@ class BlockTransform(object):
         self.transform = transform
 
     def __call__(self, block):
-        if isinstance(block, list):
-            return [self(e) for e in block]
-        return self.transform(block)
+        return transform_block(block, transform=self.transform)
 
 
 class UnzipTransformedBlock(object):
@@ -106,35 +102,12 @@ class UnzipTransformedBlock(object):
         self.cur_depth = 0
 
     def __call__(self, block):
-        if isinstance(block[0], list):
-            return self([self(e) for e in block])
-        return {k: [d[k] for d in block] for k in block[0].keys()}
+        return unzip_blocked_dict(block)
 
 
 class ConsolidateBlock(object):
     def __call__(self, block):
-        if isinstance(block, torch.Tensor):
-            return block
-        elif isinstance(block[0], torch.Tensor):
-            out = extend_and_conform(block)
-        else:
-            out = extend_and_conform([self(e) for e in block])
-        return torch.stack(out)
-
-
-def extend_and_conform(tensor_list):
-    sizes = [t.size() for t in tensor_list]
-    out_size = torch.amax(torch.Tensor(sizes), 0).int()
-    return [extend_to_size(t, out_size) for t in tensor_list]
-
-
-def extend_to_size(tensor, size):
-    out = torch.empty(*size) * float('nan')
-    names = tensor.names
-    tensor = tensor.rename(None)
-    out[[slice(s) for s in tensor.size()]] = tensor
-    out.names = names
-    return out
+        return consolidate_block(block)
 
 
 class ReadDataFrame(object):
@@ -143,9 +116,7 @@ class ReadDataFrame(object):
         self.kwargs = kwargs
 
     def __call__(self, path):
-        if isinstance(path, LightBIDSObject):
-            path = path.path
-        return pd.read_csv(path, sep=self.sep, **self.kwargs)
+        return read_data_frame(path, sep=self.sep, **self.kwargs)
 
 
 class ReadNeuroImage(object):
@@ -153,9 +124,7 @@ class ReadNeuroImage(object):
         self.kwargs = kwargs
 
     def __call__(self, path):
-        if isinstance(path, LightBIDSObject):
-            path = path.path
-        return nb.load(path, **self.kwargs).get_fdata()
+        return read_neuro_image(path, **self.kwargs)
 
 
 class EncodeOneHot(object):
@@ -164,6 +133,5 @@ class EncodeOneHot(object):
         self.dtype = dtype
         self.patterns = torch.eye(self.n_levels)
 
-    def __call__(self, sample):
-        idx = torch.Tensor(sample).type('torch.LongTensor')
-        return self.patterns[idx].type(self.dtype)
+    def __call__(self, data):
+        return vector_encode(data, encoding=self.patterns, dtype=self.dtype)
