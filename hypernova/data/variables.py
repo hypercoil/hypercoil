@@ -9,8 +9,10 @@ Dataset variable classes.
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from .transforms import (
-    IdentityTransform, EncodeOneHot, ToTensor,
-    ReadNiftiTensorBlock, ReadTableTensorBlock
+    Compose, IdentityTransform, EncodeOneHot, ToTensor,
+    ApplyModelSpecs, ApplyTransform, BlockTransform,
+    UnzipTransformedBlock, ConsolidateBlock,
+    ReadDataFrame, ReadNeuroImage
 )
 
 
@@ -80,7 +82,13 @@ class ContinuousVariable(DatasetVariable):
 class NiftiBlockVariable(DatasetVariable):
     def __init__(self, name, levels=None):
         super(NiftiBlockVariable, self).__init__(name)
-        self.transform = ReadNiftiTensorBlock(names=levels)
+        self.transform = Compose([
+            BlockTransform(Compose([
+                ReadNeuroImage(),
+                ToTensor()
+            ])),
+            ConsolidateBlock()
+        ])
 
     def assign(self, df):
         self.assignment = get_col(df, self.name).values.tolist()
@@ -89,7 +97,17 @@ class NiftiBlockVariable(DatasetVariable):
 class TableBlockVariable(DatasetVariable):
     def __init__(self, name, spec=None, levels=None):
         super(TableBlockVariable, self).__init__(name)
-        self.transform = ReadTableTensorBlock(names=levels, spec=spec)
+        self.transform = Compose([
+            BlockTransform(Compose([
+                ReadDataFrame(),
+                ApplyModelSpecs(spec),
+            ])),
+            UnzipTransformedBlock(),
+            ApplyTransform(Compose([
+                BlockTransform(ToTensor()),
+                ConsolidateBlock()
+            ]))
+        ])
 
     def assign(self, df):
         self.assignment = get_col(df, self.name).values.tolist()
