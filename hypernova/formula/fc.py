@@ -213,7 +213,7 @@ class FCConfoundModelSpec(ModelSpec):
         and the 6 realignment parameters.
     """
     def __init__(self, spec, name=None):
-        name = name or 'confounds'
+        name = name or spec
         super(FCConfoundModelSpec, self).__init__(
             spec=spec,
             name=name,

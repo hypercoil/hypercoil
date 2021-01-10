@@ -7,11 +7,6 @@ Neuroimaging
 Neuroimaging dataset-specific datasets and data references.
 """
 from .dataref import DataReference
-from .transforms import (
-    ReadNiftiTensorBlock,
-    ReadTableTensorBlock,
-    ToTensor, EncodeOneHot
-)
 
 
 class fMRIDataReference(DataReference):

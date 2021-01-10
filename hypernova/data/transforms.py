@@ -156,3 +156,14 @@ class ReadNeuroImage(object):
         if isinstance(path, LightBIDSObject):
             path = path.path
         return nb.load(path, **self.kwargs).get_fdata()
+
+
+class EncodeOneHot(object):
+    def __init__(self, n_levels, dtype='torch.FloatTensor'):
+        self.n_levels = n_levels
+        self.dtype = dtype
+        self.patterns = torch.eye(self.n_levels)
+
+    def __call__(self, sample):
+        idx = torch.Tensor(sample).type('torch.LongTensor')
+        return self.patterns[idx].type(self.dtype)
