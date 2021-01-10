@@ -79,9 +79,9 @@ class ContinuousVariable(DatasetVariable):
         self.assignment = get_col(df, self.name)
 
 
-class NiftiBlockVariable(DatasetVariable):
+class NeuroImageBlockVariable(DatasetVariable):
     def __init__(self, name, levels=None):
-        super(NiftiBlockVariable, self).__init__(name)
+        super(NeuroImageBlockVariable, self).__init__(name)
         self.transform = Compose([
             BlockTransform(Compose([
                 ReadNeuroImage(),

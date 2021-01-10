@@ -7,13 +7,13 @@ BIDS interfaces
 Interfaces for loading BIDS-conformant neuroimaging data.
 """
 # import bids
-from ..formula import FCConfoundModelSpec
+from ..formula import ModelSpec, FCConfoundModelSpec
 from .dataref import data_references, DataQuery
 from .grabber import LightBIDSLayout
 from .neuro import fMRIDataReference
 from .variables import (
     VariableInitialiser,
-    NiftiBlockVariable,
+    NeuroImageBlockVariable,
     TableBlockVariable
 )
 
@@ -80,12 +80,16 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         List of data reference objects created from files found in the input
         directory.
     """
-    if model is not None:
-        model = FCConfoundModelSpec(model)
+    if isinstance(model, str):
+        model = [FCConfoundModelSpec(model)]
+    elif model is not None and not isinstance(model, ModelSpec):
+        model = [FCConfoundModelSpec(m, name=m)
+                 if isinstance(m, str) else m
+                 for m in model]
     images = DataQuery(
         name='images',
         pattern='func/**/*preproc*.nii.gz',
-        variable=NiftiBlockVariable,
+        variable=NeuroImageBlockVariable,
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_IMG_DESC,
