@@ -2,148 +2,52 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Neuroimaging datasets
-~~~~~~~~~~~~~~~~~~~~~
-Dataset objects for neuroimaging data.
+Referenced datasets
+~~~~~~~~~~~~~~~~~~~
+Dataset objects composed of DataReference subclasses.
 """
-import bids
-from itertools import product
+from itertools import chain
 from torch.utils.data import Dataset, DataLoader
-from .dataref import FunctionalConnectivityDataReference
 
 
-bids.config.set_option('extension_initial_dot', True)
+class ReferencedDataset(Dataset):
+    def __init__(self, data_refs, depth=0):
+        self.depth = depth
+        self._data_refs = data_refs
+        self.data_refs = self._refs_at_depth()
 
-BIDS_SCOPE = 'derivatives'
-BIDS_DTYPE = 'func'
+    def _refs_at_depth(self):
+        refs = self._data_refs
+        depth = 0
+        while depth < self.depth:
+            try:
+                refs = [r.subrefs for r in refs]
+                refs = list(chain(*refs))
+            except AttributeError:
+                raise AttributeError(
+                    f'Proposed reference depth too great: {self.depth}')
+            depth += 1
+        return refs
 
-BIDS_IMG_DESC = 'preproc'
-BIDS_IMG_SUFFIX = 'bold'
-BIDS_IMG_EXT = '.nii.gz'
+    def set_depth(self, depth):
+        cur_depth = self.depth
+        self.depth = depth
+        try:
+            self.data_refs = self._refs_at_depth()
+        except AttributeError:
+            self.depth = cur_depth
+            raise
 
-BIDS_CONF_DESC = 'confounds'
-BIDS_CONF_SUFFIX = 'timeseries'
-BIDS_CONF_EXT = '.tsv'
-
-
-class NeuroimagingDataset(Dataset):
-    def __init__(self, data_refs):
-        self.data_refs = data_refs
+    def add_data(self, data_refs):
+        self._data_refs += data_refs
+        self.data_refs = self._refs_at_depth()
 
     def __len__(self):
         return len(self.data_refs)
 
     def __getitem__(self, idx):
         ref = self.data_refs[idx]
-        return {
-            'data': ref.data,
-            'confounds': ref.confounds,
-            'label': ref.label,
-            'outcome': ref.outcome
-        }
+        return ref()
 
     def __repr__(self):
-        s = f'{type(self).__name__}(n={len(self)})'
-
-
-class BIDSDataset(NeuroimagingDataset):
-    def __init__(self, data_refs):
-        super(BIDSDataset, self).__init__(data_refs)
-
-    def _assemble_entities(self, layout, ignore=None):
-        ignore = ignore or {
-            'sub': [],
-            'ses': [],
-            'run': [],
-            'task': []
-        }
-        sub = layout.get_subjects()
-        ses = layout.get_sessions()
-        run = layout.get_runs()
-        task = layout.get_tasks()
-
-        sub = [i for i in sub if i not in ignore['sub']]
-        ses = [i for i in ses if i not in ignore['ses']]
-        run = [i for i in run if i not in ignore['run']]
-        task = [i for i in task if i not in ignore['task']]
-        return self._collate_product(sub, ses, run, task)
-
-    def _collate_product(self, sub, ses, run, task):
-        entities = []
-        prod_gen = []
-        if sub:
-            entities += ['subject']
-            prod_gen += [sub]
-        if ses:
-            entities += ['session']
-            prod_gen += [ses]
-        if run:
-            entities += ['run']
-            prod_gen += [run]
-        if task:
-            entities += ['task']
-            prod_gen += [task]
-        return entities, list(product(*prod_gen))
-
-    def _list_coor(self, entities, arg):
-        if isinstance(arg, list):
-            return [self._list_coor(a) for a in arg]
-        return self._query_assets(entities, arg)
-
-    def _get_filters(self, entities, query):
-        filters = {}
-        for k, v in zip(entities, query):
-            filters[k] = v
-        return filters
-
-    def _query_assets(self, entities, query):
-        filters = self._get_filters(entities, query)
-        image = layout.get(
-            scope=BIDS_SCOPE,
-            datatype=BIDS_DTYPE,
-            desc=BIDS_IMG_DESC,
-            space=space,
-            suffix=BIDS_IMG_SUFFIX,
-            extension=BIDS_IMG_EXT,
-            **filters)
-        confounds = layout.get(
-            scope=BIDS_SCOPE,
-            datatype=BIDS_DTYPE,
-            desc=BIDS_CONF_DESC,
-            suffix=BIDS_CONF_SUFFIX,
-            extension=BIDS_CONF_EXT,
-            **filters)
-        return filters, image, confounds
-
-    def _query_and_reference_all(self, layout, entities, queries, space=None):
-        data_refs = []
-        for query in queries:
-            filters, image, confounds = self._query_assets(entities, query)
-            if not image or not confounds:
-                continue
-            ref = FunctionalConnectivityDataReference(
-                data=image[0],
-                confounds=confounds[0],
-                label=int(filters['subject']),
-                **filters
-            )
-            data_refs += [ref]
-        return data_refs
-
-
-class fMRIPrepDataset(BIDSDataset):
-    def __init__(self, fmriprep_dir, space=None):
-        data_refs = self._fmriprep_references(fmriprep_dir, space)
-        super(fMRIPrepDataset, self).__init__(data_refs)
-
-    def _fmriprep_references(self, fmriprep_dir, space=None,
-                            additional_tables=None, ignore=None):
-        layout = bids.BIDSLayout(
-            fmriprep_dir,
-            derivatives=[fmriprep_dir],
-            validate=False)
-        entities, queries = self._assemble_entities(layout, ignore)
-        return self._query_and_reference_all(layout, entities, queries, space)
-
-    def add_data(self, fmriprep_dir, space=None):
-        self.data_refs += self._fmriprep_references(fmriprep_dir, space)
+        return f'{type(self).__name__}(n={len(self)}, depth={self.depth})'

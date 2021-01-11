@@ -9,6 +9,7 @@ Interfaces for loading BIDS-conformant neuroimaging data.
 # import bids
 from ..formula import ModelSpec, FCConfoundModelSpec
 from .dataref import data_references, DataQuery
+from .dataset import ReferencedDataset
 from .grabber import LightGrabber
 from .neuro import fMRIDataReference
 from .transforms import (
@@ -23,6 +24,9 @@ from .variables import (
     TableBlockVariable,
     DataPathVariable
 )
+
+
+#bids.config.set_option('extension_initial_dot', True)
 
 
 BIDS_SCOPE = 'derivatives'
@@ -77,6 +81,32 @@ class LightBIDSLayout(LightGrabber):
             queries=queries,
             template=BIDSObjectFactory()
         )
+
+
+class fMRIPrepDataset(ReferencedDataset):
+    def __init__(self, fmriprep_dir, space=None, additional_tables=None,
+                 ignore=None, labels=('subject',), outcomes=None,
+                 model=None, observations=('subject',),
+                 levels=('session', 'run', 'task')):
+        data_refs = fmriprep_references(
+            fmriprep_dir=fmriprep_dir, space=space,
+            additional_tables=additional_tables, ignore=ignore,
+            labels=labels, outcomes=outcomes, model=model,
+            observations=observations, levels=levels
+        )
+        super(fMRIPrepDataset, self).__init__(data_refs)
+
+    def add_data(self, fmriprep_dir, space=None, additional_tables=None,
+                 ignore=None, labels=('subject',), outcomes=None,
+                 model=None, observations=('subject',),
+                 levels=('session', 'run', 'task')):
+        data_refs = fmriprep_references(
+            fmriprep_dir=fmriprep_dir, space=space,
+            additional_tables=additional_tables, ignore=ignore,
+            labels=labels, outcomes=outcomes, model=model,
+            observations=observations, levels=levels
+        )
+        super(fMRIPrepDataset, self).add_data(data_refs)
 
 
 def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
