@@ -30,14 +30,13 @@ class fMRIDataReference(DataReference):
         subrefs = []
         for idx, _ in self.df.iterrows():
             ids = dict(zip(self.df.index.names, idx))
-            variables = [var.copy() for var in self.variables]
             subrefs += [fMRIDataReference(
                 df=self.df,
                 idx=idx,
                 level_names=None,
-                variables=variables,
-                labels=self.labels,
-                outcomes=self.outcomes
+                variables=self.vfactory,
+                labels=self.lfactory,
+                outcomes=self.ofactory
             )]
         return subrefs
 

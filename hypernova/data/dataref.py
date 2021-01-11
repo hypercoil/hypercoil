@@ -9,22 +9,33 @@ Interfaces between neuroimaging data and data loaders.
 import pandas as pd
 from itertools import product
 from collections import ChainMap
-from .variables import CategoricalVariable, ContinuousVariable
+from .variables import (
+    VariableFactory,
+    CategoricalVariable,
+    ContinuousVariable
+)
 
 
 class DataReference(object):
     def __init__(self, data, idx, level_names=None,
                  variables=None, labels=None, outcomes=None):
         self.df = data.loc(axis=0)[self._cast_loc(idx)]
-        self.variables = variables or []
-        self.labels = labels or []
-        self.outcomes = outcomes or []
+
+        self.vfactory = variables
+        self.lfactory = labels
+        self.ofactory = outcomes
+
+        self.variables = [v() for v in variables] or []
+        self.labels = [l() for l in labels] or []
+        self.outcomes = [o() for o in outcomes] or []
         for var in (self.variables + self.outcomes + self.labels):
             var.assign(self.df)
+
         if level_names:
             self.level_names = [tuple(level_names)]
         else:
             self.level_names = []
+
         self.ids = self.parse_ids(idx)
 
     def _cast_loc(self, loc):
@@ -493,9 +504,9 @@ def process_labels_and_outcomes(df, labels, outcomes):
     """
     ls, os = [], []
     for l in labels:
-        ls += [CategoricalVariable(l, df)]
+        ls += [VariableFactory(CategoricalVariable, name=l, df=df)]
     for o in outcomes:
-        os += [ContinuousVariable(o, df)]
+        os += [VariableFactory(ContinuousVariable, name=o, df=df)]
     return ls, os
 
 
