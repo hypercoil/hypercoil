@@ -10,7 +10,6 @@ import re, json
 import torch
 import pandas as pd
 import nibabel as nb
-from .grabber import LightBIDSObject
 
 
 def to_tensor(data, dtype='torch.FloatTensor'):
@@ -34,8 +33,8 @@ def nanfill(data, fill=None):
     return data
 
 
-def apply_model_specs(data, models):
-    return {m.name: m(data) for m in models}
+def apply_model_specs(models, data, metadata=None):
+    return {m.name: m(data, metadata=metadata) for m in models}
 
 
 def apply_transform(iterable, transform):
@@ -82,15 +81,20 @@ def extend_to_size(tensor, size):
     return out
 
 
+def get_path_from_var(var):
+    try:
+        return str(var.path)
+    except AttributeError:
+        return str(var)
+
+
 def read_data_frame(path, sep='\t', **kwargs):
-    if isinstance(path, LightBIDSObject):
-        path = path.path
+    path = get_path_from_var(path)
     return pd.read_csv(path, sep=sep, **kwargs)
 
 
 def read_neuro_image(path, **kwargs):
-    if isinstance(path, LightBIDSObject):
-        path = path.path
+    path = get_path_from_var(path)
     return nb.load(path, **kwargs).get_fdata()
 
 
@@ -123,3 +127,11 @@ def read_json(path):
     with open(path) as file:
         metadata = json.load(file)
     return metadata
+
+
+def dump_data(dataobj):
+    return dataobj.data
+
+
+def get_metadata_variable(dataobj, key):
+    return dataobj.metadata[key]
