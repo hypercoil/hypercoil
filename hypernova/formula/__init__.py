@@ -20,6 +20,3 @@ from .shorthand import (
     Shorthand,
     ShorthandFilter
 )
-from .utils import (
-    load_metadata
-)

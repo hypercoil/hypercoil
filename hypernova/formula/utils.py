@@ -7,27 +7,8 @@ Utilities
 Utility functions for loading and manipulating data before they are ingested
 by a model.
 """
-import re, json
+import re
 import numpy as np
-
-
-def load_metadata(path):
-    """
-    Load JSON-formatted metadata into a python dictionary.
-
-    Parameters
-    ----------
-    path : str
-        Path to the JSON-formatted metadata file.
-
-    Returns
-    -------
-    metadata : dict
-        Python dictionary containing all metadata in the JSON file.
-    """
-    with open(path) as file:
-        metadata = json.load(file)
-    return metadata
 
 
 def diff_nanpad(a, n=1, axis=-1):

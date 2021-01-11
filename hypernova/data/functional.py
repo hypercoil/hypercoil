@@ -6,6 +6,7 @@ Data transform functions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 Functions for transforming various data modalities.
 """
+import re, json
 import torch
 import pandas as pd
 import nibabel as nb
@@ -96,3 +97,29 @@ def read_neuro_image(path, **kwargs):
 def vector_encode(data, encoding, dtype='torch.FloatTensor'):
     idx = torch.Tensor(data).type('torch.LongTensor')
     return encoding[idx].type(dtype)
+
+
+def change_extension(path, new_ext, mode='all'):
+    if mode == 'all':
+        return re.sub(r'(\.)[^\/]*$', f'\\1{new_ext}', path)
+    elif mode == 'last':
+        return re.sub(r'(\.)[^\/\.]*$', f'\\1{new_ext}', path)
+
+
+def read_json(path):
+    """
+    Load JSON-formatted metadata into a python dictionary.
+
+    Parameters
+    ----------
+    path : str
+        Path to the JSON-formatted metadata file.
+
+    Returns
+    -------
+    metadata : dict
+        Python dictionary containing all metadata in the JSON file.
+    """
+    with open(path) as file:
+        metadata = json.load(file)
+    return metadata
