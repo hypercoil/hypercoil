@@ -130,7 +130,7 @@ class TableBlockVariable(DatasetVariable):
             ])),
             UnzipTransformedBlock(),
             ApplyTransform(Compose([
-                BlockTransform(ToTensor()),
+                BlockTransform(ToTensor(dim=2)),
                 ConsolidateBlock()
             ]))
         ])

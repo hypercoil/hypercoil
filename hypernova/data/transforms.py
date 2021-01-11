@@ -42,19 +42,24 @@ class DataObjectTransformWithMetadata(object):
 
 
 class ToTensor(object):
-    def __init__(self, dtype='torch.FloatTensor'):
+    def __init__(self, dtype='torch.FloatTensor', dim='auto'):
+        self.dim = dim
         self.dtype = dtype
 
     def __call__(self, data):
-        return F.to_tensor(data, dtype=self.dtype)
+        tensor = F.to_tensor(data, dtype=self.dtype)
+        if self.dim != 'auto':
+            while tensor.dim() < self.dim:
+                tensor = tensor.unsqueeze(-1)
+        return tensor
 
 
 class ToNamedTensor(ToTensor):
-    def __init__(self, dtype='torch.FloatTensor',
+    def __init__(self, dtype='torch.FloatTensor', dim='auto',
                  names=None, truncate='last'):
         self.all_names = names
         self.truncate = truncate
-        super(ToNamedTensor, self).__init__(dtype)
+        super(ToNamedTensor, self).__init__(dtype, dim)
 
     def __call__(self, data):
         names = self._names(data)
