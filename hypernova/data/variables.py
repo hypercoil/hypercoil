@@ -4,8 +4,9 @@
 """
 Variables
 ~~~~~~~~~
-Dataset variable classes.
+Dataset variable subclasses.
 """
+import re
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from .transforms import (
@@ -28,15 +29,17 @@ class VariableFactory(object):
         self.var = var
         self.params = params
 
+    def __getattr__(self, key):
+        value = self.params.get(key)
+        if value is None:
+            raise AttributeError(f'Invalid attribute: {key}')
+        return value
+
     def __call__(self, **params):
         return self.var(**params, **self.params)
 
 
-class VariableFactoryFactory(object):
-    def __init__(self, var, **params):
-        self.var = var
-        self.params = params
-
+class VariableFactoryFactory(VariableFactory):
     def __call__(self, **params):
         return VariableFactory(self.var, **self.params, **params)
 
@@ -127,23 +130,27 @@ class TableBlockVariable(DatasetVariable):
 
 
 class DataObjectVariable(DatasetVariable):
-    def __init__(self, metadata=None, metadata_finder=None):
+    def __init__(self, name, regex=None, metadata=None,
+                 metadata_global=None,
+                 metadata_local=None):
         super(DataObjectVariable, self).__init__(name)
-        self._metadata = metadata or {}
-        self.metadata_finder = metadata_finder
+        metadata_xfm = metadata_global or IdentityTransform()
+        self.regex = regex
+        self._metadata = metadata_xfm(metadata) or {}
+        self.metadata_local = metadata_local
 
     @property
-    def data():
+    def data(self):
         return self.assignment['data']
 
     @property
-    def metadata():
+    def metadata(self):
         return self.assignment['metadata']
 
     def assign(self, data):
         self.assignment = {'data': data}
-        if self.metadata_finder:
-            metadata = self.metadata_finder(data)
+        if self.metadata_local:
+            metadata = self.metadata_local(data)
             self._metadata.update(metadata)
         self.assignment['metadata'] = self._metadata
 
@@ -152,3 +159,41 @@ class DataObjectVariable(DatasetVariable):
             self.assignment['data'] = data
         if metadata is not None:
             self.assignment['metadata'].update(metadata)
+
+
+class DataPathVariable(DataObjectVariable):
+    def __init__(self, name, regex=None, metadata=None,
+                 metadata_global=None,
+                 metadata_local=None):
+        super(DataPathVariable, self).__init__(
+            name, regex=regex, metadata=metadata,
+            metadata_global=metadata_global,
+            metadata_local=metadata_local)
+        self.attributes = {}
+
+    def assign(self, path):
+        self.pathobj = path
+        self.path = str(path)
+        self.parse_path()
+        super(DataPathVariable, self).assign(self.path)
+
+    def __getattr__(self, key):
+        value = self.attributes.get(key)
+        if value is None:
+            raise AttributeError(f'Invalid attribute: {key}')
+        return value
+
+    def parse_path(self):
+        vals = {k: re.match(v, self.path) for k, v in self.regex.items()}
+        vals = {k: v.groupdict()[k] for k, v in vals.items() if v is not None}
+        for k, v in vals.items():
+            try:
+                self.attributes[k] = int(v)
+            except ValueError:
+                self.attributes[k] = v
+
+    def get(self, key):
+        try:
+            return self.attributes.get(int(key))
+        except ValueError:
+            return self.attributes.get(key)
