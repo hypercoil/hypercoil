@@ -7,7 +7,11 @@ Data interfaces
 from .bids import (
     fmriprep_references,
     LightBIDSObject,
-    LightBIDSLayout
+    LightBIDSLayout,
+    fMRIPrepDataset
+)
+from .dataset import (
+    ReferencedDataset
 )
 from .grabber import (
     LightGrabber
