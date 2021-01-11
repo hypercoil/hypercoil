@@ -59,7 +59,11 @@ class DataReference(object):
         var = self.get_var(key)
         if var is None:
             raise AttributeError(f'Invalid variable: {key}')
-        return var()[var.name]
+        out = var()
+        try:
+            return out[var.name]
+        except KeyError:
+            return out
 
     @property
     def label(self):
