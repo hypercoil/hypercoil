@@ -186,3 +186,16 @@ class ReadJSONX(DataObjectTransform, ReadJSON):
 
 class ChangeExtensionX(DataObjectTransform, ChangeExtension):
     pass
+
+
+class DumpX(object):
+    def __call__(self, data):
+        return F.dump_data(data)
+
+
+class MetadataKeyX(object):
+    def __init__(self, key):
+        self.key = key
+
+    def __call__(self, data):
+        return F.get_metadata_variable(data, self.key)
