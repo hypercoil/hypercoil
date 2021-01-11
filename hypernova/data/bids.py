@@ -12,7 +12,7 @@ from .dataref import data_references, DataQuery
 from .grabber import LightBIDSLayout
 from .neuro import fMRIDataReference
 from .variables import (
-    VariableInitialiser,
+    VariableFactoryFactory,
     NeuroImageBlockVariable,
     TableBlockVariable
 )
@@ -89,7 +89,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     images = DataQuery(
         name='images',
         pattern='func/**/*preproc*.nii.gz',
-        variable=NeuroImageBlockVariable,
+        variable=VariableFactoryFactory(NeuroImageBlockVariable),
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_IMG_DESC,
@@ -98,7 +98,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     confounds = DataQuery(
         name='confounds',
         pattern='func/**/*confounds*.tsv',
-        variable=VariableInitialiser(TableBlockVariable, spec=model),
+        variable=VariableFactoryFactory(TableBlockVariable, spec=model),
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_CONF_DESC,

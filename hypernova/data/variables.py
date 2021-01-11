@@ -23,13 +23,22 @@ def get_col(df, label):
         return df[label]
 
 
-class VariableInitialiser(object):
+class VariableFactory(object):
     def __init__(self, var, **params):
         self.var = var
         self.params = params
 
-    def __call__(self, name, levels=None):
-        return self.var(name=name, levels=levels, **self.params)
+    def __call__(self, **params):
+        return self.var(**params, **self.params)
+
+
+class VariableFactoryFactory(object):
+    def __init__(self, var, **params):
+        self.var = var
+        self.params = params
+
+    def __call__(self, **params):
+        return VariableFactory(self.var, **self.params, **params)
 
 
 class DatasetVariable(ABC):
@@ -95,7 +104,7 @@ class NeuroImageBlockVariable(DatasetVariable):
 
 
 class TableBlockVariable(DatasetVariable):
-    def __init__(self, name, spec=None, levels=None):
+    def __init__(self, name, levels=None, spec=None):
         super(TableBlockVariable, self).__init__(name)
         self.transform = Compose([
             BlockTransform(Compose([

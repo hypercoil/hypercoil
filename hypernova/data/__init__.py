@@ -16,7 +16,7 @@ from .neuro import (
     fMRIDataReference
 )
 from .variables import (
-    VariableInitialiser,
+    VariableFactory,
     CategoricalVariable,
     ContinuousVariable,
     NeuroImageBlockVariable,
