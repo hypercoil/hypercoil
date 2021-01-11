@@ -7,19 +7,7 @@ Neuroimaging data transforms
 Dataset transformations for packaging neuroimaging data into Pytorch tensors.
 """
 import torch
-from .functional import (
-    to_tensor,
-    to_named_tensor,
-    nanfill,
-    apply_model_specs,
-    apply_transform,
-    transform_block,
-    unzip_blocked_dict,
-    consolidate_block,
-    read_data_frame,
-    read_neuro_image,
-    vector_encode
-)
+from . import functional as F
 
 
 class Compose(object):
@@ -42,7 +30,7 @@ class ToTensor(object):
         self.dtype = dtype
 
     def __call__(self, data):
-        return to_tensor(data, dtype=self.dtype)
+        return F.to_tensor(data, dtype=self.dtype)
 
 
 class ToNamedTensor(ToTensor):
@@ -54,7 +42,7 @@ class ToNamedTensor(ToTensor):
 
     def __call__(self, data):
         names = self._names(data)
-        return to_named_tensor(data, dtype=dtype, names=names)
+        return F.to_named_tensor(data, dtype=dtype, names=names)
 
     def _names(self, data):
         check = torch.Tensor(data)
@@ -69,7 +57,7 @@ class NaNFill(object):
         self.fill = fill
 
     def __call__(self, data):
-        return nanfill(data, fill=self.fill)
+        return F.nanfill(data, fill=self.fill)
 
 
 class ApplyModelSpecs(object):
@@ -77,7 +65,7 @@ class ApplyModelSpecs(object):
         self.models = models
 
     def __call__(self, data):
-        return apply_model_specs(data, models=self.models)
+        return F.apply_model_specs(data, models=self.models)
 
 
 class ApplyTransform(object):
@@ -85,7 +73,7 @@ class ApplyTransform(object):
         self.transform = transform
 
     def __call__(self, iterable):
-        return apply_transform(iterable, transform=self.transform)
+        return F.apply_transform(iterable, transform=self.transform)
 
 
 class BlockTransform(object):
@@ -93,7 +81,7 @@ class BlockTransform(object):
         self.transform = transform
 
     def __call__(self, block):
-        return transform_block(block, transform=self.transform)
+        return F.transform_block(block, transform=self.transform)
 
 
 class UnzipTransformedBlock(object):
@@ -102,12 +90,12 @@ class UnzipTransformedBlock(object):
         self.cur_depth = 0
 
     def __call__(self, block):
-        return unzip_blocked_dict(block)
+        return F.unzip_blocked_dict(block)
 
 
 class ConsolidateBlock(object):
     def __call__(self, block):
-        return consolidate_block(block)
+        return F.consolidate_block(block)
 
 
 class ReadDataFrame(object):
@@ -116,7 +104,7 @@ class ReadDataFrame(object):
         self.kwargs = kwargs
 
     def __call__(self, path):
-        return read_data_frame(path, sep=self.sep, **self.kwargs)
+        return F.read_data_frame(path, sep=self.sep, **self.kwargs)
 
 
 class ReadNeuroImage(object):
@@ -124,7 +112,7 @@ class ReadNeuroImage(object):
         self.kwargs = kwargs
 
     def __call__(self, path):
-        return read_neuro_image(path, **self.kwargs)
+        return F.read_neuro_image(path, **self.kwargs)
 
 
 class EncodeOneHot(object):
@@ -134,4 +122,9 @@ class EncodeOneHot(object):
         self.patterns = torch.eye(self.n_levels)
 
     def __call__(self, data):
-        return vector_encode(data, encoding=self.patterns, dtype=self.dtype)
+        return F.vector_encode(data, encoding=self.patterns, dtype=self.dtype)
+
+
+class ReadJSON(object):
+    def __call__(self, path):
+        return F.read_json(path)

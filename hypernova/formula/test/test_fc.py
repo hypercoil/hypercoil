@@ -23,7 +23,7 @@ class TestModelSpec:
     def setup_class(self):
         self.confpath = self.path_from_examples('confdata')
         self.metapath = self.path_from_examples('confmeta')
-        self.metadata = hypernova.formula.load_metadata(self.metapath)
+        self.metadata = hypernova.data.functional.read_json(self.metapath)
         self.shfc = hypernova.formula.fc.FCShorthand()
         self.df = pd.read_csv(self.confpath, sep='\t')
 

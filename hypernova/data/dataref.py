@@ -497,17 +497,16 @@ def process_labels_and_outcomes(df, labels, outcomes):
     Returns
     -------
     labels : list(CategoricalVariable)
-        List of CategoricalVariable objects corresponding to each input label.
+        List of CategoricalVariable factories corresponding to each input
+        label.
     outcomes : list(ContinuousVariable)
-        List of ContinuousVariable objects corresponding to each input
+        List of ContinuousVariable factories corresponding to each input
         outcome.
     """
-    ls, os = [], []
-    for l in labels:
-        ls += [VariableFactory(CategoricalVariable, name=l, df=df)]
-    for o in outcomes:
-        os += [VariableFactory(ContinuousVariable, name=o, df=df)]
-    return ls, os
+    return (
+        [VariableFactory(CategoricalVariable, name=l, df=df) for l in labels],
+        [VariableFactory(ContinuousVariable, name=o, df=df) for o in outcomes]
+    )
 
 
 def process_variables(levels, queries):
