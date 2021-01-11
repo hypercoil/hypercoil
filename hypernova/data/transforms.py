@@ -2,9 +2,9 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Neuroimaging data transforms
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Dataset transformations for packaging neuroimaging data into Pytorch tensors.
+Data transforms
+~~~~~~~~~~~~~~~
+Dataset transformations for packaging data into Pytorch tensors.
 """
 import torch
 from . import functional as F
@@ -22,6 +22,22 @@ class Compose(object):
 
 class IdentityTransform(object):
     def __call__(self, data):
+        return data
+
+
+class DataObjectTransform(object):
+    def __call__(self, data):
+        data.update(
+            data=super().__call__(data.data)
+        )
+        return data
+
+
+class DataObjectTransformWithMetadata(object):
+    def __call__(self, data):
+        data.update(
+            data=super().__call__(data.data, metadata=data.metadata)
+        )
         return data
 
 
@@ -64,8 +80,9 @@ class ApplyModelSpecs(object):
     def __init__(self, models):
         self.models = models
 
-    def __call__(self, data):
-        return F.apply_model_specs(data, models=self.models)
+    def __call__(self, data, metadata=None):
+        return F.apply_model_specs(
+            models=self.models, data=data, metadata=metadata)
 
 
 class ApplyTransform(object):
@@ -137,3 +154,35 @@ class ChangeExtension(object):
 
     def __call__(self, path):
         return F.change_extension(path, new_ext=self.new_ext, mode=self.mode)
+
+
+class ToTensorX(DataObjectTransform, ToTensor):
+    pass
+
+
+class ToNamedTensorX(DataObjectTransform, ToNamedTensor):
+    pass
+
+
+class NaNFillX(DataObjectTransform, NaNFill):
+    pass
+
+
+class ApplyModelSpecsX(DataObjectTransformWithMetadata, ApplyModelSpecs):
+    pass
+
+
+class ReadDataFrameX(DataObjectTransform, ReadDataFrame):
+    pass
+
+
+class ReadNeuroImageX(DataObjectTransform, ReadNeuroImage):
+    pass
+
+
+class ReadJSONX(DataObjectTransform, ReadJSON):
+    pass
+
+
+class ChangeExtensionX(DataObjectTransform, ChangeExtension):
+    pass
