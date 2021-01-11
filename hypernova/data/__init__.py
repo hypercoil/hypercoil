@@ -5,12 +5,12 @@
 Data interfaces
 """
 from .bids import (
-    fmriprep_references
+    fmriprep_references,
+    LightBIDSObject,
+    LightBIDSLayout
 )
 from .grabber import (
-    LightBIDSObject,
-    LightGrabber,
-    LightBIDSLayout
+    LightGrabber
 )
 from .neuro import (
     fMRIDataReference
@@ -20,5 +20,7 @@ from .variables import (
     CategoricalVariable,
     ContinuousVariable,
     NeuroImageBlockVariable,
-    TableBlockVariable
+    TableBlockVariable,
+    DataObjectVariable,
+    DataPathVariable
 )

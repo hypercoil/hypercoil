@@ -9,12 +9,19 @@ Interfaces for loading BIDS-conformant neuroimaging data.
 # import bids
 from ..formula import ModelSpec, FCConfoundModelSpec
 from .dataref import data_references, DataQuery
-from .grabber import LightBIDSLayout
+from .grabber import LightGrabber
 from .neuro import fMRIDataReference
+from .transforms import (
+    Compose,
+    ChangeExtension,
+    ReadJSON
+)
 from .variables import (
+    VariableFactory,
     VariableFactoryFactory,
     NeuroImageBlockVariable,
-    TableBlockVariable
+    TableBlockVariable,
+    DataPathVariable
 )
 
 
@@ -28,6 +35,48 @@ BIDS_IMG_EXT = '.nii.gz'
 BIDS_CONF_DESC = 'confounds'
 BIDS_CONF_SUFFIX = 'timeseries'
 BIDS_CONF_EXT = '.tsv'
+
+
+bids_regex = {
+    'datatype': '.*/(?P<datatype>[^/]*)/[^/]*',
+    'subject': '.*/[^/]*sub-(?P<subject>[^_]*)[^/]*',
+    'session': '.*/[^/]*ses-(?P<subject>[^_]*)[^/]*',
+    'run': '.*/[^/]*run-(?P<run>[^_]*)[^/]*',
+    'task': '.*/[^/]*task-(?P<task>[^_]*)[^/]*',
+    'space': '.*/[^/]*space-(?P<space>[^_]*)[^/]*',
+    'desc': '.*/[^/]*desc-(?P<desc>[^_]*)[^/]*',
+    'suffix': '.*/[^/]*_(?P<suffix>[^/_\.]*)\..*',
+    'extension': '.*/[^/\.]*(?P<extension>\..*)$'
+}
+
+
+class BIDSObjectFactory(VariableFactory):
+    def __init__(self):
+        super(BIDSObjectFactory, self).__init__(
+            var=LightBIDSObject,
+            regex=bids_regex,
+            metadata_local=Compose([
+                ChangeExtension(new_ext='json'),
+                ReadJSON()])
+        )
+
+
+class LightBIDSObject(DataPathVariable):
+    def __repr__(self):
+        return (
+            f'LightBIDSObject({self.pathobj.name}, '
+            f'dtype={self.datatype})'
+        )
+
+
+class LightBIDSLayout(LightGrabber):
+    def __init__(self, root, patterns=None, queries=None):
+        super(LightBIDSLayout, self).__init__(
+            root=root,
+            patterns=patterns,
+            queries=queries,
+            template=BIDSObjectFactory()
+        )
 
 
 def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
