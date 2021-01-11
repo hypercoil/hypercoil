@@ -55,12 +55,16 @@ class DatasetVariable(ABC):
         return deepcopy(self)
 
     def __call__(self):
-        return {self.name: self.transform(self.assignment)}
+        value = self.transform(self.assignment)
+        if isinstance(value, dict):
+            return value
+        return {self.name: value}
 
     def __repr__(self):
         s = f'{self.name}={type(self).__name__}('
         s += f'assigned={self.assignment is not None}, '
-        s += f'transform={type(self.transform).__name__}'
+        if not isinstance(self.transform, IdentityTransform):
+            s += f'transform={type(self.transform).__name__}'
         s += ')'
         return s
 
@@ -120,3 +124,31 @@ class TableBlockVariable(DatasetVariable):
 
     def assign(self, df):
         self.assignment = get_col(df, self.name).values.tolist()
+
+
+class DataObjectVariable(DatasetVariable):
+    def __init__(self, metadata=None, metadata_finder=None):
+        super(DataObjectVariable, self).__init__(name)
+        self._metadata = metadata or {}
+        self.metadata_finder = metadata_finder
+
+    @property
+    def data():
+        return self.assignment['data']
+
+    @property
+    def metadata():
+        return self.assignment['metadata']
+
+    def assign(self, data):
+        self.assignment = {'data': data}
+        if self.metadata_finder:
+            metadata = self.metadata_finder(data)
+            self._metadata.update(metadata)
+        self.assignment['metadata'] = self._metadata
+
+    def update(self, data=None, metadata=None):
+        if data is not None:
+            self.assignment['data'] = data
+        if metadata is not None:
+            self.assignment['metadata'].update(metadata)

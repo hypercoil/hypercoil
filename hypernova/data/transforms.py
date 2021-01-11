@@ -128,3 +128,12 @@ class EncodeOneHot(object):
 class ReadJSON(object):
     def __call__(self, path):
         return F.read_json(path)
+
+
+class ChangeExtension(object):
+    def __init__(self, new_ext, mode='all'):
+        self.new_ext = new_ext
+        self.mode = mode
+
+    def __call__(self, path):
+        return F.change_extension(path, new_ext=self.new_ext, mode=self.mode)
