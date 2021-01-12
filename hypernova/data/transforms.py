@@ -9,7 +9,11 @@ Dataset transformations for loading data and packaging into Pytorch tensors.
 Transformations that operate on DataObjectVariables are denoted with final ~X.
 """
 import torch
+from textwrap import indent
 from . import functional as F
+
+
+INDENT = '    '
 
 
 class Compose(object):
@@ -35,6 +39,16 @@ class Compose(object):
             data = t(data)
         return data
 
+    def __repr__(self):
+        s = f'{type(self).__name__}('
+        for t in self.transforms:
+            try:
+                s += indent(f'\n{t}', INDENT)
+            except TypeError:
+                s += indent(f'\n{type(t).__name__}()', INDENT)
+        s += '\n)'
+        return s
+
 
 class IdentityTransform(object):
     """
@@ -42,6 +56,9 @@ class IdentityTransform(object):
     """
     def __call__(self, data):
         return data
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
 
 
 class DataObjectTransform(object):
@@ -90,6 +107,9 @@ class ToTensor(object):
     def __call__(self, data):
         return F.to_tensor(data, dtype=self.dtype, dim=self.dim)
 
+    def __repr__(self):
+        return f'{type(self).__name__}(dtype={self.dtype}, dim={self.dim})'
+
 
 class ToNamedTensor(ToTensor):
     """
@@ -117,16 +137,19 @@ class ToNamedTensor(ToTensor):
         self.truncate = truncate
         super(ToNamedTensor, self).__init__(dtype, dim)
 
-    def __call__(self, data):
-        names = self._names(data)
-        return F.to_named_tensor(data, dtype=dtype, names=names)
-
     def _names(self, data):
         check = torch.Tensor(data)
         if self.truncate == 'last':
             return self.all_names[:check.dim()]
         elif self.truncate == 'first':
             return self.all_names[-check.dim():]
+
+    def __call__(self, data):
+        names = self._names(data)
+        return F.to_named_tensor(data, dtype=dtype, names=names)
+
+    def __repr__(self):
+        return f'{type(self).__name__}(dtype={self.dtype}, dim={self.dim})'
 
 
 class NaNFill(object):
@@ -145,6 +168,9 @@ class NaNFill(object):
 
     def __call__(self, data):
         return F.nanfill(data, fill=self.fill)
+
+    def __repr__(self):
+        return f'{type(self).__name__}(fill={self.fill})'
 
 
 class ApplyModelSpecs(object):
@@ -170,6 +196,15 @@ class ApplyModelSpecs(object):
         return F.apply_model_specs(
             models=self.models, data=data, metadata=metadata)
 
+    def __repr__(self):
+        s = f'{type(self).__name__}(models=['
+        for m in self.models:
+            s += indent(f'\n{m}', INDENT)
+        if self.models:
+            s += '\n'
+        s += '])'
+        return s
+
 
 class ApplyTransform(object):
     """
@@ -191,6 +226,9 @@ class ApplyTransform(object):
     def __call__(self, iterable):
         return F.apply_transform(iterable, transform=self.transform)
 
+    def __repr__(self):
+        return f'{type(self).__name__}(transform={self.transform})'
+
 
 class BlockTransform(object):
     """
@@ -208,6 +246,9 @@ class BlockTransform(object):
     def __call__(self, block):
         return F.transform_block(block, transform=self.transform)
 
+    def __repr__(self):
+        return f'{type(self).__name__}(transform={self.transform})'
+
 
 class UnzipTransformedBlock(object):
     """
@@ -220,6 +261,9 @@ class UnzipTransformedBlock(object):
     def __call__(self, block):
         return F.unzip_blocked_dict(block)
 
+    def __repr__(self):
+        return f'{type(self).__name__}()'
+
 
 class ConsolidateBlock(object):
     """
@@ -229,6 +273,9 @@ class ConsolidateBlock(object):
     """
     def __call__(self, block):
         return F.consolidate_block(block)
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
 
 
 class ReadDataFrame(object):
@@ -243,6 +290,9 @@ class ReadDataFrame(object):
     def __call__(self, path):
         return F.read_data_frame(path, sep=self.sep, **self.kwargs)
 
+    def __repr__(self):
+        return f'{type(self).__name__}()'
+
 
 class ReadNeuroImage(object):
     """
@@ -254,6 +304,9 @@ class ReadNeuroImage(object):
 
     def __call__(self, path):
         return F.read_neuro_image(path, **self.kwargs)
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
 
 
 class EncodeOneHot(object):
@@ -280,6 +333,9 @@ class EncodeOneHot(object):
     def __call__(self, data):
         return F.vector_encode(data, encoding=self.patterns, dtype=self.dtype)
 
+    def __repr__(self):
+        return f'{type(self).__name__}(n_levels={self.n_levels})'
+
 
 class ReadJSON(object):
     """
@@ -287,6 +343,9 @@ class ReadJSON(object):
     """
     def __call__(self, path):
         return F.read_json(path)
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
 
 
 class ChangeExtension(object):
@@ -309,6 +368,9 @@ class ChangeExtension(object):
 
     def __call__(self, path):
         return F.change_extension(path, new_ext=self.new_ext, mode=self.mode)
+
+    def __repr__(self):
+        return f'{type(self).__name__}(new_ext={self.new_ext})'
 
 
 class ToTensorX(DataObjectTransform, ToTensor):
@@ -365,7 +427,6 @@ class ChangeExtensionX(DataObjectTransform, ChangeExtension):
     `ChangeExtension` transformation applied to the assigned data of a
     DataObjectVariable. Consult `ChangeExtension` for additional details.
     """
-    pass
 
 
 class DumpX(object):
@@ -377,6 +438,9 @@ class DumpX(object):
     """
     def __call__(self, data):
         return F.dump_data(data)
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
 
 
 class MetadataKeyX(object):
@@ -393,3 +457,6 @@ class MetadataKeyX(object):
 
     def __call__(self, data):
         return F.get_metadata_variable(data, self.key)
+
+    def __repr__(self):
+        return f'{type(self).__name__}({self.key})'
