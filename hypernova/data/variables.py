@@ -104,7 +104,7 @@ class ContinuousVariable(DatasetVariable):
 
 
 class NeuroImageBlockVariable(DatasetVariable):
-    def __init__(self, name, levels=None):
+    def __init__(self, name):
         super(NeuroImageBlockVariable, self).__init__(name)
         self.transform = Compose([
             BlockTransform(Compose([
@@ -120,7 +120,7 @@ class NeuroImageBlockVariable(DatasetVariable):
 
 
 class TableBlockVariable(DatasetVariable):
-    def __init__(self, name, levels=None, spec=None):
+    def __init__(self, name, spec=None):
         super(TableBlockVariable, self).__init__(name)
         self.transform = Compose([
             BlockTransform(Compose([

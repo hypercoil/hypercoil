@@ -17,17 +17,98 @@ from .variables import (
 
 
 class DataReference(object):
-    def __init__(self, data, idx, level_names=None,
+    """
+    A reference to a single observation of multivariate data, or to a single
+    level of observations of multivariate data.
+
+    If this is a reference to a level of observations, those observations (or
+    sub-levels of observations) can be further packaged recursively into
+    DataReference objects and assigned to the `subrefs` field. This enables a
+    parent DataLoader to traverse the dataset at any depth. See
+    `fMRIDataReference` for an example implementation of this and other
+    functionality.
+
+    Parameters
+    ----------
+    data : DataFrame
+        DataFrame containing all assignments to the variables of the
+        `DataReference`. The name of each variable provided as an argument to
+        `DataReference` should be present as a column name in this DataFrame.
+    idx : tuple or None
+        Index names corresponding to the observation(s) to be included in this
+        DataReference from the provided DataFrame. If this is None, then it is
+        assumed that all observations in the provided DataFrame are to be
+        included.
+    level_names : iterable
+        Names of any observation levels packaged together into this
+        `DataReference`. Each entry should also be an index column name in
+        `data`; furthermore, each index column whose corresponding `idx` entry
+        is a slice should be included here. In the future, this might be
+        computed automatically.
+    variables : list(VariableFactory)
+        List of VariableFactory objects that, when called, produce a variable
+        of each type in the `DataReference`. The use of factories rather than
+        the variables themselves enables them to be passed recursively to any
+        subreferences with ease and without overwriting the parent variable at
+        assignment.
+    labels : list(VariableFactory)
+        List of VariableFactory objects that, when called, produce a
+        CategoricalVariable object for each categorical outcome variable in
+        the `DataReference.` The use of factories rather than the variables
+        themselves enables them to be passed recursively to any subreferences
+        with ease and without overwriting the parent variable at assignment.
+    outcomes : list(VariableFactory)
+        List of VariableFactory objects that, when called, produce a
+        ContinuousVariable object for each continuous outcome variable in the
+        `DataReference.` The use of factories rather than the variables
+        themselves enables them to be passed recursively to any subreferences
+        with ease and without overwriting the parent variable at assignment.
+
+    Attributes
+    ----------
+    vfactory : list(VariableFactory)
+        The factories passed to the `variables` argument at initialisation.
+    lfactory : list(VariableFactory)
+        The factories passed to the `labels` argument at initialisation.
+    ofactory : list(VariableFactory)
+        The factories passed to the `outcomes` argument at initialisation.
+    variables : list(DatasetVariable)
+        List of variable objects produced from calls to the factories
+        provided at initialisation and assigned the corresponding fields of
+        the input DataFrame. If the references were produced from a call to
+        `data_references` or a parent method, then each variable thus produced
+        will result from a query to the dataset filesystem directory layout.
+    labels : list(DatasetVariable)
+        List of CategoricalVariable objects produced from calls to factories
+        provided at initialisation and assigned the corresponding fields of
+        the input DataFrame. Each corresponds to a specified categorical
+        outcome variable.
+    outcomes : list(DatasetVariable)
+        List of ContinuousVariable objects produced from calls to factories
+        provided at initialisation and assigned the corresponding fields of
+        the input DataFrame. Each corresponds to a specified continuous
+        outcome variable.
+    ids : dict
+        Dictionary of identifiers for the current data reference.
+
+    Any variable name or identifier can additionally be accessed as an
+    attribute of DataReference. This will return the assigned value of the
+    fully transformed variable.
+    """
+    def __init__(self, data, idx=None, level_names=None,
                  variables=None, labels=None, outcomes=None):
-        self.df = data.loc(axis=0)[self._cast_loc(idx)]
+        if idx is None:
+            self.df = data
+        else:
+            self.df = data.loc(axis=0)[self._cast_loc(idx)]
 
         self.vfactory = variables
         self.lfactory = labels
         self.ofactory = outcomes
 
-        self.variables = [v() for v in variables] or []
-        self.labels = [l() for l in labels] or []
-        self.outcomes = [o() for o in outcomes] or []
+        self.variables = [v() for v in variables]
+        self.labels = [l() for l in labels]
+        self.outcomes = [o() for o in outcomes]
         for var in (self.variables + self.outcomes + self.labels):
             var.assign(self.df)
 
@@ -39,23 +120,55 @@ class DataReference(object):
         self.ids = self.parse_ids(idx)
 
     def _cast_loc(self, loc):
+        """
+        Cast a slicing index (argument to `loc`) to a type that will guarantee
+        the output of the `loc` call is a DataFrame (rather than e.g., a
+        Series). This operation assumes that every entry in the argument is
+        either hashable or a slice; if no entries are slices, the argument is
+        is nested in a list.
+        """
         if any([isinstance(l, slice) for l in loc]):
             return tuple(loc)
         else:
             return [tuple(loc)]
 
-    def parse_ids(self, idx):
+    def parse_ids(self, values):
+        """
+        Populate the values of any identifier variables of the DataReference.
+
+        Parameters
+        ----------
+        values : list
+            List of values of identifier variables, ordered identically to the
+            variables in the DataReference index.
+
+        Returns
+        -------
+        ids : dict
+            Dictionary mapping identifier variable names to the values they
+            are assigned for this DataReference.
+        """
         ids = {}
-        for entity, value in zip(self.df.index.names, idx):
+        for name, value in zip(self.df.index.names, values):
             if not isinstance(value, slice):
-                ids[entity] = value
+                ids[name] = value
         return ids
 
     def get_var(self, name):
+        """
+        Get the variable with the specified name.
+        """
         for var in (self.variables + self.outcomes + self.labels):
             if var.name == name: return var
 
     def __getattr__(self, key):
+        """
+        If a requested attribute is not present in the object, see if there is
+        a variable by that name. If so, return the fully transformed
+        assignment to that variable. If the variable's assignment is a
+        dictionary with multiple values, then return the entire dictionary;
+        otherwise, return only the requested value.
+        """
         var = self.get_var(key)
         if var is None:
             raise AttributeError(f'Invalid variable: {key}')
@@ -67,36 +180,118 @@ class DataReference(object):
 
     @property
     def label(self):
+        """
+        Fully transformed assignments to all categorical outcome variables.
+
+        Assignments are returned as a dictionary of key-value pairs specifying
+        the name of each variable and its fully transformed assignment.
+        """
         asgt = [var() for var in self.labels]
         return dict(ChainMap(*asgt))
 
     @property
     def outcome(self):
+        """
+        Fully transformed assignments to all continuous outcome variables.
+
+        Assignments are returned as a dictionary of key-value pairs specifying
+        the name of each variable and its fully transformed assignment.
+        """
         asgt = [var() for var in self.outcomes]
         return dict(ChainMap(*asgt))
 
     @property
     def data(self):
+        """
+        Fully transformed assignments to all data variables obtained via
+        direct query of the parent dataset.
+
+        Assignments are returned as a dictionary of key-value pairs specifying
+        the name of each variable and its fully transformed assignment.
+        """
         asgt = [var() for var in self.variables]
         return dict(ChainMap(*asgt))
 
     def __call__(self):
+        """
+        Obtain the fully transformed assignments to all variables of the
+        DataReference.
+
+        Assignments are returned as a dictionary of key-value pairs specifying
+        the name of each variable and its fully transformed assignment.
+        """
         asgt = [v() for v in (self.variables + self.outcomes + self.labels)]
         return dict(ChainMap(*asgt))
 
 
 class DataQuery(object):
+    """
+    A query to a layout or grabber object representation of a filesystem
+    directory containing a dataset.
+
+    Parameters/Attributes
+    ---------------------
+    name : str
+        Name of the data object returned by the query.
+    pattern : str or None
+        Pattern within the search directory that all query results should
+        conform to. If this is provided for all queries, then all subsequent
+        searches will be substantially narrowed and accelerated.
+    variable : VariableFactoryFactory
+        A VariableFactoryFactory object whose child factory produces a
+        DatasetVariable of a type suitable for storing the paths returned
+        by the query.
+    transform : transform object or None
+        Currently this does nothing. Eventually it should override the
+        variable's default transform. For now, just write a new variable
+        class if the existing ones don't have suitable transforms.
+    filters : dict
+        Additional keyword arguments to the query are used to filter the
+        dataset to return only those data objects matching the query.
+    """
     def __init__(self, name='data', pattern=None, variable=None,
-                 transform=None, metadata=None, **filters):
+                 transform=None, **filters):
         self.name = name
         self.pattern = pattern
         self.variable = variable
         self.transform = transform
-        self.metadata = metadata
         self.filters = filters
 
-    def __call__(self, layout, **filters):
-        return layout.get(**self.filters, **filters)
+    def __call__(self, layout, **params):
+        """
+        Parameters
+        ----------
+        layout : object
+            Object representing a filesystem directory containing a dataset.
+            It must implement a `get` method that returns all directory
+            entries that match a set of filters.
+        params : dict
+            Additional keyword arguments to the query: these are combined with
+            the filters provided at initialisation to form a query. If there is
+            a name collision, then filters provided at `__call__` take
+            precedence.
+
+        Returns
+        -------
+        result : list(DatasetVariable)
+            List of data objects in the layout matching the query.
+        """
+        filters = {}
+        filters.update(self.filters)
+        filters.update(params)
+        return layout.get(**filters)
+
+    def variable_factory(self):
+        """
+        Return the variable factory with the specified identifier levels
+        assigned.
+        """
+        var = self.variable(name=self.name)
+        #TODO: This doesn't work unless we have variable factories forward
+        # transforms.
+        #if self.transform is not None:
+        #    var.transform = self.transform
+        return var
 
 
 def data_references(data_dir, layout, reference, labels, outcomes,
@@ -116,17 +311,17 @@ def data_references(data_dir, layout, reference, labels, outcomes,
                        dataset
         - `get`: queries the dataset for matching entities
     reference : DataReference class
-        Class of DataReference to use.
+        Class or subclass of `DataReference` to produce as output.
     labels : tuple or None (default ('subject',))
-        List of categorical outcome variables to include in data references.
+        Names of categorical outcome variables to include in data references.
         These variables can be taken either from data identifiers or from
         additional tables. Labels become available as prediction targets for
-        classification models. By default, the subject identifier is included.
+        classification models.
     outcomes : tuple or None (default None)
-        List of continuous outcome variables to include in data references.
+        Names of continuous outcome variables to include in data references.
         These variables can be taken either from data identifiers or from
-        additional tables. Labels become available as prediction targets for
-        regression models. By default, the subject identifier is included.
+        additional tables. Outcomes become available as prediction targets for
+        regression models.
     observations : tuple (default ('subject',))
         List of data identifiers whose levels are packaged into separate data
         references. Each level should generally have the same values of any
@@ -147,8 +342,8 @@ def data_references(data_dir, layout, reference, labels, outcomes,
     ignore : dict(str: list) or None (default None)
         Dictionary indicating identifiers to be ignored. Currently this
         doesn't support any logical composition and takes logical OR over all
-        ignore specifications. In other words, data will be ignored if they
-        satisfy any of the ignore criteria.
+        ignore specifications. In other words, data will be ignored so long as
+        they satisfy any of the ignore criteria.
 
     Returns
     -------
@@ -178,7 +373,7 @@ def data_references(data_dir, layout, reference, labels, outcomes,
     df = delete_null_obs(df, observations, levels)
     obs = all_observations(df.index, observations, levels)
     labels, outcomes = process_labels_and_outcomes(df, labels, outcomes)
-    variables = process_variables(levels, queries)
+    variables = process_variables(queries)
     data_refs = make_references(reference, df, obs, levels,
                                 variables, labels, outcomes)
     return data_refs
@@ -500,11 +695,11 @@ def process_labels_and_outcomes(df, labels, outcomes):
 
     Returns
     -------
-    labels : list(CategoricalVariable)
-        List of CategoricalVariable factories corresponding to each input
+    labels : list(VariableFactory)
+        List of CategoricalVariable factories corresponding to each provided
         label.
-    outcomes : list(ContinuousVariable)
-        List of ContinuousVariable factories corresponding to each input
+    outcomes : list(VariableFactory)
+        List of ContinuousVariable factories corresponding to each provided
         outcome.
     """
     return (
@@ -513,14 +708,25 @@ def process_labels_and_outcomes(df, labels, outcomes):
     )
 
 
-def process_variables(levels, queries):
-    variables = []
+def process_variables(queries):
+    """
+    Prepare a variable factory for each query.
+
+    Parameters
+    ----------
+    queries : list(DatasetQuery)
+        List of queries.
+
+    Returns
+    -------
+    factories : list(VariableFactory)
+        List of variable factories corresponding to each provided query.
+    """
+    factories = []
     for q in queries:
-        var = q.variable(name=q.name, levels=levels)
-        if q.transform is not None:
-            var.transform = q.transform
-        variables += [var]
-    return variables
+        var = q.variable_factory()
+        factories += [var]
+    return factories
 
 
 def make_references(reference, df, obs, levels, variables, labels, outcomes):
@@ -539,10 +745,12 @@ def make_references(reference, df, obs, levels, variables, labels, outcomes):
     levels : list
         List of identifiers that distinguish separate measures of each
         observation in the dataset.
-    labels : list(CategoricalVariable)
-        List of objects representing each categorical outcome variable.
-    outcomes : list(ContinuousVariable)
-        List of objects representing each continuous outcome variable.
+    variables : list(VariableFactory)
+        List of factories for each query variable.
+    labels : list(VariableFactory)
+        List of factories for each categorical outcome variable.
+    outcomes : list(VariableFactory)
+        List of factories for each continuous outcome variable.
 
     Returns
     -------
