@@ -47,11 +47,7 @@ class ToTensor(object):
         self.dtype = dtype
 
     def __call__(self, data):
-        tensor = F.to_tensor(data, dtype=self.dtype)
-        if self.dim != 'auto':
-            while tensor.dim() < self.dim:
-                tensor = tensor.unsqueeze(-1)
-        return tensor
+        return F.to_tensor(data, dtype=self.dtype, dim=self.dim)
 
 
 class ToNamedTensor(ToTensor):
