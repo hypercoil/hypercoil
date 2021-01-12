@@ -7,7 +7,9 @@ Referenced datasets
 Dataset objects composed of DataReference subclasses.
 """
 from itertools import chain
+from functools import partial
 from torch.utils.data import Dataset, DataLoader
+from .collate import gen_collate, extend_and_bind
 
 
 class ReferencedDataset(Dataset):
@@ -51,3 +53,16 @@ class ReferencedDataset(Dataset):
 
     def __repr__(self):
         return f'{type(self).__name__}(n={len(self)}, depth={self.depth})'
+
+
+class ReferencedDataLoader(DataLoader):
+    def __init__(self, dataset, **kwargs):
+        kwargs=kwargs
+        collate_fn = kwargs.get('collate_fn')
+        if not collate_fn:
+            kwargs['collate_fn'] = partial(
+                gen_collate,
+                concat=extend_and_bind,
+                concat_axis=0
+            )
+        super(ReferencedDataLoader, self).__init__(dataset, **kwargs)
