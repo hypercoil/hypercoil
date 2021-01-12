@@ -60,16 +60,16 @@ def consolidate_block(block):
     if isinstance(block, torch.Tensor):
         return block
     elif isinstance(block[0], torch.Tensor):
-        out = extend_and_conform(block)
+        out = extend_to_max_size(block)
     else:
-        out = extend_and_conform([consolidate_block(e) for e in block])
+        out = extend_to_max_size([consolidate_block(e) for e in block])
     return torch.stack(out)
 
 
-def extend_and_conform(tensor_list):
+def extend_to_max_size(tensor_list):
     sizes = [t.size() for t in tensor_list]
-    out_size = torch.amax(torch.Tensor(sizes), 0).int()
-    return [extend_to_size(t, out_size) for t in tensor_list]
+    max_size = torch.amax(torch.Tensor(sizes), 0).int()
+    return [extend_to_size(t, max_size) for t in tensor_list]
 
 
 def extend_to_size(tensor, size):
