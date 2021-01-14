@@ -13,12 +13,30 @@ from .collate import gen_collate, extend_and_bind
 
 
 class ReferencedDataset(Dataset):
+    """
+    A referenced dataset.
+
+    Parameters
+    ----------
+    data_refs : list(DataReference)
+        List of data references to include in the dataset. References can be
+        obtained using a search method like `data_references` or one of its
+        parent functions.
+    depth : int (default 0)
+        Sampling depth of the dataset: if the passed references are nested
+        hierarchically, then each minibatch is sampled from data references
+        at the indicated level. By default, the dataset is sampled from the
+        highest level (no nesting).
+    """
     def __init__(self, data_refs, depth=0):
         self.depth = depth
         self._data_refs = data_refs
         self.data_refs = self._refs_at_depth()
 
     def _refs_at_depth(self):
+        """
+        Return the data references at the specified sampling depth.
+        """
         refs = self._data_refs
         depth = 0
         while depth < self.depth:
@@ -32,6 +50,12 @@ class ReferencedDataset(Dataset):
         return refs
 
     def set_depth(self, depth):
+        """
+        Adjust the dataset's sampling depth. If the dataset has nested
+        references, then the depth corresponds to the level of nesting from
+        which the data are sampled. References from the specified depth are
+        automatically collated into the internal object list.
+        """
         cur_depth = self.depth
         self.depth = depth
         try:
@@ -41,6 +65,14 @@ class ReferencedDataset(Dataset):
             raise
 
     def add_data(self, data_refs):
+        """
+        Append additional data references to the dataset.
+
+        Parameters
+        ----------
+        data_refs : list(DataReference)
+            List of additional references to add.
+        """
         self._data_refs += data_refs
         self.data_refs = self._refs_at_depth()
 
@@ -56,6 +88,9 @@ class ReferencedDataset(Dataset):
 
 
 class ReferencedDataLoader(DataLoader):
+    """
+    Data loader for a ReferencedDataset.
+    """
     def __init__(self, dataset, **kwargs):
         kwargs=kwargs
         collate_fn = kwargs.get('collate_fn')
@@ -66,3 +101,11 @@ class ReferencedDataLoader(DataLoader):
                 concat_axis=0
             )
         super(ReferencedDataLoader, self).__init__(dataset, **kwargs)
+
+    def set_depth(self, depth):
+        """
+        Adjust the dataset's sampling depth. If the dataset has nested
+        references, then the depth corresponds to the level of nesting from
+        which the data are sampled.
+        """
+        self.dataset.set_depth(depth)
