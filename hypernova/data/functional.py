@@ -12,6 +12,16 @@ import pandas as pd
 import nibabel as nb
 
 
+def get_col(df, label):
+    """
+    Obtain the data or index column with the given label from a DataFrame.
+    """
+    try:
+        return df.index.get_level_values(label)
+    except KeyError:
+        return df[label]
+
+
 def to_tensor(data, dtype='torch.FloatTensor', dim='auto'):
     """
     Change the input data into a tensor with the specified type and minimum
