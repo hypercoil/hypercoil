@@ -4,14 +4,41 @@
 """
 Neuroimaging data search
 ~~~~~~~~~~~~~~~~~~~~~~~~
-A lightweight pybids alternative for fMRIPrep-like processed data that isn't as
-particular about leading zeros. It's not very robust and is likely to be a
-temporary solution until pybids is stabilised.
+A lightweight pybids alternative. Not robust; a temporary solution.
 """
 import re, pathlib
 
 
 class LightGrabber(object):
+    """
+    Extremely lightweight grabbit-like system for representation of data
+    organised in a structured way across multiple files.
+
+    A lightweight pybids alternative for fMRIPrep-like processed data that
+    isn't as particular about leading zeros. It's not very robust and is
+    likely to be a temporary solution until pybids is stabilised.
+
+    Parameters
+    ----------
+    root : str
+        Path to the root directory of the dataset on the file system.
+    template : VariableFactory
+        Factory for producing variables to assign each path. Consider using a
+        factory for a subclass of `DataPathVariable` if the data instances
+        have associated metadata.
+    patterns : list(str)
+        String patterns to constrain the scope of the layout. If patterns are
+        provided, then the layout will not include any files that do not match
+        at least one pattern.
+    queries : list(DataQuery)
+        Query objects defining the variables to extract from the dataset via
+        query.
+
+    Attributes
+    ----------
+    refs : List(DatasetVariable)
+        List of the variables produced by the factory provided as `template`.
+    """
     def __init__(self, root, template, patterns=None, queries=None):
         self.refs = []
         self.root = root
@@ -34,9 +61,28 @@ class LightGrabber(object):
                 self.refs += [f_var]
 
     def find_files(self, pattern):
+        """
+        Find files in the dataset directory (and any nested directories) that
+        match a specified pattern.
+        """
         return pathlib.Path(self.root).glob(f'**/{pattern}')
 
     def getall(self, entity):
+        """
+        Find all values that a particular data entity (e.g., an identifier)
+        takes in the dataset files included in the layout.
+
+        Parameters
+        ----------
+        entity : str
+            Name of the entity (e.g., 'subject' or 'run') to enumerate.
+
+        Returns
+        -------
+        list
+            List of all unique values that the specified entity assumes in the
+            dataset.
+        """
         try:
             out = list(set([r.get(entity) for r in self.refs]))
             try:
@@ -50,6 +96,9 @@ class LightGrabber(object):
             return []
 
     def get(self, **filters):
+        """
+        Find dataset objects that match the specified filters.
+        """
         obj = self.refs
         for k, v in filters.items():
             if (self.attr_regex) and (k not in self.attr_regex.keys()):
