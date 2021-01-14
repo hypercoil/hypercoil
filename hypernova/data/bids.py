@@ -5,6 +5,9 @@
 BIDS interfaces
 ~~~~~~~~~~~~~~~
 Interfaces for loading BIDS-conformant neuroimaging data.
+
+Currently we use a LightGrabber but we'd like to use a BIDSLayout when the
+PyBIDS code stabilises.
 """
 # import bids
 from ..formula import ModelSpec, FCConfoundModelSpec
@@ -55,6 +58,11 @@ bids_regex = {
 
 
 class BIDSObjectFactory(VariableFactory):
+    """
+    Factory for producing LightBIDSObjects. Thin wrapper around
+    `LightBIDSObject`. Consult `hypernova.data.LightBIDSObject` for further
+    documentation.
+    """
     def __init__(self):
         super(BIDSObjectFactory, self).__init__(
             var=LightBIDSObject,
@@ -66,6 +74,10 @@ class BIDSObjectFactory(VariableFactory):
 
 
 class LightBIDSObject(DataPathVariable):
+    """
+    Thin wrapper around `DataPathVariable`.
+    Consult the `hypernova.data.DataPathVariable` documentation.
+    """
     def __repr__(self):
         return (
             f'LightBIDSObject({self.pathobj.name}, '
@@ -74,6 +86,21 @@ class LightBIDSObject(DataPathVariable):
 
 
 class LightBIDSLayout(LightGrabber):
+    """
+    Lightweight and stupid DataGrabber for BIDS-like data.
+
+    Parameters
+    ----------
+    root : str
+        Path to the root directory of the dataset on the file system.
+    patterns : list(str)
+        String patterns to constrain the scope of the layout. If patterns are
+        provided, then the layout will not include any files that do not match
+        at least one pattern.
+    queries : list(DataQuery)
+        Query objects defining the variables to extract from the dataset via
+        query.
+    """
     def __init__(self, root, patterns=None, queries=None):
         super(LightBIDSLayout, self).__init__(
             root=root,
@@ -84,22 +111,70 @@ class LightBIDSLayout(LightGrabber):
 
 
 class fMRIPrepDataset(ReferencedDataset):
+    """
+    Referenced dataset created from a directory of fMRIPrep output data.
+
+    Parameters
+    ----------
+    fmriprep_dir : str
+        Path to the top-level directory containing all neuroimaging data
+        preprocessed with fMRIPrep.
+    space : str or None (default None)
+        String indicating the stereotaxic coordinate space from which the
+        images are referenced.
+    additional_tables : list(str) or None (default None)
+        List of paths to files containing additional data. Each file should
+        include index columns corresponding to all identifiers present in the
+        dataset (e.g., subject, run, etc.).
+    ignore : dict(str: list) or None (default None)
+        Dictionary indicating identifiers to be ignored. Currently this
+        doesn't support any logical composition and takes logical OR over all
+        ignore specifications. In other words, data will be ignored if they
+        satisfy any of the ignore criteria.
+    labels : tuple or None (default ('subject',))
+        List of categorical outcome variables to include in data references.
+        These variables can be taken either from data identifiers or from
+        additional tables. Labels become available as prediction targets for
+        classification models. By default, the subject identifier is included.
+    outcomes : tuple or None (default None)
+        List of continuous outcome variables to include in data references.
+        These variables can be taken either from data identifiers or from
+        additional tables. Labels become available as prediction targets for
+        regression models. By default, the subject identifier is included.
+    observations : tuple (default ('subject',))
+        List of data identifiers whose levels are packaged into separate data
+        references. Each level should generally have the same values of any
+        outcome variables.
+    levels : tuple or None (default ('session', 'run, task'))
+        List of data identifiers whose levels are packaged as sublevels of the
+        same data reference. This permits easier augmentation of data via
+        pooling across sublevels.
+    depth : int (default 0)
+        Sampling depth of the dataset: if the passed references are nested
+        hierarchically, then each minibatch is sampled from data references
+        at the indicated level. By default, the dataset is sampled from the
+        highest level (no nesting).
+    """
     def __init__(self, fmriprep_dir, space=None, additional_tables=None,
                  ignore=None, labels=('subject',), outcomes=None,
                  model=None, observations=('subject',),
-                 levels=('session', 'run', 'task')):
+                 levels=('session', 'run', 'task'), depth=0):
         data_refs = fmriprep_references(
             fmriprep_dir=fmriprep_dir, space=space,
             additional_tables=additional_tables, ignore=ignore,
             labels=labels, outcomes=outcomes, model=model,
             observations=observations, levels=levels
         )
-        super(fMRIPrepDataset, self).__init__(data_refs)
+        super(fMRIPrepDataset, self).__init__(data_refs, depth=depth)
 
     def add_data(self, fmriprep_dir, space=None, additional_tables=None,
                  ignore=None, labels=('subject',), outcomes=None,
                  model=None, observations=('subject',),
                  levels=('session', 'run', 'task')):
+        """
+        Add data from another directory. Call follows the same pattern as
+        the constructor.
+        """
         data_refs = fmriprep_references(
             fmriprep_dir=fmriprep_dir, space=space,
             additional_tables=additional_tables, ignore=ignore,
