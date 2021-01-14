@@ -8,7 +8,7 @@ Interfaces between neuroimaging data and data loaders.
 """
 import pandas as pd
 from itertools import product
-from collections import ChainMap
+from collections import ChainMap, OrderedDict
 from .variables import (
     VariableFactory,
     CategoricalVariable,
@@ -148,7 +148,7 @@ class DataReference(object):
             Dictionary mapping identifier variable names to the values they
             are assigned for this DataReference.
         """
-        ids = {}
+        ids = OrderedDict()
         for name, value in zip(self.df.index.names, values):
             if not isinstance(value, slice):
                 ids[name] = value
@@ -171,7 +171,10 @@ class DataReference(object):
         """
         var = self.get_var(key)
         if var is None:
-            raise AttributeError(f'Invalid variable: {key}')
+            out = self.ids.get(key)
+            if out is None:
+                raise AttributeError(f'Invalid variable: {key}')
+            return out
         out = var()
         try:
             return out[var.name]
