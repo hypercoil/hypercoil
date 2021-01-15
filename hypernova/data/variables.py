@@ -43,6 +43,9 @@ class VariableFactory(object):
     def __call__(self, **params):
         return self.var(**params, **self.params)
 
+    def __repr__(self):
+        return f'{type(self).__name__}({self.var})'
+
 
 class VariableFactoryFactory(VariableFactory):
     """
