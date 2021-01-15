@@ -42,6 +42,7 @@ class LightGrabber(object):
     def __init__(self, root, template, patterns=None, queries=None):
         self.refs = []
         self.root = root
+        self.template = template
         try:
             self.attr_regex = template.regex
         except AttributeError:
@@ -105,3 +106,12 @@ class LightGrabber(object):
                 continue
             obj = [r for r in obj if r.get(k) == v]
         return obj
+
+    def __len__(self):
+        return len(self.refs)
+
+    def __repr__(self):
+        s = f'{type(self).__name__}(root={self.root}, '
+        s += f'results={len(self)}, '
+        s += f'template={type(self.template).__name__})'
+        return s
