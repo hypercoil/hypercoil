@@ -6,11 +6,11 @@ Synthetic data
 ~~~~~~~~~~~~~~
 Creation process for a small synthetic test dataset.
 """
-
-
 import numpy as np
 import nibabel as nb
+from scipy import fft
 from scipy.signal import convolve
+from collections import OrderedDict
 
 
 def mixing(seed=666, p=50, d=5):
@@ -48,7 +48,7 @@ def random_ts(seed=666, n=500, d=5):
     return ts
 
 
-def package_image(seed=666, n=500, d=5, ax=4):
+def package_image(seed=666, n=500, d=5, ax=4, region=None, pattern=None):
     """
     Generate data and package it into an image.
     """
@@ -57,6 +57,8 @@ def package_image(seed=666, n=500, d=5, ax=4):
     np.random.seed(seed)
     ts += np.random.randn(*ts.shape) / 5
     ts = ts.T.reshape(ax, ax, ax, -1)
+
+    ts += add_stim(seed=seed, ax=ax, region=region, pattern=pattern)
 
     affine = np.eye(4)
 
@@ -79,11 +81,58 @@ def stim_pattern(on=10, off=40, n=500):
     return pattern[:n]
 
 
-def stim_roi(ax=4):
-    roi = np.zeros(ax, ax, ax)
-    roi[:2, 1:3, 1:3] = 1
-    return roi.astype('bool')
+def add_stim(seed=666, ax=4, region=stim_roi, pattern=stim_pattern):
+    if pattern is not None:
+        pattern = pattern()
+        if region is not None:
+            region = region()
+        else:
+            region = np.ones((ax, ax, ax, 1))
+        region[region!=0] += (
+            np.random.randn(*region[region!=0].shape) / 5)
+        return region * pattern
+    else:
+        return np.zeros((ax, ax, ax, 1))
 
 
-def synthesise_dataset(sub=10, ses=0, run=4, task=('')):
-    pass
+def stim_roi(ax=4, scale=1):
+    roi = np.zeros((ax, ax, ax, 1))
+    roi[:2, 1:3, 1:3] = scale
+    return roi
+
+
+def synthesise_dataset(root, seed=666, sub=10, ses=0, run=4,
+                       task=None, n=500, d=5, ax=4):
+    task = task or {'rest': None, 'stim': (stim_pattern, stim_roi)}
+    ids = OrderedDict()
+    base = []
+    for var, val in [('sub', list(range(sub))),
+                     ('ses', list(range(ses))),
+                     ('run', list(range(run))),
+                     ('task', list(task.keys()))]:
+        if len(val) > 0:
+            ids[var] = val
+            base += [f'{var}' + '-{' + f'{var}' + '}']
+        else:
+            ids[var] = [None]
+    base = '_'.join(base)
+    out = f'{root}/{base}'
+    combinations = list(product(*ids.values()))
+    for su, se, ru, ta in combinations:
+        seed_cur = seed
+        for na, i in (('sub', su), ('ses', se), ('run', ru), ('task', ta)):
+            i = i or 0
+            try:
+                seed_cur *= (abs(i) + 1)
+            except TypeError:
+                i = ids[na].index(i)
+                seed_cur *= (abs(i) + 1)
+        seed_cur *= np.random.randint(0, 99999999)
+        seed_cur %= (2 ** 30)
+        name = out.format(sub=su, ses=se, run=ru, task=ta)
+        pattern, region = task[ta] or (None, None)
+        img = package_image(
+            seed=seed_cur, n=n, d=d, ax=ax,
+            region=region, pattern=pattern)
+        print(f'Saving {name}')
+        nb.save(img, f'{name}_desc-preproc_bold.nii.gz')
