@@ -8,6 +8,7 @@ Creation process for a small synthetic test dataset.
 """
 import numpy as np
 import nibabel as nb
+import pandas as pd
 from scipy import fft
 from scipy.signal import convolve
 from collections import OrderedDict
@@ -99,6 +100,25 @@ def stim_roi(ax=4, scale=1):
     roi = np.zeros((ax, ax, ax, 1))
     roi[:2, 1:3, 1:3] = scale
     return roi
+
+
+def regressor_ts(img, seed=666, n=500):
+    confs = {}
+    np.random.seed(seed)
+    x, y, z, _ = img.shape
+    confs['global_signal'] = img.mean((0, 1, 2))
+    noise_roi_1 = np.zeros((x, y, z)).astype('bool')
+    noise_roi_1[(x // 2):(x // 2 + 1), 1:(y - 1), 1:(z - 1)] = 1
+    confs['white_matter'] = img[noise_roi_1].mean(0)
+    noise_roi_2 = np.zeros((x, y, z)).astype('bool')
+    noise_roi_2[(x // 2 + 1):x, 1:(y - 1), 1:(z - 1)] = 1
+    confs['csf'] = img[noise_roi_2].mean(0)
+    for v in ('x', 'y', 'z'):
+        deriv = np.random.laplace(size=n, scale=0.1)
+        confs[f'trans_{v}'] = np.cumsum(deriv)
+        deriv = np.random.laplace(size=n, scale=0.1)
+        confs[f'rot_{v}'] = np.cumsum(deriv)
+    return pd.DataFrame(confs)
 
 
 def synthesise_dataset(root, seed=666, sub=10, ses=0, run=4,
