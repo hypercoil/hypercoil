@@ -1,0 +1,3 @@
+[submodule "hypernova/examples/ds-synth"]
+	path = hypernova/examples/ds-synth
+	url = https://github.com/rciric/ds-synth
