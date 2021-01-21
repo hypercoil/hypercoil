@@ -5,7 +5,10 @@
 Synthetic data
 ~~~~~~~~~~~~~~
 Creation process for a small synthetic test dataset.
+This code is embarrassingly bad and shouldn't be used outside of its original
+context.
 """
+import json
 import numpy as np
 import nibabel as nb
 import pandas as pd
@@ -33,6 +36,7 @@ def random_ts(seed=666, n=500, d=5):
     Generate a random time series from the Fourier domain, using the specified
     number of channels and observations.
     """
+    np.random.seed(seed)
     ts_orig = np.random.randn(n, d)
     fdom = fft.rfft(ts_orig, axis=0)
 
@@ -105,6 +109,9 @@ def stim_roi(ax=4, scale=1):
 def regressor_ts(img, seed=666, n=500):
     confs = {}
     np.random.seed(seed)
+
+    # fake mean signals
+    img = img.get_fdata()
     x, y, z, _ = img.shape
     confs['global_signal'] = img.mean((0, 1, 2))
     noise_roi_1 = np.zeros((x, y, z)).astype('bool')
@@ -113,12 +120,65 @@ def regressor_ts(img, seed=666, n=500):
     noise_roi_2 = np.zeros((x, y, z)).astype('bool')
     noise_roi_2[(x // 2 + 1):x, 1:(y - 1), 1:(z - 1)] = 1
     confs['csf'] = img[noise_roi_2].mean(0)
+
+    # fake RPs
     for v in ('x', 'y', 'z'):
         deriv = np.random.laplace(size=n, scale=0.1)
         confs[f'trans_{v}'] = np.cumsum(deriv)
         deriv = np.random.laplace(size=n, scale=0.1)
         confs[f'rot_{v}'] = np.cumsum(deriv)
-    return pd.DataFrame(confs)
+
+    metadata = {}
+
+    # fake aCompCor
+    k = 0
+    for mask in ('CSF', 'WM', 'combined'):
+        n_components = np.random.randint(1, 4)
+        sigma = 10 * np.random.rand() * (
+            1 - np.sort(np.random.rand(n_components)))
+        var_exp = sigma ** 2
+        var_exp /= var_exp.sum()
+        c_var_exp = np.cumsum(var_exp)
+        for i in range(n_components):
+            confs[f'a_comp_cor_{(k + i):02}'] = random_ts(
+                seed=None, n=n, d=1).squeeze()
+            metadata[f'a_comp_cor_{(k + i):02}'] = {
+                'CumulativeVarianceExplained': c_var_exp[i],
+                'Mask': mask,
+                'Method': 'aCompCor',
+                'Retained': 'True',
+                'SingularValue': sigma[i],
+                'VarianceExplained': var_exp[i]
+            }
+        k += n_components
+
+    # fake tCompCor
+    n_components = np.random.randint(1, 4)
+    sigma = 10 * np.random.rand() * (
+        1 - np.sort(np.random.rand(n_components)))
+    var_exp = sigma ** 2
+    var_exp /= var_exp.sum()
+    c_var_exp = np.cumsum(var_exp)
+    for i in range(n_components):
+        confs[f't_comp_cor_{i:02}'] = random_ts(seed=None, n=n, d=1).squeeze()
+        metadata[f't_comp_cor_{i:02}'] = {
+            'CumulativeVarianceExplained': c_var_exp[i],
+            'Method': 'tCompCor',
+            'Retained': 'True',
+            'SingularValue': sigma[i],
+            'VarianceExplained': var_exp[i]
+        }
+
+    # fake AROMA
+    n_components = np.random.randint(1, 64)
+    for i in range(n_components):
+        confs[f'aroma_motion_{i:02}'] = random_ts(
+            seed=None, n=n, d=1).squeeze()
+        metadata[f'aroma_motion_{i:02}'] = {
+            'MotionNoise': True
+        }
+
+    return pd.DataFrame(confs), metadata
 
 
 def synthesise_dataset(root, seed=666, sub=10, ses=0, run=4,
@@ -154,5 +214,17 @@ def synthesise_dataset(root, seed=666, sub=10, ses=0, run=4,
         img = package_image(
             seed=seed_cur, n=n, d=d, ax=ax,
             region=region, pattern=pattern)
+        img_meta = {
+            'RepetitionTime': 1.0,
+            'SkullStripped': False,
+            'TaskName': ta
+        }
+        confs, conf_meta = regressor_ts(img=img, seed=seed_cur, n=n)
         print(f'Saving {name}')
         nb.save(img, f'{name}_desc-preproc_bold.nii.gz')
+        confs.to_csv(f'{name}_desc-confounds_timeseries.tsv',
+                     sep='\t', index=False)
+        with open(f'{name}_desc-confounds_timeseries.json', 'w') as f:
+            json.dump(conf_meta, f)
+        with open(f'{name}_desc-preproc_bold.json', 'w') as f:
+            json.dump(img_meta, f)
