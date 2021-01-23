@@ -14,6 +14,34 @@ from ..functional import ScalarIIDNoiseSource
 
 
 class Atlas(object):
+    """
+    Atlas object for linear mapping from voxels to labels.
+
+    Base class inherited by discrete and continuous atlas containers.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to a NIfTI file containing the atlas.
+    label_dict : dict or None (default None)
+        Dictionary mapping labels or volumes in the image to parcel or region
+        names or identifiers.
+
+    Attributes
+    ----------
+    ref : nb.Nifti1Image
+        NIfTI image object container for the atlas data.
+    image : np.ndarray
+        Atlas volume(s).
+    mask : np.ndarray
+        Mask indicating the voxels to include in the mapping.
+    labels : set
+        Unique labels in the atlas.
+    n_labels : int
+        Total number of labels, parcels, regions, or volumes in the atlas.
+    n_voxels : int
+        Total number of voxels to include in the atlas.
+    """
     def __init__(self, path, label_dict=None):
         self.path = path
         self.ref = nb.load(self.path)
@@ -21,6 +49,35 @@ class Atlas(object):
         self.label_dict = label_dict
 
     def map(self, sigma=None, noise=None, normalise=True):
+        """
+        Obtain a matrix representation of the linear mapping from mask voxels
+        to atlas labels.
+
+        Parameters
+        ----------
+        sigma : float or None (default None)
+            If this is a float, then a Gaussian smoothing kernel with the
+            specified width is applied to each label after it is extracted.
+        noise : ScalarIIDNoiseSource object or None (default None)
+            If this is a noise source, then noise sampled from the source is
+            added to the label.
+        normalise : bool (default True)
+            Indicates whether the result should be normalised such that each
+            label time series is a weighted mean over voxel time series.
+
+        Returns
+        -------
+        map : Tensor
+            A matrix representation of the linear mapping from mask voxels to
+            atlas labels.
+
+        The order of operations is:
+        1. Label extraction
+        2. Gaussian spatial filtering
+        3. Casting to Tensor
+        4. IID noise injection
+        5. Normalisation
+        """
         map = np.zeros((self.n_labels, self.n_voxels))
         for i, l in enumerate(self.labels):
             map[i] = self._extract_label(l, sigma)
@@ -41,9 +98,47 @@ class Atlas(object):
             gaussian_filter(map, sigma=sigma, output=map)
         return map[self.mask]
 
+    def __repr__(self):
+        s = f'{type(self).__name__}('
+        s += f'labels={self.n_labels}, voxels={self.n_voxels}'
+        s += ')'
+        return s
+
 
 class DiscreteAtlas(Atlas):
-    def __init__(self, path, null=0, label_dict=None, mask=None):
+    """
+    Discrete atlas container object. Use for atlases stored in single-volume
+    images with non-overlapping, discrete-valued parcels.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to a NIfTI file containing the atlas.
+    label_dict : dict or None (default None)
+        Dictionary mapping labels in the image to parcel or region names or
+        identifiers.
+    mask : np.ndarray or 'auto' or None (default None)
+        Mask indicating the voxels to include in the mapping. If this is
+        'auto', then a mask is automatically formed from voxels with non-null
+        values (before smoothing).
+    null : float (default 0)
+        Value in the image indicating that the voxel belongs to no label. To
+        assign every voxel a label, specify a number not in the image.
+
+    Attributes
+    ----------
+    ref : nb.Nifti1Image
+        NIfTI image object container for the atlas data.
+    image : np.ndarray
+        Atlas volume.
+    labels : set
+        Unique labels in the atlas.
+    n_labels : int
+        Total number of labels, parcels, or regions in the atlas.
+    n_voxels : int
+        Total number of voxels to include in the atlas.
+    """
+    def __init__(self, path, label_dict=None, mask=None, null=0):
         super(DiscreteAtlas, self).__init__(
             path=path, label_dict=label_dict)
         self.labels = set(np.unique(self.image)) - set([null])
@@ -61,6 +156,41 @@ class DiscreteAtlas(Atlas):
 
 
 class ContinuousAtlas(Atlas):
+    """
+    Continuous atlas container object. Use for atlases whose labels overlap and
+    must therefore be stored across multiple image volumes -- for instance,
+    probabilistic segmentations or ICA results.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path or list
+        Path to a NIfTI file containing the atlas. If this is a list, then each
+        entry in the list will be interpreted as a separate atlas label.
+    label_dict : dict or None (default None)
+        Dictionary mapping labels or volumes in the image to parcel or region
+        names or identifiers.
+    mask : np.ndarray or 'auto' or None (default None)
+        Mask indicating the voxels to include in the mapping. If this is
+        'auto', then a mask is automatically formed from voxels with non-null
+        values (before smoothing).
+    thresh : float (default 0)
+        Threshold for auto-masking.
+
+    Attributes
+    ----------
+    ref : nb.Nifti1Image
+        NIfTI image object container for the atlas data.
+    image : np.ndarray
+        Atlas volume.
+    mask : np.ndarray
+        Mask indicating the voxels to include in the mapping.
+    labels : set
+        Unique labels in the atlas.
+    n_labels : int
+        Total number of labels, parcels, regions, or volumes in the atlas.
+    n_voxels : int
+        Total number of voxels to include in the atlas.
+    """
     def __init__(self, path, label_dict=None, mask=None, thresh=0):
         if isinstance(path, list) or isinstance(path, tuple):
             self._init_from_paths(path, label_dict)
@@ -89,7 +219,34 @@ class ContinuousAtlas(Atlas):
         return self._smooth_and_mask(map, sigma)
 
 
-def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None, null=0):
+def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None):
+    """
+    Voxel-to-label mapping initialisation.
+
+    Initialise a tensor such that its entries characterise a matrix that maps
+    a relevant subset of image voxels to a set of labels. The initialisation
+    uses an existing atlas with the option of blurring labels or injecting
+    noise.
+
+    Dimension
+    ---------
+    - tensor : :math:`(L, V)`
+      L denotes the total number of labels in the atlas, and V denotes the
+      number of voxels to be labelled.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        Tensor to initialise in-place.
+    atlas : Atlas object
+        Atlas object to use for tensor initialisation.
+    kernel_sigma : float or None (default None)
+        If this is a float, then a Gaussian smoothing kernel with the
+        specified width is applied to each label after it is extracted.
+    noise_sigma : float or None (default None)
+        If this is a float, then Gaussian noise with the specified standard
+        deviation is added to the label.
+    """
     rg = tensor.requires_grad
     tensor.requires_grad = False
     if noise_sigma is not None:

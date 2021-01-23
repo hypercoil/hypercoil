@@ -7,7 +7,11 @@ Unit tests for atlas map initialisation
 import pytest
 import torch
 import templateflow.api as tflow
-from hypernova.init.atlas import DiscreteAtlas, atlas_init_
+from hypernova.init.atlas import (
+    ContinuousAtlas,
+    DiscreteAtlas,
+    atlas_init_
+)
 
 
 class TestAtlasInit:
@@ -45,5 +49,5 @@ class TestAtlasInit:
         atlas_init_(
             self.tsr_continuous,
             self.atlas_continuous)
-        assert torch.allclose(self.tsr_discrete.sum(1), torch.Tensor([1]))
-        assert self.tsr_discrete[:, 1].argmax() == 4
+        assert torch.allclose(self.tsr_continuous.sum(1), torch.Tensor([1]))
+        assert self.tsr_continuous[:, 1].argmax() == 4
