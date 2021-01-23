@@ -60,6 +60,35 @@ class DiscreteAtlas(Atlas):
         return self._smooth_and_mask(map, sigma)
 
 
+class ContinuousAtlas(Atlas):
+    def __init__(self, path, label_dict=None, mask=None, thresh=0):
+        if isinstance(path, list) or isinstance(path, tuple):
+            self._init_from_paths(path, label_dict)
+        else:
+            super(ContinuousAtlas, self).__init__(
+                path=path, label_dict=label_dict)
+        self.labels = list(range(self.image.shape[-1]))
+        if isinstance(mask, np.ndarray):
+            pass
+        elif mask == 'auto':
+            mask = ((np.abs(self.image)).sum(-1) > thresh)
+        elif mask is None:
+            mask = np.ones(self.image.shape[:-1])
+        self._set_dims(mask)
+
+    def _init_from_paths(self, path, label_dict):
+        self.path = path
+        self.ref = [nb.load(p) for p in self.path]
+        self.image = np.stack([r.get_fdata() for r in self.ref], -1)
+        self.label_dict = label_dict
+
+    def _extract_label(self, label_id, sigma=None):
+        slc = [slice(None)] * len(self.image.shape)
+        slc[-1] = label_id
+        map = self.image[tuple(slc)]
+        return self._smooth_and_mask(map, sigma)
+
+
 def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None, null=0):
     rg = tensor.requires_grad
     tensor.requires_grad = False
