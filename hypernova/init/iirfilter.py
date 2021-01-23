@@ -4,7 +4,7 @@
 """
 IIR filter initialisation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-Tools for initialising parameters to match the transfer function of an IIR or
+Tools for initialising parameters to emulate the transfer function of an IIR or
 ideal filter.
 """
 import torch
