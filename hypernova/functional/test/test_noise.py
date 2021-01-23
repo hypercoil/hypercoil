@@ -10,7 +10,8 @@ import torch
 from hypernova.functional import (
     SPSDNoiseSource,
     LowRankNoiseSource,
-    BandDropoutSource
+    BandDropoutSource,
+    ScalarIIDNoiseSource
 )
 
 
@@ -63,3 +64,10 @@ class TestNoise:
         out = bds.sample([100]).sum()
         ref = bds.bandmask.sum()
         assert torch.abs((out - ref) / ref) <= 0.2
+
+    def test_scalar_iid_noise(self):
+        sz = torch.Size([3, 8, 1, 21, 1])
+        inp = torch.rand(sz)
+        sins = ScalarIIDNoiseSource()
+        out = sins(inp)
+        assert out.size() == sz
