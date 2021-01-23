@@ -87,6 +87,26 @@ class _IIDDropoutSource(_IIDSource):
         return f'p={self.p}'
 
 
+class ScalarIIDSource(_IIDSource):
+    def __init__(self, distr=None, training=True):
+        self.distr = distr or torch.distributions.normal.Normal(
+            torch.Tensor([0]), torch.Tensor([1])
+        )
+        super(ScalarIIDSource, self).__init__(training)
+
+    def inject(self, tensor):
+        if self.training:
+            return tensor + self.sample(tensor.size())
+        else:
+            return tensor
+
+    def sample(self, dim):
+        return self.distr.sample(dim).squeeze(-1)
+
+    def extra_repr(self):
+        return f'{self.distr}'
+
+
 class DiagonalNoiseSource(_IIDNoiseSource):
     """
     Zero-mean diagonal noise source.
