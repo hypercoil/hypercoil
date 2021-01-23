@@ -4,6 +4,9 @@
 """
 Initialisation
 """
+from .atlas import (
+    DiscreteAtlas
+)
 from .iirfilter import (
     IIRFilterSpec
 )
