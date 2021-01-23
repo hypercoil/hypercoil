@@ -5,7 +5,8 @@
 Initialisation
 """
 from .atlas import (
-    DiscreteAtlas
+    DiscreteAtlas,
+    ContinuousAtlas
 )
 from .iirfilter import (
     IIRFilterSpec
