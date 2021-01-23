@@ -87,12 +87,12 @@ class _IIDDropoutSource(_IIDSource):
         return f'p={self.p}'
 
 
-class ScalarIIDSource(_IIDSource):
+class ScalarIIDNoiseSource(_IIDSource):
     def __init__(self, distr=None, training=True):
         self.distr = distr or torch.distributions.normal.Normal(
             torch.Tensor([0]), torch.Tensor([1])
         )
-        super(ScalarIIDSource, self).__init__(training)
+        super(ScalarIIDNoiseSource, self).__init__(training)
 
     def inject(self, tensor):
         if self.training:
