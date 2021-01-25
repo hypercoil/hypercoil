@@ -12,12 +12,16 @@ from ..init.atlas import atlas_init_
 
 
 class AtlasLinear(Module):
-    def __init__(self, atlas, kernel_sigma=None, noise_sigma=None):
+    def __init__(self, atlas, kernel_sigma=None,
+                 noise_sigma=None, mask_input=True):
         super(AtlasLinear, self).__init__()
 
         self.atlas = atlas
         self.kernel_sigma = kernel_sigma
         self.noise_sigma = noise_sigma
+        self.mask_input = mask_input
+        self.mask = (torch.from_numpy(self.atlas.mask)
+                     if self.mask_input else None)
         self.weight = Parameter(torch.Tensor(
             self.atlas.n_labels, self.atlas.n_voxels
         ))
@@ -30,4 +34,13 @@ class AtlasLinear(Module):
                     noise_sigma=self.noise_sigma)
 
     def forward(self, input):
+        if self.mask_input:
+            shape = input.size()
+            mask = self.mask
+            extra_dims = 0
+            while mask.dim() < input.dim() - 1:
+                mask = mask.unsqueeze(0)
+                extra_dims += 1
+            input = input[mask.expand(shape[:-1])]
+            input = input.view(*shape[:extra_dims], -1 , shape[-1])
         return self.weight @ input
