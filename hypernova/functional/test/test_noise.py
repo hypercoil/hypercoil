@@ -11,7 +11,7 @@ from hypernova.functional import (
     SPSDNoiseSource,
     LowRankNoiseSource,
     BandDropoutSource,
-    ScalarIIDNoiseSource
+    UnstructuredNoiseSource
 )
 
 
@@ -68,6 +68,6 @@ class TestNoise:
     def test_scalar_iid_noise(self):
         sz = torch.Size([3, 8, 1, 21, 1])
         inp = torch.rand(sz)
-        sins = ScalarIIDNoiseSource()
+        sins = UnstructuredNoiseSource()
         out = sins(inp)
         assert out.size() == sz
