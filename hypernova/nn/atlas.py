@@ -4,7 +4,7 @@
 """
 Atlas layer
 ~~~~~~~~~~~
-Modules supporting filtering/convolution as a product in the frequency domain.
+Modules that linearly map voxelwise signals to labelwise signals.
 """
 import torch
 from torch.nn import Module, Parameter
@@ -12,6 +12,47 @@ from ..init.atlas import atlas_init_
 
 
 class AtlasLinear(Module):
+    """
+    Time series extraction from an atlas via a linear map.
+
+    Dimension
+    ---------
+    - Input: :math:`(N, *, X, Y, Z, T)` or :math:`(N, *, V, T)`
+      N denotes batch size, `*` denotes any number of intervening dimensions,
+      X, Y, and Z denote 3 spatial dimensions, V denotes total number of
+      voxels, T denotes number of time points or observations.
+    - Output: :math:`(N, *, L, T)`
+      L denotes number of labels in the provided atlas.
+
+    Parameters
+    ----------
+    atlas : Atlas object
+        A neuroimaging atlas, implemented as a `DiscreteAtlas` or
+        `ContinuousAtlas` object (`hypernova.init.DiscreteAtlas` and
+        `hypernova.init.ContinuousAtlas`). This initialises the atlas labels
+        from which representative time series are extracted.
+    kernel_sigma : float
+        If this is a float, then a Gaussian smoothing kernel with the
+        specified width is applied to each label at initialisation.
+    noise_sigma : float
+        If this is a float, then Gaussian noise with the specified standard
+        deviation is added to the label at initialisation.
+    mask_input : bool
+        Indicates that each input is a 4D image that must be masked before
+        time series extraction. If True, then the boolean tensor stored in the
+        `mask` field of the `atlas` input is used to subset and "unfold" each
+        4D image into a 2D space by time matrix.
+
+    Attributes
+    ----------
+    weight : Tensor :math:`(L, V)`
+        Representation of the atlas as a linear map from voxels to labels,
+        applied independently to each time point in each input image. L denotes
+        the number of labels, and V denotes the number of voxels.
+    mask : Tensor :math:`(X, Y, Z)`
+        Boolean-valued tensor indicating the voxels that should be included as
+        inputs to the atlas transformation.
+    """
     def __init__(self, atlas, kernel_sigma=None,
                  noise_sigma=None, mask_input=True):
         super(AtlasLinear, self).__init__()
