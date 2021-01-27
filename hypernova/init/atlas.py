@@ -10,7 +10,7 @@ import torch
 import numpy as np
 import nibabel as nb
 from scipy.ndimage import gaussian_filter
-from ..functional import ScalarIIDNoiseSource
+from ..functional import UnstructuredNoiseSource
 
 
 class Atlas(object):
@@ -58,7 +58,7 @@ class Atlas(object):
         sigma : float or None (default None)
             If this is a float, then a Gaussian smoothing kernel with the
             specified width is applied to each label after it is extracted.
-        noise : ScalarIIDNoiseSource object or None (default None)
+        noise : UnstructuredNoiseSource object or None (default None)
             If this is a noise source, then noise sampled from the source is
             added to the label.
         normalise : bool (default True)
@@ -253,7 +253,7 @@ def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None):
         distr = torch.distributions.normal.Normal(
             torch.Tensor([0]), torch.Tensor([noise_sigma])
         )
-        noise = ScalarIIDNoiseSource(distr=distr)
+        noise = UnstructuredNoiseSource(distr=distr)
     else:
         noise = None
     map = atlas.map(sigma=kernel_sigma, noise=noise)

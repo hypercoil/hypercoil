@@ -29,7 +29,7 @@ from .noise import (
     DiagonalNoiseSource, SPSDNoiseSource,
     DiagonalDropoutSource, SPSDDropoutSource,
     LowRankNoiseSource, BandDropoutSource,
-    ScalarIIDNoiseSource
+    UnstructuredNoiseSource, UnstructuredDropoutSource
 )
 from .polynomial import (
     polychan, polyconv2d

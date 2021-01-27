@@ -87,12 +87,78 @@ class _IIDDropoutSource(_IIDSource):
         return f'p={self.p}'
 
 
-class ScalarIIDNoiseSource(_IIDSource):
-    def __init__(self, distr=None, training=True):
+class _AxialSampler(object):
+    def select_dim(self, dim):
+        if self.sample_axes is not None:
+            dim = list(dim)
+            n_axes = len(dim)
+            for ax in range(n_axes):
+                if not (ax in self.sample_axes or
+                    (ax - n_axes) in self.sample_axes):
+                    dim[ax] = 1
+        return dim
+
+
+class UnstructuredNoiseSource(_IIDSource, _AxialSampler):
+    """
+    Noise source with no special structure, in which each element is sampled
+    i.i.d.
+
+    Parameters
+    ----------
+    distr : torch.distributions object
+        Distribution from which each element is sampled independently. If not
+        specified, this defaults to the standard normal distribution.
+    training : bool
+        Indicates whether the source should operate under the assumption of
+        training or inference; at test time, a noise-free sample is returned.
+    sample_axes : list or None (default None)
+        Axes along which sampling is performed. Along all other axes, the same
+        samples are broadcast. If this is None, then sampling occurs along all
+        axes.
+
+    Methods
+    ----------
+    eval
+        Switch the source into inference mode.
+
+    train
+        Switch the source into training mode.
+
+    sample(dim)
+        Samples a random tensor of the specified shape, in which the entries
+        are sampled i.i.d. from the specified distribution.
+
+        Parameters
+        ----------
+        dim : iterable
+            Dimension of the tensors sampled from the source.
+
+        Returns
+        -------
+        output : Tensor
+            Tensor sampled from the noise source.
+
+    inject(tensor)
+        Inject noise sampled from the source into an existing tensor block.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            Tensor block into which to introduce the noise sampled from the
+            source.
+
+        Returns
+        -------
+        output : Tensor
+            Tensor block with noise injected from the source.
+    """
+    def __init__(self, distr=None, training=True, sample_axes=None):
         self.distr = distr or torch.distributions.normal.Normal(
             torch.Tensor([0]), torch.Tensor([1])
         )
-        super(ScalarIIDNoiseSource, self).__init__(training)
+        self.sample_axes = sample_axes
+        super(UnstructuredNoiseSource, self).__init__(training)
 
     def inject(self, tensor):
         if self.training:
@@ -101,6 +167,7 @@ class ScalarIIDNoiseSource(_IIDSource):
             return tensor
 
     def sample(self, dim):
+        dim = self.select_dim(dim)
         return self.distr.sample(dim).squeeze(-1)
 
     def extra_repr(self):
@@ -327,6 +394,29 @@ class SPSDNoiseSource(_IIDNoiseSource):
             return spd / (spd.std() / self.std)
         else:
             return 0
+
+
+class UnstructuredDropoutSource(_IIDSource, _AxialSampler):
+    """
+    A simple, unstructured dropout source.
+    """
+    def __init__(self, p=0.5, training=True, sample_axes=None):
+        self.p = p
+        self.sample_axes = sample_axes
+        super(UnstructuredDropoutSource, self).__init__(training)
+
+    def inject(self, tensor):
+        if self.training:
+            return tensor * self.sample(tensor.size())
+        else:
+            return tensor
+
+    def sample(self, dim):
+        dim = self.select_dim(dim)
+        return (torch.rand(*dim) < self.p) / self.p
+
+    def extra_repr(self):
+        return f'{self.distr}'
 
 
 class DiagonalDropoutSource(_IIDDropoutSource):
