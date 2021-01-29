@@ -4,7 +4,7 @@
 """
 Noise
 ~~~~~
-Noise sources.
+Additive and multiplicative noise sources.
 """
 import math
 import torch
@@ -19,21 +19,72 @@ class _IIDSource(torch.nn.Module):
     There's nothing about this implementation level that requires the i.i.d.
     assumption.
     """
-    def __init__(self, training):
+    def __init__(self, distr, training):
         super(_IIDSource, self).__init__()
+        self.distr = distr
         self.training = training
 
     def train(self, mode=True):
+        """
+        Switch the source into training mode.
+        """
         self.training = mode
 
     def eval(self):
+        """
+        Switch the source into inference mode.
+        """
         self.train(False)
 
     def forward(self, input):
+        """
+        Inject noise sampled from the source into a tensor.
+        """
         return self.inject(input)
 
 
 class _IIDNoiseSource(_IIDSource):
+    """
+    Superclass for i.i.d. noise sources. Implements a method for injecting
+    sampled noise additively into an existing tensor.
+
+    Subclasses are responsible for implementing the correct `sample` method
+    that accepts a dimension argument.
+
+    See also
+    --------
+    IIDDropoutSource : For multiplicative sample injection.
+    """
+    def __init__(self, distr=None, training=True):
+        distr = distr or torch.distributions.normal.Normal(
+            torch.Tensor([0]), torch.Tensor([1]))
+        super(_IIDNoiseSource, self).__init__(distr, training)
+
+    def inject(self, tensor):
+        """
+        Inject noise sampled from the source into an existing tensor block.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            Tensor block into which to introduce the noise sampled from the
+            source.
+
+        Returns
+        -------
+        output : Tensor
+            Tensor block with noise injected from the source.
+        """
+        if self.training:
+            return tensor + self.sample(tensor.size())
+        else:
+            return tensor
+
+    def extra_repr(self):
+        return f'{self.distr}'
+
+
+class _IIDSquareNoiseSource(_IIDNoiseSource):
     """
     Superclass for i.i.d. noise sources. Implements a method for injecting
     sampled noise additively into an existing tensor.
@@ -46,18 +97,18 @@ class _IIDNoiseSource(_IIDSource):
     --------
     IIDDropoutSource : For multiplicative sample injection.
     """
-    def __init__(self, std=0.05, training=True):
-        super(_IIDNoiseSource, self).__init__(training)
-        self.std = std
-
     def inject(self, tensor):
+        try:
+            sz = tensor.size()
+            assert sz[-1] == sz[-2]
+        except AssertionError:
+            raise AssertionError('Cannot inject square noise into nonsquare '
+                                 'tensors. The tensors must be square along '
+                                 'the last two dimensions.')
         if self.training:
             return tensor + self.sample(tensor.size()[:-1])
         else:
             return tensor
-
-    def extra_repr(self):
-        return f'std={self.std}'
 
 
 class _IIDDropoutSource(_IIDSource):
@@ -73,9 +124,10 @@ class _IIDDropoutSource(_IIDSource):
     --------
     IIDNoiseSource : For additive sample injection.
     """
-    def __init__(self, p=0.5, training=True):
-        super(_IIDDropoutSource, self).__init__(training)
-        self.p = 1 - p
+    def __init__(self, distr=None, training=True):
+        distr = distr or torch.distributions.bernoulli.Bernoulli(
+            torch.Tensor([0.5]))
+        super(_IIDDropoutSource, self).__init__(distr, training)
 
     def inject(self, tensor):
         if self.training:
@@ -84,7 +136,7 @@ class _IIDDropoutSource(_IIDSource):
             return tensor
 
     def extra_repr(self):
-        return f'p={self.p}'
+        return f'{self.distr}'
 
 
 class _AxialSampler(object):
@@ -99,7 +151,7 @@ class _AxialSampler(object):
         return dim
 
 
-class UnstructuredNoiseSource(_IIDSource, _AxialSampler):
+class UnstructuredNoiseSource(_IIDNoiseSource, _AxialSampler):
     """
     Noise source with no special structure, in which each element is sampled
     i.i.d.
@@ -116,17 +168,14 @@ class UnstructuredNoiseSource(_IIDSource, _AxialSampler):
         Axes along which sampling is performed. Along all other axes, the same
         samples are broadcast. If this is None, then sampling occurs along all
         axes.
+    """
+    def __init__(self, distr=None, training=True, sample_axes=None):
+        self.sample_axes = sample_axes
+        super(UnstructuredNoiseSource, self).__init__(distr, training)
 
-    Methods
-    ----------
-    eval
-        Switch the source into inference mode.
-
-    train
-        Switch the source into training mode.
-
-    sample(dim)
-        Samples a random tensor of the specified shape, in which the entries
+    def sample(self, dim):
+        """
+        Sample a random tensor of the specified shape, in which the entries
         are sampled i.i.d. from the specified distribution.
 
         Parameters
@@ -138,43 +187,12 @@ class UnstructuredNoiseSource(_IIDSource, _AxialSampler):
         -------
         output : Tensor
             Tensor sampled from the noise source.
-
-    inject(tensor)
-        Inject noise sampled from the source into an existing tensor block.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            Tensor block into which to introduce the noise sampled from the
-            source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor block with noise injected from the source.
-    """
-    def __init__(self, distr=None, training=True, sample_axes=None):
-        self.distr = distr or torch.distributions.normal.Normal(
-            torch.Tensor([0]), torch.Tensor([1])
-        )
-        self.sample_axes = sample_axes
-        super(UnstructuredNoiseSource, self).__init__(training)
-
-    def inject(self, tensor):
-        if self.training:
-            return tensor + self.sample(tensor.size())
-        else:
-            return tensor
-
-    def sample(self, dim):
+        """
         dim = self.select_dim(dim)
         return self.distr.sample(dim).squeeze(-1)
 
-    def extra_repr(self):
-        return f'{self.distr}'
 
-
-class DiagonalNoiseSource(_IIDNoiseSource):
+class DiagonalNoiseSource(_IIDSquareNoiseSource):
     """
     Zero-mean diagonal noise source.
 
@@ -189,17 +207,14 @@ class DiagonalNoiseSource(_IIDNoiseSource):
     training : bool
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
+    """
+    def __init__(self, distr=None, offset=0, training=True):
+        super(DiagonalNoiseSource, self).__init__(distr, training)
+        self.offset = offset
 
-    Methods
-    ----------
-    eval
-        Switch the source into inference mode.
-
-    train
-        Switch the source into training mode.
-
-    sample(dim)
-        Samples a random matrix that is zero everywhere except for a single
+    def sample(self, dim):
+        """
+        Sample a random matrix that is zero everywhere except for a single
         diagonal band, along which the entries are sampled i.i.d. from a
         zero-mean Gaussian distribution with the specified standard deviation.
 
@@ -212,29 +227,10 @@ class DiagonalNoiseSource(_IIDNoiseSource):
         -------
         output : Tensor
             Block of diagonal matrices sampled from the noise source.
-
-    inject(tensor)
-        Inject noise sampled from the source into an existing tensor block.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            Tensor block into which to introduce the noise sampled from the
-            source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor block with noise injected from the source.
-    """
-    def __init__(self, std=0.05, offset=0, training=True):
-        super(DiagonalNoiseSource, self).__init__(std, training)
-        self.offset = offset
-
-    def sample(self, dim):
+        """
         dim = [*dim[:-1], dim[-1] - abs(self.offset)]
         if self.training:
-            noise = self.std * torch.randn(*dim)
+            noise = self.distr.sample(dim).squeeze(-1)
             return torch.diag_embed(noise, self.offset)
         else:
             return 0
@@ -263,16 +259,13 @@ class LowRankNoiseSource(_IIDNoiseSource):
     training : bool
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
+    """
+    def __init__(self, distr=None, rank=None, training=True):
+        super(LowRankNoiseSource, self).__init__(distr, training)
+        self.rank = rank
 
-    Methods
-    ----------
-    eval
-        Switch the source into inference mode.
-
-    train
-        Switch the source into training mode.
-
-    sample(dim)
+    def sample(self, dim):
+        """
         Sample a random matrix :math:`K \in \mathbb{R}^{d \times r}` and
         computes the rank-r positive semidefinite product :math:`KK^\intercal`.
         For the outcome entries to have standard deviation near :math:`\sigma`,
@@ -296,30 +289,11 @@ class LowRankNoiseSource(_IIDNoiseSource):
         output : Tensor
             Block of symmetric, positive semidefinite matrices sampled from the
             low-rank noise source.
-
-    inject(tensor)
-        Inject noise sampled from the source into an existing tensor block.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            Tensor block into which to introduce the noise sampled from the
-            source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor block with noise injected from the source.
-    """
-    def __init__(self, std=0.05, rank=None, training=True):
-        super(LowRankNoiseSource, self).__init__(std, training)
-        self.rank = rank
-
-    def sample(self, dim):
+        """
         if self.training:
             rank = self.rank or dim[-1]
             noise = torch.empty((*dim, rank))
-            var = self.std / math.sqrt(rank + (rank ** 2) / dim[-1])
+            var = self.distr.scale / math.sqrt(rank + (rank ** 2) / dim[-1])
             noise.normal_(std=math.sqrt(var))
             return noise @ noise.transpose(-1, -2)
         else:
@@ -344,16 +318,12 @@ class SPSDNoiseSource(_IIDNoiseSource):
     training : bool
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
+    """
+    def __init__(self, distr=None, training=True):
+        super(SPSDNoiseSource, self).__init__(distr, training)
 
-    Methods
-    ----------
-    eval
-        Switch the source into inference mode.
-
-    train
-        Switch the source into training mode.
-
-    sample(dim)
+    def sample(self, dim):
+        """
         Sample a random symmetric positive (semi)definite matrix from the noise
         source.
 
@@ -367,31 +337,13 @@ class SPSDNoiseSource(_IIDNoiseSource):
         output : Tensor
             Block of symmetric, positive semidefinite matrices sampled from the
             noise source.
-
-    inject(tensor)
-        Inject noise sampled from the source into an existing tensor block.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            Tensor block into which to introduce the noise sampled from the
-            source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor block with noise injected from the source.
-    """
-    def __init__(self, std=0.05, training=True):
-        super(SPSDNoiseSource, self).__init__(std, training)
-
-    def sample(self, dim):
+        """
         if self.training:
             noise = torch.empty((*dim, dim[-1]))
             noise.normal_()
             sym = noise + noise.transpose(-1, -2)
             spd = torch.matrix_exp(sym)
-            return spd / (spd.std() / self.std)
+            return spd / (spd.std() / self.distr.scale)
         else:
             return 0
 
