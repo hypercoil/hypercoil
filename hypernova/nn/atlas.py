@@ -8,6 +8,8 @@ Modules that linearly map voxelwise signals to labelwise signals.
 """
 import torch
 from torch.nn import Module, Parameter
+from torch.distributions import Bernoulli
+from ..functional.noise import UnstructuredDropoutSource
 from ..init.atlas import atlas_init_
 
 
@@ -53,8 +55,8 @@ class AtlasLinear(Module):
         Boolean-valued tensor indicating the voxels that should be included as
         inputs to the atlas transformation.
     """
-    def __init__(self, atlas, kernel_sigma=None,
-                 noise_sigma=None, mask_input=True):
+    def __init__(self, atlas, kernel_sigma=None, noise_sigma=None,
+                 mask_input=True, spatial_dropout=0, min_voxels=1):
         super(AtlasLinear, self).__init__()
 
         self.atlas = atlas
@@ -66,6 +68,7 @@ class AtlasLinear(Module):
         self.weight = Parameter(torch.Tensor(
             self.atlas.n_labels, self.atlas.n_voxels
         ))
+        self._configure_spatial_dropout(spatial_dropout, min_voxels)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -73,6 +76,27 @@ class AtlasLinear(Module):
                     atlas=self.atlas,
                     kernel_sigma=self.kernel_sigma,
                     noise_sigma=self.noise_sigma)
+
+    def _configure_spatial_dropout(self, dropout_rate, min_voxels):
+        if dropout_rate > 0:
+            self.dropout = UnstructuredDropoutSource(
+                distr=Bernoulli(torch.Tensor([1 - dropout_rate])),
+                sample_axes=[-1]
+            )
+        else:
+            self.dropout = None
+        self.min_voxels = min_voxels
+
+    @property
+    def postweight(self):
+        if self.dropout is not None:
+            while True:
+                n_voxels = (self.weight > 0).sum(-1)
+                weight = self.dropout(self.weight)
+                n_voxels = (weight > 0).sum(-1)
+                if torch.all(n_voxels >= self.min_voxels):
+                    return weight
+        return self.weight
 
     def forward(self, input):
         if self.mask_input:
@@ -84,4 +108,4 @@ class AtlasLinear(Module):
                 extra_dims += 1
             input = input[mask.expand(shape[:-1])]
             input = input.view(*shape[:extra_dims], -1 , shape[-1])
-        return self.weight @ input
+        return self.postweight @ input
