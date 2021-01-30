@@ -117,8 +117,7 @@ class _IIDDropoutSource(_IIDSource):
     sampled noise multiplicatively into an existing tensor.
 
     Subclasses are responsible for implementing the correct `sample` method
-    that accepts a dimension argument. Currently there is a square matrix
-    input assumption in the `inject` method that future work might revise.
+    that accepts a dimension argument.
 
     See also
     --------
@@ -131,7 +130,7 @@ class _IIDDropoutSource(_IIDSource):
 
     def inject(self, tensor):
         if self.training:
-            return tensor * self.sample(tensor.size()[:-1])
+            return tensor * self.sample(tensor.size())
         else:
             return tensor
 
@@ -139,7 +138,38 @@ class _IIDDropoutSource(_IIDSource):
         return f'{self.distr}'
 
 
-class _AxialSampler(object):
+class _IIDSquareDropoutSource(_IIDDropoutSource):
+    """
+    Superclass for i.i.d. noise sources. Implements a method for injecting
+    sampled noise multiplicatively into an existing tensor.
+
+    Subclasses are responsible for implementing the correct `sample` method
+    that accepts a dimension argument. Currently there is a square matrix
+    input assumption in the `inject` method that future work might revise.
+
+    See also
+    --------
+    IIDNoiseSource : For additive sample injection.
+    """
+    def inject(self, tensor):
+        try:
+            sz = tensor.size()
+            assert sz[-1] == sz[-2]
+        except AssertionError:
+            raise AssertionError('Cannot inject square noise into nonsquare '
+                                 'tensors. The tensors must be square along '
+                                 'the last two dimensions.')
+        if self.training:
+            return tensor * self.sample(tensor.size()[:-1])
+        else:
+            return tensor
+
+
+class _AxialSampler(_IIDSource):
+    def __init__(self, distr=None, training=True, sample_axes=None):
+        self.sample_axes = sample_axes
+        super(_AxialSampler, self).__init__(distr, training)
+
     def select_dim(self, dim):
         if self.sample_axes is not None:
             dim = list(dim)
@@ -151,10 +181,10 @@ class _AxialSampler(object):
         return dim
 
 
-class UnstructuredNoiseSource(_IIDNoiseSource, _AxialSampler):
+class UnstructuredNoiseSource(_AxialSampler, _IIDNoiseSource):
     """
-    Noise source with no special structure, in which each element is sampled
-    i.i.d.
+    Additive noise source with no special structure, in which each element is
+    sampled i.i.d.
 
     Parameters
     ----------
@@ -169,10 +199,6 @@ class UnstructuredNoiseSource(_IIDNoiseSource, _AxialSampler):
         samples are broadcast. If this is None, then sampling occurs along all
         axes.
     """
-    def __init__(self, distr=None, training=True, sample_axes=None):
-        self.sample_axes = sample_axes
-        super(UnstructuredNoiseSource, self).__init__(distr, training)
-
     def sample(self, dim):
         """
         Sample a random tensor of the specified shape, in which the entries
@@ -348,30 +374,44 @@ class SPSDNoiseSource(_IIDNoiseSource):
             return 0
 
 
-class UnstructuredDropoutSource(_IIDSource, _AxialSampler):
+class UnstructuredDropoutSource(_AxialSampler, _IIDDropoutSource):
     """
-    A simple, unstructured dropout source.
+    Multiplicative noise source with no special structure, in which each
+    element is sampled i.i.d.
+
+    Parameters
+    ----------
+    distr : torch.distributions object
+        Distribution from which each element is sampled independently. If not
+        specified, this defaults to the standard normal distribution.
+    training : bool
+        Indicates whether the source should operate under the assumption of
+        training or inference; at test time, a noise-free sample is returned.
+    sample_axes : list or None (default None)
+        Axes along which sampling is performed. Along all other axes, the same
+        samples are broadcast. If this is None, then sampling occurs along all
+        axes.
     """
-    def __init__(self, p=0.5, training=True, sample_axes=None):
-        self.p = p
-        self.sample_axes = sample_axes
-        super(UnstructuredDropoutSource, self).__init__(training)
-
-    def inject(self, tensor):
-        if self.training:
-            return tensor * self.sample(tensor.size())
-        else:
-            return tensor
-
     def sample(self, dim):
+        """
+        Sample a random tensor of the specified shape, in which the entries
+        are sampled i.i.d. from the specified distribution.
+
+        Parameters
+        ----------
+        dim : iterable
+            Dimension of the tensors sampled from the source.
+
+        Returns
+        -------
+        output : Tensor
+            Tensor sampled from the noise source.
+        """
         dim = self.select_dim(dim)
-        return (torch.rand(*dim) < self.p) / self.p
-
-    def extra_repr(self):
-        return f'{self.distr}'
+        return self.distr.sample(dim).squeeze(-1) / self.distr.mean
 
 
-class DiagonalDropoutSource(_IIDDropoutSource):
+class DiagonalDropoutSource(_IIDSquareDropoutSource):
     """
     Diagonal dropout source.
 
@@ -387,16 +427,13 @@ class DiagonalDropoutSource(_IIDDropoutSource):
     training : bool
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
+    """
+    def __init__(self, distr=None, offset=0, training=True):
+        super(DiagonalDropoutSource, self).__init__(distr, training)
+        self.offset = offset
 
-    Methods
-    ----------
-    eval
-        Switch the source into inference mode.
-
-    train
-        Switch the source into training mode.
-
-    sample(dim)
+    def sample(self, dim):
+        """
         Sample a random masking matrix from the dropout source.
 
         Parameters
@@ -408,35 +445,16 @@ class DiagonalDropoutSource(_IIDDropoutSource):
         -------
         output : Tensor
             Block of masking matrices sampled from the noise source.
-
-    inject(tensor)
-        Apply dropout sampled from the source to an existing tensor block.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            Tensor block into which to introduce the dropout sampled from the
-            source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor block with dropout applied from the source.
-    """
-    def __init__(self, p=0.5, offset=0, training=True):
-        super(DiagonalDropoutSource, self).__init__(p, training)
-        self.offset = offset
-
-    def sample(self, dim):
+        """
         dim = [*dim[:-1], dim[-1] - abs(self.offset)]
         if self.training:
-            mask = (torch.rand(*dim) < self.p) / self.p
+            mask = self.distr.sample(dim).squeeze(-1) / self.distr.mean
             return torch.diag_embed(mask, self.offset)
         else:
             return 1
 
 
-class BandDropoutSource(_IIDDropoutSource):
+class BandDropoutSource(_IIDSquareDropoutSource):
     """
     Dropout source for matrices with banded structure.
 
@@ -472,16 +490,28 @@ class BandDropoutSource(_IIDDropoutSource):
         entry is in the permitted band.
     normfact : float or Tensor
         Dropout correction term.
+    """
+    def __init__(self, distr=None, bandwidth=0, training=True, norm='diag'):
+        super(BandDropoutSource, self).__init__(distr, training)
+        self.generator = torch.Tensor([1] * (1 + bandwidth))
+        self.bandwidth = bandwidth
+        self.n = float('nan')
+        self.norm = norm
 
-    Methods
-    ----------
-    eval
-        Switch the source into inference mode.
+    def _create_bandmask(self, n):
+        self.n = n
+        self.bandmask = toeplitz(self.generator, dim=[self.n, self.n])
+        self.bandnorm = self.bandmask.sum()
+        if self.norm == 'blanket':
+            self.normfact = self.bandnorm / (self.n * (1 - self.distr.mean) +
+                (self.bandnorm - self.n) * (1 - self.distr.mean) ** 2)
+        elif self.norm == 'diag':
+            self.normfact = (torch.ones_like(self.bandmask) /
+                             (1 - self.distr.mean) ** 2)
+            self.normfact[torch.eye(self.n).bool()] = 1 / (1 - self.distr.mean)
 
-    train
-        Switch the source into training mode.
-
-    sample(dim)
+    def sample(self, dim):
+        """
         Sample a random masking matrix from the dropout source.
 
         Parameters
@@ -497,53 +527,19 @@ class BandDropoutSource(_IIDDropoutSource):
         -------
         output : Tensor
             Block of masking matrices sampled from the noise source.
-
-    inject(tensor)
-        Apply dropout sampled from the source to an existing tensor block.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            Tensor block into which to introduce the dropout sampled from the
-            source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor block with dropout applied from the source.
-    """
-    def __init__(self, p=0.5, bandwidth=0, training=True, norm='diag'):
-        super(BandDropoutSource, self).__init__(p, training)
-        self.generator = torch.Tensor([1] * (1 + bandwidth))
-        self.bandwidth = bandwidth
-        self.n = float('nan')
-        self.norm = norm
-
-    def _create_bandmask(self, n):
-        self.n = n
-        self.bandmask = toeplitz(self.generator, dim=[self.n, self.n])
-        self.bandnorm = self.bandmask.sum()
-        if self.norm == 'blanket':
-            self.normfact = self.bandnorm / (self.n * (1 - self.p) +
-                            (self.bandnorm - self.n) * (1 - self.p) ** 2)
-        elif self.norm == 'diag':
-            self.normfact = torch.ones_like(self.bandmask) / (1 - self.p) ** 2
-            self.normfact[torch.eye(self.n).bool()] = 1 / (1 - self.p)
-
-    def sample(self, dim):
+        """
         if self.training:
             n = dim[-1]
             if n != self.n:
                 self._create_bandmask(n)
-            mask = (torch.rand(*dim, 1) < self.p).float()
+            mask = self.distr.sample((*dim, 1)).squeeze(-1)
             unnorm = mask @ mask.transpose(-1, -2) * self.bandmask
             return unnorm * self.normfact
         else:
             return 1
 
 
-
-class SPSDDropoutSource(_IIDDropoutSource):
+class SPSDDropoutSource(_IIDSquareDropoutSource):
     """
     Symmetric positive semidefinite dropout source. Note that diagonal entries
     are effectively sampled from a very different distribution than
@@ -565,16 +561,13 @@ class SPSDDropoutSource(_IIDDropoutSource):
     training : bool
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
+    """
+    def __init__(self, distr=None, rank=1, training=True):
+        super(SPSDDropoutSource, self).__init__(distr, training)
+        self.rank = rank
 
-    Methods
-    ----------
-    eval
-        Switch the source into inference mode.
-
-    train
-        Switch the source into training mode.
-
-    sample(dim)
+    def sample(self, dim):
+        """
         Sample a random masking matrix from the dropout source.
 
         Parameters
@@ -586,29 +579,10 @@ class SPSDDropoutSource(_IIDDropoutSource):
         -------
         output : Tensor
             Block of masking matrices sampled from the noise source.
-
-    inject(tensor)
-        Apply dropout sampled from the source to an existing tensor block.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            Tensor block into which to introduce the dropout sampled from the
-            source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor block with dropout applied from the source.
-    """
-    def __init__(self, p=0.5, rank=1, training=True):
-        super(SPSDDropoutSource, self).__init__(p, training)
-        self.rank = rank
-
-    def sample(self, dim):
+        """
         if self.training:
             rank = self.rank or dim[-1]
-            mask = (torch.rand(*dim, rank) < self.p) / self.p
+            mask = self.distr.sample(dim).squeeze(-1) / self.distr.mean
             return mask @ mask.transpose(-1, -2) / rank
         else:
             return 1
