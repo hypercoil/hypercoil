@@ -11,6 +11,7 @@ import numpy as np
 import nibabel as nb
 from scipy.ndimage import gaussian_filter
 from ..functional import UnstructuredNoiseSource
+from ..functional.domain import Identity
 
 
 class Atlas(object):
@@ -219,7 +220,8 @@ class ContinuousAtlas(Atlas):
         return self._smooth_and_mask(map, sigma)
 
 
-def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None):
+def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None,
+                domain=None):
     """
     Voxel-to-label mapping initialisation.
 
@@ -246,9 +248,19 @@ def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None):
     noise_sigma : float or None (default None)
         If this is a float, then Gaussian noise with the specified standard
         deviation is added to the label.
+    domain : Domain object (default Identity)
+        A domain object from `hypernova.functional.domain`, used to specify
+        the domain of the atlas weights. An `Identity` object yields the
+        raw weights, while an `Atanh` object transforms the weights by the
+        inverse tanh function and a `Logit` object transforms the weights by
+        the inverse sigmoid function. These transformations can be useful if
+        the initialised atlas weight tensor will be used as a learnable
+        parameter transformed by the tanh or sigmoid functions, thereby
+        constraining the weights to [-a, a] or [0, a].
     """
     rg = tensor.requires_grad
     tensor.requires_grad = False
+    domain = domain or Identity()
     if noise_sigma is not None:
         distr = torch.distributions.normal.Normal(
             torch.Tensor([0]), torch.Tensor([noise_sigma])
@@ -257,5 +269,6 @@ def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None):
     else:
         noise = None
     map = atlas.map(sigma=kernel_sigma, noise=noise)
+    map = domain.preimage(map)
     tensor[:] = torch.Tensor(map)
     tensor.requires_grad = rg
