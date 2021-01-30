@@ -8,10 +8,11 @@ Additive and multiplicative noise sources.
 """
 import math
 import torch
+from abc import ABC, abstractmethod
 from .matrix import toeplitz
 
 
-class _IIDSource(torch.nn.Module):
+class _IIDSource(torch.nn.Module, ABC):
     """
     Superclass for i.i.d. noise and dropout sources. Implements methods that
     toggle between test and train mode.
@@ -36,6 +37,14 @@ class _IIDSource(torch.nn.Module):
         """
         self.train(False)
 
+    @abstractmethod
+    def inject(self, input):
+        pass
+
+    @abstractmethod
+    def sample(self, dim):
+        pass
+
     def forward(self, input):
         """
         Inject noise sampled from the source into a tensor.
@@ -53,7 +62,8 @@ class _IIDNoiseSource(_IIDSource):
 
     See also
     --------
-    IIDDropoutSource : For multiplicative sample injection.
+    _IIDSquareNoiseSource : Noise source with a square matrix assumption.
+    _IIDDropoutSource : For multiplicative sample injection.
     """
     def __init__(self, distr=None, training=True):
         distr = distr or torch.distributions.normal.Normal(
@@ -95,7 +105,8 @@ class _IIDSquareNoiseSource(_IIDNoiseSource):
 
     See also
     --------
-    IIDDropoutSource : For multiplicative sample injection.
+    _IIDNoiseSource : Does not assume samples are square matrices.
+    _IIDSquareDropoutSource : For multiplicative sample injection.
     """
     def inject(self, tensor):
         try:
@@ -121,7 +132,8 @@ class _IIDDropoutSource(_IIDSource):
 
     See also
     --------
-    IIDNoiseSource : For additive sample injection.
+    _IIDSquareDropoutSource : Dropout source with a square matrix assumption.
+    _IIDNoiseSource : For additive sample injection.
     """
     def __init__(self, distr=None, training=True):
         distr = distr or torch.distributions.bernoulli.Bernoulli(
@@ -149,7 +161,8 @@ class _IIDSquareDropoutSource(_IIDDropoutSource):
 
     See also
     --------
-    IIDNoiseSource : For additive sample injection.
+    _IIDDropoutSource : Does not assume samples are square matrices.
+    _IIDSquareNoiseSource : For additive sample injection.
     """
     def inject(self, tensor):
         try:
@@ -166,11 +179,19 @@ class _IIDSquareDropoutSource(_IIDDropoutSource):
 
 
 class _AxialSampler(_IIDSource):
+    """
+    Noise source for which it is possible to specify the tensor axes along
+    which there is randomness.
+    """
     def __init__(self, distr=None, training=True, sample_axes=None):
         self.sample_axes = sample_axes
         super(_AxialSampler, self).__init__(distr, training)
 
     def select_dim(self, dim):
+        """
+        Change the dimension of the sample such that randomness occurs only
+        along the specified axes.
+        """
         if self.sample_axes is not None:
             dim = list(dim)
             n_axes = len(dim)
@@ -220,12 +241,13 @@ class UnstructuredNoiseSource(_AxialSampler, _IIDNoiseSource):
 
 class DiagonalNoiseSource(_IIDSquareNoiseSource):
     """
-    Zero-mean diagonal noise source.
+    Diagonal noise source.
 
     Parameters/Attributes
     ---------------------
-    std : float (default 0.05)
-        Standard deviation of the noise source.
+    distr : torch.distributions object
+        Distribution from which each element is sampled independently. If not
+        specified, this defaults to the standard normal distribution.
     offset : int (default 0)
         Diagonal along which the noise is to be embedded. The default value of
         0 corresponds to the main diagonal of the matrix; positive values
@@ -241,8 +263,8 @@ class DiagonalNoiseSource(_IIDSquareNoiseSource):
     def sample(self, dim):
         """
         Sample a random matrix that is zero everywhere except for a single
-        diagonal band, along which the entries are sampled i.i.d. from a
-        zero-mean Gaussian distribution with the specified standard deviation.
+        diagonal band, along which the entries are sampled i.i.d. from the
+        specified distribution.
 
         Parameters
         ----------
@@ -273,9 +295,9 @@ class LowRankNoiseSource(_IIDNoiseSource):
 
     Parameters/Attributes
     ---------------------
-    std : float (default 0.05)
-        Approximate standard deviation across entries in each symmetric
-        positive semidefinite matrix sampled from the source.
+    distr : torch.distributions object
+        Distribution from which each element is sampled independently. If not
+        specified, this defaults to the standard normal distribution.
     rank : int or None (default None)
         Maximum rank of each sampled matrix; inner dimension of the positive
         semidefinite product. If this is less than the sampled dimension, the
@@ -300,7 +322,7 @@ class LowRankNoiseSource(_IIDNoiseSource):
         :math:`\mathcal{N}\left(0, \frac{\sigma}{\sqrt{r + \frac{r^2}{d}}}\right)`
 
         The mean of this noise source is not exactly zero, but it trends toward
-        zero as the dimension d increases. Note: revisit this later and work
+        zero as the dimension d increases. TODO: revisit this later and work
         out what is going on mathematically. Here's a start:
         https://math.stackexchange.com/questions/101062/ ...
         is-the-product-of-two-gaussian-random-variables-also-a-gaussian
@@ -338,16 +360,13 @@ class SPSDNoiseSource(_IIDNoiseSource):
 
     Parameters/Attributes
     ---------------------
-    std : float (default 0.05)
-        Approximate standard deviation across entries in each symmetric
-        positive semidefinite matrix sampled from the source.
+    distr : torch.distributions object
+        Distribution from which each element is sampled independently. If not
+        specified, this defaults to the standard normal distribution.
     training : bool
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
     """
-    def __init__(self, distr=None, training=True):
-        super(SPSDNoiseSource, self).__init__(distr, training)
-
     def sample(self, dim):
         """
         Sample a random symmetric positive (semi)definite matrix from the noise
@@ -417,9 +436,9 @@ class DiagonalDropoutSource(_IIDSquareDropoutSource):
 
     Parameters/Attributes
     ---------------------
-    p : float (default 0.5)
-        Probability of dropout across entries along the indicated diagonal of
-        each masking matrix sampled from the source.
+    distr : torch.distributions object
+        Distribution from which each element is sampled independently. If not
+        specified, this defaults to an equiprobable Bernoulli distribution.
     offset : int (default 0)
         Diagonal along which the mask is to be embedded. The default value of
         0 corresponds to the main diagonal of the matrix; positive values
@@ -465,8 +484,11 @@ class BandDropoutSource(_IIDSquareDropoutSource):
 
     Parameters/Attributes
     ---------------------
-    p : float (default 0.5)
-        Approximate probability of dropout across columns in each symmetric
+    distr : torch.distributions object
+        Distribution from which each element is sampled independently. If not
+        specified, this defaults to an equiprobable Bernoulli distribution. For
+        a Bernoulli distribution, then its parameter corresponds to the
+        approximate probability of dropout across columns in each symmetric
         positive semidefinite masking matrix sampled from the source.
     bandwidth : int or None (default None)
         Maximum bandwidth of each masking matrix; maximum offset from the main
@@ -550,8 +572,11 @@ class SPSDDropoutSource(_IIDSquareDropoutSource):
 
     Parameters/Attributes
     ---------------------
-    p : float (default 0.5)
-        Approximate probability of dropout across columns in each symmetric
+    distr : torch.distributions object
+        Distribution from which each element is sampled independently. If not
+        specified, this defaults to an equiprobable Bernoulli distribution. For
+        a Bernoulli distribution, then its parameter corresponds to the
+        approximate probability of dropout across columns in each symmetric
         positive semidefinite masking matrix sampled from the source.
     rank : int or None (default None)
         Maximum rank of each masking matrix; inner dimension of the positive
