@@ -9,6 +9,7 @@ Modules that linearly map voxelwise signals to labelwise signals.
 import torch
 from torch.nn import Module, Parameter
 from torch.distributions import Bernoulli
+from ..functional.domain import Identity
 from ..functional.noise import UnstructuredDropoutSource
 from ..init.atlas import atlas_init_
 
@@ -56,26 +57,29 @@ class AtlasLinear(Module):
         inputs to the atlas transformation.
     """
     def __init__(self, atlas, kernel_sigma=None, noise_sigma=None,
-                 mask_input=True, spatial_dropout=0, min_voxels=1):
+                 mask_input=True, spatial_dropout=0, min_voxels=1,
+                 domain=None):
         super(AtlasLinear, self).__init__()
 
         self.atlas = atlas
         self.kernel_sigma = kernel_sigma
         self.noise_sigma = noise_sigma
+        self.domain = domain or Identity()
         self.mask_input = mask_input
         self.mask = (torch.from_numpy(self.atlas.mask)
                      if self.mask_input else None)
-        self.weight = Parameter(torch.Tensor(
+        self.preweight = Parameter(torch.Tensor(
             self.atlas.n_labels, self.atlas.n_voxels
         ))
         self._configure_spatial_dropout(spatial_dropout, min_voxels)
         self.reset_parameters()
 
     def reset_parameters(self):
-        atlas_init_(tensor=self.weight,
+        atlas_init_(tensor=self.preweight,
                     atlas=self.atlas,
                     kernel_sigma=self.kernel_sigma,
-                    noise_sigma=self.noise_sigma)
+                    noise_sigma=self.noise_sigma,
+                    domain=self.domain)
 
     def _configure_spatial_dropout(self, dropout_rate, min_voxels):
         if dropout_rate > 0:
@@ -86,6 +90,10 @@ class AtlasLinear(Module):
         else:
             self.dropout = None
         self.min_voxels = min_voxels
+
+    @property
+    def weight(self):
+        return self.domain.image(self.preweight)
 
     @property
     def postweight(self):
