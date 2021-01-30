@@ -53,14 +53,16 @@ class TestAtlasInit:
     def test_discrete_atlas(self):
         atlas_init_(
             self.tsr_discrete,
-            self.atlas_discrete)
+            self.atlas_discrete,
+            normalise=True)
         assert torch.allclose(self.tsr_discrete.sum(1), torch.Tensor([1]))
         assert self.tsr_discrete[:, 1].argmax() == 38
 
     def test_continuous_atlas(self):
         atlas_init_(
             self.tsr_continuous,
-            self.atlas_continuous)
+            self.atlas_continuous,
+            normalise=True)
         assert torch.allclose(self.tsr_continuous.sum(1), torch.Tensor([1]))
         assert self.tsr_continuous[:, 1].argmax() == 4
 

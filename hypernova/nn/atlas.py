@@ -58,13 +58,14 @@ class AtlasLinear(Module):
     """
     def __init__(self, atlas, kernel_sigma=None, noise_sigma=None,
                  mask_input=True, spatial_dropout=0, min_voxels=1,
-                 domain=None):
+                 domain=None, reduce='mean'):
         super(AtlasLinear, self).__init__()
 
         self.atlas = atlas
         self.kernel_sigma = kernel_sigma
         self.noise_sigma = noise_sigma
         self.domain = domain or Identity()
+        self.reduction = reduce
         self.mask_input = mask_input
         self.mask = (torch.from_numpy(self.atlas.mask)
                      if self.mask_input else None)
@@ -79,7 +80,8 @@ class AtlasLinear(Module):
                     atlas=self.atlas,
                     kernel_sigma=self.kernel_sigma,
                     noise_sigma=self.noise_sigma,
-                    domain=self.domain)
+                    domain=self.domain,
+                    normalise=False)
 
     def _configure_spatial_dropout(self, dropout_rate, min_voxels):
         if dropout_rate > 0:
@@ -106,6 +108,23 @@ class AtlasLinear(Module):
                     return weight
         return self.weight
 
+    def reduce(self, input, weight):
+        out = weight @ input
+        if self.reduction == 'mean':
+            normfact = weight.sum(-1, keepdim=True)
+            return out / normfact
+        elif self.reduction == 'absmean':
+            normfact = weight.abs().sum(-1, keepdim=True)
+            return out / normfact
+        elif self.reduction == 'zscore':
+            out -= out.mean(-1, keepdim=True)
+            out /= out.std(-1, keepdim=True)
+            return out
+        elif self.reduction == 'psc':
+            mean = out.mean(-1, keepdim=True)
+            return 100 * (out - mean) / mean
+        return out
+
     def forward(self, input):
         if self.mask_input:
             shape = input.size()
@@ -116,4 +135,4 @@ class AtlasLinear(Module):
                 extra_dims += 1
             input = input[mask.expand(shape[:-1])]
             input = input.view(*shape[:extra_dims], -1 , shape[-1])
-        return self.postweight @ input
+        return self.reduce(input, self.postweight)

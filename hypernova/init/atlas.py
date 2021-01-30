@@ -221,7 +221,7 @@ class ContinuousAtlas(Atlas):
 
 
 def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None,
-                domain=None):
+                domain=None, normalise=False):
     """
     Voxel-to-label mapping initialisation.
 
@@ -268,7 +268,7 @@ def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None,
         noise = UnstructuredNoiseSource(distr=distr)
     else:
         noise = None
-    map = atlas.map(sigma=kernel_sigma, noise=noise)
+    map = atlas.map(sigma=kernel_sigma, noise=noise, normalise=normalise)
     map = domain.preimage(map)
     tensor[:] = torch.Tensor(map)
     tensor.requires_grad = rg
