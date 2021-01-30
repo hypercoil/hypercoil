@@ -16,14 +16,18 @@ from hypernova.functional import (
 
 
 def lr_std_mean(dim=100, rank=None, std=0.05, iter=1000):
-    lrns = LowRankNoiseSource(rank=rank, std=std)
+    distr = torch.distributions.normal.Normal(
+        torch.Tensor([0]), torch.Tensor([std]))
+    lrns = LowRankNoiseSource(rank=rank, distr=distr)
     return torch.Tensor(
         [lrns.sample([dim]).std() for _ in range(iter)
     ]).mean()
 
 
 def lr_mean_mean(dim=100, rank=None, std=0.05, iter=1000):
-    lrns = LowRankNoiseSource(rank=rank, std=std)
+    distr = torch.distributions.normal.Normal(
+        torch.Tensor([0]), torch.Tensor([std]))
+    lrns = LowRankNoiseSource(rank=rank, distr=distr)
     return torch.Tensor(
         [lrns.sample([dim]).mean() for _ in range(iter)
     ]).mean()
@@ -52,10 +56,10 @@ class TestNoise:
     def test_spsd_spsd(self):
         spsdns = SPSDNoiseSource()
         out = spsdns.sample([100])
-        assert np.allclose(out, out.T, atol=1e-7)
+        assert np.allclose(out, out.T, atol=1e-5)
         # ignore effectively-zero eigenvalues
         L = np.linalg.eigvals(out)
-        L[np.abs(L) < 1e-6] = 0
+        L[np.abs(L) < 1e-5] = 0
         assert L.min() >= 0
         assert np.all(L >= 0)
 
