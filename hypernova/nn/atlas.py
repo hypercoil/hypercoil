@@ -162,14 +162,18 @@ class AtlasLinear(Module):
             return 100 * (out - mean) / mean
         return out
 
+    def apply_mask(self, input):
+        shape = input.size()
+        mask = self.mask
+        extra_dims = 0
+        while mask.dim() < input.dim() - 1:
+            mask = mask.unsqueeze(0)
+            extra_dims += 1
+        input = input[mask.expand(shape[:-1])]
+        input = input.view(*shape[:extra_dims], -1 , shape[-1])
+        return input
+
     def forward(self, input):
         if self.mask_input:
-            shape = input.size()
-            mask = self.mask
-            extra_dims = 0
-            while mask.dim() < input.dim() - 1:
-                mask = mask.unsqueeze(0)
-                extra_dims += 1
-            input = input[mask.expand(shape[:-1])]
-            input = input.view(*shape[:extra_dims], -1 , shape[-1])
+            input = self.apply_mask(input)
         return self.reduce(input, self.postweight)

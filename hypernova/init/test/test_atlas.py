@@ -16,6 +16,7 @@ from hypernova.init.atlas import (
     DiscreteAtlas,
     atlas_init_
 )
+from hypernova.functional.noise import UnstructuredDropoutSource
 
 
 class TestAtlasInit:
@@ -44,7 +45,9 @@ class TestAtlasInit:
             self.atlas_continuous.n_labels,
             self.atlas_continuous.n_voxels
         ))
-        self.inp = np.arange(91 * 109 * 91 * 50).reshape(91, 109, 91, 50)
+        self.inp = np.linspace(
+            0, 1000, 91 * 109 * 91 * 50).reshape(
+            50, 109, 91, 91).swapaxes(0, -1)
         self.inp2 = torch.rand(
             2, 1, 1, 2, *self.atlas_discrete.mask.shape, 10)
         self.inpT = torch.Tensor(self.inp)
@@ -75,3 +78,22 @@ class TestAtlasInit:
         out = self.lin(self.inpT)
         ref = self.nil.fit_transform(nb.Nifti1Image(self.inp, affine=self.aff))
         assert np.allclose(out.detach().numpy(), ref.T)
+
+    def test_atlas_nn_reductions(self):
+        # Currently we're only testing z-scoring.
+        self.lin.reduction = 'zscore'
+        out = self.lin(self.inpT)
+        assert np.allclose(out.mean(-1).detach(), 0, atol=1e-5)
+        assert np.allclose(out.std(-1).detach(), 1, atol=1e-5)
+        self.lin.reduction = 'mean'
+
+    def test_atlas_nn_dropout(self):
+        self.lin.dropout = UnstructuredDropoutSource(
+            distr=torch.distributions.Bernoulli(
+                torch.Tensor([0.2])),
+            sample_axes=[-1]
+        )
+        empirical = 1 - torch.all(
+            self.lin.postweight==0, dim=-2).float().mean()
+        assert (empirical - self.lin.dropout.distr.mean).abs() < 0.05
+        self.lin.dropout = None
