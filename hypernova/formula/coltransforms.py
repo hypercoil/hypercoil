@@ -31,9 +31,10 @@ class MatchRule(object):
 
 
 class MatchOnly(MatchRule):
-    def __init__(self, regex):
+    def __init__(self, regex, typedict=None):
         rule = lambda x: x
-        super(MatchOnly, self).__init__(regex=regex, rule=rule)
+        super(MatchOnly, self).__init__(
+            regex=regex, rule=rule, typedict=typedict)
 
 
 class AllOrders(MatchRule):
@@ -67,6 +68,38 @@ class SelectOrder(MatchRule):
         if len(order) > 1:
             order = range(order[0], (order[-1] + 1))
         return order
+
+
+class ThreshBinTransform(ColumnTransform):
+    def __init__(self):
+        regex = r'^thr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
+        transform = lambda data, thresh: data > thresh
+        typedict = {'thresh': float}
+        matches = [MatchOnly(regex=regex, typedict=typedict)]
+        super(ThreshBinTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='threshbin'
+        )
+
+    def argform(self, **args):
+        return args['thresh']
+
+
+class UThreshBinTransform(ColumnTransform):
+    def __init__(self):
+        regex = r'^uthr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
+        transform = lambda data, thresh: data < thresh
+        typedict = {'thresh': float}
+        matches = [MatchOnly(regex=regex, typedict=typedict)]
+        super(UThreshBinTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='uthreshbin'
+        )
+
+    def argform(self, **args):
+        return args['thresh']
 
 
 class ColumnTransform(object):
