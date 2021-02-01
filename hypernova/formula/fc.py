@@ -6,7 +6,7 @@ Functional connectivity
 ~~~~~~~~~~~~~~~~~~~~~~~
 Initialisations of base data classes for modelling functional connectivity.
 """
-from .coltransforms import ColumnTransform
+from .coltransforms import OrderedTransform
 from .model import ModelSpec
 from .shorthand import Shorthand, ShorthandFilter
 from .utils import diff_nanpad, match_metadata, numbered_string
@@ -103,7 +103,7 @@ class FCShorthand(Shorthand):
         )
 
 
-class PowerTransform(ColumnTransform):
+class PowerTransform(OrderedTransform):
     """
     Column transform that computes exponential expansions. The nth-order
     transform returns the input data raised to the nth power.
@@ -119,15 +119,15 @@ class PowerTransform(ColumnTransform):
     def __init__(self):
         super(PowerTransform, self).__init__(
             transform=lambda data, order: data.values ** order,
-            all=r'\^\^([0-9]+)$',
-            select=r'\^([0-9]+[\-]?[0-9]*)$',
+            all=r'^\((?P<child0>.*)\)\^\^(?P<order>[0-9]+)$',
+            select=r'^\((?P<child0>.*)\)\^(?P<order>[0-9]+[\-]?[0-9]*)$',
             first=1,
             name='power',
             identity=1
         )
 
 
-class DerivativeTransform(ColumnTransform):
+class DerivativeTransform(OrderedTransform):
     """
     Column transform that computes temporal derivatives as backward
     differences. The nth-order transform returns the nth-order backward
@@ -145,8 +145,8 @@ class DerivativeTransform(ColumnTransform):
     def __init__(self):
         super(DerivativeTransform, self).__init__(
             transform=lambda data, order: diff_nanpad(data, n=order, axis=0),
-            all=r'^dd([0-9]+)',
-            select=r'^d([0-9]+[\-]?[0-9]*)',
+            all=r'^dd(?P<order>[0-9]+)\((?P<child>.*)\)$',
+            select=r'^d(?P<order>[0-9]+[\-]?[0-9]*)\((?P<child>.*)\)$',
             first=0,
             name='derivative',
             identity=0

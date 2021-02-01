@@ -7,6 +7,7 @@ Shorthand
 Shorthand expressions and parser for the confound modelling subsystem.
 """
 import re
+from itertools import chain
 
 
 class ShorthandFilter(object):
@@ -44,8 +45,9 @@ class Shorthand(object):
         return matches
 
     def get_formula_variables(self, model_formula):
-        symbols_to_clear = [t.all for t in self.transforms] + [
-            t.select for t in self.transforms]
+        symbols_to_clear = [[m.regex for m in t.matches]
+                            for t in self.transforms]
+        symbols_to_clear = list(chain(*symbols_to_clear))
         for symbol in symbols_to_clear:
             model_formula = re.sub(symbol, '', model_formula)
         variables = model_formula.split('+')
