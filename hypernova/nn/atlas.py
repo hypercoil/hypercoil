@@ -177,3 +177,8 @@ class AtlasLinear(Module):
         if self.mask_input:
             input = self.apply_mask(input)
         return self.reduce(input, self.postweight)
+
+    def __repr__(self):
+        s = f'{type(self).__name__}(atlas={self.atlas}, '
+        s += f'mask={self.mask_input}, reduce={self.reduction})'
+        return s
