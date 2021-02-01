@@ -43,10 +43,11 @@ class Atlas(object):
     n_voxels : int
         Total number of voxels to include in the atlas.
     """
-    def __init__(self, path, label_dict=None):
+    def __init__(self, path, name=None, label_dict=None):
         self.path = path
         self.ref = nb.load(self.path)
         self.image = self.ref.get_fdata()
+        self.name = name or 'atlas'
         self.label_dict = label_dict
 
     def map(self, sigma=None, noise=None, normalise=True):
@@ -100,7 +101,7 @@ class Atlas(object):
         return map[self.mask]
 
     def __repr__(self):
-        s = f'{type(self).__name__}('
+        s = f'{type(self).__name__}({self.name}, '
         s += f'labels={self.n_labels}, voxels={self.n_voxels}'
         s += ')'
         return s
@@ -139,9 +140,9 @@ class DiscreteAtlas(Atlas):
     n_voxels : int
         Total number of voxels to include in the atlas.
     """
-    def __init__(self, path, label_dict=None, mask=None, null=0):
+    def __init__(self, path, name=None, label_dict=None, mask=None, null=0):
         super(DiscreteAtlas, self).__init__(
-            path=path, label_dict=label_dict)
+            path=path, name=name, label_dict=label_dict)
         self.labels = set(np.unique(self.image)) - set([null])
         if isinstance(mask, np.ndarray):
             pass
@@ -192,12 +193,12 @@ class ContinuousAtlas(Atlas):
     n_voxels : int
         Total number of voxels to include in the atlas.
     """
-    def __init__(self, path, label_dict=None, mask=None, thresh=0):
+    def __init__(self, path, name=None, label_dict=None, mask=None, thresh=0):
         if isinstance(path, list) or isinstance(path, tuple):
-            self._init_from_paths(path, label_dict)
+            self._init_from_paths(path=path, name=name, label_dict=label_dict)
         else:
             super(ContinuousAtlas, self).__init__(
-                path=path, label_dict=label_dict)
+                path=path, name=name, label_dict=label_dict)
         self.labels = list(range(self.image.shape[-1]))
         if isinstance(mask, np.ndarray):
             pass
@@ -207,11 +208,12 @@ class ContinuousAtlas(Atlas):
             mask = np.ones(self.image.shape[:-1])
         self._set_dims(mask)
 
-    def _init_from_paths(self, path, label_dict):
+    def _init_from_paths(self, path, name, label_dict):
         self.path = path
         self.ref = [nb.load(p) for p in self.path]
         self.image = np.stack([r.get_fdata() for r in self.ref], -1)
         self.label_dict = label_dict
+        self.name = name or 'atlas'
 
     def _extract_label(self, label_id, sigma=None):
         slc = [slice(None)] * len(self.image.shape)
