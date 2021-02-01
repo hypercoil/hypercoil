@@ -54,6 +54,7 @@ class Expression(object):
     """
     def __init__(self, expr, transforms=None):
         self.transform = None
+        self.args = {}
         self.transforms = transforms
         self.expr = expr.strip()
         if self.is_parenthetical(self.expr):
@@ -116,8 +117,8 @@ class Expression(object):
             self.data[i] = expr.parse(df)
         self.data = pd.concat(self.data, axis=1)
         if self.transform:
-            self.data = self.transform.check_and_expand(
-                self.expr, self.data.columns, self.data)
+            self.data = self.transform(
+                self.data.columns, self.data, **self.args)
         if unscramble:
             self._unscramble_regressor_columns(df)
         return self.data
@@ -128,8 +129,10 @@ class Expression(object):
         transform being performed.
         """
         for t in self.transforms:
-            if re.search(t.all, self.expr) or re.search(t.select, self.expr):
+            results = [re.search(m.regex, self.expr) for m in t.matches]
+            if any(results):
                 self.transform = t
+                self.args = t.parse_expr(self.expr)
                 self._transform_arg_as_child()
                 return
         self._transform_arg_as_child()
@@ -154,18 +157,14 @@ class Expression(object):
         containing the argument of the transform. This function is also
         called for parenthetical sub-expressions.
         """
-        grouping_depth = 0
-        for i, char in enumerate(self.expr):
-            if char == '(':
-                if grouping_depth == 0:
-                    expr_delimiter = i + 1
-                grouping_depth += 1
-            elif char == ')':
-                grouping_depth -= 1
-                if grouping_depth == 0:
-                    self.children = [Expression(self.expr[expr_delimiter:i],
-                                                self.transforms)]
-                    return
+        child = self.args.get('child')
+        if child:
+            self.args.pop('child')
+        elif self.is_parenthetical(self.expr):
+            child = self.expr[1:-1]
+        if child:
+            self.children = [Expression(child, self.transforms)]
+        return
 
     def _unscramble_regressor_columns(self, df):
         """
