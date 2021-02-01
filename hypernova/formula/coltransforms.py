@@ -102,6 +102,46 @@ class UThreshBinTransform(ColumnTransform):
         return args['thresh']
 
 
+class UnionTransform(ColumnTransform):
+    def __init__(self):
+        regex = r'^or\((?P<child0>.*)\)'
+        transform = lambda values: reduce((lambda x, y: x | y), values)
+        matches = [MatchOnly(regex=regex)]
+        super(UnionTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='union'
+        )
+
+    def __call__(self, children, **args):
+        selected = children[0]
+        vars = 'OR'.join(selected.columns)
+        return pd.DataFrame(
+            data=self.transform(selected.values()),
+            columns=[f'union_{vars}']
+        )
+
+
+class IntersectionTransform(ColumnTransform):
+    def __init__(self):
+        regex = r'^or\((?P<child0>.*)\)'
+        transform = lambda values: reduce((lambda x, y: x & y), values)
+        matches = [MatchOnly(regex=regex)]
+        super(IntersectionTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='intersection'
+        )
+
+    def __call__(self, children, **args):
+        selected = children[0]
+        vars = 'AND'.join(selected.columns)
+        return pd.DataFrame(
+            data=self.transform(selected.values()),
+            columns=[f'intersection_{vars}']
+        )
+
+
 class ColumnTransform(object):
     def __init__(self, transform, matches, name='transform'):
         self.transform = transform
