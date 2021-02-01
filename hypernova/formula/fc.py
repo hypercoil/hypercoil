@@ -145,8 +145,8 @@ class DerivativeTransform(OrderedTransform):
     def __init__(self):
         super(DerivativeTransform, self).__init__(
             transform=lambda data, order: diff_nanpad(data, n=order, axis=0),
-            all=r'^dd(?P<order>[0-9]+)\((?P<child>.*)\)$',
-            select=r'^d(?P<order>[0-9]+[\-]?[0-9]*)\((?P<child>.*)\)$',
+            all=r'^dd(?P<order>[0-9]+)\((?P<child0>.*)\)$',
+            select=r'^d(?P<order>[0-9]+[\-]?[0-9]*)\((?P<child0>.*)\)$',
             first=0,
             name='derivative',
             identity=0

@@ -92,12 +92,12 @@ class ColumnTransform(object):
     def argform(self, **args):
         return None
 
-    def __call__(self, variables, data, **args):
-        selected = data[variables]
+    def __call__(self, children, **args):
+        selected = children[0]
         data_xfm = pd.DataFrame(
             data=self.transform(selected, **args),
             columns=[f'{v}_{self.name}{self.argform(**args)}'
-                     for v in variables])
+                     for v in selected.columns])
         return data_xfm
 
     def __repr__(self):
@@ -187,7 +187,7 @@ class OrderedTransform(ColumnTransform):
     def argform(self, order, **args):
         return order
 
-    def __call__(self, variables, data, order, **args):
+    def __call__(self, children, order, **args):
         """
         Apply the transform of a particular set of orders to specified columns
         of a DataFrame.
@@ -203,14 +203,13 @@ class OrderedTransform(ColumnTransform):
         """
         order = order.copy()
         data_xfm = OrderedDict()
-        selected = data[variables]
+        selected = children[0]
         if self.identity in order:
             data_xfm[self.identity] = selected
             order -= {self.identity}
         for o in order:
             data_xfm[o] = super(OrderedTransform, self).__call__(
-                variables=variables,
-                data=data,
+                children=children,
                 order=o
             )
         data_xfm = pd.concat(

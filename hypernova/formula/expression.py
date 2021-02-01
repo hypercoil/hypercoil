@@ -115,10 +115,9 @@ class Expression(object):
             return self.data
         for i, expr in enumerate(self.children):
             self.data[i] = expr.parse(df)
-        self.data = pd.concat(self.data, axis=1)
         if self.transform:
-            self.data = self.transform(
-                self.data.columns, self.data, **self.args)
+            self.data = [self.transform(self.data, **self.args)]
+        self.data = pd.concat(self.data, axis=1)
         if unscramble:
             self._unscramble_regressor_columns(df)
         return self.data
@@ -157,13 +156,14 @@ class Expression(object):
         containing the argument of the transform. This function is also
         called for parenthetical sub-expressions.
         """
-        child = self.args.get('child')
-        if child:
-            self.args.pop('child')
-        elif self.is_parenthetical(self.expr):
-            child = self.expr[1:-1]
-        if child:
-            self.children = [Expression(child, self.transforms)]
+        i = 0
+        while True:
+            try:
+                child = self.args.pop(f'child{i}')
+                self.children += [Expression(child, self.transforms)]
+                i += 1
+            except KeyError:
+                break
         return
 
     def _unscramble_regressor_columns(self, df):
