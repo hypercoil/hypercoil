@@ -6,7 +6,9 @@ Functional connectivity
 ~~~~~~~~~~~~~~~~~~~~~~~
 Initialisations of base data classes for modelling functional connectivity.
 """
-from .coltransforms import OrderedTransform
+import pandas as pd
+from functools import reduce
+from .coltransforms import ColumnTransform, OrderedTransform, MatchOnly
 from .model import ModelSpec
 from .shorthand import Shorthand, ShorthandFilter
 from .utils import diff_nanpad, match_metadata, numbered_string
@@ -153,6 +155,78 @@ class DerivativeTransform(OrderedTransform):
         )
 
 
+class ThreshBinTransform(ColumnTransform):
+    def __init__(self):
+        regex = r'^thr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
+        transform = lambda data, thresh: data.values > thresh
+        typedict = {'thresh': float}
+        matches = [MatchOnly(regex=regex, typedict=typedict)]
+        super(ThreshBinTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='threshbin'
+        )
+
+    def argform(self, **args):
+        return args['thresh']
+
+
+class UThreshBinTransform(ColumnTransform):
+    def __init__(self):
+        regex = r'^uthr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
+        transform = lambda data, thresh: data.values < thresh
+        typedict = {'thresh': float}
+        matches = [MatchOnly(regex=regex, typedict=typedict)]
+        super(UThreshBinTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='uthreshbin'
+        )
+
+    def argform(self, **args):
+        return args['thresh']
+
+
+class UnionTransform(ColumnTransform):
+    def __init__(self):
+        regex = r'^or\((?P<child0>.*)\)'
+        transform = lambda values: reduce((lambda x, y: x | y), values.T)
+        matches = [MatchOnly(regex=regex)]
+        super(UnionTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='union'
+        )
+
+    def __call__(self, children, **args):
+        selected = children[0]
+        vars = '_OR_'.join(selected.columns)
+        return pd.DataFrame(
+            data=self.transform(selected.values),
+            columns=[f'union_{vars}']
+        )
+
+
+class IntersectionTransform(ColumnTransform):
+    def __init__(self):
+        regex = r'^and\((?P<child0>.*)\)'
+        transform = lambda values: reduce((lambda x, y: x & y), values.T)
+        matches = [MatchOnly(regex=regex)]
+        super(IntersectionTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='intersection'
+        )
+
+    def __call__(self, children, **args):
+        selected = children[0]
+        vars = 'AND'.join(selected.columns)
+        return pd.DataFrame(
+            data=self.transform(selected.values),
+            columns=[f'intersection_{vars}']
+        )
+
+
 class FCConfoundModelSpec(ModelSpec):
     """
     Model specification for confound models used to denoise data before
@@ -220,6 +294,10 @@ class FCConfoundModelSpec(ModelSpec):
             shorthand=FCShorthand(),
             transforms=[
                 PowerTransform(),
-                DerivativeTransform()
+                DerivativeTransform(),
+                ThreshBinTransform(),
+                UThreshBinTransform(),
+                UnionTransform(),
+                IntersectionTransform()
             ]
         )
