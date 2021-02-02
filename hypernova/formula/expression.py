@@ -57,8 +57,6 @@ class Expression(object):
         self.args = {}
         self.transforms = transforms
         self.expr = expr.strip()
-        if self.is_parenthetical(self.expr):
-            self.expr = self.expr[1:-1]
         self.children = []
 
         expr_delimiter = 0
@@ -118,6 +116,7 @@ class Expression(object):
         if self.transform:
             self.data = [self.transform(self.data, **self.args)]
         self.data = pd.concat(self.data, axis=1)
+        self.data = self.data.loc[:,~self.data.columns.duplicated()]
         if unscramble:
             self._unscramble_regressor_columns(df)
         return self.data
@@ -143,12 +142,6 @@ class Expression(object):
         input.
         """
         self.data = [None for _ in self.children]
-
-    def is_parenthetical(self, expr):
-        """
-        Return true if an expression is bounded by parentheses.
-        """
-        return (expr[0] == '(' and expr[-1] == ')')
 
     def _transform_arg_as_child(self):
         """
