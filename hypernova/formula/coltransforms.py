@@ -10,7 +10,6 @@ import re
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
-from functools import reduce
 
 
 class MatchRule(object):
@@ -68,78 +67,6 @@ class SelectOrder(MatchRule):
         if len(order) > 1:
             order = range(order[0], (order[-1] + 1))
         return order
-
-
-class ThreshBinTransform(ColumnTransform):
-    def __init__(self):
-        regex = r'^thr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
-        transform = lambda data, thresh: data > thresh
-        typedict = {'thresh': float}
-        matches = [MatchOnly(regex=regex, typedict=typedict)]
-        super(ThreshBinTransform, self).__init__(
-            transform=transform,
-            matches=matches,
-            name='threshbin'
-        )
-
-    def argform(self, **args):
-        return args['thresh']
-
-
-class UThreshBinTransform(ColumnTransform):
-    def __init__(self):
-        regex = r'^uthr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
-        transform = lambda data, thresh: data < thresh
-        typedict = {'thresh': float}
-        matches = [MatchOnly(regex=regex, typedict=typedict)]
-        super(UThreshBinTransform, self).__init__(
-            transform=transform,
-            matches=matches,
-            name='uthreshbin'
-        )
-
-    def argform(self, **args):
-        return args['thresh']
-
-
-class UnionTransform(ColumnTransform):
-    def __init__(self):
-        regex = r'^or\((?P<child0>.*)\)'
-        transform = lambda values: reduce((lambda x, y: x | y), values)
-        matches = [MatchOnly(regex=regex)]
-        super(UnionTransform, self).__init__(
-            transform=transform,
-            matches=matches,
-            name='union'
-        )
-
-    def __call__(self, children, **args):
-        selected = children[0]
-        vars = 'OR'.join(selected.columns)
-        return pd.DataFrame(
-            data=self.transform(selected.values()),
-            columns=[f'union_{vars}']
-        )
-
-
-class IntersectionTransform(ColumnTransform):
-    def __init__(self):
-        regex = r'^or\((?P<child0>.*)\)'
-        transform = lambda values: reduce((lambda x, y: x & y), values)
-        matches = [MatchOnly(regex=regex)]
-        super(IntersectionTransform, self).__init__(
-            transform=transform,
-            matches=matches,
-            name='intersection'
-        )
-
-    def __call__(self, children, **args):
-        selected = children[0]
-        vars = 'AND'.join(selected.columns)
-        return pd.DataFrame(
-            data=self.transform(selected.values()),
-            columns=[f'intersection_{vars}']
-        )
 
 
 class ColumnTransform(object):
