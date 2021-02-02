@@ -37,7 +37,11 @@ class TestModelSpec:
         expr = hypernova.formula.Expression(
             spec_sh,
             transforms=[hypernova.formula.fc.PowerTransform(),
-                        hypernova.formula.fc.DerivativeTransform()]
+                        hypernova.formula.fc.DerivativeTransform(),
+                        hypernova.formula.fc.ThreshBinTransform(),
+                        hypernova.formula.fc.UThreshBinTransform(),
+                        hypernova.formula.fc.UnionTransform(),
+                        hypernova.formula.fc.IntersectionTransform()]
         )
         assert(expr.n_children == n_children)
 
@@ -114,3 +118,35 @@ class TestModelSpec:
             shape=41)
         assert('aroma_motion_57' in out.columns)
         assert('aroma_motion_38' not in out.columns)
+
+    def test_parens_expr(self):
+        self.expr_base(
+            model_formula='(rps)^^2 + dd1(rps)',
+            expanded_spec=(
+                '(trans_x + trans_y + trans_z + rot_x + rot_y + rot_z)^^2 + '
+                'dd1(trans_x + trans_y + trans_z + rot_x + rot_y + rot_z)'
+            ),
+            n_children=2
+        )
+
+    def test_parens_spec(self):
+        out = self.spec_base(
+            model_formula='(rps)^^2 + dd1(rps)',
+            name='parens',
+            shape=18
+        )
+
+    def test_tmask_expr(self):
+        self.expr_base(
+            model_formula='and(uthr0.5(fd) + uthr1.5(std_dvars))',
+            expanded_spec=None,
+            n_children=1
+        )
+
+    def test_tmask_spec(self):
+        out = self.spec_base(
+            model_formula='and(uthr0.5(fd) + uthr1.5(std_dvars))',
+            name='tmask',
+            shape=1
+        )
+        assert out.values.sum() == (len(out) - 3)
