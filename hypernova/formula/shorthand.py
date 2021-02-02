@@ -24,20 +24,26 @@ class Shorthand(object):
 
     def expand(self, model_formula, variables, metadata=None):
         for k, filt in self.filters.items():
-            params = re.search(k, model_formula)
+            params = re.search(self.as_key(k), model_formula)
             if params is None: continue
             v = filt(metadata, **params.groupdict())
-            model_formula = re.sub(k, v, model_formula)
+            model_formula = re.sub(self.as_key(k), v, model_formula)
         for k, v in self.regex.items():
             v = self.find_matching_variables(v, variables)
-            model_formula = re.sub(k, v, model_formula)
+            model_formula = re.sub(self.as_key(k), v, model_formula)
         for k, v in self.rules.items():
-            model_formula = re.sub(k, v, model_formula)
+            model_formula = re.sub(self.as_key(k), v, model_formula)
 
         formula_variables = self.get_formula_variables(model_formula)
         others = ' + '.join(set(variables) - set(formula_variables))
         model_formula = re.sub('others', others, model_formula)
         return model_formula
+
+    def as_key(self, key):
+        before = '(?:(?<=^)|(?<=[^\w]))'
+        after = '(?=($|[^\w]))'
+        key = (f'{before}{key}{after}')
+        return re.compile(key)
 
     def find_matching_variables(self, regex, variables):
         matches = re.compile(regex)
