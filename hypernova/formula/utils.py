@@ -92,7 +92,7 @@ def successive_pad_search(df, key, pad=0, k=5):
     """
     for i in range(k):
         try:
-            return df[key]
+            return df[[key]]
         except KeyError:
             p = '{:' + f'{pad}{i + 1}' + '}'
             st, nu = numbered_string(key)

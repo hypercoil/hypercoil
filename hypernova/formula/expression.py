@@ -166,16 +166,19 @@ class Expression(object):
         immediately after the originals.
         """
         matches = ['_power[0-9]+', '_derivative[0-9]+']
+        new = deque()
         var = OrderedDict((c, deque()) for c in df.columns)
         for c in self.data.columns:
             col = c
             for m in matches:
                 col = re.sub(m, '', col)
-            if col == c:
+            if var.get(col) is None:
+                new.append(col)
+            elif col == c:
                 var[col].appendleft(c)
             else:
                 var[col].append(c)
-        unscrambled = reduce((lambda x, y: x + y), var.values())
+        unscrambled = reduce((lambda x, y: x + y), list(var.values()) + [new])
         return self.data[[*unscrambled]]
 
     def __repr__(self):
