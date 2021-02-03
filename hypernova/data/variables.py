@@ -229,6 +229,31 @@ class NeuroImageBlockVariable(DatasetVariable):
         self.assignment = get_col(df, self.colname).values.tolist()
 
 
+class MetaValueBlockVariable(DatasetVariable):
+    def __init__(self, name, key, colname=None):
+        super(MetaValueBlockVariable, self).__init__(name, colname)
+        self.key = key
+        #self.transform = Compose([
+        #    BlockTransform(MetadataKeyX(self.key)),
+        #    ToTensor()
+        #])
+        self.transform = Compose([
+            BlockTransform(Compose([
+                MetadataKeyX(self.key),
+                ToTensor(),
+            ])),
+            ConsolidateBlock()
+        ])
+
+    def assign(self, df):
+        """
+        The assignment is a vector containing the entries of a DataFrame
+        column sharing its name with the variable. The column should contain
+        DataPathVariable objects.
+        """
+        self.assignment = get_col(df, self.colname).values.tolist()
+
+
 class TableBlockVariable(DatasetVariable):
     """
     Variable representation of a block of tabular data. The assignment is
