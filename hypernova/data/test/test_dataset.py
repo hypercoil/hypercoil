@@ -43,6 +43,7 @@ class TestDataLoader:
         assert sample['gsr'].size() == torch.Size([5, 8, 500, 1])
         assert sample['acc<v=0.7, mask=WM+CSF>'].size() == torch.Size(
             [5, 8, 500, 4])
+        assert sample['t_rep'].size() == torch.Size([5, 8, 1])
 
     def test_dl_depth_1(self):
         self.ds.set_depth(1)
@@ -54,4 +55,5 @@ class TestDataLoader:
         assert sample['gsr'].size() == torch.Size([5, 500, 1])
         assert sample['acc<v=0.7, mask=WM+CSF>'].size() == torch.Size(
             [5, 500, 3])
+        assert sample['t_rep'].size() == torch.Size([5, 1])
         self.ds.set_depth(0)

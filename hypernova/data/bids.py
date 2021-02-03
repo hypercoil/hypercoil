@@ -25,6 +25,7 @@ from .variables import (
     VariableFactoryFactory,
     NeuroImageBlockVariable,
     TableBlockVariable,
+    MetaValueBlockVariable,
     DataPathVariable
 )
 
@@ -240,10 +241,15 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         model = [FCConfoundModelSpec(m, name=m)
                  if isinstance(m, str) else m
                  for m in model]
+    image_and_trep = {
+        'images': VariableFactoryFactory(NeuroImageBlockVariable),
+        't_rep': VariableFactoryFactory(MetaValueBlockVariable,
+                                        key='RepetitionTime')
+    }
     images = DataQuery(
         name='images',
         pattern='func/**/*preproc*.nii.gz',
-        variable=VariableFactoryFactory(NeuroImageBlockVariable),
+        variables=image_and_trep,
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_IMG_DESC,
@@ -252,7 +258,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     confounds = DataQuery(
         name='confounds',
         pattern='func/**/*confounds*.tsv',
-        variable=VariableFactoryFactory(TableBlockVariable, spec=model),
+        variables=VariableFactoryFactory(TableBlockVariable, spec=model),
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_CONF_DESC,
