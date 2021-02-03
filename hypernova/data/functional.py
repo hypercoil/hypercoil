@@ -47,7 +47,10 @@ def to_tensor(data, dtype='torch.FloatTensor', dim='auto'):
     """
     if isinstance(data, pd.DataFrame):
         data = data.values
-    tensor = torch.Tensor(data).type(dtype)
+    try:
+        tensor = torch.Tensor(data).type(dtype)
+    except TypeError:
+        tensor = torch.Tensor([data]).type(dtype)
     if dim != 'auto':
         while tensor.dim() < dim:
             tensor = tensor.unsqueeze(-1)
