@@ -14,7 +14,7 @@ from .transforms import (
     Compose, IdentityTransform, EncodeOneHot, ToTensor,
     ApplyModelSpecsX, ApplyTransform, BlockTransform,
     UnzipTransformedBlock, ConsolidateBlock, ToTensorX,
-    ReadDataFrameX, ReadNeuroImageX, DumpX
+    ReadDataFrameX, ReadNeuroImageX, MetadataKeyX, DumpX
 )
 
 
@@ -84,8 +84,9 @@ class DatasetVariable(ABC):
         variable is called. A suitable transform can be used as a bridge
         between filesystem-path assignments and model-ready tensor clouds.
     """
-    def __init__(self, name='data'):
+    def __init__(self, name='data', colname=None):
         self.name = name
+        self.colname = colname or self.name
         self.assignment = None
         self.transform = IdentityTransform()
 
@@ -162,8 +163,8 @@ class CategoricalVariable(DatasetVariable):
         One-to-one transformation encoding mapping each internal variable
         representation to a one-hot encoding.
     """
-    def __init__(self, name, df):
-        super(CategoricalVariable, self).__init__(name)
+    def __init__(self, name, df, colname=None):
+        super(CategoricalVariable, self).__init__(name, colname)
         values = get_col(df, name).unique()
         self.max_label = len(values)
         self.label_dict = dict(zip(values, range(self.max_label)))
@@ -175,7 +176,7 @@ class CategoricalVariable(DatasetVariable):
         The assignment is a vector containing the entries of a DataFrame
         column sharing its name with the variable.
         """
-        values = get_col(df, self.name)
+        values = get_col(df, self.colname)
         self.assignment = [self.label_dict[v] for v in values]
 
 
@@ -190,8 +191,8 @@ class ContinuousVariable(DatasetVariable):
     df : DataFrame
         Does nothing. Allowed for uniformity with `CategoricalVariable`.
     """
-    def __init__(self, name, df=None):
-        super(ContinuousVariable, self).__init__(name)
+    def __init__(self, name, df=None, colname=None):
+        super(ContinuousVariable, self).__init__(name, colname)
         self.transform = ToTensor()
 
     def assign(self, df):
@@ -199,7 +200,7 @@ class ContinuousVariable(DatasetVariable):
         The assignment is a vector containing the entries of a DataFrame
         column sharing its name with the variable.
         """
-        self.assignment = get_col(df, self.name)
+        self.assignment = get_col(df, self.colname)
 
 
 class NeuroImageBlockVariable(DatasetVariable):
@@ -208,8 +209,8 @@ class NeuroImageBlockVariable(DatasetVariable):
     a list block of DataPathVariables that include paths to files
     containing data and potentially metadata associated with each image.
     """
-    def __init__(self, name):
-        super(NeuroImageBlockVariable, self).__init__(name)
+    def __init__(self, name, colname=None):
+        super(NeuroImageBlockVariable, self).__init__(name, colname)
         self.transform = Compose([
             BlockTransform(Compose([
                 ReadNeuroImageX(),
@@ -225,7 +226,7 @@ class NeuroImageBlockVariable(DatasetVariable):
         column sharing its name with the variable. The column should contain
         DataPathVariable objects.
         """
-        self.assignment = get_col(df, self.name).values.tolist()
+        self.assignment = get_col(df, self.colname).values.tolist()
 
 
 class TableBlockVariable(DatasetVariable):
@@ -235,8 +236,8 @@ class TableBlockVariable(DatasetVariable):
     containing data and potentially metadata associated with each data
     table.
     """
-    def __init__(self, name, spec=None):
-        super(TableBlockVariable, self).__init__(name)
+    def __init__(self, name, spec=None, colname=None):
+        super(TableBlockVariable, self).__init__(name, colname)
         self.transform = Compose([
             BlockTransform(Compose([
                 ReadDataFrameX(),
@@ -256,7 +257,7 @@ class TableBlockVariable(DatasetVariable):
         column sharing its name with the variable. The column should contain
         DataPathVariable objects.
         """
-        self.assignment = get_col(df, self.name).values.tolist()
+        self.assignment = get_col(df, self.colname).values.tolist()
 
 
 class DataObjectVariable(DatasetVariable):
