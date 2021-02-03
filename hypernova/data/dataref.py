@@ -252,11 +252,11 @@ class DataQuery(object):
         Additional keyword arguments to the query are used to filter the
         dataset to return only those data objects matching the query.
     """
-    def __init__(self, name='data', pattern=None, variable=None,
+    def __init__(self, name='data', pattern=None, variables=None,
                  transform=None, **filters):
         self.name = name
         self.pattern = pattern
-        self.variable = variable
+        self.variables = variables
         self.transform = transform
         self.filters = filters
 
@@ -289,12 +289,17 @@ class DataQuery(object):
         Return the variable factory with the specified identifier levels
         assigned.
         """
-        var = self.variable(name=self.name)
+        if isinstance(self.variables, dict):
+            vars = []
+            for k, v in self.variables.items():
+                vars += [v(name=k, colname=self.name)]
+        else:
+            vars = [self.variables(name=self.name)]
         #TODO: This doesn't work unless we have variable factories forward
         # transforms.
         #if self.transform is not None:
         #    var.transform = self.transform
-        return var
+        return vars
 
 
 def data_references(data_dir, layout, reference, labels, outcomes,
@@ -727,8 +732,8 @@ def process_variables(queries):
     """
     factories = []
     for q in queries:
-        var = q.variable_factory()
-        factories += [var]
+        vars = q.variable_factory()
+        factories += vars
     return factories
 
 
