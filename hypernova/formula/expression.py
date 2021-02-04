@@ -165,6 +165,8 @@ class Expression(object):
         the same order as the input data with any transformed columns inserted
         immediately after the originals.
         """
+        ## TODO: These matches won't scale with additional transforms...
+        ## This is currently effectively a hardcode
         matches = ['_power[0-9]+', '_derivative[0-9]+']
         new = deque()
         var = OrderedDict((c, deque()) for c in df.columns)
@@ -173,7 +175,7 @@ class Expression(object):
             for m in matches:
                 col = re.sub(m, '', col)
             if var.get(col) is None:
-                new.append(col)
+                new.append(c)
             elif col == c:
                 var[col].appendleft(c)
             else:
