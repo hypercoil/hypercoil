@@ -25,21 +25,21 @@ def fc_shorthand():
         'fd': 'framewise_displacement'
     }
     regex = {
-        'acc': '^a_comp_cor_[0-9]+',
-        'tcc': '^t_comp_cor_[0-9]+',
-        'dv': '^std_dvars$',
-        'dvall': '.*dvars$',
-        'nss': '^non_steady_state_outlier[0-9]+',
-        'spikes': '^motion_outlier[0-9]+'
+        'acc': r'^a_comp_cor_[0-9]+',
+        'tcc': r'^t_comp_cor_[0-9]+',
+        'dv': r'^std_dvars$',
+        'dvall': r'.*dvars$',
+        'nss': r'^non_steady_state_outlier[0-9]+',
+        'spikes': r'^motion_outlier[0-9]+'
     }
     filters = {
-        'acc\<n=(?P<n>[0-9]+)(,)?(\s)?(mask=(?P<mask>[A-Za-z\+]*))?\>':
-            FirstN('^a_comp_cor_[0-9]+'),
-        'acc\<v=(?P<v>[0-9\.]+)(,)?(\s)?(mask=(?P<mask>[A-Za-z\+]*))?\>':
-            CumulVar('^a_comp_cor_[0-9]+'),
-        'tcc\<n=(?P<n>[0-9]+)\>': FirstN('^t_comp_cor_[0-9]+'),
-        'tcc\<v=(?P<v>[0-9\.]+)\>': CumulVar('^t_comp_cor_[0-9]+'),
-        'aroma': NoiseComponents('^aroma_motion_[0-9]+')
+        r'acc\<n=(?P<n>[0-9]+)(,)?(\s)?(mask=(?P<mask>[A-Za-z\+]*))?\>':
+            FirstN(r'^a_comp_cor_[0-9]+'),
+        r'acc\<v=(?P<v>[0-9\.]+)(,)?(\s)?(mask=(?P<mask>[A-Za-z\+]*))?\>':
+            CumulVar(r'^a_comp_cor_[0-9]+'),
+        r'tcc\<n=(?P<n>[0-9]+)\>': FirstN(r'^t_comp_cor_[0-9]+'),
+        r'tcc\<v=(?P<v>[0-9\.]+)\>': CumulVar(r'^t_comp_cor_[0-9]+'),
+        r'aroma': NoiseComponents(r'^aroma_motion_[0-9]+')
     }
     return rules, regex, filters
 
@@ -220,7 +220,7 @@ class IntersectionTransform(ColumnTransform):
 
     def __call__(self, children, **args):
         selected = children[0]
-        vars = 'AND'.join(selected.columns)
+        vars = '_AND_'.join(selected.columns)
         return pd.DataFrame(
             data=self.transform(selected.values),
             columns=[f'intersection_{vars}']
