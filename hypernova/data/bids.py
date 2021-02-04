@@ -158,12 +158,12 @@ class fMRIPrepDataset(ReferencedDataset):
     """
     def __init__(self, fmriprep_dir, space=None, additional_tables=None,
                  ignore=None, labels=('subject',), outcomes=None,
-                 model=None, observations=('subject',),
+                 model=None, tmask=None, observations=('subject',),
                  levels=('session', 'run', 'task'), depth=0):
         data_refs = fmriprep_references(
             fmriprep_dir=fmriprep_dir, space=space,
             additional_tables=additional_tables, ignore=ignore,
-            labels=labels, outcomes=outcomes, model=model,
+            labels=labels, outcomes=outcomes, model=model, tmask=tmask,
             observations=observations, levels=levels
         )
         super(fMRIPrepDataset, self).__init__(data_refs, depth=depth)
@@ -187,7 +187,7 @@ class fMRIPrepDataset(ReferencedDataset):
 
 def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
                         ignore=None, labels=('subject',), outcomes=None,
-                        model=None, observations=('subject',),
+                        model=None, tmask=None, observations=('subject',),
                         levels=('session', 'run', 'task')):
     """
     Obtain data references for a directory containing data processed with
@@ -241,10 +241,16 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         model = [FCConfoundModelSpec(m, name=m)
                  if isinstance(m, str) else m
                  for m in model]
+    if isinstance(tmask, str):
+        tmask = [FCConfoundModelSpec(tmask)]
     image_and_trep = {
         'images': VariableFactoryFactory(NeuroImageBlockVariable),
-        't_rep': VariableFactoryFactory(MetaValueBlockVariable,
-                                        key='RepetitionTime')
+        't_r': VariableFactoryFactory(MetaValueBlockVariable,
+                                      key='RepetitionTime')
+    }
+    model_and_tmask = {
+        'confounds': VariableFactoryFactory(TableBlockVariable, spec=model),
+        'tmask': VariableFactoryFactory(TableBlockVariable, spec=tmask)
     }
     images = DataQuery(
         name='images',
@@ -258,7 +264,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
     confounds = DataQuery(
         name='confounds',
         pattern='func/**/*confounds*.tsv',
-        variables=VariableFactoryFactory(TableBlockVariable, spec=model),
+        variables=model_and_tmask,
         scope=BIDS_SCOPE,
         datatype=BIDS_DTYPE,
         desc=BIDS_CONF_DESC,
