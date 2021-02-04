@@ -23,8 +23,9 @@ class TestDataLoader:
             'gsr',
             'acc<v=0.7, mask=WM+CSF>'
         ]
+        self.tmask = 'and(uthr0.2(d1(rps)))'
         self.ds = hypernova.data.fMRIPrepDataset(
-            self.fmriprep_dir, model=self.models)
+            self.fmriprep_dir, model=self.models, tmask=self.tmask)
         self.dl = hypernova.data.dataset.ReferencedDataLoader(
             self.ds, batch_size=5, shuffle=False)
 
@@ -43,7 +44,8 @@ class TestDataLoader:
         assert sample['gsr'].size() == torch.Size([5, 8, 500, 1])
         assert sample['acc<v=0.7, mask=WM+CSF>'].size() == torch.Size(
             [5, 8, 500, 4])
-        assert sample['t_rep'].size() == torch.Size([5, 8, 1])
+        assert sample['t_r'].size() == torch.Size([5, 8, 1])
+        assert sample['tmask'].size() == torch.Size([5, 8, 500, 1])
 
     def test_dl_depth_1(self):
         self.ds.set_depth(1)
@@ -55,5 +57,7 @@ class TestDataLoader:
         assert sample['gsr'].size() == torch.Size([5, 500, 1])
         assert sample['acc<v=0.7, mask=WM+CSF>'].size() == torch.Size(
             [5, 500, 3])
-        assert sample['t_rep'].size() == torch.Size([5, 1])
+        assert sample['t_r'].size() == torch.Size([5, 1])
+        assert sample['tmask'].size() == torch.Size([5, 500, 1])
+        assert sample['tmask'][0].sum() == 333
         self.ds.set_depth(0)
