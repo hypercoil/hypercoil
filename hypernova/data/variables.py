@@ -125,7 +125,10 @@ class DatasetVariable(ABC):
         except AttributeError:
             pass
         if isinstance(value, dict):
-            return value
+            if len(value) > 1:
+                return value
+            else:
+                return {self.name: list(value.values())[0]}
         return {self.name: value}
 
     def __repr__(self):
