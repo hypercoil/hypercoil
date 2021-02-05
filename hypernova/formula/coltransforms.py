@@ -13,23 +13,74 @@ from collections import OrderedDict
 
 
 class MatchRule(object):
+    """
+    A rule for transforming text that matches a regular expression.
+
+    The regular expression should capture fields of interest in named groups.
+    The match rule first casts each field in the group dictionary to any type
+    specified in its `typedict`. It then applies the function specified as its
+    `rule` to the type-cast group dictionary. The function is applied in-place.
+
+    Parameters
+    ----------
+    regex : str
+        String representation of the regular expression. It should contain
+        named capturing groups (patterned as `(?P<name>pattern_to_match)`)
+        corresponding to each variable that should be extracted from strings
+        at match time.
+    rule : callable(dict)
+        In-place function that transforms the type-cast group dictionary.
+    typedict : dict or None (default None)
+        Dictionary specifying the type that each matched group should be cast
+        to. Keys are the same as group names, and values are types. If any
+        group is not included, it will be left as a string (although the
+        `rule` might later convert it). If this is None, then no type casting
+        will be performed using the `typedict`.
+    """
     def __init__(self, regex, rule, typedict=None):
         self.regex = re.compile(regex)
         self.rule = rule
         self.typedict = typedict or {}
 
-    def _cast_all(self, dict):
-        for k, v in dict.items():
+    def _cast_all(self, groupdict):
+        """Use the `typedict` to cast parsed groups with matching names."""
+        for k, v in groupdict.items():
             t = self.typedict.get(k)
             if t:
-                dict[k] = t(v)
-        return dict
+                groupdict[k] = t(v)
+        return groupdict
 
-    def __call__(self, dict):
-        return self.rule(self._cast_all(dict))
+    def __call__(self, expr):
+        """
+        Parse an expression: check whether it contains a match to the `regex`
+        and, if so, apply the `typedict` and `rule` to all fields.
+        """
+        m = re.match(self.regex, expr)
+        if m:
+            parsed = m.groupdict()
+            self.rule(self._cast_all(parsed))
+            return parsed
 
 
 class MatchOnly(MatchRule):
+    """
+    A simple `MatchRule` that matches a regular expression without applying
+    any rules to the matched groups.
+
+    Parameters
+    ----------
+    regex : str
+        String representation of the regular expression. It should contain
+        named capturing groups (patterned as `(?P<name>pattern_to_match)`)
+        corresponding to each variable that should be extracted from strings
+        at match time.
+    typedict : dict or None (default None)
+        Dictionary specifying the type that each matched group should be cast
+        to. Keys are the same as group names, and values are types. If any
+        group is not included, it will be left as a string (although the
+        `rule` might later convert it). If this is None, then no type casting
+        will be performed using the `typedict`.
+    """
     def __init__(self, regex, typedict=None):
         rule = lambda x: x
         super(MatchOnly, self).__init__(
@@ -37,6 +88,30 @@ class MatchOnly(MatchRule):
 
 
 class AllOrders(MatchRule):
+    """
+    A `MatchRule` that transforms the `order` into a set of integers from
+    `first` to the match, inclusive. Used to parse orders for an
+    `OrderedTransform`.
+
+    Parameters
+    ----------
+    regex : str
+        String representing the regular expression that indicates that all
+        orders of the transform beginning from `first` until a specified order
+        are to be applied and concatenated. The regular expression must
+        contain the symbols used to represent the transform as well as the
+        exact parenthetic string `(?P<order>[0-9]+)` in the position where the
+        transform order is specified. Alongside the `select` argument, this is
+        the regular expression that will be matched in any Expressions using
+        this transform. Consult `PowerTransform` and `DerivativeTransform` for
+        examples.
+    first : int
+        Integer denoting the smallest possible transformation order for an
+        ordered transform. For instance, a transformation representing
+        derivatives could begin with the zeroth derivative, corresponding to
+        identity. (Including an identity transformation supports easier
+        notation if the transform is to be used in a model specification.)
+    """
     def __init__(self, regex, first=0):
         self.first = first
         rule = lambda x: x.update(order=set(range(self.first, x['order'] + 1)))
@@ -51,6 +126,24 @@ class AllOrders(MatchRule):
 
 
 class SelectOrder(MatchRule):
+    """
+    A `MatchRule` that transforms the `order` into a set of integers as
+    specified by a hyphenated string (e.g., 2-4). Used to parse orders for an
+    `OrderedTransform`.
+
+    Parameters
+    ----------
+    regex : str
+        String representing the regular expression that indicates that a
+        selected range of orders of the transform denoted `<begin>-<end>` are
+        to be applied and concatenated. The regular expression must contain
+        the symbols used to represent the transform as well as the exact
+        parenthetic string `(?P<order>[0-9]+[\-]?[0-9]*)` in the position where
+        the transform order is specified. Alongside the `select` argument, this
+        is the regular expression that will be matched in any Expressions using
+        this transform. Consult `PowerTransform` and `DerivativeTransform` for
+        examples.
+    """
     def __init__(self, regex):
         rule = lambda x: x.update(order=set(self._order_as_range(x['order'])))
         super(SelectOrder, self).__init__(regex=regex, rule=rule)
@@ -70,6 +163,28 @@ class SelectOrder(MatchRule):
 
 
 class ColumnTransform(object):
+    """
+    Generic transformation applied column-wise to a DataFrame. Used to enhance
+    hypernova.data.Expression and enable its parse tree to support additional
+    transformations.
+
+    Parameters
+    ----------
+    transform : callable(DataFrame, args)
+        A callable that implements the transform to be applied column-wise.
+        Its first argument is a DataFrame that contains the columns to be
+        transformed; additional arguments correspond to additional groups
+        matched and parsed from an expression. It returns a DataFrame whose
+        columns have been transformed by the specified function.
+    matches : list(MatchRule)
+        List of `MatchRule` objects containing regular expressions paired with
+        rules for extracting arguments to the `transform` from any matches to
+        those regular expressions.
+    name : str
+        Name of the transform being applied. This determines the names of the
+        transformed columns/series, which take the form
+        `<variable name>_<transform name><`argform` string>`
+    """
     def __init__(self, transform, matches, name='transform'):
         self.transform = transform
         self.matches = matches
@@ -83,16 +198,30 @@ class ColumnTransform(object):
         arguments to the transform.
         """
         for match in self.matches:
-            m = re.match(match.regex, expr)
-            if m:
-                parsed = m.groupdict()
-                match(parsed)
+            parsed = match(expr)
+            if parsed is not None:
                 return parsed
 
     def argform(self, **args):
-        return None
+        """
+        Additional string to append to names of output columns, to disambiguate
+        when the same transform is applied with different arguments to a single
+        DataFrame.
+        """
+        return ''
 
     def __call__(self, children, **args):
+        """
+        Apply the transform to a DataFrame/DataFrames.
+
+        Parameters
+        ----------
+        order : set(int)
+            Set of transform orders to be applied.
+        children : list(DataFrame)
+            DataFrames containing the variables to be transformed. The default
+            implementation assumes and transforms a single child.
+        """
         selected = children[0]
         data_xfm = pd.DataFrame(
             data=self.transform(selected, **args),
@@ -106,9 +235,9 @@ class ColumnTransform(object):
 
 class OrderedTransform(ColumnTransform):
     """
-    Generic transformation applied column-wise to a DataFrame. Used to enhance
-    hypernova.data.Expression and enable its parse tree to support additional
-    transformations.
+    Ordered extension of a transformation applied column-wise to a DataFrame.
+    Used to enhance hypernova.data.Expression and enable its parse tree to
+    support additional transformations.
 
     The transformation is a function, which can also have an order. The
     transformation order is an integer that can represent some property of
@@ -118,7 +247,7 @@ class OrderedTransform(ColumnTransform):
     elementwise multiplication by the column vector, then the kth order could
     correspond to the kth power.
 
-    Note, however, that the ColumnTransform object does not automatically
+    Note, however, that the OrderedTransform object does not automatically
     assume this meaning of order (and therefore does not recursively call the
     same transformation until the requested order is attained). Instead, it is
     expected that the transform function takes two arguments corresponding to
@@ -142,7 +271,7 @@ class OrderedTransform(ColumnTransform):
         orders of the transform beginning from `first` until a specified order
         are to be applied and concatenated. The regular expression must
         contain the symbols used to represent the transform as well as the
-        exact parenthetic string `([0-9]+)` in the position where the
+        exact parenthetic string `(?P<order>[0-9]+)` in the position where the
         transform order is specified. Alongside the `select` argument, this is
         the regular expression that will be matched in any Expressions using
         this transform. Consult `PowerTransform` and `DerivativeTransform` for
@@ -152,9 +281,9 @@ class OrderedTransform(ColumnTransform):
         selected range of orders of the transform denoted `<begin>-<end>` are
         to be applied and concatenated. The regular expression must contain
         the symbols used to represent the transform as well as the exact
-        parenthetic string `([0-9]+[\-]?[0-9]*)` in the position where the
-        transform order is specified. Alongside the `select` argument, this is
-        the regular expression that will be matched in any Expressions using
+        parenthetic string `(?P<order>[0-9]+[\-]?[0-9]*)` in the position where
+        the transform order is specified. Alongside the `select` argument, this
+        is the regular expression that will be matched in any Expressions using
         this transform. Consult `PowerTransform` and `DerivativeTransform` for
         examples.
     name : str
@@ -194,12 +323,11 @@ class OrderedTransform(ColumnTransform):
 
         Parameters
         ----------
+        children : DataFrame
+            DataFrames containing the variables to be transformed. The default
+            implementation assumes and transforms a single child.
         order : set(int)
             Set of transform orders to be applied.
-        variables : list(str)
-            List of names of the variables to be transformed.
-        data : DataFrame
-            DataFrame containing the variables to be transformed.
         """
         order = order.copy()
         data_xfm = OrderedDict()
