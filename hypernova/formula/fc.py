@@ -44,6 +44,17 @@ def fc_shorthand():
     return rules, regex, filters
 
 
+def fc_transforms():
+    return [
+        DerivativeTransform(),
+        PowerTransform(),
+        ThreshBinTransform(),
+        UThreshBinTransform(),
+        UnionTransform(),
+        IntersectionTransform()
+    ]
+
+
 class FirstN(ShorthandFilter):
     """
     Return the first n numbered strings matching a pattern (e.g., the first n
@@ -104,14 +115,7 @@ class NoiseComponents(ShorthandFilter):
 class FCShorthand(Shorthand):
     """Shorthand rules for functional connectivity confound models."""
     def __init__(self):
-        transforms = [
-            DerivativeTransform(),
-            PowerTransform(),
-            ThreshBinTransform(),
-            UThreshBinTransform(),
-            UnionTransform(),
-            IntersectionTransform()
-        ]
+        transforms = fc_transforms()
         shorthand, shorthand_re, shorthand_filters = fc_shorthand()
         super(FCShorthand, self).__init__(
             rules=shorthand,
@@ -377,12 +381,5 @@ class FCConfoundModelSpec(ModelSpec):
             spec=spec,
             name=name,
             shorthand=FCShorthand(),
-            transforms=[
-                PowerTransform(),
-                DerivativeTransform(),
-                ThreshBinTransform(),
-                UThreshBinTransform(),
-                UnionTransform(),
-                IntersectionTransform()
-            ]
+            transforms=fc_transforms()
         )

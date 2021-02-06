@@ -36,12 +36,7 @@ class TestModelSpec:
             assert(spec_sh == expanded_spec)
         expr = hypernova.formula.Expression(
             spec_sh,
-            transforms=[hypernova.formula.fc.PowerTransform(),
-                        hypernova.formula.fc.DerivativeTransform(),
-                        hypernova.formula.fc.ThreshBinTransform(),
-                        hypernova.formula.fc.UThreshBinTransform(),
-                        hypernova.formula.fc.UnionTransform(),
-                        hypernova.formula.fc.IntersectionTransform()]
+            transforms=hypernova.formula.fc.fc_transforms()
         )
         assert(expr.n_children == n_children)
 
