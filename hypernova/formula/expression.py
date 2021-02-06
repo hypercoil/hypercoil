@@ -39,6 +39,9 @@ class Expression(object):
         None, then the node is an ordinary sub-expression; otherwise, it is a
         transform node that applies the specified transformation to all child
         expressions.
+    args : dict
+        Dictionary specifying transform arguments. Used only for transform
+        nodes.
     children : list(Expression objects)
         List of Expression nodes that represent children or sub-expressions of
         the node.

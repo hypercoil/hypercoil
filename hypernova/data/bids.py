@@ -9,6 +9,7 @@ Interfaces for loading BIDS-conformant neuroimaging data.
 Currently we use a LightGrabber but we'd like to use a BIDSLayout when the
 PyBIDS code stabilises.
 """
+##TODO: use pybids wherever possible
 # import bids
 from ..formula import ModelSpec, FCConfoundModelSpec
 from .dataref import data_references, DataQuery
@@ -142,6 +143,15 @@ class fMRIPrepDataset(ReferencedDataset):
         These variables can be taken either from data identifiers or from
         additional tables. Labels become available as prediction targets for
         regression models. By default, the subject identifier is included.
+    model : str, list, or None (default None)
+        Formula expressions representing confound models to create for each
+        subject. For example, a 36-parameter expanded model can be specified as
+        `(dd1(rps + wm + csf + gsr))^^2`.
+    tmask : str or None (default None)
+        A formula expression representing the temporal mask to create for each
+        subject. For instance `and(uthr0.5(fd) + uthr1.5(dv))` results in a mask
+        that includes time points with less than 0.5 framewise displacement and
+        less than 1.5 standardised DVARS.
     observations : tuple (default ('subject',))
         List of data identifiers whose levels are packaged into separate data
         references. Each level should generally have the same values of any
@@ -220,6 +230,15 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         These variables can be taken either from data identifiers or from
         additional tables. Labels become available as prediction targets for
         regression models. By default, the subject identifier is included.
+    model : str, list, or None (default None)
+        Formula expressions representing confound models to create for each
+        subject. For example, a 36-parameter expanded model can be specified as
+        `(dd1(rps + wm + csf + gsr))^^2`.
+    tmask : str or None (default None)
+        A formula expression representing the temporal mask to create for each
+        subject. For instance `and(uthr0.5(fd) + uthr1.5(dv))` results in a mask
+        that includes time points with less than 0.5 framewise displacement and
+        less than 1.5 standardised DVARS.
     observations : tuple (default ('subject',))
         List of data identifiers whose levels are packaged into separate data
         references. Each level should generally have the same values of any
