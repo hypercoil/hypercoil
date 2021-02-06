@@ -45,6 +45,10 @@ def fc_shorthand():
 
 
 class FirstN(ShorthandFilter):
+    """
+    Return the first n numbered strings matching a pattern (e.g., the first n
+    strings beginning with `a_comp_cor`).
+    """
     def __call__(self, metadata, n, mask=None):
         n = int(n)
         matches = match_metadata(self.pattern, metadata)
@@ -60,6 +64,10 @@ class FirstN(ShorthandFilter):
 
 
 class CumulVar(ShorthandFilter):
+    """
+    Return the first set of numbered strings sufficient to cumulatively explain
+    some fraction v of variance (as specified in the metadata).
+    """
     def __call__(self, metadata, v, mask=None):
         v = float(v)
         if v > 1: v /= 100
@@ -81,6 +89,9 @@ class CumulVar(ShorthandFilter):
 
 
 class NoiseComponents(ShorthandFilter):
+    """
+    Return components flagged as noise in the metadata.
+    """
     def __call__(self, metadata):
         out = []
         matches = match_metadata(self.pattern, metadata)
@@ -91,10 +102,15 @@ class NoiseComponents(ShorthandFilter):
 
 
 class FCShorthand(Shorthand):
+    """Shorthand rules for functional connectivity confound models."""
     def __init__(self):
         transforms = [
             DerivativeTransform(),
-            PowerTransform()
+            PowerTransform(),
+            ThreshBinTransform(),
+            UThreshBinTransform(),
+            UnionTransform(),
+            IntersectionTransform()
         ]
         shorthand, shorthand_re, shorthand_filters = fc_shorthand()
         super(FCShorthand, self).__init__(
@@ -156,6 +172,24 @@ class DerivativeTransform(OrderedTransform):
 
 
 class ThreshBinTransform(ColumnTransform):
+    """
+    Column transform that thresholds each variable and binarises the result,
+    thus returning a Boolean-valued variable whose observations indicate
+    whether the corresponding observations of the original variable survived
+    the threshold. Note that any missing or NaN observation is mapped to False.
+
+    Formula specifications
+    ----------------------
+    * thr0.5(variable) for an indicator of whether each observation is greater
+      than 0.5
+
+    See also
+    --------
+    `UThreshBinTransform`: create an indicator variable specifying whether each
+    observation is under some threshold. TODO: In the future, thresholding
+    transformations will be replaced by a single transformation that separately
+    handles lt, le, gt, ge, ne, eq cases.
+    """
     def __init__(self):
         regex = r'^thr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
         transform = lambda data, thresh: data.values > thresh
@@ -172,6 +206,25 @@ class ThreshBinTransform(ColumnTransform):
 
 
 class UThreshBinTransform(ColumnTransform):
+    """
+    Column transform that upper-thresholds each variable and binarises the
+    result, thus returning a Boolean-valued variable whose observations
+    indicate whether the corresponding observations of the original variable
+    survived the upper threshold. Note that any missing or NaN observation is
+    mapped to False.
+
+    Formula specifications
+    ----------------------
+    * uthr0.5(variable) for an indicator of whether each observation is less
+      than 0.5
+
+    See also
+    --------
+    `ThreshBinTransform`: create an indicator variable specifying whether each
+    observation is above some threshold. TODO: In the future, thresholding
+    transformations will be replaced by a single transformation that separately
+    handles lt, le, gt, ge, ne, eq cases.
+    """
     def __init__(self):
         regex = r'^uthr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
         transform = lambda data, thresh: data.values < thresh
@@ -188,6 +241,22 @@ class UThreshBinTransform(ColumnTransform):
 
 
 class UnionTransform(ColumnTransform):
+    """
+    Column transform that replaces all input variables with a single Boolean-
+    valued variable representing their logical union. Input variables should be
+    Boolean-valued.
+
+    Formula specifications
+    ----------------------
+    * or(variable0 + variable1) for the elementwise union of Boolean-valued
+      observations in variable0 and variable1
+    * or(thr1(variable) + uthr0(variable)) for an indicator specifying if the
+      value of `variable` is in the complement of (0, 1).
+
+    See also
+    --------
+    `IntersectionTransform` : logical intersection.
+    """
     def __init__(self):
         regex = r'^or\((?P<child0>.*)\)'
         transform = lambda values: reduce((lambda x, y: x | y), values.T)
@@ -208,6 +277,22 @@ class UnionTransform(ColumnTransform):
 
 
 class IntersectionTransform(ColumnTransform):
+    """
+    Column transform that replaces all input variables with a single Boolean-
+    valued variable representing their logical intersection. Input variables
+    should be Boolean-valued.
+
+    Formula specifications
+    ----------------------
+    * and(variable0 + variable1) for the elementwise intersection of Boolean-
+      valued observations in variable0 and variable1
+    * and(thr0(variable) + uthr1(variable)) for an indicator specifying if the
+      value of `variable` is in (0, 1).
+
+    See also
+    --------
+    `UnionTransform` : logical union.
+    """
     def __init__(self):
         regex = r'^and\((?P<child0>.*)\)'
         transform = lambda values: reduce((lambda x, y: x & y), values.T)
