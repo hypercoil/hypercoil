@@ -51,7 +51,8 @@ def fc_transforms():
         ThreshBinTransform(),
         UThreshBinTransform(),
         UnionTransform(),
-        IntersectionTransform()
+        IntersectionTransform(),
+        NegationTransform()
     ]
 
 
@@ -313,6 +314,26 @@ class IntersectionTransform(ColumnTransform):
         return pd.DataFrame(
             data=self.transform(selected.values),
             columns=[f'intersection_{vars}']
+        )
+
+
+class NegationTransform(ColumnTransform):
+    def __init__(self):
+        regex = r'not\((?P<child0>.*)\)'
+        transform = lambda values: ~ values
+        matches = [MatchOnly(regex=regex)]
+        super(NegationTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='negation'
+        )
+
+    def __call__(self, children, **args):
+        selected = children[0]
+        vars = [f'NOT_{col}' for col in selected.columns]
+        return pd.DataFrame(
+            data=self.transform(selected.values),
+            columns=vars
         )
 
 
