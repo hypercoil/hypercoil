@@ -8,7 +8,12 @@ Initialisations of base data classes for modelling functional connectivity.
 """
 import pandas as pd
 from functools import reduce
-from .coltransforms import ColumnTransform, OrderedTransform, MatchOnly
+from .coltransforms import (
+    ColumnTransform,
+    OrderedTransform,
+    MatchOnly,
+    MatchAndCompare
+)
 from .model import ModelSpec
 from .shorthand import Shorthand, ShorthandFilter
 from .utils import diff_nanpad, match_metadata, numbered_string
@@ -52,7 +57,8 @@ def fc_transforms():
         UThreshBinTransform(),
         UnionTransform(),
         IntersectionTransform(),
-        NegationTransform()
+        NegationTransform(),
+        ThreshIndicatorTransform()
     ]
 
 
@@ -243,6 +249,20 @@ class UThreshBinTransform(ColumnTransform):
 
     def argform(self, **args):
         return args['thresh']
+
+
+class ThreshIndicatorTransform(ColumnTransform):
+    def __init__(self):
+        regex = (r'^1_\[(?P<child0>[^\>\<\=\!]*)'
+                 r'(?P<compare>[\>\<\=\!]+) *'
+                 r'(?P<thresh>[0-9]+[\.]?[0-9]*)\]')
+        transform = lambda data, compare, thresh: compare(data.values, thresh)
+        matches = [MatchAndCompare(regex=regex)]
+        super(ThreshIndicatorTransform, self).__init__(
+            transform=transform,
+            matches=matches,
+            name='thresh'
+        )
 
 
 class UnionTransform(ColumnTransform):
