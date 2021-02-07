@@ -53,12 +53,10 @@ def fc_transforms():
     return [
         DerivativeTransform(),
         PowerTransform(),
-        ThreshBinTransform(),
-        UThreshBinTransform(),
+        ThreshIndicatorTransform(),
         UnionTransform(),
         IntersectionTransform(),
         NegationTransform(),
-        ThreshIndicatorTransform()
     ]
 
 
@@ -182,76 +180,29 @@ class DerivativeTransform(OrderedTransform):
         )
 
 
-class ThreshBinTransform(ColumnTransform):
-    """
-    Column transform that thresholds each variable and binarises the result,
-    thus returning a Boolean-valued variable whose observations indicate
-    whether the corresponding observations of the original variable survived
-    the threshold. Note that any missing or NaN observation is mapped to False.
-
-    Formula specifications
-    ----------------------
-    * thr0.5(variable) for an indicator of whether each observation is greater
-      than 0.5
-
-    See also
-    --------
-    `UThreshBinTransform`: create an indicator variable specifying whether each
-    observation is under some threshold. TODO: In the future, thresholding
-    transformations will be replaced by a single transformation that separately
-    handles lt, le, gt, ge, ne, eq cases.
-    """
-    def __init__(self):
-        regex = r'^thr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
-        transform = lambda data, thresh: data.values > thresh
-        typedict = {'thresh': float}
-        matches = [MatchOnly(regex=regex, typedict=typedict)]
-        super(ThreshBinTransform, self).__init__(
-            transform=transform,
-            matches=matches,
-            name='threshbin'
-        )
-
-    def argform(self, **args):
-        return args['thresh']
-
-
-class UThreshBinTransform(ColumnTransform):
-    """
-    Column transform that upper-thresholds each variable and binarises the
-    result, thus returning a Boolean-valued variable whose observations
-    indicate whether the corresponding observations of the original variable
-    survived the upper threshold. Note that any missing or NaN observation is
-    mapped to False.
-
-    Formula specifications
-    ----------------------
-    * uthr0.5(variable) for an indicator of whether each observation is less
-      than 0.5
-
-    See also
-    --------
-    `ThreshBinTransform`: create an indicator variable specifying whether each
-    observation is above some threshold. TODO: In the future, thresholding
-    transformations will be replaced by a single transformation that separately
-    handles lt, le, gt, ge, ne, eq cases.
-    """
-    def __init__(self):
-        regex = r'^uthr(?P<thresh>[0-9]+[\.]?[0-9]*)\((?P<child0>.*)\)$'
-        transform = lambda data, thresh: data.values < thresh
-        typedict = {'thresh': float}
-        matches = [MatchOnly(regex=regex, typedict=typedict)]
-        super(UThreshBinTransform, self).__init__(
-            transform=transform,
-            matches=matches,
-            name='uthreshbin'
-        )
-
-    def argform(self, **args):
-        return args['thresh']
-
-
 class ThreshIndicatorTransform(ColumnTransform):
+    """
+    Column transform that maps each variable to a Boolean indicator that
+    specifies whether a comparative relation between each observation and a
+    numeric threshold is satisfied. Supported relations include equality and
+    standard inequalities (`>`, `>=`, `<`, `<=`, `!=`). Note that any missing
+    or NaN observation is always mapped to False.
+
+    Formula specifications
+    ----------------------
+    * 1_[variable < 0.5] for an indicator of whether each observation is less
+      than 0.5
+    * 1_[variable <= 0.5] for an indicator of whether each observation is less
+      than or equal to 0.5
+    * 1_[variable > 0.5] for an indicator of whether each observation is
+      greater than 0.5
+    * 1_[variable >= 0.5] for an indicator of whether each observation is
+      greater than or equal to 0.5
+    * 1_[variable == 0.5] for an indicator of whether each observation exactly
+      equals 0.5
+    * 1_[variable != 0.5] for an indicator of whether each observation is not
+      exactly equal to 0.5
+    """
     def __init__(self):
         regex = (r'^1_\[(?P<child0>[^\>\<\=\!]*)'
                  r'(?P<compare>[\>\<\=\!]+) *'
@@ -275,12 +226,13 @@ class UnionTransform(ColumnTransform):
     ----------------------
     * or(variable0 + variable1) for the elementwise union of Boolean-valued
       observations in variable0 and variable1
-    * or(thr1(variable) + uthr0(variable)) for an indicator specifying if the
-      value of `variable` is in the complement of (0, 1).
+    * or(1_[variable > 1] + 1_[variable < 0]) for an indicator specifying if
+      the value of `variable` is in the complement of (0, 1).
 
     See also
     --------
     `IntersectionTransform` : logical intersection.
+    `NegationTransform` : logical negation
     """
     def __init__(self):
         regex = r'^or\((?P<child0>.*)\)'
@@ -311,12 +263,13 @@ class IntersectionTransform(ColumnTransform):
     ----------------------
     * and(variable0 + variable1) for the elementwise intersection of Boolean-
       valued observations in variable0 and variable1
-    * and(thr0(variable) + uthr1(variable)) for an indicator specifying if the
+    * and(1_[variable < 1] + 1_[variable > 1]) for an indicator specifying if the
       value of `variable` is in (0, 1).
 
     See also
     --------
     `UnionTransform` : logical union.
+    `NegationTransform` : logical negation
     """
     def __init__(self):
         regex = r'^and\((?P<child0>.*)\)'
@@ -338,6 +291,26 @@ class IntersectionTransform(ColumnTransform):
 
 
 class NegationTransform(ColumnTransform):
+    """
+    Column transform that replaces each input variable with its logical
+    negation, computed elementwise. Input variables should be Boolean-valued.
+    Note that in many cases a different indicator can be used to binarise
+    a variable and thereby avoid the use of negation; this is generally
+    preferred.
+
+    Formula specifications
+    ----------------------
+    * not(variable) for the elementwise negation of Boolean-valued observations
+      in variable
+    * not(or(variable0 + variable1)) for values that are false in both
+      variable0 or variable1; equivalent to
+      and(not(variable0) + not(variable1))
+
+    See also
+    --------
+    `UnionTransform` : logical union.
+    `IntersectionTransform` : logical intersection.
+    """
     def __init__(self):
         regex = r'not\((?P<child0>.*)\)'
         transform = lambda values: ~ values
