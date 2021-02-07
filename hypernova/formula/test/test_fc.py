@@ -133,20 +133,20 @@ class TestModelSpec:
 
     def test_tmask_expr(self):
         self.expr_base(
-            model_formula='and(uthr0.5(fd) + uthr1.5(std_dvars))',
+            model_formula='and(1_[fd<0.5] + 1_[dv<1.5])',
             expanded_spec=None,
             n_children=1
         )
 
     def test_tmask_spec(self):
         out = self.spec_base(
-            model_formula='and(uthr0.5(fd) + uthr1.5(std_dvars))',
+            model_formula='and(1_[fd<0.5] + 1_[dv<1.5])',
             name='tmask',
             shape=1
         )
         assert out.values.sum() == (len(out) - 3)
         out = self.spec_base(
-            model_formula='not(or(thr0.5(fd) + thr1.5(std_dvars)))',
+            model_formula='not(or(1_[fd>0.5] + 1_[dv>1.5]))',
             name='tmask',
             shape=1
         )
