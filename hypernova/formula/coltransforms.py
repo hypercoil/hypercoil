@@ -88,6 +88,21 @@ class MatchOnly(MatchRule):
 
 
 class MatchAndCompare(MatchRule):
+    """
+    A `MatchRule` that maps the `compare` field to a Boolean-valued function
+    to a function that returns true if the string representation of the
+    comparison operator stored in the `compare` field is satisfied.
+
+    Parameters
+    ----------
+    regex : str
+        String representing the regular expression indicating variables to
+        be compared, the comparison operator, and the reference point. The
+        regular expression should contain as subexpressions:
+        - r'^(?P<child0>[^\>\<\=\!]*)' for variables to compare;
+        - r'(?P<compare>[\>\<\=\!]+) *' for the comparison operator;
+        - r'(?P<thresh>[0-9]+[\.]?[0-9]*)\]' for the reference threshold
+    """
     def __init__(self, regex):
         rule = lambda x: x.update(compare=self._comparison(x['compare']))
         typedict = {
@@ -100,6 +115,11 @@ class MatchAndCompare(MatchRule):
         )
 
     def _comparison(self, compare):
+        """
+        Convert a string representation of a comparison operator into a
+        function that returns true if its input satisfies the operator in
+        relation to some threshold.
+        """
         if compare == '>':
             return lambda x, thresh: x > thresh
         elif compare == '<':
