@@ -23,7 +23,7 @@ class TestDataLoader:
             'gsr',
             'acc<v=0.7, mask=WM+CSF>'
         ]
-        self.tmask = 'and(uthr0.2(d1(rps)))'
+        self.tmask = 'and(1_[d1(rps) < 0.2])'
         self.ds = hypernova.data.fMRIPrepDataset(
             self.fmriprep_dir, model=self.models, tmask=self.tmask)
         self.dl = hypernova.data.dataset.ReferencedDataLoader(
