@@ -145,3 +145,10 @@ class TestModelSpec:
             shape=1
         )
         assert out.values.sum() == (len(out) - 3)
+        out = self.spec_base(
+            model_formula='not(or(thr0.5(fd) + thr1.5(std_dvars)))',
+            name='tmask',
+            shape=1
+        )
+        # Note the inconsistency because nan is always false at comparison
+        assert out.values.sum() == (len(out) - 2)
