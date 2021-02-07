@@ -87,6 +87,35 @@ class MatchOnly(MatchRule):
             regex=regex, rule=rule, typedict=typedict)
 
 
+class MatchAndCompare(MatchRule):
+    def __init__(self, regex):
+        rule = lambda x: x.update(compare=self._comparison(x['compare']))
+        typedict = {
+            'thresh': float
+        }
+        super(MatchAndCompare, self).__init__(
+            regex=regex,
+            rule=rule,
+            typedict=typedict
+        )
+
+    def _comparison(self, compare):
+        if compare == '>':
+            return lambda x, thresh: x > thresh
+        elif compare == '<':
+            return lambda x, thresh: x < thresh
+        elif compare == '>=':
+            return lambda x, thresh: x >= thresh
+        elif compare == '<=':
+            return lambda x, thresh: x <= thresh
+        elif compare == '=' or compare == '==':
+            return lambda x, thresh: x == thresh
+        elif compare == '!=' or compare == '~=':
+            return lambda x, thresh: x != thresh
+        else:
+            raise ValueError(f'Invalid comparison string: {compare}')
+
+
 class AllOrders(MatchRule):
     """
     A `MatchRule` that transforms the `order` into a set of integers from
