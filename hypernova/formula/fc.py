@@ -11,8 +11,10 @@ from functools import reduce
 from .coltransforms import (
     ColumnTransform,
     OrderedTransform,
+)
+from .match import (
     MatchOnly,
-    MatchAndCompare
+    MatchAndCompare,
 )
 from .model import ModelSpec
 from .shorthand import Shorthand, ShorthandFilter
