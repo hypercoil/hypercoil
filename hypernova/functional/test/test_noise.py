@@ -24,15 +24,6 @@ def lr_std_mean(dim=100, rank=None, std=0.05, iter=1000):
     ]).mean()
 
 
-def lr_mean_mean(dim=100, rank=None, std=0.05, iter=1000):
-    distr = torch.distributions.normal.Normal(
-        torch.Tensor([0]), torch.Tensor([std]))
-    lrns = LowRankNoiseSource(rank=rank, distr=distr)
-    return torch.Tensor(
-        [lrns.sample([dim]).mean() for _ in range(iter)
-    ]).mean()
-
-
 class TestNoise:
 
     @pytest.fixture(autouse=True)
