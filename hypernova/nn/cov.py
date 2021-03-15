@@ -36,8 +36,7 @@ class _Cov(Module):
         self.dropout = dropout
         self.domain = domain or Identity()
 
-        if self.max_lag is None:
-            self.mask = None
+        if self.max_lag is None or self.max_lag == 0:
             self.register_parameter('mask', None)
 
     def inject_noise(self, weight):
@@ -133,24 +132,35 @@ class _WeightedCov(_Cov):
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             domain=domain, out_channels=out_channels
         )
-        self.preweight = Parameter(torch.Tensor(
-            self.out_channels, self.dim, self.dim
-        ))
-        if self.max_lag is not None:
-            self.mask = Parameter(torch.Tensor(
-                self.dim, self.dim
-            ).bool(), requires_grad=False)
+        if self.max_lag == 0:
+            self.preweight = Parameter(torch.Tensor(
+                self.out_channels, 1, self.dim
+            ))
+        else:
+            self.preweight = Parameter(torch.Tensor(
+                self.out_channels, self.dim, self.dim
+            ))
+            if self.max_lag is not None:
+                self.mask = Parameter(torch.Tensor(
+                    self.dim, self.dim
+                ).bool(), requires_grad=False)
         self.reset_parameters()
 
     def reset_parameters(self):
-        toeplitz_init_(
-            self.mask,
-            torch.Tensor([1 for _ in range(self.max_lag + 1)])
-        )
-        toeplitz_init_(
-            self.preweight,
-            laplace(torch.arange(self.max_lag + 1))
-        )
+        if self.max_lag == 0:
+            # TODO: Need a better init
+            self.preweight.requires_grad = False
+            self.preweight[:] = torch.rand_like(self.preweight)
+            self.preweight.requires_grad = True
+        else:
+            toeplitz_init_(
+                self.mask,
+                torch.Tensor([1 for _ in range(self.max_lag + 1)])
+            )
+            toeplitz_init_(
+                self.preweight,
+                laplace(torch.arange(self.max_lag + 1))
+            )
 
     @property
     def postweight(self):
