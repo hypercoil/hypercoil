@@ -28,14 +28,16 @@ class TestCov:
         self.X = np.random.rand(7, 100)
         self.XM = np.random.rand(200, 7, 100)
         self.w = np.random.rand(100)
+        self.wM = np.random.rand(3, 100)
         self.W = np.random.rand(100, 100)
         self.Y = np.random.rand(3, 100)
         self.xt = torch.Tensor(self.x)
         self.Xt = torch.Tensor(self.X)
         self.XMt = torch.Tensor(self.XM)
         self.wt = torch.Tensor(self.w)
+        self.wMt = torch.Tensor(self.wM)
         self.Wt = torch.Tensor(self.W)
-        self.WMt = torch.diag_embed(torch.rand(3, 100))
+        self.WMt = torch.diag_embed(self.wMt)
         self.Yt = torch.Tensor(self.Y)
 
     def covpattern(self, **args):
@@ -67,6 +69,14 @@ class TestCov:
     def test_cov_weighted(self):
         out = self.ofunc(self.Xt, weight=self.wt).numpy()
         ref = self.rfunc(self.X, aweights=self.w)
+        assert self.approx(out, ref)
+
+    def test_cov_multiweighted_1d(self):
+        out = self.ofunc(self.Xt, weight=self.wMt)
+        ref = np.stack([
+            self.rfunc(self.X, aweights=self.wM[i, :])
+            for i in range(self.wM.shape[0])
+        ])
         assert self.approx(out, ref)
 
     def test_cov_multiweighted(self):
