@@ -69,12 +69,14 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     partialcorr: Partial correlation matrix
     """
     X = _prepare_input(X, rowvar)
-    weight, w_sum, (avg,) = _prepare_weight_and_avg((X,), weight)
-    fact = _prepare_denomfact(w_sum, ddof, bias, weight)
+    weight, w_type, w_sum, (avg,) = _prepare_weight_and_avg((X,), weight)
+    fact = _prepare_denomfact(w_sum, w_type, ddof, bias, weight)
 
     X0 = X - avg
     if weight is None:
         sigma = X0 @ X0.transpose(-1, -2) / fact
+    elif w_type == 'vector':
+        sigma = (X0 * weight) @ X0.transpose(-1, -2) / fact
     else:
         sigma = X0 @ weight @ X0.transpose(-1, -2) / fact
     if l2 > 0:
@@ -166,8 +168,8 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     """
     X = _prepare_input(X, rowvar)
     Y = _prepare_input(Y, rowvar)
-    weight, w_sum, (Xavg, Yavg) = _prepare_weight_and_avg((X, Y), weight)
-    fact = _prepare_denomfact(w_sum, ddof, bias, weight)
+    weight, w_type, w_sum, (Xavg, Yavg) = _prepare_weight_and_avg((X, Y), weight)
+    fact = _prepare_denomfact(w_sum, w_type, ddof, bias, weight)
 
     X0 = X - Xavg
     Y0 = Y - Yavg
@@ -360,22 +362,38 @@ def _prepare_weight_and_avg(vars, weight=None):
     """
     avg = []
     if weight is not None:
-        if weight.dim() == 1:
-            weight = torch.diag_embed(weight)
-        w_sum = weight.sum([-1, -2], keepdim=True)
-        #TODO
-        # We'll need to ensure that this is correct
-        # for the nondiagonal case. The tests still don't.
-        for V in vars:
-            avg += [(V @ (weight / w_sum)).sum(-1, keepdim=True)]
+        if weight.dim() == 1 or weight.shape[-1] != weight.shape[-2]:
+            w_type = 'vector'
+            weight = _conform_vector_weight(weight)
+            w_sum = weight.sum(-1, keepdim=True)
+            for V in vars:
+                avg += [(V * (weight / w_sum)).sum(-1, keepdim=True)]
+        else:
+            w_type = 'matrix'
+            w_sum = weight.sum([-1, -2], keepdim=True)
+            #TODO
+            # We'll need to ensure that this is correct
+            # for the nondiagonal case. The tests still don't.
+            for V in vars:
+                avg += [(V @ (weight / w_sum)).sum(-1, keepdim=True)]
     else:
+        w_type = None
         w_sum = vars[0].size(-1)
         for V in vars:
             avg += [V.mean(-1, keepdim=True)]
-    return weight, w_sum, avg
+    return weight, w_type, w_sum, avg
 
 
-def _prepare_denomfact(w_sum, ddof=None, bias=False, weight=None):
+def _conform_vector_weight(weight):
+    if weight.dim() == 1:
+        return weight
+    if weight.shape[-2] != 1:
+        return weight.unsqueeze(-2)
+    return weight
+
+
+def _prepare_denomfact(w_sum, w_type='matrix', ddof=None,
+                       bias=False, weight=None):
     """
     Determine the factor we should divide by to obtain the (un)biased
     covariance from the sum over observations.
@@ -385,6 +403,8 @@ def _prepare_denomfact(w_sum, ddof=None, bias=False, weight=None):
         fact = w_sum - ddof
     elif ddof == 0:
         fact = w_sum
+    elif w_type == 'vector':
+        fact = w_sum - ddof * (weight ** 2).sum(-1, keepdim=True) / w_sum
     else:
         #TODO
         # I don't have the intuition here yet: should this be
