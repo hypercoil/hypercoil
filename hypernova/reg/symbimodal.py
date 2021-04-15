@@ -13,12 +13,12 @@ from .norm import NormedRegularisation
 
 def symmetric_bimodal_distance(weight, modes=(0, 1)):
     mean = sum(modes) / 2
-    step = modes[1] - mean
-    return (weight - mean).abs() - step
+    step = max(modes) - mean
+    return ((weight - mean).abs() - step).abs()
 
 
 class SymmetricBimodal(NormedRegularisation):
-    def __init__(self, nu, modes=(0, 1), norm=2):
+    def __init__(self, nu=1, modes=(0, 1), norm=2):
         reg = partial(
             symmetric_bimodal_distance,
             modes=modes
