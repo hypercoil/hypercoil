@@ -8,6 +8,7 @@ Initialise and compute means and mean blocks in the positive semidefinite cone.
 """
 import torch
 from torch.nn import Module
+from .base import DomainInitialiser
 from ..functional import (
     mean_euc_spd, mean_harm_spd, mean_logeuc_spd, mean_geom_spd,
     SPSDNoiseSource
@@ -106,13 +107,21 @@ def tangency_init_(tensor, mean_specs, init_data, std=0):
     -------
         None. The tensor is initialised in-place.
     """
-    rg = tensor.requires_grad
-    tensor.requires_grad = False
     means = mean_block_spd(mean_specs, init_data)
     if std > 0:
         means = SPSDNoiseSource(std=std).inject(means)
-    tensor[:] = means
-    tensor.requires_grad = rg
+    tensor.copy_(means)
+
+
+class TangencyInit(DomainInitialiser):
+    def __init__(self, mean_specs, init_data, std=0, domain=None):
+        if domain is not None:
+            print('Warning: domain specified. If the domain mapping does not '
+                  'preserve positive semidefiniteness, then the module will '
+                  'likely fail on the forward pass.')
+        init = partial(tangency_init_, mean_specs=mean_specs,
+                       init_data=init_data, std=std)
+        super(TangencyInit, self).__init__(init=init, domain=domain)
 
 
 class _SemidefiniteMean(Module):
