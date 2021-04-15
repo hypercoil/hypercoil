@@ -6,9 +6,9 @@ Symmetric bimodal
 ~~~~~~~~~~~~~~~~~
 Symmetric bimodal regularisations using absolute value.
 """
-from torch import norm as pnorm
-from torch.nn import Module
 from functools import partial
+from .norm import NormedRegularisation
+
 
 
 def symmetric_bimodal_distance(weight, modes=(0, 1)):
@@ -17,13 +17,10 @@ def symmetric_bimodal_distance(weight, modes=(0, 1)):
     return (weight - mean).abs() - step
 
 
-class SymmetricBimodal(Module):
-    def __init__(self, nu=1, modes=(0, 1), norm=None):
-        self.nu = nu
-        self.modes = modes
-        self.norm = norm or partial(pnorm, p=2)
-
-    def forward(self, weight):
-        return self.nu * self.norm(
-            symmetric_bimodal_distance(weight, self.modes)
+class SymmetricBimodal(NormedRegularisation):
+    def __init__(self, nu, modes=(0, 1), norm=2):
+        reg = partial(
+            symmetric_bimodal_distance,
+            modes=modes
         )
+        super(SymmetricBimodal, self).__init__(nu=nu, p=norm, reg=reg)
