@@ -224,13 +224,14 @@ class _Domain(torch.nn.Module):
     test(x)
         Evaluate whether each entry in a tensor falls within bounds.
     """
-    def __init__(self, handler=None, bound=None, scale=1, limits=None):
+    def __init__(self, handler=None, bound=None, loc=0, scale=1, limits=None):
         super(_Domain, self).__init__()
         self.handler = handler or Clip()
         bound = bound or [-float('inf'), float('inf')]
         limits = limits or [-float('inf'), float('inf')]
         self.bound = torch.Tensor(bound)
         self.limits = torch.Tensor(limits)
+        self.loc = loc
         self.scale = scale
 
     def extra_repr(self):
@@ -250,12 +251,12 @@ class _Domain(torch.nn.Module):
 
     def preimage(self, x):
         x = self.handler.apply(x, self.bound)
-        i = self.preimage_map(x / self.scale)
+        i = self.preimage_map((x - self.loc) / self.scale)
         i = self.handler.apply(i, self.limits)
         return i
 
     def image(self, x):
-        return self.scale * self.image_map(x)
+        return self.scale * self.image_map(x) + self.loc
 
 
 class _PhaseAmplitudeDomain(_Domain):
@@ -410,10 +411,11 @@ class Logit(_Domain):
         Indicates whether each entry of a tensor is in the range of the scaled
         sigmoid (0, `scale`).
     """
-    def __init__(self, scale=1, handler=None, limits=(-4.5, 4.5)):
+    def __init__(self, scale=1, loc=0.5, handler=None, limits=(-4.5, 4.5)):
+        shift = scale * (1 - loc) - 0.5
         super(Logit, self).__init__(
-            handler=handler, bound=(0, scale),
-            scale=scale, limits=limits)
+            handler=handler, bound=(loc - scale / 2, loc + scale / 2),
+            loc=-shift, scale=scale, limits=limits)
         self.preimage_map = torch.logit
         self.image_map = torch.sigmoid
 
