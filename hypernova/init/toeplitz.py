@@ -7,6 +7,7 @@ Toeplitz initialisation
 Initialise parameters as a stack of Toeplitz-structured banded matrices.
 """
 import torch
+from .base import BaseInitialiser
 from ..functional import toeplitz
 from ..functional.domain import Identity
 
@@ -51,11 +52,17 @@ def toeplitz_init_(tensor, c, r=None, fill_value=0, domain=None):
     None. The input tensor is initialised in-place.
     """
     domain = domain or Identity()
-    rg = tensor.requires_grad
-    tensor.requires_grad = False
     dim = tensor.size()[-2:]
     val = toeplitz(c=c, r=r, dim=dim, fill_value=fill_value)
     val = domain.preimage(val)
     val.type(tensor.dtype)
-    tensor[:] = val
-    tensor.requires_grad = rg
+    tensor.copy_(val)
+
+
+class ToeplitzInit(BaseInitialiser):
+    def __init__(self, c, r=None, fill_value=0, domain=None):
+        init = partial(toeplitz_init_, c=c, r=r,
+                       fill_value=fill_value, domain=domain)
+        super(ToeplitzInit, self).__init__(init=init)
+        self.fill_value = fill_value
+        self.domain = domain
