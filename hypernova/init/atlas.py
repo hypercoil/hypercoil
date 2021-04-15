@@ -10,6 +10,7 @@ import torch
 import numpy as np
 import nibabel as nb
 from scipy.ndimage import gaussian_filter
+from .base import DomainInitialiser
 from ..functional import UnstructuredNoiseSource
 from ..functional.domain import Identity
 
@@ -260,8 +261,6 @@ def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None,
         parameter transformed by the tanh or sigmoid functions, thereby
         constraining the weights to [-a, a] or [0, a].
     """
-    rg = tensor.requires_grad
-    tensor.requires_grad = False
     domain = domain or Identity()
     if noise_sigma is not None:
         distr = torch.distributions.normal.Normal(
@@ -270,7 +269,16 @@ def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None,
         noise = UnstructuredNoiseSource(distr=distr)
     else:
         noise = None
-    map = atlas.map(sigma=kernel_sigma, noise=noise, normalise=normalise)
-    map = domain.preimage(map)
-    tensor[:] = torch.Tensor(map)
-    tensor.requires_grad = rg
+    val = atlas.map(sigma=kernel_sigma,
+                    noise=noise,
+                    normalise=normalise)
+    tensor.copy_(val)
+
+
+class AtlasInit(DomainInitialiser):
+    def __init__(self, atlas, kernel_sigma=None, noise_sigma=None,
+                 normalise=False, domain=None):
+        init = partial(atlas_init_, atlas=atlas, kernel_sigma=kernel_sigma,
+                       noise_sigma=noise_sigma, normalise=normalise,
+                       domain=domain)
+        super(AtlasInit, self).__init__(init=init, domain=domain)
