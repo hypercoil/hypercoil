@@ -32,6 +32,7 @@ class TestCovarianceAutoencoder:
         self.max_epoch = 1000
         self.loss = torch.nn.MSELoss()
         self.log_interval = 25
+        self.max_score = np.sqrt(.1 * self.n)
 
     def test_supervised_cov_autoencoder(self):
         plt.figure(figsize=(9, 18))
@@ -85,3 +86,11 @@ class TestCovarianceAutoencoder:
         plt.gca().set_title('Learned and target weights')
         plt.legend(['Target', 'Learned'])
         plt.savefig(out, bbox_inches='tight')
+
+        score = self.loss(
+            torch.Tensor(self.target[:, -1]),
+            model.weight.squeeze().detach()
+        )
+        # This is the score if every guess were exactly 0.1 from the target.
+        # (already far better than random chance)
+        assert(score < self.max_score)
