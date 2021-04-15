@@ -9,10 +9,11 @@ Modules supporting covariance estimation.
 import torch
 from torch.nn import Module, Parameter, init
 from ..functional.activation import laplace
-from ..functional.domain import Identity
+from ..functional.domain import Logit
 from ..functional.matrix import toeplitz
-from ..init.laplace import laplace_init_
-from ..init.toeplitz import toeplitz_init_
+from ..init.base import DomainInitialiser
+from ..init.laplace import LaplaceInit
+from ..init.toeplitz import ToeplitzInit
 
 
 class _Cov(Module):
@@ -21,7 +22,7 @@ class _Cov(Module):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=None):
+                 noise=None, dropout=None):
         super(_Cov, self).__init__()
 
         self.dim = dim
@@ -34,7 +35,6 @@ class _Cov(Module):
         self.l2 = l2
         self.noise = noise
         self.dropout = dropout
-        self.domain = domain or Identity()
 
         if self.max_lag is None or self.max_lag == 0:
             self.register_parameter('mask', None)
@@ -126,12 +126,14 @@ class _WeightedCov(_Cov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=None):
+                 noise=None, dropout=None, init=None):
         super(_WeightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=domain, out_channels=out_channels
+            out_channels=out_channels
         )
+        self.init = init or DomainInitialiser(domain=Logit())
+        self.domain = self.init.domain
         if self.max_lag == 0:
             self.preweight = Parameter(torch.Tensor(
                 self.out_channels, 1, self.dim
@@ -149,9 +151,8 @@ class _WeightedCov(_Cov):
     def reset_parameters(self):
         if self.max_lag == 0:
             # TODO: Need a better init
-            self.preweight.requires_grad = False
-            self.preweight[:] = torch.rand_like(self.preweight)
-            self.preweight.requires_grad = True
+            print(self.init)
+            self.init(self.preweight)
         else:
             toeplitz_init_(
                 self.mask,
@@ -180,7 +181,7 @@ class _ToeplitzWeightedCov(_Cov):
         super(_ToeplitzWeightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=domain, out_channels=out_channels
+            out_channels=out_channels
         )
         if self.max_lag is not None:
             self.mask = Parameter(torch.Tensor(
@@ -228,7 +229,7 @@ class _UnweightedCov(_Cov):
         super(_UnweightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=None, out_channels=out_channels
+            out_channels=out_channels
         )
         self.preweight = Parameter(torch.Tensor(
             self.out_channels, self.dim, self.dim
@@ -343,11 +344,11 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=None):
+                 noise=None, dropout=None, init=None):
         super(UnaryCovariance, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=domain, out_channels=out_channels
+            init=init, out_channels=out_channels
         )
 
 
@@ -454,11 +455,11 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=None):
+                 noise=None, dropout=None, init=None):
         super(UnaryCovarianceTW, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=domain, out_channels=out_channels
+            init=init, out_channels=out_channels
         )
 
 
@@ -673,11 +674,11 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=None):
+                 noise=None, dropout=None, init=None):
         super(BinaryCovariance, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=domain, out_channels=out_channels
+            init=init, out_channels=out_channels
         )
 
 
@@ -797,11 +798,11 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=None):
+                 noise=None, dropout=None, init=None):
         super(BinaryCovarianceTW, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            domain=domain, out_channels=out_channels
+            init=init, out_channels=out_channels
         )
 
 
