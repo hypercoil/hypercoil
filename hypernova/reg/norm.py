@@ -13,18 +13,19 @@ from functools import partial
 
 
 class ReducingRegularisation(Module):
-	def __init__(self, nu, reduction, reg):
-		self.nu = nu
-		self.reduction = reduction
-		self.reg = reg
+    def __init__(self, nu, reduction, reg):
+        super(ReducingRegularisation, self).__init__()
+        self.nu = nu
+        self.reduction = reduction
+        self.reg = reg
 
-	def forward(self, weight):
-		return self.nu * self.reduction(self.reg(weight))
+    def forward(self, weight):
+        return self.nu * self.reduction(self.reg(weight))
 
 
 class NormedRegularisation(ReducingRegularisation):
-	def __init__(self, nu, p, reg):
-		reduction = pnorm(p=p)
-		super(NormedRegularisation, self).__init__(
-			nu=nu, reduction=reduction, reg=reg
-		)
+    def __init__(self, nu, p, reg):
+        reduction = partial(pnorm, p=p)
+        super(NormedRegularisation, self).__init__(
+            nu=nu, reduction=reduction, reg=reg
+        )
