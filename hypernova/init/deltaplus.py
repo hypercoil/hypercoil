@@ -42,8 +42,6 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
     None. The input tensor is initialised in-place.
     """
     domain = domain or Identity()
-    rg = tensor.requires_grad
-    tensor.requires_grad = False
     loc = loc or tuple([x // 2 for x in tensor.size()])
     scale = scale or 1
     val = torch.zeros_like(tensor)
@@ -52,4 +50,10 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
     val += torch.randn(tensor.size()) * var
     val.type(tensor.dtype)
     tensor[:] = val
-    tensor.requires_grad = rg
+
+
+class DeltaPlusInit(BaseInitialiser):
+    def __init__(self, loc=None, scale=None, var=0.2, domain=None):
+        init = partial(deltaplus_init_, loc=loc, scale=scale,
+                       var=var, domain=domain)
+        super(DeltaPlusInit, self).__init__(init=init)
