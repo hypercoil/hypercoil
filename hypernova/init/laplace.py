@@ -82,9 +82,9 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
     elif norm == 'sum':
         val /= val.sum()
     val = domain.preimage(val)
-    val.type(tensor.dtype)
     if var != 0:
         val = val + torch.randn(tensor.size()) * var
+    val.type(tensor.dtype)
     tensor.copy_(val)
 
 

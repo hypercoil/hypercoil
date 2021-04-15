@@ -49,7 +49,7 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
     val = domain.preimage(val)
     val += torch.randn(tensor.size()) * var
     val.type(tensor.dtype)
-    tensor[:] = val
+    tensor.copy_(val)
 
 
 class DeltaPlusInit(BaseInitialiser):
