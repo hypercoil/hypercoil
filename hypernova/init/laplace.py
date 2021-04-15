@@ -7,7 +7,8 @@ Laplace initialisation
 Initialise parameters to match a double exponential function.
 """
 import torch
-from functools import reduce
+from functools import reduce, partial
+from .base import BaseInitialiser
 from ..functional.domain import Identity
 
 
@@ -59,8 +60,6 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
     None. The input tensor is initialised in-place.
     """
     domain = domain or Identity()
-    rg = tensor.requires_grad
-    tensor.requires_grad = False
     loc = loc or [(x - 1) / 2 for x in tensor.size()]
     width = width or [1 for _ in range(tensor.dim())]
     width = torch.Tensor(width)
@@ -87,4 +86,17 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
     if var != 0:
         val = val + torch.randn(tensor.size()) * var
     tensor.copy_(val)
-    tensor.requires_grad = rg
+
+
+class LaplaceInit(BaseInitialiser):
+    def __init__(self, loc=None, width=None, norm=None,
+                 var=0.02, excl_axis=None, domain=None):
+        init = partial(laplace_init_, loc=loc, width=width, norm=norm,
+                       var=var, excl_axis=excl_axis, domain=domain)
+        super(LaplaceInit, self).__init__(init=init)
+        self.loc = loc
+        self.width = width
+        self.norm = norm
+        self.var = var
+        self.excl_axis = excl_axis
+        self.domain = domain
