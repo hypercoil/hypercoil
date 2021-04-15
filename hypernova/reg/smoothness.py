@@ -13,7 +13,7 @@ from .norm import NormedRegularisation
 
 class SmoothnessPenalty(NormedRegularisation):
     def __init__(self, nu=1, axis=-1, prepend=None, append=None, norm=2):
-        self.reg = partial(
+        reg = partial(
             diff, dim=axis, prepend=prepend, append=append
         )
         super(SmoothnessPenalty, self).__init__(nu=nu, p=norm, reg=reg)
