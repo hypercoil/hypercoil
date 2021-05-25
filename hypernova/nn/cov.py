@@ -9,7 +9,7 @@ Modules supporting covariance estimation.
 import torch
 from torch.nn import Module, Parameter, init
 from ..functional.activation import laplace
-from ..functional.domain import Logit
+from ..functional.domain import Logit, Identity
 from ..functional.matrix import toeplitz
 from ..init.base import DomainInitialiser
 from ..init.laplace import LaplaceInit
@@ -151,7 +151,6 @@ class _WeightedCov(_Cov):
     def reset_parameters(self):
         if self.max_lag == 0:
             # TODO: Need a better init
-            print(self.init)
             self.init(self.preweight)
         else:
             toeplitz_init_(
@@ -231,6 +230,7 @@ class _UnweightedCov(_Cov):
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             out_channels=out_channels
         )
+        self.domain = Identity()
         self.preweight = Parameter(torch.Tensor(
             self.out_channels, self.dim, self.dim
         ), requires_grad=False)
