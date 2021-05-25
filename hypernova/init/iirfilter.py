@@ -6,10 +6,12 @@ IIR filter initialisation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 Tools for initialising parameters to emulate the transfer function of an IIR or
 ideal filter.
+TODO: We need to rename this.
 """
 import torch
 import math
 from ..functional.domain import AmplitudeAtanh, Clip
+from ..functional.activation import complex_recompose
 
 
 class IIRFilterSpec(object):
@@ -36,9 +38,11 @@ class IIRFilterSpec(object):
         Filter order. If this is a tensor, then a separate filter will be
         created for each entry in the tensor. Wn must be shaped to match. Not
         used for ideal filters.
-    ftype : one of ('butter', 'cheby1', 'cheby2', 'ellip', 'bessel', 'ideal')
+    ftype : one of ('butter', 'cheby1', 'cheby2', 'ellip',
+                    'bessel', 'ideal', 'randn')
         Filter class to emulate: Butterworth, Chebyshev I, Chebyshev II,
-        elliptic, Bessel-Thompson, or ideal.
+        elliptic, Bessel-Thompson, ideal, or filter weights sampled randomly
+        from a normal distribution.
     btype : 'bandpass' (default) or 'bandstop' or 'lowpass' or 'highpass'
         Filter pass-band to emulate: low-pass, high-pass, or band-pass. The
         interpretation of the critical frequency changes depending on the
@@ -52,6 +56,22 @@ class IIRFilterSpec(object):
     norm : 'phase' or 'mag' or 'delay' (default 'phase')
         Critical frequency normalisation. Consult the `scipy.signal.bessel`
         documentation for details.
+    ampl_loc : float
+        If randomly sampling filter weights from a normal distribution, this
+        parameter specifies the mean of the amplitude distribution.
+    ampl_scale: float
+        If randomly sampling filter weights from a normal distribution, this
+        parameter specifies the standard deviation of the amplitude
+        distribution. (Note that there is currently no support for a covariant
+        phase-amplitude distribution.)
+    phase_loc : float
+        If randomly sampling filter weights from a normal distribution, this
+        parameter specifies the mean of the phase distribution.
+    phase_scale: float
+        If randomly sampling filter weights from a normal distribution, this
+        parameter specifies the standard deviation of the phase distribution.
+        (Note that there is currently no support for a covariant phase-
+        amplitude distribution.)
     clamps : list(dict)
         Frequencies whose responses should be clampable to particular values.
         Each element of the list is a dictionary corresponding to a single
@@ -117,16 +137,20 @@ class IIRFilterSpec(object):
             Values to which the response function is clampable at the specified
             frequencies.
     """
-    def __init__(self, Wn, N=1, ftype='butter', btype='bandpass', fs=None,
-                 rp=0.1, rs=20, norm='phase', clamps=None, bound=3):
-        N = _ensure_tensor(N)
-        Wn = _ensure_tensor(Wn)
-        if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
-            Wn = Wn.view(-1, 2)
-        if N.size(0) == 1 and Wn.size(0) > N.size(0):
-            N = N.repeat(Wn.size(0), 1)
-        elif Wn.size(0) == 1 and Wn.size(0) < N.size(0):
-            Wn = Wn.repeat(N.size(0), 1)
+    def __init__(self, Wn=None, N=1, ftype='butter', btype='bandpass', fs=None,
+                 rp=0.1, rs=20, norm='phase', ampl_loc=0.5, ampl_scale=0.1,
+                 phase_loc=0, phase_scale=0.02, clamps=None, bound=3):
+        if Wn is not None:
+            N = _ensure_tensor(N)
+            Wn = _ensure_tensor(Wn)
+            if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+                Wn = Wn.view(-1, 2)
+            if N.size(0) == 1 and Wn.size(0) > N.size(0):
+                N = N.repeat(Wn.size(0), 1)
+            elif Wn.size(0) == 1 and Wn.size(0) < N.size(0):
+                Wn = Wn.repeat(N.size(0), 1)
+        else:
+            assert(ftype == 'randn')
         self.N = N
         self.Wn = Wn
         self.ftype = ftype
@@ -135,34 +159,46 @@ class IIRFilterSpec(object):
         self.rp = rp
         self.rs = rs
         self.norm = norm
+        self.ampl_loc = ampl_loc
+        self.ampl_scale = ampl_scale
+        self.phase_loc = phase_loc
+        self.phase_scale = phase_scale
         self.clamps = clamps or []
         self.bound = bound
-        self.n_filters = Wn.size(0)
+        try:
+            self.n_filters = Wn.size(0)
+        except AttributeError:
+            self.n_filters = 1
 
     def initialise_spectrum(self, worN, domain=None):
         domain = domain or AmplitudeAtanh(handler=Clip())
         if self.ftype == 'butter':
             self.spectrum = butterworth_spectrum(
                 N=self.N, Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
-        if self.ftype == 'cheby1':
+        elif self.ftype == 'cheby1':
             self.spectrum = chebyshev1_spectrum(
                 N=self.N, Wn=self.Wn, rp=self.rp, btype=self.btype,
                 worN=worN, fs=self.fs)
-        if self.ftype == 'cheby2':
+        elif self.ftype == 'cheby2':
             self.spectrum = chebyshev2_spectrum(
                 N=self.N, Wn=self.Wn, rs=self.rs, btype=self.btype,
                 worN=worN, fs=self.fs)
-        if self.ftype == 'ellip':
+        elif self.ftype == 'ellip':
             self.spectrum = elliptic_spectrum(
                 N=self.N, Wn=self.Wn, rp=self.rp, rs=self.rs,
                 btype=self.btype, worN=worN, fs=self.fs)
-        if self.ftype == 'bessel':
+        elif self.ftype == 'bessel':
             self.spectrum = bessel_spectrum(
                 N=self.N, Wn=self.Wn, norm=self.norm,
                 btype=self.btype, worN=worN, fs=self.fs)
-        if self.ftype == 'ideal':
+        elif self.ftype == 'ideal':
             self.spectrum = ideal_spectrum(
                 Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
+        elif self.ftype == 'randn':
+            self.spectrum = randn_spectrum(
+                worN=worN, ampl_loc=self.ampl_loc, ampl_scale=self.ampl_scale,
+                phase_loc=self.phase_loc, phase_scale=self.phase_scale,
+                n_filters=self.n_filters)
         self.spectrum = domain.preimage(self.spectrum)
 
     def get_clamps(self, worN):
@@ -613,6 +649,13 @@ def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
         response_lp = frequencies >= Wn[:, 1].view(-1, 1)
         response = response_hp + response_lp
     return response.float()
+
+
+def randn_spectrum(worN, n_filters=1, ampl_loc=0.5, ampl_scale=0.2,
+                   phase_loc=0, phase_scale=0.3):
+    ampl = torch.randn(size=(n_filters, worN)) * ampl_scale + ampl_loc
+    phase = torch.randn(size=(n_filters, worN)) * phase_scale + phase_loc
+    return complex_recompose(ampl, phase)
 
 
 def iirfilter_spectrum(iirfilter, N, Wn, worN, btype='bandpass', fs=None,
