@@ -91,51 +91,6 @@ class IIRFilterSpec(object):
     ----------
     spectrum : Tensor
         Populated when the `initialise_spectrum` method is called.
-
-    Methods
-    -------
-    initialise_spectrum(worN, domain, ood)
-        Initialises a frequency spectrum or transfer function for the specified
-        filter with `worN` frequency bins between 0 and Nyquist, inclusive.
-
-        Parameters
-        ----------
-        worN : int
-            Number of frequency bins between 0 and Nyquist, inclusive.
-        domain : Domain object (default AmplitudeAtanh)
-            A domain object from `hypernova.functional.domain`, used to specify
-            the domain of the output spectrum. An `Identity` object yields the
-            raw transfer function, while an `AmplitudeAtanh` object transforms
-            the amplitudes of each bin by the inverse tanh (atanh) function.
-            This transformation can be useful if the transfer function will be
-            used as a learnable parameter whose amplitude will be transformed
-            by the tanh function, thereby constraining it to [0, 1) and
-            preventing explosive gain.
-
-        Returns
-        -------
-        None: the `spectrum` attribute is populated instead.
-
-    get_clamps(worN)
-        Returns a mask and a set of values that can be used to clamp each
-        filter's transfer function at a specified set of frequencies.
-
-        To apply the clamp, use:
-
-        spectrum[points] = values
-
-        Parameters
-        ----------
-        worN : int
-            Number of frequency bins between 0 and Nyquist, inclusive.
-
-        Returns
-        -------
-        points : Tensor
-            Boolean mask indicating the frequency bins that are clampable.
-        values : Tensor
-            Values to which the response function is clampable at the specified
-            frequencies.
     """
     def __init__(self, Wn=None, N=1, ftype='butter', btype='bandpass', fs=None,
                  rp=0.1, rs=20, norm='phase', ampl_loc=0.5, ampl_scale=0.1,
@@ -171,6 +126,28 @@ class IIRFilterSpec(object):
             self.n_filters = 1
 
     def initialise_spectrum(self, worN, domain=None):
+        """
+        Initialises a frequency spectrum or transfer function for the specified
+        filter with `worN` frequency bins between 0 and Nyquist, inclusive.
+
+        Parameters
+        ----------
+        worN : int
+            Number of frequency bins between 0 and Nyquist, inclusive.
+        domain : Domain object (default AmplitudeAtanh)
+            A domain object from `hypernova.functional.domain`, used to specify
+            the domain of the output spectrum. An `Identity` object yields the
+            raw transfer function, while an `AmplitudeAtanh` object transforms
+            the amplitudes of each bin by the inverse tanh (atanh) function.
+            This transformation can be useful if the transfer function will be
+            used as a learnable parameter whose amplitude will be transformed
+            by the tanh function, thereby constraining it to [0, 1) and
+            preventing explosive gain.
+
+        Returns
+        -------
+        None: the `spectrum` attribute is populated instead.
+        """
         domain = domain or AmplitudeAtanh(handler=Clip())
         if self.ftype == 'butter':
             self.spectrum = butterworth_spectrum(
@@ -202,6 +179,27 @@ class IIRFilterSpec(object):
         self.spectrum = domain.preimage(self.spectrum)
 
     def get_clamps(self, worN):
+        """
+        Returns a mask and a set of values that can be used to clamp each
+        filter's transfer function at a specified set of frequencies.
+
+        To apply the clamp, use:
+
+        spectrum[points] = values
+
+        Parameters
+        ----------
+        worN : int
+            Number of frequency bins between 0 and Nyquist, inclusive.
+
+        Returns
+        -------
+        points : Tensor
+            Boolean mask indicating the frequency bins that are clampable.
+        values : Tensor
+            Values to which the response function is clampable at the specified
+            frequencies.
+        """
         frequencies = torch.linspace(0, 1, worN)
         points, values = [], []
         if len(self.clamps) == 0:
