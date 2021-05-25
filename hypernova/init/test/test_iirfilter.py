@@ -27,10 +27,11 @@ class TestIIRFilter:
             IIRFilterSpec(Wn=[0.1, 0.2], N=[2, 2], btype='lowpass'),
             IIRFilterSpec(Wn=Wn, N=N, ftype='cheby1', rp=0.1),
             IIRFilterSpec(Wn=Wn, N=N, ftype='cheby2', rs=20),
-            IIRFilterSpec(Wn=Wn, N=N, ftype='ellip', rs=20, rp=0.1)
+            IIRFilterSpec(Wn=Wn, N=N, ftype='ellip', rs=20, rp=0.1),
+            IIRFilterSpec(Wn=Wn, ftype='randn')
         ]
-        self.Z = torch.complex(torch.Tensor(21, 13, 50),
-                               torch.Tensor(21, 13, 50))
+        self.Z = torch.complex(torch.Tensor(21, 15, 50),
+                               torch.Tensor(21, 15, 50))
         self.clamped_specs = [
             IIRFilterSpec(Wn=[0.1, 0.3]),
             IIRFilterSpec(Wn=Wn, clamps=[{}, {0.1: 1}]),
