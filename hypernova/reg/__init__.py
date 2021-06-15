@@ -8,8 +8,11 @@ from .norm import (
     ReducingRegularisation,
     NormedRegularisation
 )
+from .scheme import (
+    RegularisationScheme
+)
 from .smoothness import (
-	SmoothnessPenalty
+    SmoothnessPenalty
 )
 from .symbimodal import (
     SymmetricBimodal
