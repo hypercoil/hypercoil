@@ -175,6 +175,8 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     Y0 = Y - Yavg
     if weight is None:
         sigma = X0 @ Y0.transpose(-1, -2) / fact
+    elif w_type == 'vector':
+        sigma = (X0 * weight) @ Y0.transpose(-1, -2) / fact
     else:
         sigma = X0 @ weight @ Y0.transpose(-1, -2) / fact
     return sigma
