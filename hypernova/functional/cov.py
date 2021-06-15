@@ -85,7 +85,7 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
 
 
 def corr(X, **params):
-    """
+    r"""
     Pearson correlation of variables in a tensor batch.
 
     Consult the `cov` documentation for complete parameter characteristics. The
@@ -181,7 +181,7 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
 
 
 def pairedcorr(X, Y, **params):
-    """
+    r"""
     Empirical Pearson correlation between variables in two tensor batches.
 
     Consult the `pairedcov`documentation for complete parameter details.
@@ -199,7 +199,7 @@ def pairedcorr(X, Y, **params):
 
 
 def conditionalcov(X, Y, **params):
-    """
+    r"""
     Conditional covariance of variables in a tensor batch.
 
     The conditional covariance is the covariance of one set of variables X
@@ -261,7 +261,7 @@ def conditionalcov(X, Y, **params):
 
 
 def conditionalcorr(X, Y, **params):
-    """
+    r"""
     Conditional Pearson correlation of variables in a tensor batch.
 
     Consult the `conditionalcov` and `cov` documentation for complete parameter
