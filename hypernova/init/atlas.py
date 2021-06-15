@@ -9,6 +9,7 @@ Tools for initialising parameters corresponding to brain atlases.
 import torch
 import numpy as np
 import nibabel as nb
+from functools import partial
 from scipy.ndimage import gaussian_filter
 from .base import DomainInitialiser
 from ..functional import UnstructuredNoiseSource
