@@ -22,11 +22,11 @@ def synthesise(n=1000, d=7, p=100, n_sub=1, seed=0):
     return sigs, mixture
 
 
-def slow_signals(d, n, n_sub=1):
+def slow_signals(d, n, n_sub=1, lp_bin=20):
     sources = np.random.rand(n_sub, d, n)
     sources_fft = rfft(sources, n=n)
     sources_fft[:, :, 0] = 0
-    sources_fft[:, :, 20:] = 0
+    sources_fft[:, :, lp_bin:] = 0
     sources_filt = irfft(sources_fft, n=n)
     return (
         (sources_filt.T - sources_filt.T.mean(0)) / sources_filt.T.std(0)).T
