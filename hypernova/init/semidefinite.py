@@ -8,6 +8,7 @@ Initialise and compute means and mean blocks in the positive semidefinite cone.
 """
 import torch
 from torch.nn import Module
+from functools import partial
 from .base import DomainInitialiser
 from ..functional import (
     mean_euc_spd, mean_harm_spd, mean_logeuc_spd, mean_geom_spd,

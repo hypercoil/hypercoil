@@ -7,6 +7,7 @@ Toeplitz initialisation
 Initialise parameters as a stack of Toeplitz-structured banded matrices.
 """
 import torch
+from functools import partial
 from .base import BaseInitialiser
 from ..functional import toeplitz
 from ..functional.domain import Identity
