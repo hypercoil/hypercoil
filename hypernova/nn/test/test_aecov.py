@@ -12,14 +12,18 @@ import pytest
 import torch
 import hypernova
 import numpy as np
-import matplotlib.pyplot as plt
 from functools import partial
 from hypernova.nn import UnaryCovariance
 from hypernova.functional import corr
 from hypernova.functional.domain import Identity
-from hypernova.reg import SymmetricBimodal, SmoothnessPenalty
+from hypernova.reg import (
+    SymmetricBimodal,
+    SmoothnessPenalty,
+    RegularisationScheme
+)
 from hypernova.init.base import DomainInitialiser, uniform_init_
 from .synth_aecov import synthesise
+from .overfit_plot import overfit_and_plot_progress
 
 
 class TestCovarianceAutoencoder:
@@ -32,19 +36,15 @@ class TestCovarianceAutoencoder:
         self.max_epoch = 1000
         self.loss = torch.nn.MSELoss()
         self.log_interval = 25
-        self.max_score = np.sqrt(.1 * self.n)
+        self.max_score = np.sqrt(.01 * self.n)
 
     def test_supervised_cov_autoencoder(self):
-        plt.figure(figsize=(9, 18))
-        plt.subplot(3, 1, 2)
-        color = np.array([0.1, 0.1, 0.1])
-        incr = (0.55 - color) / self.max_epoch
-        out = '{}/results/test_supervised_cov_autoencoder.svg'.format(
+        out = '{}/results/test_supervised_cov_network.svg'.format(
             os.path.dirname(hypernova.__file__))
 
         torch.manual_seed(0)
         init = DomainInitialiser(
-            init=partial(uniform_init_, min=0.4, max=0.6),
+            init=partial(uniform_init_, min=0.45, max=0.55),
             domain=Identity()
         )
         model = UnaryCovariance(
@@ -55,42 +55,28 @@ class TestCovarianceAutoencoder:
         )
         opt = torch.optim.SGD(model.parameters(), lr=1, momentum=0.2)
 
-        reg = [
+        reg = RegularisationScheme([
             SymmetricBimodal(nu=0.01, modes=(0.05, 0.95)),
             SmoothnessPenalty(nu=0.05)
-        ]
+        ])
         X = torch.Tensor(self.X)
         y = torch.Tensor(self.y[-1])
-        loss = [float('inf') for _ in range(self.max_epoch)]
-        for e in range(self.max_epoch):
-            y_hat = model(X).squeeze()
-            l = self.loss(y, y_hat) + sum([r(model.weight) for r in reg])
-            l.backward()
-            opt.step()
-            model.zero_grad()
-            loss[e] = l.item()
-            if e % self.log_interval == 0:
-                plt.plot(model.weight.squeeze().detach().numpy(),
-                         color=(1 - color))
-                color = color + incr * self.log_interval
-        plt.plot(model.weight.squeeze().detach().numpy(), color='red')
-        plt.gca().set_title('Weight over the course of learning')
-        plt.subplot(3, 1, 1)
-        plt.plot(loss)
-        plt.gca().set_title('Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.subplot(3, 1, 3)
-        plt.plot(self.target[:, -1])
-        plt.plot(model.weight.squeeze().detach().numpy())
-        plt.gca().set_title('Learned and target weights')
-        plt.legend(['Target', 'Learned'])
-        plt.savefig(out, bbox_inches='tight')
+        target = self.target[:, -1]
 
-        score = self.loss(
-            torch.Tensor(self.target[:, -1]),
-            model.weight.squeeze().detach()
+        overfit_and_plot_progress(
+            out_fig=out, model=model, optim=opt, reg=reg, loss=self.loss,
+            max_epoch=self.max_epoch, X=X, y=y, target=target,
+            log_interval=self.log_interval
         )
+
+        target = torch.Tensor(self.target[:, -1])
+        solution = model.weight.squeeze().detach()
+
+        score = self.loss(target, solution)
         # This is the score if every guess were exactly 0.1 from the target.
         # (already far better than random chance)
         assert(score < self.max_score)
+
+        # Fewer than 1 in 10 are more than 0.1 from target
+        score = ((target - solution).abs() > 0.1).sum().item()
+        assert(score < self.n // 10)
