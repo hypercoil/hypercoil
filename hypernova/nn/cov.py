@@ -23,6 +23,15 @@ from ..init.toeplitz import ToeplitzInit
 class _Cov(Module):
     """
     Base class for modules that estimate covariance or derived measures.
+
+    `_Cov` provides a common initialisation pattern together with methods for:
+    * injecting noise into the weights to regularise them
+    * toggling between train and test modes
+    * mapping between the learnable 'preweight' internally stored by the
+      module and the weight that is actually 'seen' by the data where this
+      is necessary
+
+    Consult specific implementations for comprehensive documentation.
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
@@ -44,6 +53,17 @@ class _Cov(Module):
             self.register_parameter('mask', None)
 
     def inject_noise(self, weight):
+        """
+        Inject noise into a weight tensor, as determined by the module's
+        `noise` and `dropout` attributes.
+
+        Noise injection can be used to regularise the module or to augment
+        the dataset by jittering covariance estimates.
+
+        The `noise` attribute controls the distribution of additive noise,
+        while the `dropout` attribute controls the distribution of
+        multiplicative noise.
+        """
         if self.noise is not None:
             weight = self.noise.inject(weight)
         if self.dropout is not None:
@@ -51,6 +71,11 @@ class _Cov(Module):
         return weight
 
     def train(self, mode=True):
+        """
+        Toggle the module between training and testing modes. If `mode` is set
+        to `False`, then the module enters testing mode; if it is `True` or
+        not explicitly specified, then the module enters training mode.
+        """
         super(_Cov, self).train(mode)
         if self.noise is not None:
             self.noise.train(mode)
@@ -58,6 +83,7 @@ class _Cov(Module):
             self.dropout.train(mode)
 
     def eval(self):
+        """Switch the module into testing mode."""
         super(_Cov, self).eval()
         if self.noise is not None:
             self.noise.eval()
@@ -93,6 +119,13 @@ class _UnaryCov(_Cov):
     """
     Base class for covariance estimators that operate on a single variable
     tensor.
+
+    `_UnaryCov` extends `_Cov` by providing an implementation of the forward
+    pass through the module, which takes as input a variable tensor and
+    returns the output of the specified covariance estimator, applied to the
+    input tensor.
+
+    Consult specific implementations for comprehensive documentation.
     """
     def forward(self, input):
         if input.dim() > 2 and self.out_channels > 1 and input.size(-3) > 1:
@@ -111,6 +144,13 @@ class _BinaryCov(_Cov):
     """
     Base class for covariance estimators that operate on a pair of variable
     tensors.
+
+    `_BinaryCov` extends `_Cov` by providing an implementation of the forward
+    pass through the module, which takes as input two variable tensors and
+    returns the output of the specified covariance estimator, applied to the
+    input tensor pair.
+
+    Consult specific implementations for comprehensive documentation.
     """
     def forward(self, x, y):
         if self.out_channels > 1:
@@ -132,6 +172,11 @@ class _WeightedCov(_Cov):
     """
     Base class for covariance estimators with a full complement of learnable
     weights.
+
+    `_WeightedCov` extends `_Cov` by providing a default initialisation
+    framework for the module's learnable parameters.
+
+    Consult specific implementations for comprehensive documentation.
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
@@ -148,9 +193,11 @@ class _WeightedCov(_Cov):
             ))
         else:
             vals = laplace(torch.arange(self.max_lag + 1))
-            self.init = init or ToeplitzInit(c=vals,
-                                             fill_value=0,
-                                             domain=Identity())
+            self.init = init or ToeplitzInit(
+                c=vals,
+                fill_value=0,
+                domain=Identity()
+            )
             self.preweight = Parameter(torch.Tensor(
                 self.out_channels, self.dim, self.dim
             ))
@@ -162,25 +209,10 @@ class _WeightedCov(_Cov):
 
     def reset_parameters(self):
         self.init(self.preweight)
-        """
-        if self.max_lag == 0:
-            # TODO: Need a better init
-            self.init(self.preweight)
-        """
         if self.max_lag is not None and self.max_lag != 0:
             mask_vals = torch.Tensor([1 for _ in range(self.max_lag + 1)])
             mask_init = ToeplitzInit(c=mask_vals, fill_value=0)
             mask_init(self.mask)
-            """
-            toeplitz_init_(
-                self.mask,
-                torch.Tensor([1 for _ in range(self.max_lag + 1)])
-            )
-            toeplitz_init_(
-                self.preweight,
-                laplace(torch.arange(self.max_lag + 1))
-            )
-            """
 
     @property
     def postweight(self):
@@ -194,6 +226,9 @@ class _ToeplitzWeightedCov(_Cov):
     Base class for covariance estimators with a single learnable weight for
     each time lag.
     """
+    #TODO: Replace this entire thing with a convolution-based implementation.
+    # That should make it much, much faster but will require a separate
+    # forward pass...
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
                  noise=None, dropout=None, init=None):
@@ -244,6 +279,11 @@ class _ToeplitzWeightedCov(_Cov):
 class _UnweightedCov(_Cov):
     """
     Base class for covariance estimators without learnable parameters.
+
+    `_UnweightedCov` extends `_Cov` by initialising all weights to identity
+    (equivalent to unweighted covariance).
+
+    Consult specific implementations for comprehensive documentation.
     """
     def __init__(self, dim, estimator, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
@@ -304,7 +344,7 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         main diagonal. The default value of 0 permits weights only along the
         main diagonal.
     out_channels : int (default 1)
-        Number of weight sets to include. For each weight set, the module
+        Number of weight sets `W` to include. For each weight set, the module
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
@@ -334,15 +374,13 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         to randomly ignore a subset of observations and thereby perform a type
         of data augmentation (similar to bootstrapped covariance estimates).
     init: Initialiser object or None (default None)
-        An initialiser object from `hypernova.init`, used the specify the
+        An initialiser object from `hypernova.init`, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
-        this defaults to
-    domain: Domain object or None (default None)
-        A domain object from `hypernova.functional.domain`, used to specify the
-        domain of the weights. An `Identity` object yields the raw weights,
-        while objects such as `Logit` domains transform the weights prior to
-        multiplication with the input. Using alternative domains can thereby
-        constrain the weights to some desirable interval (e.g., [0, +f)).
+        this defaults to initialising weights following a double exponential
+        function of lag, such that the weights at 0 lag are e^-|0| = 1, the
+        weights at 1 or -1 lag are e^-|1|, etc. Note that if the maximum lag
+        is 0, this default initialisation will be equivalent to an unweighted
+        covariance.
 
     Attributes
     ----------
@@ -352,11 +390,12 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         specified `max_lag` parameter at initialisation.
     preweight : Tensor :math:`(W, O, O)`
         Tensor containing raw internal values of the weights. This is the
-        preimage of the weights under the transformation specified in the
-        `domain` object, prior to the enforcement of any symmetry constraints.
-        The preweight is initialised as the preimage of a Toeplitz banded
-        matrix where the weight of each diagonal is set according to a double
-        exponential function with a maximum of 1 at the origin (zero lag).
+        preimage of the weights under any transformation specified in the
+        `init` object, prior to the enforcement of any symmetry constraints.
+        By default, the preweight is thus initialised as the preimage of a
+        Toeplitz banded matrix where the weight of each diagonal is set
+        according to a double exponential function with a maximum of 1 at the
+        origin (zero lag).
     weight : Tensor :math:`(W, O, O)`
         Tensor containing importance or coupling weights for the observations.
         If this tensor is 1-dimensional, each entry weights the corresponding
@@ -368,7 +407,7 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
-        and dropout sources are applied and after final masking.
+        and dropout sources are injected and after final masking.
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
@@ -420,7 +459,7 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         main diagonal. The default value of 0 permits weights only along the
         main diagonal.
     out_channels : int (default 1)
-        Number of weight sets to include. For each weight set, the module
+        Number of weight sets `W` to include. For each weight set, the module
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
@@ -449,18 +488,20 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         Dropout source to inject into the weights. A dropout source can be used
         to randomly ignore a subset of observations and thereby perform a type
         of data augmentation (similar to bootstrapped covariance estimates).
-    domain: Domain object or None (default None)
-        A domain object from `hypernova.functional.domain`, used to specify the
-        domain of the weights. An `Identity` object yields the raw weights,
-        while objects such as `Logit` domains transform the weights prior to
-        multiplication with the input. Using alternative domains can thereby
-        constrain the weights to some desirable interval (e.g., [0, +f)).
+    init: Initialiser object or None (default None)
+        An initialiser object from `hypernova.init`, used to specify the
+        initialisation scheme for the weights. If none is otherwise provided,
+        this defaults to initialising weights following a double exponential
+        function of lag, such that the weights at 0 lag are e^-|0| = 1, the
+        weights at 1 or -1 lag are e^-|1|, etc. Note that if the maximum lag
+        is 0, this default initialisation will be equivalent to an unweighted
+        covariance.
 
     Attributes
     ----------
     prepreweight_c, prepreweight_r : Tensor :math:`(W, L)`
         Toeplitz matrix generators for the columns (lag) and rows (lead) of the
-        weight matrix. L denotes the maximum lag. These parameters are injected
+        weight matrix. L denotes the maximum lag. These parameters are repeated
         along each diagonal of the weight matrix up to the maximum lag. The
         prepreweights are initialised as double exponentials with a maximum of
         1 at the origin (zero lag).
@@ -479,7 +520,7 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
-        and dropout sources are applied and after final masking.
+        and dropout sources are injected and after final masking.
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
@@ -530,7 +571,7 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
         - `precision`: Precision.
         - `partialcorr`: Partial correlation.
     out_channels : int (default 1)
-        Number of weight sets to include. For each weight set, the module
+        Number of weight sets `W` to include. For each weight set, the module
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
@@ -573,7 +614,7 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
         for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
-        and dropout sources are applied and after final masking.
+        and dropout sources are injected and after final masking.
     """
     def __init__(self, dim, estimator, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
@@ -638,7 +679,7 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         main diagonal. The default value of 0 permits weights only along the
         main diagonal.
     out_channels : int (default 1)
-        Number of weight sets to include. For each weight set, the module
+        Number of weight sets `W` to include. For each weight set, the module
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
@@ -667,12 +708,14 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         Dropout source to inject into the weights. A dropout source can be used
         to randomly ignore a subset of observations and thereby perform a type
         of data augmentation (similar to bootstrapped covariance estimates).
-    domain: Domain object or None (default None)
-        A domain object from `hypernova.functional.domain`, used to specify the
-        domain of the weights. An `Identity` object yields the raw weights,
-        while objects such as `Logit` domains transform the weights prior to
-        multiplication with the input. Using alternative domains can thereby
-        constrain the weights to some desirable interval (e.g., [0, +f)).
+    init: Initialiser object or None (default None)
+        An initialiser object from `hypernova.init`, used to specify the
+        initialisation scheme for the weights. If none is otherwise provided,
+        this defaults to initialising weights following a double exponential
+        function of lag, such that the weights at 0 lag are e^-|0| = 1, the
+        weights at 1 or -1 lag are e^-|1|, etc. Note that if the maximum lag
+        is 0, this default initialisation will be equivalent to an unweighted
+        covariance.
 
     Attributes
     ----------
@@ -682,11 +725,12 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         specified `max_lag` parameter at initialisation.
     preweight : Tensor :math:`(W, O, O)`
         Tensor containing raw internal values of the weights. This is the
-        preimage of the weights under the transformation specified in the
-        `domain` object, prior to the enforcement of any symmetry constraints.
-        The preweight is initialised as the preimage of a Toeplitz banded
-        matrix where the weight of each diagonal is set according to a double
-        exponential function with a maximum of 1 at the origin (zero lag).
+        preimage of the weights under any transformation specified in the
+        `init` object, prior to the enforcement of any symmetry constraints.
+        By default, the preweight is thus initialised as the preimage of a
+        Toeplitz banded matrix where the weight of each diagonal is set
+        according to a double exponential function with a maximum of 1 at the
+        origin (zero lag).
     weight : Tensor :math:`(W, O, O)`
         Tensor containing importance or coupling weights for the observations.
         If this tensor is 1-dimensional, each entry weights the corresponding
@@ -698,7 +742,7 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
-        and dropout sources are applied and after final masking.
+        and dropout sources are injected and after final masking.
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
@@ -763,7 +807,7 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         main diagonal. The default value of 0 permits weights only along the
         main diagonal.
     out_channels : int (default 1)
-        Number of weight sets to include. For each weight set, the module
+        Number of weight sets `W` to include. For each weight set, the module
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
@@ -792,18 +836,20 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         Dropout source to inject into the weights. A dropout source can be used
         to randomly ignore a subset of observations and thereby perform a type
         of data augmentation (similar to bootstrapped covariance estimates).
-    domain: Domain object or None (default None)
-        A domain object from `hypernova.functional.domain`, used to specify the
-        domain of the weights. An `Identity` object yields the raw weights,
-        while objects such as `Logit` domains transform the weights prior to
-        multiplication with the input. Using alternative domains can thereby
-        constrain the weights to some desirable interval (e.g., [0, +f)).
+    init: Initialiser object or None (default None)
+        An initialiser object from `hypernova.init`, used to specify the
+        initialisation scheme for the weights. If none is otherwise provided,
+        this defaults to initialising weights following a double exponential
+        function of lag, such that the weights at 0 lag are e^-|0| = 1, the
+        weights at 1 or -1 lag are e^-|1|, etc. Note that if the maximum lag
+        is 0, this default initialisation will be equivalent to an unweighted
+        covariance.
 
     Attributes
     ----------
     prepreweight_c, prepreweight_r : Tensor :math:`(W, L)`
         Toeplitz matrix generators for the columns (lag) and rows (lead) of the
-        weight matrix. L denotes the maximum lag. These parameters are injected
+        weight matrix. L denotes the maximum lag. These parameters are repeated
         along each diagonal of the weight matrix up to the maximum lag. The
         prepreweights are initialised as double exponentials with a maximum of
         1 at the origin (zero lag).
@@ -822,7 +868,7 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
-        and dropout sources are applied and after final masking.
+        and dropout sources are injected and after final masking.
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
@@ -887,7 +933,7 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
         - `conditionalcorr`: Pearson correlation between variables in tensor 1
           after conditioning on variables in tensor 2.
     out_channels : int (default 1)
-        Number of weight sets to include. For each weight set, the module
+        Number of weight sets `W` to include. For each weight set, the module
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
@@ -930,7 +976,7 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
         for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
-        and dropout sources are applied and after final masking.
+        and dropout sources are injected and after final masking.
     """
     def __init__(self, dim, estimator, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
