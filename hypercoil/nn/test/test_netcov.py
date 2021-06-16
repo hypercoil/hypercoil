@@ -22,7 +22,7 @@ from hypercoil.reg import (
     RegularisationScheme
 )
 from hypercoil.init.base import DomainInitialiser, uniform_init_
-from .synth_aecov import synthesise
+from .synth_netcov import synthesise
 from .overfit_plot import overfit_and_plot_progress
 
 
