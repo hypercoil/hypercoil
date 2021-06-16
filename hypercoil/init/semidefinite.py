@@ -138,7 +138,7 @@ class _SemidefiniteMean(Module):
 
 
 class SPDEuclideanMean(_SemidefiniteMean):
-    """
+    r"""
     Batch-wise Euclidean mean of tensors in the positive semidefinite cone.
 
     This is the familiar arithmetic mean:
@@ -164,7 +164,7 @@ class SPDEuclideanMean(_SemidefiniteMean):
 
 
 class SPDHarmonicMean(_SemidefiniteMean):
-    """
+    r"""
     Batch-wise harmonic mean of tensors in the positive semidefinite cone.
 
     The harmonic mean is computed as the matrix inverse of the Euclidean mean
@@ -191,7 +191,7 @@ class SPDHarmonicMean(_SemidefiniteMean):
 
 
 class SPDLogEuclideanMean(_SemidefiniteMean):
-    """
+    r"""
     Batch-wise log-Euclidean mean of tensors in the positive semidefinite cone.
 
     The log-Euclidean mean is computed as the matrix exponential of the mean of
@@ -218,7 +218,7 @@ class SPDLogEuclideanMean(_SemidefiniteMean):
 
 
 class SPDGeometricMean(_SemidefiniteMean):
-    """
+    r"""
     Batch-wise geometric mean of tensors in the positive semidefinite cone.
 
     The geometric mean is computed via gradient descent along the geodesic on
