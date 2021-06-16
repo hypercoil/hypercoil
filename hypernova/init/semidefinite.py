@@ -36,7 +36,7 @@ def mean_block_spd(mean_specs, data):
     mean_specs : list(_SemidefiniteMean objects)
         List of specifications for estimating a measure of central tendency in
         the positive semidefinite cone. SemidefiniteMean subclasses are found
-        at `hypernova.init`.
+        at `hypercoil.init`.
     data : Tensor
         Input dataset over which each mean is to be estimated.
     """
@@ -64,7 +64,7 @@ def mean_apply_block(mean_specs, data):
     mean_specs : list(_SemidefiniteMean objects)
         List of specifications for estimating a measure of central tendency in
         the positive semidefinite cone. SemidefiniteMean subclasses are found
-        at `hypernova.init`.
+        at `hypercoil.init`.
     data : Tensor
         Input dataset over which each mean is to be estimated.
     """
@@ -95,7 +95,7 @@ def tangency_init_(tensor, mean_specs, init_data, std=0):
     mean_specs : list(_SemidefiniteMean objects)
         List of specifications for estimating a measure of central tendency in
         the positive semidefinite cone. SemidefiniteMean subclasses are found
-        at `hypernova.init`.
+        at `hypercoil.init`.
     init_data : Tensor
         Input dataset over which each mean is to be estimated.
     std : float

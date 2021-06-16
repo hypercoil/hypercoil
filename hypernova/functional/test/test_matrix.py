@@ -8,7 +8,7 @@ import pytest
 import torch
 import numpy as np
 from scipy.linalg import toeplitz as toeplitz_ref
-from hypernova.functional import (
+from hypercoil.functional import (
     invert_spd, toeplitz, symmetric, spd
 )
 

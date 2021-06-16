@@ -7,7 +7,7 @@ Unit tests for noise sources
 import pytest
 import numpy as np
 import torch
-from hypernova.functional import (
+from hypercoil.functional import (
     SPSDNoiseSource,
     LowRankNoiseSource,
     BandDropoutSource,

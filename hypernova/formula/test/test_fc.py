@@ -7,7 +7,7 @@ Functional connectivity
 Tests for functional connectivity-specific data loading.
 """
 import pytest
-import hypernova
+import hypercoil
 import pandas as pd
 from pathlib import Path
 from pkg_resources import resource_filename as pkgrf
@@ -23,25 +23,25 @@ class TestModelSpec:
     def setup_class(self):
         self.confpath = self.path_from_examples('confdata')
         self.metapath = self.path_from_examples('confmeta')
-        self.metadata = hypernova.data.functional.read_json(self.metapath)
-        self.shfc = hypernova.formula.fc.FCShorthand()
+        self.metadata = hypercoil.data.functional.read_json(self.metapath)
+        self.shfc = hypercoil.formula.fc.FCShorthand()
         self.df = pd.read_csv(self.confpath, sep='\t')
 
     def path_from_examples(self, key):
-        return pkgrf('hypernova', 'examples/{}'.format(self.filenames[key]))
+        return pkgrf('hypercoil', 'examples/{}'.format(self.filenames[key]))
 
     def expr_base(self, model_formula, expanded_spec, n_children):
         spec_sh = self.shfc(model_formula, self.df.columns, self.metadata)
         if expanded_spec:
             assert(spec_sh == expanded_spec)
-        expr = hypernova.formula.Expression(
+        expr = hypercoil.formula.Expression(
             spec_sh,
-            transforms=hypernova.formula.fc.fc_transforms()
+            transforms=hypercoil.formula.fc.fc_transforms()
         )
         assert(expr.n_children == n_children)
 
     def spec_base(self, model_formula, name, shape):
-        fcms = hypernova.formula.FCConfoundModelSpec(model_formula, name)
+        fcms = hypercoil.formula.FCConfoundModelSpec(model_formula, name)
         out = fcms(self.df, self.metadata)
         assert(out.shape[1] == shape)
         return out

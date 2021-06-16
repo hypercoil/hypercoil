@@ -38,7 +38,7 @@ class FrequencyDomainFilter(Module):
     ----------
     filter_specs : list(IIRFilterSpec)
         A list of filter specifications implemented as `IIRFilterSpec` objects
-        (`hypernova.init.IIRFilterSpec`). These determine the filter bank that
+        (`hypercoil.init.IIRFilterSpec`). These determine the filter bank that
         is applied to the input. Consult the `IIRFilterSpec` documentation for
         further details.
     dim : int or None
@@ -57,7 +57,7 @@ class FrequencyDomainFilter(Module):
         back. By default, the `product_filtfilt` function is used to ensure a
         zero-phase filter.
     domain : Domain object (default AmplitudeAtanh)
-        A domain object from `hypernova.functional.domain`, used to specify
+        A domain object from `hypercoil.functional.domain`, used to specify
         the domain of the filter spectrum. An `Identity` object yields the
         raw transfer function, while an `AmplitudeAtanh` object transforms
         the amplitudes of each bin by the inverse tanh (atanh) function prior

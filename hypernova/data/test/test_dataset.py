@@ -9,14 +9,14 @@ example dataset.
 """
 import pytest
 import torch
-import hypernova
+import hypercoil
 from pkg_resources import resource_filename as pkgrf
 
 
 class TestDataLoader:
     @pytest.fixture(autouse=True)
     def setup_class(self):
-        self.fmriprep_dir = pkgrf('hypernova', 'examples/ds-synth')
+        self.fmriprep_dir = pkgrf('hypercoil', 'examples/ds-synth')
         self.models = [
             'rps',
             'wm + csf',
@@ -24,9 +24,9 @@ class TestDataLoader:
             'acc<v=0.7, mask=WM+CSF>'
         ]
         self.tmask = 'and(1_[d1(rps) < 0.2])'
-        self.ds = hypernova.data.fMRIPrepDataset(
+        self.ds = hypercoil.data.fMRIPrepDataset(
             self.fmriprep_dir, model=self.models, tmask=self.tmask)
-        self.dl = hypernova.data.dataset.ReferencedDataLoader(
+        self.dl = hypercoil.data.dataset.ReferencedDataLoader(
             self.ds, batch_size=5, shuffle=False)
 
     def test_depth(self):

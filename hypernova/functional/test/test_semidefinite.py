@@ -10,7 +10,7 @@ import torch
 from nilearn.connectome.connectivity_matrices import (
     _form_symmetric, _map_eigenvalues, _geometric_mean
 )
-from hypernova.functional import (
+from hypercoil.functional import (
     tangent_project_spd, cone_project_spd, mean_geom_spd
 )
 

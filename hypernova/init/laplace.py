@@ -51,7 +51,7 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
         the Atanh domain with default scale constrains the tensor as seen by
         data to the range of the tanh function, (-1, 1). Domain objects can
         be used with compatible modules and are documented further in
-        `hypernova.functional.domain`. If no domain is specified, the Identity
+        `hypercoil.functional.domain`. If no domain is specified, the Identity
         domain is used, which does not apply any transformations or
         constraints.
 

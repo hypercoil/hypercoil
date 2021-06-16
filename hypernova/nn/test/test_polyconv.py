@@ -7,8 +7,8 @@ Unit tests for polynomial convolution layer
 import pytest
 import numpy as np
 import torch
-from hypernova.nn import PolyConv2D
-from hypernova.init.deltaplus import deltaplus_init_
+from hypercoil.nn import PolyConv2D
+from hypercoil.init.deltaplus import deltaplus_init_
 
 
 class TestPolyConv:

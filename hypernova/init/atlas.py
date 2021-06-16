@@ -253,7 +253,7 @@ def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None,
         If this is a float, then Gaussian noise with the specified standard
         deviation is added to the label.
     domain : Domain object (default Identity)
-        A domain object from `hypernova.functional.domain`, used to specify
+        A domain object from `hypercoil.functional.domain`, used to specify
         the domain of the atlas weights. An `Identity` object yields the
         raw weights, while an `Atanh` object transforms the weights by the
         inverse tanh function and a `Logit` object transforms the weights by

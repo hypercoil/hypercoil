@@ -6,8 +6,8 @@ Unit tests for tangent/cone projection layer
 """
 import pytest
 import torch
-from hypernova.nn import TangentProject, BatchTangentProject
-from hypernova.init.semidefinite import (
+from hypercoil.nn import TangentProject, BatchTangentProject
+from hypercoil.init.semidefinite import (
     SPDEuclideanMean,
     SPDHarmonicMean,
     SPDLogEuclideanMean,

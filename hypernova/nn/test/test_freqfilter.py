@@ -7,9 +7,9 @@ Unit tests for frequency-domain filter layer
 import pytest
 import numpy as np
 import torch
-from hypernova.nn import FrequencyDomainFilter
-from hypernova.functional.domain import Identity
-from hypernova.init.iirfilter import (
+from hypercoil.nn import FrequencyDomainFilter
+from hypercoil.functional.domain import Identity
+from hypercoil.init.iirfilter import (
     IIRFilterSpec,
     iirfilter_init_,
     clamp_init_

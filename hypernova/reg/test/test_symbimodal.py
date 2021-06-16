@@ -6,7 +6,7 @@ Unit tests for symmetric bimodal penalty
 """
 import pytest
 import torch
-from hypernova.reg import (
+from hypercoil.reg import (
     SymmetricBimodal
 )
 

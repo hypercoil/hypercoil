@@ -7,7 +7,7 @@ Unit tests for graph and network measures
 import pytest
 import numpy as np
 import torch
-from hypernova.functional import (
+from hypercoil.functional import (
     modularity_matrix,
     relaxed_modularity
 )

@@ -6,7 +6,7 @@ Unit tests for crosshair similarity operations
 """
 import pytest
 import torch
-from hypernova.functional.crosssim import (
+from hypercoil.functional.crosssim import (
     crosshair_similarity,
     crosshair_cosine_similarity,
     crosshair_l1_similarity,

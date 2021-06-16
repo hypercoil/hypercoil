@@ -10,19 +10,19 @@ frequency-domain filtering module.
 import os
 import pytest
 import torch
-import hypernova
+import hypercoil
 import numpy as np
 import matplotlib.pyplot as plt
-from hypernova.nn import (
+from hypercoil.nn import (
     FrequencyDomainFilter,
     UnaryCovarianceUW
 )
-from hypernova.functional import corr
-from hypernova.init import IIRFilterSpec
-from hypernova.functional.activation import complex_decompose
-from hypernova.functional.domain import Identity
-from hypernova.functional.noise import UnstructuredDropoutSource
-from hypernova.reg import (
+from hypercoil.functional import corr
+from hypercoil.init import IIRFilterSpec
+from hypercoil.functional.activation import complex_decompose
+from hypercoil.functional.domain import Identity
+from hypercoil.functional.noise import UnstructuredDropoutSource
+from hypercoil.reg import (
     SmoothnessPenalty, SymmetricBimodal,
     RegularisationScheme, NormedRegularisation
 )
@@ -50,7 +50,7 @@ class TestFrequencyFilterNetwork:
 
     def test_supervised_bp_network(self):
         out = '{}/results/test_supervised_bp_network.svg'.format(
-            os.path.dirname(hypernova.__file__))
+            os.path.dirname(hypercoil.__file__))
 
         torch.manual_seed(0)
         filter_specs = [IIRFilterSpec(

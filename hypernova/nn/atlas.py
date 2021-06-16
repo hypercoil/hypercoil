@@ -31,8 +31,8 @@ class AtlasLinear(Module):
     ----------
     atlas : Atlas object
         A neuroimaging atlas, implemented as a `DiscreteAtlas` or
-        `ContinuousAtlas` object (`hypernova.init.DiscreteAtlas` and
-        `hypernova.init.ContinuousAtlas`). This initialises the atlas labels
+        `ContinuousAtlas` object (`hypercoil.init.DiscreteAtlas` and
+        `hypercoil.init.ContinuousAtlas`). This initialises the atlas labels
         from which representative time series are extracted.
     kernel_sigma : float
         If this is a float, then a Gaussian smoothing kernel with the
@@ -56,7 +56,7 @@ class AtlasLinear(Module):
         random dropout will be sampled until the criterion is satisfied. Has no
         effect if `spatial_dropout` is zero.
     domain : Domain object (default Identity)
-        A domain object from `hypernova.functional.domain`, used to specify
+        A domain object from `hypercoil.functional.domain`, used to specify
         the domain of the atlas weights. An `Identity` object yields the raw
         atlas weights, while an `Atanh` object constrains weights to (-a, a),
         and a `Logit` object constrains weights to (0, a) by transforming the

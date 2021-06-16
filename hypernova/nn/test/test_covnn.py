@@ -6,17 +6,17 @@ Unit tests for covariance modules
 """
 import pytest
 import numpy as np
-import torch, hypernova
-from hypernova.nn import (
+import torch, hypercoil
+from hypercoil.nn import (
     UnaryCovariance, UnaryCovarianceTW, UnaryCovarianceUW,
     BinaryCovariance, BinaryCovarianceTW, BinaryCovarianceUW
 )
-from hypernova.init.base import DistributionInitialiser
-from hypernova.init.laplace import LaplaceInit
-from hypernova.functional.noise import (
+from hypercoil.init.base import DistributionInitialiser
+from hypercoil.init.laplace import LaplaceInit
+from hypercoil.functional.noise import (
     DiagonalNoiseSource, DiagonalDropoutSource, BandDropoutSource
 )
-from hypernova.functional.domain import Logit
+from hypercoil.functional.domain import Logit
 
 
 class TestCovNN:
@@ -35,17 +35,17 @@ class TestCovNN:
         self.bds = BandDropoutSource()
 
     def test_cov_uuw(self):
-        cov = UnaryCovarianceUW(self.n, estimator=hypernova.functional.corr)
+        cov = UnaryCovarianceUW(self.n, estimator=hypercoil.functional.corr)
         out = cov(self.X)
         ref = np.stack([np.corrcoef(x) for x in self.X])
         assert self.approx(out, ref)
         cov = UnaryCovarianceUW(
-            self.n, estimator=hypernova.functional.pcorr,
+            self.n, estimator=hypercoil.functional.pcorr,
             out_channels=7, noise=self.dns) #, dropout=dds)
         cov(self.X)
 
     def test_cov_utw(self):
-        cov = UnaryCovarianceTW(self.n, estimator=hypernova.functional.corr)
+        cov = UnaryCovarianceTW(self.n, estimator=hypercoil.functional.corr)
         out = cov(self.X)
         ref = np.stack([np.corrcoef(x) for x in self.X])
         assert self.approx(out, ref)
@@ -53,7 +53,7 @@ class TestCovNN:
             loc=(0, 0), excl_axis=[1], domain=Logit(4)
         )
         cov = UnaryCovarianceTW(
-            self.n, estimator=hypernova.functional.pcorr, max_lag=3,
+            self.n, estimator=hypercoil.functional.pcorr, max_lag=3,
             out_channels=7, noise=self.dns, dropout=self.bds, init=init)
         cov(self.X)
         assert cov.prepreweight_c.size() == torch.Size([4, 7])
@@ -61,7 +61,7 @@ class TestCovNN:
         assert cov.postweight[3, 13, 17] == 0
 
     def test_cov_uw(self):
-        cov = UnaryCovariance(self.n, estimator=hypernova.functional.corr)
+        cov = UnaryCovariance(self.n, estimator=hypercoil.functional.corr)
         out = cov(self.X)
         ref = np.stack([np.corrcoef(x) for x in self.X])
         assert self.approx(out, ref)
@@ -71,7 +71,7 @@ class TestCovNN:
         # not a test for correctness
         cov = UnaryCovariance(
             self.n,
-            estimator=hypernova.functional.corr,
+            estimator=hypercoil.functional.corr,
             max_lag=2
         )
         out = cov(self.X)
@@ -85,14 +85,14 @@ class TestCovNN:
         )
         cov = UnaryCovariance(
             self.n,
-            estimator=hypernova.functional.cov,
+            estimator=hypercoil.functional.cov,
             init=init
         )
         out = cov(self.X)
 
     def test_cov_buw(self):
         cov = BinaryCovarianceUW(
-            self.n, estimator=hypernova.functional.pairedcorr)
+            self.n, estimator=hypercoil.functional.pairedcorr)
         out = cov(self.X, self.Y)
         ref = np.stack([np.corrcoef(x, y)[:13, -7:]
                         for x, y in zip(self.X, self.Y)])
@@ -101,7 +101,7 @@ class TestCovNN:
     def test_cov_btw(self):
         cov = BinaryCovarianceTW(
             self.n,
-            estimator=hypernova.functional.pairedcorr
+            estimator=hypercoil.functional.pairedcorr
         )
         out = cov(self.X, self.Y)
         ref = np.stack([np.corrcoef(x, y)[:13, -7:]
@@ -111,7 +111,7 @@ class TestCovNN:
     def test_cov_bw(self):
         cov = BinaryCovariance(
             self.n,
-            estimator=hypernova.functional.pairedcorr
+            estimator=hypercoil.functional.pairedcorr
         )
         out = cov(self.X, self.Y)
         ref = np.stack([np.corrcoef(x, y)[:13, -7:]

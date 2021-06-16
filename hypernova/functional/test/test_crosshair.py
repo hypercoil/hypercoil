@@ -7,7 +7,7 @@ Unit tests for crosshair kernel operations
 import pytest
 import numpy as np
 import torch
-from hypernova.functional.crosshair import (
+from hypercoil.functional.crosshair import (
     crosshair_dot,
     crosshair_norm_l2,
     crosshair_norm_l1
