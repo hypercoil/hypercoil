@@ -9,9 +9,13 @@ Modules supporting covariance estimation.
 import torch
 from torch.nn import Module, Parameter, init
 from ..functional.activation import laplace
-from ..functional.domain import Logit, Identity
+from ..functional.domain import Identity
 from ..functional.matrix import toeplitz
-from ..init.base import DomainInitialiser
+from ..init.base import (
+    BaseInitialiser,
+    ConstantInitialiser,
+    identity_init_,
+)
 from ..init.laplace import LaplaceInit
 from ..init.toeplitz import ToeplitzInit
 
@@ -78,7 +82,7 @@ class _Cov(Module):
 
     @property
     def weight(self):
-        return self.domain.image(self.preweight)
+        return self.init.domain.image(self.preweight)
 
     @property
     def postweight(self):
@@ -109,6 +113,11 @@ class _BinaryCov(_Cov):
     tensors.
     """
     def forward(self, x, y):
+        if self.out_channels > 1:
+            if x.dim() > 2 and x.size(-3) > 1:
+                x = x.unsqueeze(-3)
+            if y.dim() > 2 and y.size(-3) > 1:
+                y = y.unsqueeze(-3)
         return self.estimator(
             x, y,
             rowvar=self.rowvar,
@@ -132,13 +141,16 @@ class _WeightedCov(_Cov):
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             out_channels=out_channels
         )
-        self.init = init or DomainInitialiser(domain=Logit())
-        self.domain = self.init.domain
         if self.max_lag == 0:
+            self.init = init or ConstantInitialiser(1, domain=Identity())
             self.preweight = Parameter(torch.Tensor(
                 self.out_channels, 1, self.dim
             ))
         else:
+            vals = laplace(torch.arange(self.max_lag + 1))
+            self.init = init or ToeplitzInit(c=vals,
+                                             fill_value=0,
+                                             domain=Identity())
             self.preweight = Parameter(torch.Tensor(
                 self.out_channels, self.dim, self.dim
             ))
@@ -149,10 +161,17 @@ class _WeightedCov(_Cov):
         self.reset_parameters()
 
     def reset_parameters(self):
+        self.init(self.preweight)
+        """
         if self.max_lag == 0:
             # TODO: Need a better init
             self.init(self.preweight)
-        else:
+        """
+        if self.max_lag is not None and self.max_lag != 0:
+            mask_vals = torch.Tensor([1 for _ in range(self.max_lag + 1)])
+            mask_init = ToeplitzInit(c=mask_vals, fill_value=0)
+            mask_init(self.mask)
+            """
             toeplitz_init_(
                 self.mask,
                 torch.Tensor([1 for _ in range(self.max_lag + 1)])
@@ -161,6 +180,7 @@ class _WeightedCov(_Cov):
                 self.preweight,
                 laplace(torch.arange(self.max_lag + 1))
             )
+            """
 
     @property
     def postweight(self):
@@ -176,7 +196,7 @@ class _ToeplitzWeightedCov(_Cov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, domain=None):
+                 noise=None, dropout=None, init=None):
         super(_ToeplitzWeightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
@@ -186,6 +206,9 @@ class _ToeplitzWeightedCov(_Cov):
             self.mask = Parameter(torch.Tensor(
                 self.dim, self.dim
             ).bool(), requires_grad=False)
+        self.init = init or LaplaceInit(
+            loc=(0, 0), excl_axis=[1], domain=Identity()
+        )
         self.prepreweight_c = Parameter(torch.Tensor(
             self.max_lag + 1, self.out_channels
         ))
@@ -195,21 +218,21 @@ class _ToeplitzWeightedCov(_Cov):
         self.reset_parameters()
 
     def reset_parameters(self):
-        toeplitz_init_(
-            self.mask,
-            torch.Tensor([1 for _ in range(self.max_lag + 1)])
-        )
-        laplace_init_(self.prepreweight_c, loc=(0, 0), excl_axis=[1],
-                      var=0, domain=self.domain)
-        laplace_init_(self.prepreweight_r, loc=(0, 0), excl_axis=[1],
-                      var=0, domain=self.domain)
+        if self.max_lag is not None:
+            mask_vals = torch.Tensor([1 for _ in range(self.max_lag + 1)])
+            mask_init = ToeplitzInit(c=mask_vals, fill_value=0)
+        self.init(self.prepreweight_c)
+        self.init(self.prepreweight_r)
+        mask_init(self.mask)
 
     @property
     def preweight(self):
-        return toeplitz(c=self.prepreweight_c,
-                        r=self.prepreweight_r,
-                        dim=(self.dim, self.dim),
-                        fill_value=self.domain.preimage(torch.zeros(1)).item())
+        return toeplitz(
+            c=self.prepreweight_c,
+            r=self.prepreweight_r,
+            dim=(self.dim, self.dim),
+            fill_value=self.init.domain.preimage(torch.tensor(0.)).item()
+        )
 
     @property
     def postweight(self):
@@ -230,14 +253,15 @@ class _UnweightedCov(_Cov):
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             out_channels=out_channels
         )
-        self.domain = Identity()
-        self.preweight = Parameter(torch.Tensor(
-            self.out_channels, self.dim, self.dim
-        ), requires_grad=False)
+        self.init = BaseInitialiser(init=identity_init_)
+        self.preweight = Parameter(
+            torch.Tensor(self.out_channels, self.dim, self.dim),
+            requires_grad=False
+        )
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.preweight[:] = torch.eye(self.dim)
+        self.init(self.preweight)
 
 
 class UnaryCovariance(_UnaryCov, _WeightedCov):
@@ -309,6 +333,10 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         Dropout source to inject into the weights. A dropout source can be used
         to randomly ignore a subset of observations and thereby perform a type
         of data augmentation (similar to bootstrapped covariance estimates).
+    init: Initialiser object or None (default None)
+        An initialiser object from `hypernova.init`, used the specify the
+        initialisation scheme for the weights. If none is otherwise provided,
+        this defaults to
     domain: Domain object or None (default None)
         A domain object from `hypernova.functional.domain`, used to specify the
         domain of the weights. An `Identity` object yields the raw weights,
