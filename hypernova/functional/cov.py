@@ -80,7 +80,7 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     else:
         sigma = X0 @ weight @ X0.transpose(-1, -2) / fact
     if l2 > 0:
-        sigma += torch.eye(X.size(-2))
+        sigma += l2 * torch.eye(X.size(-2))
     return sigma
 
 
@@ -88,8 +88,8 @@ def corr(X, **params):
     r"""
     Pearson correlation of variables in a tensor batch.
 
-    Consult the `cov` documentation for complete parameter characteristics. The
-    correlation is obtained via normalisation of the covariance. Given a
+    Consult the `cov` documentation for complete parameter characteristics.
+    The correlation is obtained via normalisation of the covariance. Given a
     covariance matrix :math:`\hat{\Sigma} \in \mathbb{R}^{n \times n}`, each
     entry of the correlation matrix :math:`R \in \mathbb{R}^{n \times n}` is
     defined according to
@@ -113,6 +113,8 @@ def partialcov(X, **params):
     followed by negation of off-diagonal entries.
     """
     omega = precision(X, **params)
+    #TODO: let's add a test to make sure this in-place op doesn't mess up the
+    # computational graph
     omega[..., ~torch.eye(omega.size(-1), dtype=torch.bool)] *= -1
     return omega
 
@@ -126,7 +128,7 @@ def partialcorr(X, **params):
     of variables on all other observed variables. It can be interpreted as a
     measurement of the direct relationship between each variable pair. The
     partial correlation is efficiently computed via successive inversion and
-    normalisation of the covariance matrix, followed by negation of off-
+    normalisation of the covariance matrix, accompanied by negation of off-
     diagonal entries.
     """
     omega = partialcov(X, **params)
