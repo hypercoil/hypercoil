@@ -135,7 +135,7 @@ class IIRFilterSpec(object):
         worN : int
             Number of frequency bins between 0 and Nyquist, inclusive.
         domain : Domain object (default AmplitudeAtanh)
-            A domain object from `hypernova.functional.domain`, used to specify
+            A domain object from `hypercoil.functional.domain`, used to specify
             the domain of the output spectrum. An `Identity` object yields the
             raw transfer function, while an `AmplitudeAtanh` object transforms
             the amplitudes of each bin by the inverse tanh (atanh) function.
@@ -259,9 +259,9 @@ def iirfilter_init_(tensor, filter_specs, domain=None):
         and it is therefore critical that this tensor allow complex values.
     filter_specs : list(IIRFilterSpec)
         A list of filter specifications implemented as `IIRFilterSpec` objects
-        (`hypernova.init.IIRFilterSpec`).
+        (`hypercoil.init.IIRFilterSpec`).
     domain : Domain object (default AmplitudeAtanh)
-        A domain object from `hypernova.functional.domain`, used to specify
+        A domain object from `hypercoil.functional.domain`, used to specify
         the domain of the output spectrum. An `Identity` object yields the
         raw transfer function, while an `AmplitudeAtanh` object transforms
         the amplitudes of each bin by the inverse tanh (atanh) function.
@@ -309,7 +309,7 @@ def clamp_init_(points_tensor, values_tensor, filter_specs):
         Tensor containing clamping values to initialise in-place.
     filter_specs : list(IIRFilterSpec)
         A list of filter specifications implemented as `IIRFilterSpec` objects
-        (`hypernova.init.IIRFilterSpec`).
+        (`hypercoil.init.IIRFilterSpec`).
 
     Returns
     -------

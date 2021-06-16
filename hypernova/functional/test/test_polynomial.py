@@ -6,7 +6,7 @@ Unit tests for polynomial convolution
 """
 import pytest
 import torch
-from hypernova.functional import (
+from hypercoil.functional import (
     polyconv2d
 )
 

@@ -10,18 +10,18 @@ covariance module.
 import os
 import pytest
 import torch
-import hypernova
+import hypercoil
 import numpy as np
 from functools import partial
-from hypernova.nn import UnaryCovariance
-from hypernova.functional import corr
-from hypernova.functional.domain import Identity
-from hypernova.reg import (
+from hypercoil.nn import UnaryCovariance
+from hypercoil.functional import corr
+from hypercoil.functional.domain import Identity
+from hypercoil.reg import (
     SymmetricBimodal,
     SmoothnessPenalty,
     RegularisationScheme
 )
-from hypernova.init.base import DomainInitialiser, uniform_init_
+from hypercoil.init.base import DomainInitialiser, uniform_init_
 from .synth_aecov import synthesise
 from .overfit_plot import overfit_and_plot_progress
 
@@ -40,7 +40,7 @@ class TestCovarianceAutoencoder:
 
     def test_supervised_cov_autoencoder(self):
         out = '{}/results/test_supervised_cov_network.svg'.format(
-            os.path.dirname(hypernova.__file__))
+            os.path.dirname(hypercoil.__file__))
 
         torch.manual_seed(0)
         init = DomainInitialiser(

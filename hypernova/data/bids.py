@@ -62,7 +62,7 @@ bids_regex = {
 class BIDSObjectFactory(VariableFactory):
     """
     Factory for producing LightBIDSObjects. Thin wrapper around
-    `LightBIDSObject`. Consult `hypernova.data.LightBIDSObject` for further
+    `LightBIDSObject`. Consult `hypercoil.data.LightBIDSObject` for further
     documentation.
     """
     def __init__(self):
@@ -78,7 +78,7 @@ class BIDSObjectFactory(VariableFactory):
 class LightBIDSObject(DataPathVariable):
     """
     Thin wrapper around `DataPathVariable`.
-    Consult the `hypernova.data.DataPathVariable` documentation.
+    Consult the `hypercoil.data.DataPathVariable` documentation.
     """
     def __repr__(self):
         return (

@@ -14,7 +14,7 @@ from .match import AllOrders, SelectOrder
 class ColumnTransform(object):
     """
     Generic transformation applied column-wise to a DataFrame. Used to enhance
-    hypernova.data.Expression and enable its parse tree to support additional
+    hypercoil.data.Expression and enable its parse tree to support additional
     transformations.
 
     Parameters
@@ -85,7 +85,7 @@ class ColumnTransform(object):
 class OrderedTransform(ColumnTransform):
     """
     Ordered extension of a transformation applied column-wise to a DataFrame.
-    Used to enhance hypernova.data.Expression and enable its parse tree to
+    Used to enhance hypercoil.data.Expression and enable its parse tree to
     support additional transformations.
 
     The transformation is a function, which can also have an order. The

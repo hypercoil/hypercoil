@@ -8,7 +8,7 @@ Tests of data transforms atomically and in composition.
 """
 import pytest
 import torch
-from hypernova.data.transforms import (
+from hypercoil.data.transforms import (
     Compose, IdentityTransform, EncodeOneHot, ToTensor,
     ApplyModelSpecs, ApplyTransform, BlockTransform,
     UnzipTransformedBlock, ConsolidateBlock,

@@ -330,7 +330,7 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypernova.functional.cov`. The
+        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
         - `cov`: Raw empirical covariance.
@@ -374,7 +374,7 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         to randomly ignore a subset of observations and thereby perform a type
         of data augmentation (similar to bootstrapped covariance estimates).
     init: Initialiser object or None (default None)
-        An initialiser object from `hypernova.init`, used to specify the
+        An initialiser object from `hypercoil.init`, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
         function of lag, such that the weights at 0 lag are e^-|0| = 1, the
@@ -445,7 +445,7 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypernova.functional.cov`. The
+        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
         - `cov`: Raw empirical covariance.
@@ -489,7 +489,7 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         to randomly ignore a subset of observations and thereby perform a type
         of data augmentation (similar to bootstrapped covariance estimates).
     init: Initialiser object or None (default None)
-        An initialiser object from `hypernova.init`, used to specify the
+        An initialiser object from `hypercoil.init`, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
         function of lag, such that the weights at 0 lag are e^-|0| = 1, the
@@ -563,7 +563,7 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypernova.functional.cov`. The
+        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
         - `cov`: Raw empirical covariance.
@@ -659,7 +659,7 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypernova.functional.cov`. The
+        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
         estimator must be binary: it should accept two tensors rather than one.
         Some available options are:
         - `pairedcov`: Empirical covariance between variables in tensor 1 and
@@ -709,7 +709,7 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         to randomly ignore a subset of observations and thereby perform a type
         of data augmentation (similar to bootstrapped covariance estimates).
     init: Initialiser object or None (default None)
-        An initialiser object from `hypernova.init`, used to specify the
+        An initialiser object from `hypercoil.init`, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
         function of lag, such that the weights at 0 lag are e^-|0| = 1, the
@@ -787,7 +787,7 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypernova.functional.cov`. The
+        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
         estimator must be binary: it should accept two tensors rather than one.
         Some available options are:
         - `pairedcov`: Empirical covariance between variables in tensor 1 and
@@ -837,7 +837,7 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         to randomly ignore a subset of observations and thereby perform a type
         of data augmentation (similar to bootstrapped covariance estimates).
     init: Initialiser object or None (default None)
-        An initialiser object from `hypernova.init`, used to specify the
+        An initialiser object from `hypercoil.init`, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
         function of lag, such that the weights at 0 lag are e^-|0| = 1, the
@@ -919,7 +919,7 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypernova.functional.cov`. The
+        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
         estimator must be binary: it should accept two tensors rather than one.
         Some available options are:
         - `pairedcov`: Empirical covariance between variables in tensor 1 and

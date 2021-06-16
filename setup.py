@@ -18,7 +18,7 @@ network models and trained via backpropagation to improve that performance.
 from setuptools import setup
 
 
-NAME = 'hypernova'
+NAME = 'hypercoil'
 
 
 def main():

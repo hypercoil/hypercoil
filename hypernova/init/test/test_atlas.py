@@ -10,13 +10,13 @@ import numpy as np
 import nibabel as nb
 import templateflow.api as tflow
 from nilearn.input_data import NiftiLabelsMasker
-from hypernova.nn.atlas import AtlasLinear
-from hypernova.init.atlas import (
+from hypercoil.nn.atlas import AtlasLinear
+from hypercoil.init.atlas import (
     ContinuousAtlas,
     DiscreteAtlas,
     atlas_init_
 )
-from hypernova.functional.noise import UnstructuredDropoutSource
+from hypercoil.functional.noise import UnstructuredDropoutSource
 
 
 class TestAtlasInit:

@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 import torch
 from scipy.linalg import expm, logm, sqrtm, sinm, funm
-from hypernova.functional import (
+from hypercoil.functional import (
     symmap, symexp, symlog, symsqrt
 )
 

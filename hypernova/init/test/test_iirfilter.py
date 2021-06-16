@@ -7,7 +7,7 @@ Unit tests for IIR filter initialisation
 import pytest
 import numpy as np
 import torch
-from hypernova.init.iirfilter import (
+from hypercoil.init.iirfilter import (
     IIRFilterSpec,
     iirfilter_init_,
     clamp_init_
