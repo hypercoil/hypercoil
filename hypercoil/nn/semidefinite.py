@@ -12,7 +12,7 @@ from torch.nn import Module, Parameter
 from ..functional import (
     cone_project_spd, tangent_project_spd
 )
-from ..init.semidefinite import mean_block_spd, tangency_init_
+from ..init.semidefinite import mean_block_spd, TangencyInit
 
 
 class _TangentProject(Module):
@@ -47,7 +47,7 @@ class _TangentProject(Module):
 
 
 class TangentProject(_TangentProject):
-    """
+    r"""
     Tangent/cone projection with a learnable or fixed point of tangency.
 
     At initialisation, a data sample is required to set the point of tangency.
@@ -122,14 +122,17 @@ class TangentProject(_TangentProject):
             self.weight = Parameter(torch.Tensor(
                 *init_data.size()[1:]
             ))
+        self.init = TangencyInit(
+            self.mean_specs, init_data, std=std
+        )
         self.reset_parameters(init_data, std)
 
     def reset_parameters(self, init_data, std=0):
-        tangency_init_(self.weight, self.mean_specs, init_data, std)
+        self.init(self.weight)
 
 
 class BatchTangentProject(_TangentProject):
-    """
+    r"""
     Tangent/cone projection with a new tangency point computed for each batch.
 
     Data transported through the module is projected from the positive

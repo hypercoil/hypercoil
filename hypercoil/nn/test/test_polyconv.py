@@ -8,25 +8,26 @@ import pytest
 import numpy as np
 import torch
 from hypercoil.nn import PolyConv2D
-from hypercoil.init.deltaplus import deltaplus_init_
+from hypercoil.init.deltaplus import DeltaPlusInit
 
 
 class TestPolyConv:
 
-	@pytest.fixture(autouse=True)
-	def setup_class(self):
-		self.X = torch.rand(4, 13, 100)
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        self.X = torch.rand(4, 13, 100)
 
-		self.approx = torch.allclose
+        self.approx = torch.allclose
 
-	def test_polyconv_identity(self):
-	    poly = PolyConv2D(2, 4, init_=deltaplus_init_, init_params={'var': 0})
-	    out = poly(self.X)
-	    ref = self.X.unsqueeze(1).repeat(1, 4, 1, 1)
-	    assert self.approx(out, ref)
+    def test_polyconv_identity(self):
+        init = DeltaPlusInit(var=0, loc=(0, 0, 3))
+        poly = PolyConv2D(2, 4, init=init)
+        out = poly(self.X)
+        ref = self.X.unsqueeze(1).repeat(1, 4, 1, 1)
+        assert self.approx(out, ref)
 
-	def test_polyconv_shapes(self):
-	    poly = PolyConv2D(7, 3)
-	    out = poly(self.X).size()
-	    ref = torch.Size([4, 3, 13, 100])
-	    assert out == ref
+    def test_polyconv_shapes(self):
+        poly = PolyConv2D(7, 3)
+        out = poly(self.X).size()
+        ref = torch.Size([4, 3, 13, 100])
+        assert out == ref

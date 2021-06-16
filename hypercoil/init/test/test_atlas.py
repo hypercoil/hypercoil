@@ -14,7 +14,7 @@ from hypercoil.nn.atlas import AtlasLinear
 from hypercoil.init.atlas import (
     ContinuousAtlas,
     DiscreteAtlas,
-    atlas_init_
+    AtlasInit
 )
 from hypercoil.functional.noise import UnstructuredDropoutSource
 
@@ -54,18 +54,20 @@ class TestAtlasInit:
         self.lin = AtlasLinear(self.atlas_discrete)
 
     def test_discrete_atlas(self):
-        atlas_init_(
-            self.tsr_discrete,
+        init = AtlasInit(
             self.atlas_discrete,
-            normalise=True)
+            normalise=True
+        )
+        init(self.tsr_discrete)
         assert torch.allclose(self.tsr_discrete.sum(1), torch.Tensor([1]))
         assert self.tsr_discrete[:, 1].argmax() == 38
 
     def test_continuous_atlas(self):
-        atlas_init_(
-            self.tsr_continuous,
+        init = AtlasInit(
             self.atlas_continuous,
-            normalise=True)
+            normalise=True
+        )
+        init(self.tsr_continuous)
         assert torch.allclose(self.tsr_continuous.sum(1), torch.Tensor([1]))
         assert self.tsr_continuous[:, 1].argmax() == 4
 

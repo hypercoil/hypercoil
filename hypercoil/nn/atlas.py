@@ -11,7 +11,7 @@ from torch.nn import Module, Parameter
 from torch.distributions import Bernoulli
 from ..functional.domain import Identity
 from ..functional.noise import UnstructuredDropoutSource
-from ..init.atlas import atlas_init_
+from ..init.atlas import AtlasInit
 
 
 class AtlasLinear(Module):
@@ -110,15 +110,17 @@ class AtlasLinear(Module):
             self.atlas.n_labels, self.atlas.n_voxels
         ))
         self._configure_spatial_dropout(spatial_dropout, min_voxels)
+        self.init = AtlasInit(
+            atlas=self.atlas,
+            kernel_sigma=self.kernel_sigma,
+            noise_sigma=self.noise_sigma,
+            domain=self.domain,
+            normalise=False
+        )
         self.reset_parameters()
 
     def reset_parameters(self):
-        atlas_init_(tensor=self.preweight,
-                    atlas=self.atlas,
-                    kernel_sigma=self.kernel_sigma,
-                    noise_sigma=self.noise_sigma,
-                    domain=self.domain,
-                    normalise=False)
+       self.init(tensor=self.preweight)
 
     def _configure_spatial_dropout(self, dropout_rate, min_voxels):
         if dropout_rate > 0:
