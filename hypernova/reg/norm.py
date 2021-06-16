@@ -24,8 +24,14 @@ class ReducingRegularisation(Module):
 
 
 class NormedRegularisation(ReducingRegularisation):
-    def __init__(self, nu, p, reg):
+    def __init__(self, nu, p=2, reg=None):
         reduction = partial(pnorm, p=p)
+        if reg is None:
+            reg = lambda x: x
         super(NormedRegularisation, self).__init__(
             nu=nu, reduction=reduction, reg=reg
         )
+        self.p = p
+
+    def extra_repr(self):
+        return f'norm=L{self.p}'

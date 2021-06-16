@@ -10,7 +10,6 @@ from functools import partial
 from .norm import NormedRegularisation
 
 
-
 def symmetric_bimodal_distance(weight, modes=(0, 1)):
     mean = sum(modes) / 2
     step = max(modes) - mean
@@ -24,3 +23,6 @@ class SymmetricBimodal(NormedRegularisation):
             modes=modes
         )
         super(SymmetricBimodal, self).__init__(nu=nu, p=norm, reg=reg)
+
+    def extra_repr(self):
+        return f'nu={self.nu}, norm=L{self.p}'

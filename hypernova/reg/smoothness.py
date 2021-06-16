@@ -17,3 +17,6 @@ class SmoothnessPenalty(NormedRegularisation):
             diff, dim=axis, prepend=prepend, append=append
         )
         super(SmoothnessPenalty, self).__init__(nu=nu, p=norm, reg=reg)
+
+    def extra_repr(self):
+        return f'nu={self.nu}, norm=L{self.p}'
