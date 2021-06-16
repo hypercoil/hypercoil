@@ -9,6 +9,7 @@ Initialise parameters as a set of delta functions, plus Gaussian noise.
 import torch
 from functools import partial
 from ..functional.domain import Identity
+from .base import BaseInitialiser
 
 
 def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
