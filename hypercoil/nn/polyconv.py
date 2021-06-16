@@ -10,7 +10,7 @@ import math
 import torch
 from torch.nn import Module, Parameter, init
 from ..functional import polyconv2d
-from ..init.laplace import laplace_init_
+from ..init.laplace import LaplaceInit
 
 
 class PolyConv2D(Module):
@@ -58,13 +58,11 @@ class PolyConv2D(Module):
     future_sight : bool (default False)
         Indicates that the kernel should also view a number of observations
         equal to `memory` in the future.
-    init_ : in-place callable (default laplace_init_)
+    init : in-place callable (default LaplaceInit)
         Function for initialising the filter weight. By default, the filter
         weight is initialised as a discretised double exponential centred on
         the present time point and the first power such that it approximates
         identity, with a small amount of Gaussian noise added.
-    init_params : dict or None (default None)
-        Additional parameters to pass to the initialisation function `init_`.
 
     Attributes
     ----------
@@ -85,16 +83,8 @@ class PolyConv2D(Module):
     """
     def __init__(self, degree=2, out_channels=1, memory=3, kernel_width=1,
                  padding=None, bias=False, include_const=False,
-                 future_sight=False, init_=laplace_init_, init_params=None):
+                 future_sight=False, init=None):
         super(PolyConv2D, self).__init__()
-
-        if init_params is None:
-            init_params = {}
-        if 'loc' not in init_params:
-            if include_const:
-                init_params['loc'] = (1, 0, memory)
-            else:
-                init_params['loc'] = (0, 0, memory)
 
         self.in_channels = degree + include_const
         self.out_channels = out_channels
@@ -105,8 +95,10 @@ class PolyConv2D(Module):
         self.degree = degree
         self.include_const = include_const
         self.future_sight = future_sight
-        self.init_ = init_
-        self.init_params = init_params
+        if include_const:
+            self.init = init or LaplaceInit(loc=(1, 0, memory))
+        else:
+            self.init = init or LaplaceInit(loc=(0, 0, memory))
 
         self.weight = Parameter(torch.Tensor(
             self.out_channels,
@@ -121,7 +113,7 @@ class PolyConv2D(Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.init_(self.weight, **self.init_params)
+        self.init(self.weight)
         if self.bias is not None:
             fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
             bound = 1 / math.sqrt(fan_in)
