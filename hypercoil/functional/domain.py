@@ -411,11 +411,12 @@ class Logit(_Domain):
         Indicates whether each entry of a tensor is in the range of the scaled
         sigmoid (0, `scale`).
     """
-    def __init__(self, scale=1, loc=0.5, handler=None, limits=(-4.5, 4.5)):
-        shift = scale * (1 - loc) - 0.5
+    def __init__(self, scale=1, loc=None, handler=None, limits=(-4.5, 4.5)):
+        loc = loc or (scale / 2)
+        shift = loc - scale / 2
         super(Logit, self).__init__(
             handler=handler, bound=(loc - scale / 2, loc + scale / 2),
-            loc=-shift, scale=scale, limits=limits)
+            loc=shift, scale=scale, limits=limits)
         self.preimage_map = torch.logit
         self.image_map = torch.sigmoid
 
