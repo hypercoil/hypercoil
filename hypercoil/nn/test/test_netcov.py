@@ -4,8 +4,8 @@
 """
 Covariance learning tests
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-Overfitting an autoencoder to test elementary learning capacity for the
-covariance module.
+Overfitting a simple neural network to test elementary learning capacity for
+the covariance module.
 """
 import os
 import pytest
@@ -26,7 +26,7 @@ from .synth_netcov import synthesise
 from .overfit_plot import overfit_and_plot_progress
 
 
-class TestCovarianceAutoencoder:
+class TestCovarianceNetwork:
     @pytest.fixture(autouse=True)
     def setup_class(self):
         self.n = 1000
@@ -38,7 +38,7 @@ class TestCovarianceAutoencoder:
         self.log_interval = 25
         self.max_score = np.sqrt(.01 * self.n)
 
-    def test_supervised_cov_autoencoder(self):
+    def test_supervised_cov_network(self):
         out = '{}/results/test_supervised_cov_network.svg'.format(
             os.path.dirname(hypercoil.__file__))
 

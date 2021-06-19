@@ -4,8 +4,8 @@
 """
 Pass band learning tests
 ~~~~~~~~~~~~~~~~~~~~~~~~
-Overfitting an autoencoder to test elementary learning capacity for the
-frequency-domain filtering module.
+Overfitting a simple neural network to test elementary learning capacity for
+the frequency-domain filtering module.
 """
 import os
 import pytest
