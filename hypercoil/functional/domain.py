@@ -438,7 +438,7 @@ class MultiLogit(_Domain):
     """
     Softmax domain mapper.
     """
-    def __init__(self, axis=-1, handler=None, minim=1e-4):
+    def __init__(self, axis=-1, handler=None, minim=1e-3):
         super(MultiLogit, self).__init__(
             handler=handler, bound=(minim, 1 - minim))
         self.axis = axis
