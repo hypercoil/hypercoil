@@ -233,6 +233,7 @@ class _Domain(torch.nn.Module):
         self.limits = torch.Tensor(limits)
         self.loc = loc
         self.scale = scale
+        self.signature = {}
 
     def extra_repr(self):
         s = []
@@ -257,6 +258,18 @@ class _Domain(torch.nn.Module):
 
     def image(self, x):
         return self.scale * self.image_map(x) + self.loc
+
+    def preimage_dim(self, dim):
+        if isinstance(dim, torch.Tensor):
+            dim= dim.shape
+        for k, (v, _) in self.signature.items():
+            dim[k] = v(dim[k])
+
+    def image_dim(self, dim):
+        if isinstance(dim, torch.Tensor):
+            dim= dim.shape
+        for k, (_, v) in self.signature.items():
+            dim[k] = v(dim[k])
 
 
 class _PhaseAmplitudeDomain(_Domain):
