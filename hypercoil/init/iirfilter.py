@@ -10,7 +10,8 @@ TODO: We need to rename this.
 """
 import torch
 import math
-from ..functional.domain import AmplitudeAtanh, Clip
+from ..functional.domainbase import Clip
+from ..functional.domain import AmplitudeAtanh
 from ..functional.activation import complex_recompose
 
 
