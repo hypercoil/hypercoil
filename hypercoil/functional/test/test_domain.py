@@ -12,6 +12,9 @@ from hypercoil.functional.domain import (
     Logit, MultiLogit, AmplitudeMultiLogit,
     Atanh, AmplitudeAtanh
 )
+from hypercoil.functional.noml import (
+    NullOptionMultiLogit, ANOML
+)
 
 
 class TestDomain:
@@ -36,6 +39,7 @@ class TestDomain:
             [-1.1, -0.5, 0, 0.5, 1, 7]
         ])
         self.CC = ampl_CC * torch.exp(phase_CC * 1j)
+        self.Z = torch.rand(5, 3, 4, 4)
 
     def test_clip(self):
         A = torch.Tensor([-0.7, 0.3, 1.2])
@@ -136,3 +140,14 @@ class TestDomain:
         ref = torch.tanh(ampl) * 2
         ref = ref * torch.exp(phase * 1j)
         assert np.allclose(out, ref)
+
+    def test_noml(self):
+        dom = NullOptionMultiLogit(axis=-2)
+        out = dom.preimage(self.Z)
+        assert out.size() == torch.Size((5, 3, 5, 4))
+        assert out.size() == dom.preimage_dim(self.Z)
+        assert np.allclose(out[:, :, -1, :], torch.log(dom.bound[0]))
+        out = dom.image(out)
+        assert torch.all(out.sum(axis=-2) > 0.99)
+        out = dom.image(self.Z)
+        assert out.size() == torch.Size((5, 3, 3, 4))

@@ -261,15 +261,17 @@ class _Domain(torch.nn.Module):
 
     def preimage_dim(self, dim):
         if isinstance(dim, torch.Tensor):
-            dim= dim.shape
+            dim = list(dim.shape)
         for k, (v, _) in self.signature.items():
             dim[k] = v(dim[k])
+        return torch.Size(dim)
 
     def image_dim(self, dim):
         if isinstance(dim, torch.Tensor):
-            dim= dim.shape
+            dim = list(dim.shape)
         for k, (_, v) in self.signature.items():
             dim[k] = v(dim[k])
+        return torch.Size(dim)
 
 
 class _PhaseAmplitudeDomain(_Domain):
