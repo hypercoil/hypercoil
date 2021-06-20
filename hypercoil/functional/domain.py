@@ -421,6 +421,22 @@ class Logit(_Domain):
         self.image_map = torch.sigmoid
 
 
+class MultiLogit(_Domain):
+    """
+    Softmax domain mapper.
+    """
+    def __init__(self, axis=-1, handler=None, minim=1e-4):
+        super(MultiLogit, self).__init__(
+            handler=handler, bound=(minim, 1 - minim))
+        self.axis = axis
+        self.preimage_map = torch.log
+        self.image_map = lambda x: torch.softmax(x, self.axis)
+
+
+class AmplitudeMultiLogit(_PhaseAmplitudeDomain, MultiLogit):
+    pass
+
+
 class Atanh(_Domain):
     """
     Hyperbolic tangent domain mapper. Constrain tensor values between some
