@@ -14,10 +14,15 @@ class _OutOfDomainHandler(object):
     """
     System for evaluating and modifying out-of-domain entries prior to preimage
     mapping to ensure that `nan` values are not introduced.
+    """
+    def __init__(self):
+        pass
 
-    Methods
-    -------
-    test(x, bound)
+    def __repr__(self):
+        return f'{type(self).__name__}()'
+
+    def test(self, x, bound):
+        """
         Evaluate whether each entry in a tensor falls within bounds.
 
         Parameters
@@ -32,14 +37,7 @@ class _OutOfDomainHandler(object):
         result : Tensor
             Boolean-valued tensor indicating whether each entry of the input is
             in the prescribed bounds.
-    """
-    def __init__(self):
-        pass
-
-    def __repr__(self):
-        return f'{type(self).__name__}()'
-
-    def test(self, x, bound):
+        """
         return torch.logical_and(
             x <= bound[-1],
             x >= bound[0]
@@ -49,10 +47,9 @@ class _OutOfDomainHandler(object):
 class Clip(_OutOfDomainHandler):
     """
     Handle out-of-domain values by clipping them to the closest allowed point.
-
-    Methods
-    -------
-    apply(x, bound)
+    """
+    def apply(self, x, bound):
+        """
         Clip values in the specified tensor to the specified bounds.
 
         Parameters
@@ -68,32 +65,7 @@ class Clip(_OutOfDomainHandler):
         -------
         out : Tensor
             Copy of the input tensor with out-of-domain entries clipped.
-
-    test(x, bound)
-        Evaluate whether each entry in a tensor falls within bounds.
-
-        Parameters
-        ----------
-        x : Tensor
-            Tensor whose entries should be evaluated.
-        bound : (float min, float max)
-            Minimum and maximum permitted values. Any values outside the
-            prescribed interval are clipped.
-
-        Returns
-        -------
-        result : Tensor
-            Boolean-valued tensor indicating whether each entry of the input is
-            in the prescribed bounds.
-
-    ood : 'clip' or 'norm' (default `clip`)
-        Indicates how the initialisation handles out-of-domain values.
-        `clip` indicates that out-of-domain values should be clipped to the
-        closest allowed point and `norm` indicates that the entire spectrum
-        (in-domain and out-of-domain values) should be re-scaled so that it
-        fits in the domain bounds (not recommended).
-    """
-    def apply(self, x, bound):
+        """
         out = x.detach().clone()
         bound = torch.Tensor(bound)
         out[out > bound[-1]] = bound[-1]
@@ -118,10 +90,9 @@ class Normalise(_OutOfDomainHandler):
     observations, [obs_min, obs_max], to
     [max(obs_min, lbound), min(obs_max, ubound)] while preserving relative
     distances between observations.
-
-    Methods
-    -------
-    apply(x, bound)
+    """
+    def apply(self, x, bound, axis=None):
+        """
         Re-scale all values in the specified tensor to fall in the specified
         interval.
 
@@ -136,25 +107,7 @@ class Normalise(_OutOfDomainHandler):
         -------
         out : Tensor
             Copy of the input tensor with all entries normalised.
-
-    test(x, bound)
-        Evaluate whether each entry in a tensor falls within bounds.
-
-        Parameters
-        ----------
-        x : Tensor
-            Tensor whose entries should be evaluated.
-        bound : (float min, float max)
-            Minimum and maximum permitted values. Any values outside the
-            prescribed interval are clipped.
-
-        Returns
-        -------
-        result : Tensor
-            Boolean-valued tensor indicating whether each entry of the input is
-            in the prescribed bounds.
-    """
-    def apply(self, x, bound, axis=None):
+        """
         # This annoying conditional is necessary despite torch documentation
         # suggesting the contrary:
         # https://pytorch.org/docs/stable/tensors.html
@@ -194,6 +147,9 @@ class _Domain(torch.nn.Module):
 
     Parameters/Attributes
     ---------------------
+    loc : float (default 0)
+        Translation applied to the image under the specified function. Scaling
+        and translation are applied after the base function.
     scale : float (default 1)
         Scale factor applied to the image under the specified function. Can be
         used to relax or tighten bounds.
@@ -207,24 +163,8 @@ class _Domain(torch.nn.Module):
         values to a range where the gradient has not vanished.
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
-
-    Methods
-    -------
-    preimage(x)
-        Map a tensor to its preimage under the transformation. Any values
-        outside the transformation's range are first handled.
-
-    image(x)
-        Map a tensor to its image under the transformation.
-
-    handle_ood(x)
-        Apply an out-of-domain handler to ensure that all tensor entries are
-        within bounds.
-
-    test(x)
-        Evaluate whether each entry in a tensor falls within bounds.
     """
-    def __init__(self, handler=None, bound=None, loc=0, scale=1, limits=None):
+    def __init__(self, loc=0, scale=1, bound=None, limits=None, handler=None):
         super(_Domain, self).__init__()
         self.handler = handler or Clip()
         bound = bound or [-float('inf'), float('inf')]
@@ -235,6 +175,61 @@ class _Domain(torch.nn.Module):
         self.scale = scale
         self.signature = {}
 
+    def preimage(self, x):
+        """
+        Map a tensor to its preimage under the transformation. Any values
+        outside the transformation's range are first handled.
+        """
+        x = self.handler.apply(x, self.bound)
+        i = self.preimage_map((x - self.loc) / self.scale)
+        i = self.handler.apply(i, self.limits)
+        return i
+
+    def image(self, x):
+        """
+        Map a tensor to its image under the transformation.
+        """
+        return self.scale * self.image_map(x) + self.loc
+
+    def preimage_dim(self, dim):
+        """
+        Determine the dimension of a tensor's preimage under the
+        transformation. Input can be either a tensor or an iterable describing
+        its original dimension.
+        """
+        if isinstance(dim, torch.Tensor):
+            dim = dim.shape
+        dim = list(dim)
+        for k, (v, _) in self.signature.items():
+            dim[k] = v(dim[k])
+        return torch.Size(dim)
+
+    def image_dim(self, dim):
+        """
+        Determine the dimension of a tensor's image under the transformation.
+        Input can be either a tensor or an iterable describing its original
+        dimension.
+        """
+        if isinstance(dim, torch.Tensor):
+            dim = dim.shape
+        dim = list(dim)
+        for k, (_, v) in self.signature.items():
+            dim[k] = v(dim[k])
+        return torch.Size(dim)
+
+    def test(self, x):
+        """
+        Evaluate whether each entry in a tensor falls within bounds.
+        """
+        return self.handler.test(x, self.bound)
+
+    def handle_ood(self, x):
+        """
+        Apply an out-of-domain handler to ensure that all tensor entries are
+        within bounds.
+        """
+        return self.handler.apply(x)
+
     def extra_repr(self):
         s = []
         if self.scale != 1:
@@ -243,35 +238,6 @@ class _Domain(torch.nn.Module):
             s += [f'bound=({self.bound[0]}, {self.bound[1]})']
             s += [f'handler={self.handler.__repr__()}']
         return ', '.join(s)
-
-    def test(self, x):
-        return self.handler.test(x, self.bound)
-
-    def handle_ood(self, x):
-        return self.handler.apply(x)
-
-    def preimage(self, x):
-        x = self.handler.apply(x, self.bound)
-        i = self.preimage_map((x - self.loc) / self.scale)
-        i = self.handler.apply(i, self.limits)
-        return i
-
-    def image(self, x):
-        return self.scale * self.image_map(x) + self.loc
-
-    def preimage_dim(self, dim):
-        if isinstance(dim, torch.Tensor):
-            dim = list(dim.shape)
-        for k, (v, _) in self.signature.items():
-            dim[k] = v(dim[k])
-        return torch.Size(dim)
-
-    def image_dim(self, dim):
-        if isinstance(dim, torch.Tensor):
-            dim = list(dim.shape)
-        for k, (_, v) in self.signature.items():
-            dim[k] = v(dim[k])
-        return torch.Size(dim)
 
 
 class _PhaseAmplitudeDomain(_Domain):
@@ -298,31 +264,22 @@ class _PhaseAmplitudeDomain(_Domain):
         values to a range where the gradient has not vanished.
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
-
-    Methods
-    -------
-    preimage(x)
+    """
+    def preimage(self, x):
+        """
         Map the amplitude of a complex-valued tensor to its preimage under the
         transformation. Any values outside the transformation's range are first
         handled.
-
-    image(x)
-        Map the amplitude of a complex-valued a tensor to its image under the
-        transformation.
-
-    handle_ood(x)
-        Apply an out-of-domain handler to ensure that all tensor entries are
-        within bounds.
-
-    test(x)
-        Evaluate whether each entry in a tensor falls within bounds.
-    """
-    def preimage(self, x):
+        """
         ampl, phase = complex_decompose(x)
         ampl = super(_PhaseAmplitudeDomain, self).preimage(ampl)
         return complex_recompose(ampl, phase)
 
     def image(self, x):
+        """
+        Map the amplitude of a complex-valued a tensor to its image under the
+        transformation.
+        """
         ampl, phase = complex_decompose(x)
         ampl = super(_PhaseAmplitudeDomain, self).image(ampl)
         return complex_recompose(ampl, phase)
@@ -331,25 +288,17 @@ class _PhaseAmplitudeDomain(_Domain):
 class Identity(_Domain):
     """
     Identity domain mapper.
-
-    Methods
-    -------
-    preimage(x)
-        Returns exactly the unmodified input.
-
-    image(x)
-        Returns exactly the unmodified input.
-
-    handle_ood(x)
-        Does nothing.
-
-    test(x)
-        Returns True for all finite numerical entries.
     """
     def preimage(self, x):
+        """
+        Returns exactly the unmodified input.
+        """
         return x
 
     def image(self, x):
+        """
+        Returns exactly the unmodified input.
+        """
         return x
 
 
@@ -363,30 +312,53 @@ class Linear(_Domain):
         Slope of the linear map. Scale factor applied to the image. The
         multiplicative inverse (reciprocal) is applied before the preimage is
         computed.
-
-    Methods
-    -------
-    preimage(x)
-        Map a tensor to its preimage under the linear transformation.
-
-    image(x)
-        Map a tensor to its image under the linear transformation.
-
-    handle_ood(x)
-        Does nothing.
-
-    test(x)
-        Returns True for all finite numerical entries.
     """
     def __init__(self, scale=1):
         super(Linear, self).__init__()
         self.scale = scale
 
     def preimage(self, x):
+        """
+        Map a tensor to its preimage under the linear transformation.
+        """
         return x / self.scale
 
     def image(self, x):
+        """
+        Map a tensor to its image under the linear transformation.
+        """
         return self.scale * x
+
+
+class Affine(_Domain):
+    """
+    Affine domain mapper.
+
+    Parameters/Attributes
+    ---------------------
+    loc : float (default 0)
+        Intercept of the affine map. Offset/translation applied to the image.
+    scale : float (default 1)
+        Slope of the affine map. Scale factor applied to the image. The
+        multiplicative inverse (reciprocal) is applied before the preimage is
+        computed.
+    """
+    def __init__(self, loc=0, scale=1):
+        super(Linear, self).__init__()
+        self.loc = loc
+        self.scale = scale
+
+    def preimage(self, x):
+        """
+        Map a tensor to its preimage under the linear transformation.
+        """
+        return (x - self.loc) / self.scale
+
+    def image(self, x):
+        """
+        Map a tensor to its image under the linear transformation.
+        """
+        return self.scale * x + self.loc
 
 
 class Logit(_Domain):
@@ -408,23 +380,6 @@ class Logit(_Domain):
         vanished.
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
-
-    Methods
-    -------
-    preimage(x)
-        Map a tensor to its preimage under the sigmoid transformation (using
-        the logit function).
-
-    image(x)
-        Map a tensor to its image under the sigmoid transformation.
-
-    handle_ood(x)
-        Handles tensor values that are outside of the scaled sigmoid's range
-        (0, `scale`).
-
-    test(x)
-        Indicates whether each entry of a tensor is in the range of the scaled
-        sigmoid (0, `scale`).
     """
     def __init__(self, scale=1, loc=None, handler=None, limits=(-4.5, 4.5)):
         loc = loc or (scale / 2)
@@ -513,23 +468,6 @@ class Atanh(_Domain):
         has not vanished.
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
-
-    Methods
-    -------
-    preimage(x)
-        Map a tensor to its preimage under the hyperbolic tangent
-        transformation (using the atanh function).
-
-    image(x)
-        Map a tensor to its image under the hyperbolic tangent transformation.
-
-    handle_ood(x)
-        Handles tensor values that are outside of the scaled hyperbolic tangent
-        range (-`scale`, `scale`).
-
-    test(x)
-        Indicates whether each entry of a tensor is in the range of the scaled
-        hyperbolic tangent (-`scale`, `scale`).
     """
     def __init__(self, scale=1, handler=None, limits=(-3, 3)):
         super(Atanh, self).__init__(
@@ -560,23 +498,5 @@ class AmplitudeAtanh(_PhaseAmplitudeDomain, Atanh):
         vanished.
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
-
-    Methods
-    -------
-    preimage(x)
-        Map the amplitude of a complex-valued tensor to its preimage under the
-        hyperbolic tangent transformation (using the atanh function).
-
-    image(x)
-        Map the amplitude of a complex-valued tensor to its image under the
-        hyperbolic tangent transformation.
-
-    handle_ood(x)
-        Handles tensor values that are outside of the scaled hyperbolic tangent
-        range (-`scale`, `scale`).
-
-    test(x)
-        Indicates whether each entry of a tensor is in the range of the scaled
-        hyperbolic tangent (-`scale`, `scale`).
     """
     pass
