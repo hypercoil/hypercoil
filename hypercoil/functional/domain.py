@@ -8,7 +8,11 @@ Softmax domain mapper with a null option. Needs its own submodule so we don't
 get a circular import.
 """
 import torch
-from .domainbase import _Domain, _PhaseAmplitudeDomain
+from .domainbase import (
+    Clip, Normalise,
+    _Domain, _PhaseAmplitudeDomain,
+    Identity, Linear, Affine
+)
 from ..init.base import ConstantInitialiser
 
 

@@ -9,7 +9,7 @@ Initialise parameters to match a double exponential function.
 import torch
 from functools import reduce, partial
 from .base import BaseInitialiser
-from ..functional.domainbase import Identity
+from ..functional.domain import Identity
 
 
 def laplace_init_(tensor, loc=None, width=None, norm=None,

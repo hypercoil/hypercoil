@@ -8,7 +8,7 @@ Initialise parameters as a set of delta functions, plus Gaussian noise.
 """
 import torch
 from functools import partial
-from ..functional.domainbase import Identity
+from ..functional.domain import Identity
 from .base import BaseInitialiser
 
 
