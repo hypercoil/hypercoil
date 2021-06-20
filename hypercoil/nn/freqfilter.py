@@ -10,8 +10,7 @@ import torch
 from torch.nn import Module, Parameter
 from itertools import chain
 from ..functional import product_filtfilt
-from ..functional.domainbase import Clip
-from ..functional.domain import AmplitudeAtanh
+from ..functional.domain import AmplitudeAtanh, Clip
 from ..init.iirfilter import iirfilter_init_, clamp_init_
 
 
