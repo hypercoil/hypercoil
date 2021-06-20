@@ -10,7 +10,7 @@ import torch
 from functools import partial
 from .base import BaseInitialiser
 from ..functional import toeplitz
-from ..functional.domain import Identity
+from ..functional.domainbase import Identity
 
 
 def toeplitz_init_(tensor, c, r=None, fill_value=0, domain=None):

@@ -8,7 +8,7 @@ Base initialiser for a module.
 """
 import torch
 from functools import partial
-from ..functional.domain import Identity
+from ..functional.domainbase import Identity
 
 
 def from_distr_init_(tensor, distr):

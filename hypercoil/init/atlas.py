@@ -13,7 +13,7 @@ from functools import partial
 from scipy.ndimage import gaussian_filter
 from .base import DomainInitialiser
 from ..functional import UnstructuredNoiseSource
-from ..functional.domain import Identity
+from ..functional.domainbase import Identity
 
 
 class Atlas(object):
