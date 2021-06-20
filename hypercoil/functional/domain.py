@@ -438,9 +438,28 @@ class Logit(_Domain):
 
 class MultiLogit(_Domain):
     """
-    Softmax domain mapper.
+    Softmax domain mapper. Maps between a multinomial logit space and
+    estimated class probabilities in the probability simplex.
+
+    The forward function is a softmax. Note that the softmax function does
+    not have a unique inverse; here we use the elementwise natural logarithm
+    as an 'inverse'.
+
+    Parameters/Attributes
+    ---------------------
+    axis : int (default -1)
+        Axis of tensors in the domain along which 1D slices are mapped to the
+        probability simplex.
+    minim : nonnegative float (default 1e-3)
+        Before it is mapped to its preimage, an input is bounded to the closed
+        interval [`minim`, 1 - `minim`]. This serves two purposes: avoiding
+        infinities when the tensor's values include the supremum or infimum
+        (0 and 1) and restricting parameter values to a range where the
+        gradient has not vanished.
+    handler : _OutOfDomainHandler object (default Clip)
+        Object specifying a method for handling out-of-domain entries.
     """
-    def __init__(self, axis=-1, handler=None, minim=1e-3):
+    def __init__(self, axis=-1, minim=1e-3, handler=None):
         super(MultiLogit, self).__init__(
             handler=handler, bound=(minim, 1 - minim))
         self.axis = axis
@@ -449,6 +468,29 @@ class MultiLogit(_Domain):
 
 
 class AmplitudeMultiLogit(_PhaseAmplitudeDomain, MultiLogit):
+    """
+    Softmax amplitude domain mapper. Maps the amplitudes of a complex-valued
+    tensor between a multinomial logit space and estimated class probabilities
+    in the probability simplex.
+
+    The forward function is a softmax applied to the amplitudes. Note that the
+    softmax function does not have a unique inverse; here we use the
+    elementwise natural logarithm as an 'inverse'.
+
+    Parameters/Attributes
+    ---------------------
+    axis : int (default -1)
+        Axis of tensors in the domain along which 1D slices are mapped to the
+        probability simplex.
+    minim : nonnegative float (default 1e-3)
+        Before it is mapped to its preimage, an input is bounded to the closed
+        interval [`minim`, 1 - `minim`]. This serves two purposes: avoiding
+        infinities when the tensor's values include the supremum or infimum
+        (0 and 1) and restricting parameter values to a range where the
+        gradient has not vanished.
+    handler : _OutOfDomainHandler object (default Clip)
+        Object specifying a method for handling out-of-domain entries.
+    """
     pass
 
 
