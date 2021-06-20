@@ -8,7 +8,9 @@ import pytest
 import numpy as np
 import torch
 from hypercoil.functional.domain import (
-    Clip, Normalise, Identity, Linear, Logit, Atanh, AmplitudeAtanh
+    Clip, Normalise, Identity, Linear,
+    Logit, MultiLogit, AmplitudeMultiLogit,
+    Atanh, AmplitudeAtanh
 )
 
 
@@ -21,6 +23,19 @@ class TestDomain:
             torch.Tensor([-1.1, -0.5, 0, 0.5, 1, 7]),
             torch.Tensor([-0.7, -0.2, 1, 1, 0, -5])
         )
+        self.AA = torch.Tensor([
+            [2, 2, 2, 1, 0],
+            [0, 1, 1, 1, 2]
+        ])
+        ampl_CC = torch.Tensor([
+            [2, 2, 2, 1, 0, 0],
+            [0, 1, 1, 1, 2, 0]
+        ])
+        phase_CC = torch.Tensor([
+            [-0.7, -0.2, 1, 1, 0, -5],
+            [-1.1, -0.5, 0, 0.5, 1, 7]
+        ])
+        self.CC = ampl_CC * torch.exp(phase_CC * 1j)
 
     def test_clip(self):
         A = torch.Tensor([-0.7, 0.3, 1.2])
@@ -63,6 +78,33 @@ class TestDomain:
         assert np.allclose(out, ref)
         out = dom.image(self.A)
         ref = torch.sigmoid(self.A) * 2
+        assert np.allclose(out, ref)
+
+    def test_multilogit(self):
+        dom = MultiLogit(axis=-1)
+        out = dom.preimage(self.AA)
+        r_in = self.AA
+        r_in[r_in < dom.bound[0]] = dom.bound[0]
+        r_in[r_in > dom.bound[1]] = dom.bound[1]
+        ref = torch.log(r_in)
+        assert np.allclose(out, ref)
+        out = dom.image(out)
+        ref = self.AA / self.AA.sum(-1).view(-1, 1)
+        assert np.allclose(out, ref)
+
+    def test_amultilogit(self):
+        dom = AmplitudeMultiLogit(axis=0)
+        out = dom.preimage(self.CC)
+        ampl, phase = torch.abs(self.CC), torch.angle(self.CC)
+        ampl[ampl < dom.bound[0]] = dom.bound[0]
+        ampl[ampl > dom.bound[1]] = dom.bound[1]
+        ref = torch.log(ampl)
+        ref = ref * torch.exp(phase * 1j)
+        assert np.allclose(out, ref)
+        out = dom.image(self.CC)
+        ampl, phase = torch.abs(self.CC), torch.angle(self.CC)
+        ampl = torch.softmax(ampl, 0)
+        ref = ampl * torch.exp(phase * 1j)
         assert np.allclose(out, ref)
 
     def test_atanh(self):
