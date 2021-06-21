@@ -13,7 +13,6 @@ from .domainbase import (
     _Domain, _PhaseAmplitudeDomain,
     Identity, Linear, Affine
 )
-from ..init.base import ConstantInitialiser
 
 
 class Atanh(_Domain):
@@ -146,11 +145,11 @@ class AmplitudeMultiLogit(_PhaseAmplitudeDomain, MultiLogit):
         Axis of tensors in the domain along which 1D slices are mapped to the
         probability simplex.
     minim : nonnegative float (default 1e-3)
-        Before it is mapped to its preimage, an input is bounded to the closed
-        interval [`minim`, 1 - `minim`]. This serves two purposes: avoiding
-        infinities when the tensor's values include the supremum or infimum
-        (0 and 1) and restricting parameter values to a range where the
-        gradient has not vanished.
+        Before it is mapped to its preimage, an input's amplitude is bounded
+        to the closed interval [`minim`, 1 - `minim`]. This serves two
+        purposes: avoiding infinities when the tensor's amplitudes include the
+        supremum or infimum (0 and 1) and restricting parameter values to a
+        range where the gradient has not vanished.
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
     """
@@ -158,6 +157,30 @@ class AmplitudeMultiLogit(_PhaseAmplitudeDomain, MultiLogit):
 
 
 class NullOptionMultiLogit(_Domain):
+    """
+    Softmax domain mapper wherein the preimage contains an additional class
+    corresponding to a null assignment. Any probability mass assigned to this
+    class is swallowed in the forward transformation.
+
+    The forward function is a softmax followed by deletion of the null option.
+    Note that this function does not even come close to having a unique
+    inverse; the `preimage_map` should really only be used for initialising
+    weights in this domain.
+
+    Parameters/Attributes
+    ---------------------
+    axis : int (default -1)
+        Axis of tensors in the domain along which 1D slices are mapped to the
+        probability simplex.
+    minim : nonnegative float (default 1e-3)
+        Before it is mapped to its preimage, a (normalised) input is bounded
+        to the closed interval [`minim`, 1 - `minim`]. This serves two
+        purposes: avoiding infinities when the tensor's values include the
+        supremum or infimum (0 and 1) and restricting parameter values to a
+        range where the gradient has not vanished.
+    handler : _OutOfDomainHandler object (default Clip)
+        Object specifying a method for handling out-of-domain entries.
+    """
     def __init__(self, axis=-1, minim=1e-4, handler=None):
         super(NullOptionMultiLogit, self).__init__(
             handler=handler, bound=(minim, 1 - minim))
@@ -190,4 +213,28 @@ class NullOptionMultiLogit(_Domain):
 
 
 class ANOML(_PhaseAmplitudeDomain, NullOptionMultiLogit):
+    """
+    Softmax amplitude domain mapper wherein the preimage also contains an
+    additional class corresponding to a null assignment. Any probability mass
+    assigned to this class is swallowed in the forward transformation.
+
+    The forward function is a softmax applied to the amplitudes followed by
+    deletion of the null option. Note that this function does not even come
+    close to having a unique inverse; the `preimage_map` should really only
+    be used for initialising weights in this domain.
+
+    Parameters/Attributes
+    ---------------------
+    axis : int (default -1)
+        Axis of tensors in the domain along which 1D slices are mapped to the
+        probability simplex.
+    minim : nonnegative float (default 1e-3)
+        Before it is mapped to its preimage, a (normalised) input's amplitude
+        is bounded to the closed interval [`minim`, 1 - `minim`]. This serves
+        two purposes: avoiding infinities when the tensor's amplitudes include
+        the supremum or infimum (0 and 1) and restricting parameter values to
+        a range where the gradient has not vanished.
+    handler : _OutOfDomainHandler object (default Clip)
+        Object specifying a method for handling out-of-domain entries.
+    """
     pass
