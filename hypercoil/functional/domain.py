@@ -158,11 +158,10 @@ class AmplitudeMultiLogit(_PhaseAmplitudeDomain, MultiLogit):
 
 
 class NullOptionMultiLogit(_Domain):
-    def __init__(self, axis=-1, minim=1e-3, null_init=None, handler=None):
+    def __init__(self, axis=-1, minim=1e-4, handler=None):
         super(NullOptionMultiLogit, self).__init__(
             handler=handler, bound=(minim, 1 - minim))
         self.axis = axis
-        self.null_init = null_init or ConstantInitialiser(0)
         self.signature[axis] = (
             lambda x: x + 1,
             lambda x: x - 1
@@ -171,10 +170,12 @@ class NullOptionMultiLogit(_Domain):
         def preimage_map(x):
             dim = list(x.size())
             dim[self.axis] = 1
-            nulls = torch.empty(dim)
-            self.null_init(nulls)
-            nulls = self.handler.apply(nulls, self.bound)
+            renorm = x.sum(self.axis, keepdim=True)
+            maximum = torch.maximum(renorm.max() + self.bound[0], torch.tensor(1.0))
+            nulls = maximum - renorm
             z = torch.cat((x, nulls), self.axis)
+            z /= maximum
+            z = self.handler.apply(z, self.bound)
             return torch.log(z)
 
         def image_map(x):
