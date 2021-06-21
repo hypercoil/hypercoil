@@ -141,11 +141,13 @@ class TestDomain:
 
     def test_noml(self):
         dom = NullOptionMultiLogit(axis=-2)
+        dom_ref = MultiLogit(axis=-2)
         out = dom.preimage(self.Z)
         assert out.size() == torch.Size((5, 3, 5, 4))
         assert out.size() == dom.preimage_dim(self.Z)
-        assert np.allclose(out[:, :, -1, :], torch.log(dom.bound[0]))
-        out = dom.image(out)
-        assert torch.all(out.sum(axis=-2) > 0.99)
+        out = dom_ref.image(out)
+        ref = self.Z / self.Z.sum(-2).max()
+        assert torch.all((out[:, :, :-1, :] - ref).abs() < 5e-3)
+        assert torch.all(out.sum(axis=-2) > 0.975)
         out = dom.image(self.Z)
         assert out.size() == torch.Size((5, 3, 3, 4))
