@@ -9,3 +9,4 @@ from . import formula
 from . import functional
 from . import init
 from . import nn
+from . import reg
