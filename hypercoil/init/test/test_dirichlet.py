@@ -33,4 +33,3 @@ class TestDirichletInit:
         )
         init(self.X)
         assert torch.allclose(self.X.sum(-3), torch.tensor(1.0))
-
