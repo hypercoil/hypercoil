@@ -104,7 +104,8 @@ class MultiLogit(_Domain):
 
     The forward function is a softmax. Note that the softmax function does
     not have a unique inverse; here we use the elementwise natural logarithm
-    as an 'inverse'.
+    as an 'inverse'. For a relatively well-behaved map, use together with
+    init.dirichlet.DirichletInit
 
     Parameters/Attributes
     ---------------------
@@ -171,16 +172,19 @@ class NullOptionMultiLogit(_Domain):
     axis : int (default -1)
         Axis of tensors in the domain along which 1D slices are mapped to the
         probability simplex.
-    minim : nonnegative float (default 1e-3)
+    minim : nonnegative float (default 1e-4)
         Before it is mapped to its preimage, a (normalised) input is bounded
         to the closed interval [`minim`, 1 - `minim`]. This serves two
         purposes: avoiding infinities when the tensor's values include the
         supremum or infimum (0 and 1) and restricting parameter values to a
         range where the gradient has not vanished.
+    buffer : nonnegative float (default 1e-4)
+        Buffer added when computing the normalisation. Serves a similar
+        purpose to `minim`. TODO: add a formula here...
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
     """
-    def __init__(self, axis=-1, minim=1e-4, handler=None):
+    def __init__(self, axis=-1, minim=1e-4, buffer=1e-4, handler=None):
         super(NullOptionMultiLogit, self).__init__(
             handler=handler, bound=(minim, 1 - minim))
         self.axis = axis
@@ -188,12 +192,16 @@ class NullOptionMultiLogit(_Domain):
             lambda x: x + 1,
             lambda x: x - 1
         )
+        self.buffer = buffer
 
         def preimage_map(x):
             dim = list(x.size())
             dim[self.axis] = 1
             renorm = x.sum(self.axis, keepdim=True)
-            maximum = torch.maximum(renorm.max() + self.bound[0], torch.tensor(1.0))
+            maximum = torch.maximum(
+                renorm.max() + self.buffer,
+                torch.tensor(1.0)
+            )
             nulls = maximum - renorm
             z = torch.cat((x, nulls), self.axis)
             z /= maximum

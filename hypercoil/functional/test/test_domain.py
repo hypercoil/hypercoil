@@ -151,3 +151,4 @@ class TestDomain:
         assert torch.all(out.sum(axis=-2) > 0.975)
         out = dom.image(self.Z)
         assert out.size() == torch.Size((5, 3, 3, 4))
+        assert out.size() == dom.image_dim(self.Z)
