@@ -133,6 +133,8 @@ class DatasetVariable(ABC):
 
     def __repr__(self):
         s = f'{self.name}={type(self).__name__}('
+        #TODO: looks like this comma is awkwardly here even if there's
+        # nothing after ... verify behaviour and change if so
         s += f'assigned={self.assignment is not None}, '
         if not isinstance(self.transform, IdentityTransform):
             s += f'transform={type(self.transform).__name__}'

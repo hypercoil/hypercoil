@@ -23,14 +23,14 @@ class Atanh(_Domain):
     ---------------------
     scale : float (default 1)
         Maximum/minimum value attained by the hyperbolic tangent map. Scale
-        factor applied to the image. The multiplicative inverse (reciprocal) is
-        applied before the preimage is computed.
+        factor applied to the image. The multiplicative inverse (reciprocal)
+        is applied before the preimage is computed.
     limits : (float min, float max) (default -3, 3)
         Minimum and maximum values in the preimage itself. Used for two
         purposes: avoiding infinities when the tensor's values include the
         supremum or infimum of an asymptotic function (i.e., -`scale` or
-        `scale`) and restricting parameter values to a range where the gradient
-        has not vanished.
+        `scale`) and restricting parameter values to a range where the
+        gradient has not vanished.
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
     """
@@ -51,10 +51,10 @@ class AmplitudeAtanh(_PhaseAmplitudeDomain, Atanh):
     ---------------------
     scale : float (default 1)
         Maximum/minimum value attained by the hyperbolic tangent map. Scale
-        factor applied to the image. The multiplicative inverse (reciprocal) is
-        applied before the preimage is computed. (Note that the amplitude used
-        as the argument to the hyperbolic tangent is never negative and so the
-        effective minimum is zero.)
+        factor applied to the image. The multiplicative inverse (reciprocal)
+        is applied before the preimage is computed. (Note that the amplitude
+        used as the argument to the hyperbolic tangent is never negative and
+        so the effective minimum is zero.)
     limits : (float min, float max) (default -3, 3)
         Minimum and maximum values in the preimage itself. Used for two
         purposes: avoiding infinities when the tensor's values include the

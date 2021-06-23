@@ -125,3 +125,20 @@ class TriggerUnion(MultiTrigger):
     def check(self, W):
         val = super().check(W)
         return torch.any(val)
+
+
+class Schedule(object):
+    pass
+
+
+class FixedSchedule(Schedule):
+    """
+    A schedule that is no schedule at all. Used internally for compatibility.
+    """
+    pass
+
+
+class OnOffSchedule(Schedule):
+    """
+    """
+    pass
