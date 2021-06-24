@@ -12,7 +12,7 @@ import torch
 def cmass(X, axes=None, na_rm=False):
     dim = X.size()
     ndim = X.dim()
-    axes = axes or range(ndim)
+    axes = axes or list(range(ndim))
     out_dim = [s for ax, s in enumerate(dim) if ax not in axes]
     out_dim += [len(axes)]
     out = torch.zeros(out_dim)
@@ -22,7 +22,7 @@ def cmass(X, axes=None, na_rm=False):
             coor.unsqueeze_(-1)
         num = (coor * X).sum(axes)
         denom = X.sum(axes)
-        out[..., i] = num / denom
+        out[..., i] = num / denom - 1
         if na_rm is not False:
             out[denom==0, i] = na_rm
     return out
