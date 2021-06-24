@@ -81,12 +81,13 @@ class StateVariable(object):
 
 
 class StateIterable(StateVariable):
-    def __init__(self, max_iter, name='state', init=0,
+    def __init__(self, max_iter, name='state', init=0, incr=1,
                  track_history=False, track_deltas=False):
         super().__init__(name=name, init=init,
                          track_history=track_history,
                          track_deltas=track_deltas)
         self.max_iter = max_iter
+        self.incr = incr
 
     def _inside(self):
         inside = super()._inside()
@@ -98,6 +99,6 @@ class StateIterable(StateVariable):
 
     def __next__(self):
         if self.assignment < self.max_iter:
-            self.assign(self.assignment + 1)
+            self.assign(self.assignment + self.incr)
         else:
             raise StopIteration
