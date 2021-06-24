@@ -31,7 +31,10 @@ def cmass(X, axes=None, na_rm=False):
     axes : iterable or None (default None)
         Axes of the input tensor that together define each slice of the tensor
         within which a single centre-of-mass vector is computed. If this is
-        set to None, then the centre of mass is computed across all axes.
+        set to None, then the centre of mass is computed across all axes. If
+        this is [-3, -2, -1], then the centre of mass is computed separately
+        for each 3-dimensional slice spanned by the last three axes of the
+        tensor.
     na_rm : float or False (default False)
         If any single slice of the input tensor has zero mass, then the centre
         of mass within that slice is undefined and populated with NaN. The
@@ -42,7 +45,7 @@ def cmass(X, axes=None, na_rm=False):
     Returns
     -------
     cmass : Tensor
-        Centre of mass vectors of each slice from the input tensor. The
+        Centre of mass vectors for each slice from the input tensor. The
         coordinates are ordered according to the specification in `axes`.
     """
     dim = X.size()
