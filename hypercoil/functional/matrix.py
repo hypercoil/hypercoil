@@ -16,25 +16,26 @@ def invert_spd(A):
     decomposition fails because the input is singular, then it instead returns
     the Moore-Penrose pseudoinverse.
 
-    Dimension
-    ---------
-    - Input: :math:`(*, D, D)`
-      D denotes the row or column dimension of the matrices to be inverted.
-    - Output: :math:`(*, D, D)`
+    :Dimension: **Input :** :math:`(*, D, D)`
+                    D denotes the row or column dimension of the matrices to
+                    be inverted. ``*`` denotes any number of preceding
+                    dimensions.
+                **Output :** :math:`(*, D, D)`
+                    As above.
 
     Parameters
     ----------
-    A: Tensor
+    A : Tensor
         Batch of symmetric positive definite matrices.
 
     Returns
     -------
-    Ainv: Tensor
+    Ainv : Tensor
         Inverse or Moore-Penrose pseudoinverse of each matrix in the input
         batch.
     """
     try:
-        L = torch.cholesky(A)
+        L = torch.linalg.cholesky(A)
         Li = torch.inverse(L)
         return Li.transpose(-1, -2) @ Li
     except RuntimeError:
@@ -96,13 +97,14 @@ def spd(X, eps=1e-6, method='eig'):
         semidefiniteness, then this will be the minimum possible eigenvalue of
         the output. If SVD is used to impose positive semidefiniteness, then
         this is unused.
-    method : 'eig' or 'svd'
+    method : ``'eig'`` or ``'svd'``
         Method used to ensure that all eigenvalues are positive.
-        - `eig` denotes that the input matrices are symmetrised and then
+
+        - ``eig`` denotes that the input matrices are symmetrised and then
           diagonalised. The method returns the symmetrised sum of the input and
           an identity matrix scaled to guarantee no eigenvalue is smaller than
           `eps`.
-        - `svd` denotes that the input matrices are decomposed via singular
+        - ``svd`` denotes that the input matrices are decomposed via singular
           value decomposition after symmetrisation. The method returns a
           recomposition of the matrix that treats the left singular vectors and
           singular values output from SVD as though they were outputs of
@@ -111,13 +113,13 @@ def spd(X, eps=1e-6, method='eig'):
           this margin is occasionally insufficient to avoid numerical error if
           the same matrix is again decomposed.
 
-      Returns
-      -------
-      output : Tensor
-          Input modified so that each slice is symmetric and positive definite.
+    Returns
+    -------
+    output : Tensor
+        Input modified so that each slice is symmetric and positive definite.
     """
     if method == 'eig':
-        L, _ = torch.symeig(symmetric(X))
+        L = torch.linalg.eigvalsh(symmetric(X))
         lmin = L.amin(axis=-1) - eps
         lmin = torch.minimum(lmin, torch.zeros(1)).squeeze()
         return symmetric(X - lmin[..., None, None] * torch.eye(X.size(-1)))
@@ -127,7 +129,7 @@ def spd(X, eps=1e-6, method='eig'):
 
 
 def expand_outer(L, R=None, symmetry=None):
-    """
+    r"""
     Multiply out a left and a right generator matrix as an outer product.
 
     The rank of the output is limited according to the inner dimensions of the
@@ -135,14 +137,14 @@ def expand_outer(L, R=None, symmetry=None):
     or to share the generators' parameters across the rows and columns of the
     output matrix.
 
-    Dimension
-    ---------
-    - L: :math:`(*, H, rank)`
-      H denotes the height of the expanded matrix, and rank denotes its maximum
-      rank.
-    - R: :math:`(*, W, rank)`
-      W denotes the width of the expanded matrix.
-    - Output: :math:`(*, H, W)`
+    :Dimension: **L :** :math:`(*, H, rank)`
+                    H denotes the height of the expanded matrix, and rank
+                    denotes its maximum rank. ``*`` denotes any number of
+                    preceding dimensions.
+                **R :** :math:`(*, W, rank)`
+                    W denotes the width of the expanded matrix.
+                **Output :** :math:`(*, H, W)`
+                    As above.
 
     Parameters
     ----------
@@ -151,12 +153,13 @@ def expand_outer(L, R=None, symmetry=None):
     R : Tensor or None (default None)
         Right generator of a low-rank matrix (:math:`L R^\intercal`). If this
         is None, then the output matrix is symmetric :math:`L L^\intercal`.
-    symmetry : 'cross', 'skew', or other (default None)
+    symmetry : ``'cross'``, ``'skew'``, or other (default None)
         Symmetry constraint imposed on the generated low-rank template matrix.
-        * `cross` enforces symmetry by replacing the initial expansion with
+
+        * ``cross`` enforces symmetry by replacing the initial expansion with
           the average of the initial expansion and its transpose,
           :math:`\frac{1}{2} \left( L R^\intercal + R L^\intercal \right)`
-        * `skew` enforces skew-symmetry by subtracting from the initial
+        * ``skew`` enforces skew-symmetry by subtracting from the initial
           expansion its transpose,
           :math:`\frac{1}{2} \left( L R^\intercal - R L^\intercal \right)`
         * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
@@ -167,8 +170,9 @@ def expand_outer(L, R=None, symmetry=None):
     if R is None:
         R = L
     output = L @ R.transpose(-2, -1)
-    if symmetry == 'cross' or 'skew':
-        return symmetric(output, skew(symmetry=='skew'))
+    #TODO: Unit tests are not hitting this conditional...
+    if symmetry == 'cross' or symmetry == 'skew':
+        return symmetric(output, skew=symmetry)
     return output
 
 
@@ -176,20 +180,18 @@ def toeplitz(c, r=None, dim=None, fill_value=0):
     """
     Populate a block of tensors with Toeplitz banded structure.
 
-    Dimension
-    ---------
-    - c: :math:`(C, *)`
-      C denotes the number of elements in the first column whose values are
-      propagated along the matrix diagonals. `*` denotes any number of
-      additional dimensions.
-    - r: :math:`(R, *)`
-      R denotes the number of elements in the first row whose values are
-      propagated along the matrix diagonals. `*` must be the same as in input
-      `c` or compatible via broadcasting.
-    - fill_value: :math:`(*)`
-    - Output: :math:`(*, C^{*}, R^{*})`
-      :math:`C^{*}` and :math:`{*}` default to C and R unless specified
-      otherwise in the `dim` argument.
+    :Dimension: **c :** :math:`(C, *)`
+                    C denotes the number of elements in the first column whose
+                    values are propagated along the matrix diagonals. ``*``
+                    denotes any number of additional dimensions.
+                **R :** :math:`(R, *)`
+                    R denotes the number of elements in the first row whose
+                    values are propagated along the matrix diagonals.
+                **fill_value :** :math:`(*)`
+                    As above.
+                **Output :** :math:`(*, C^{*}, R^{*})`
+                    :math:`C^{*}` and :math:`{*}` default to C and R unless
+                    specified otherwise in the `dim` argument.
 
     Parameters
     ----------
