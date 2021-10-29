@@ -1,3 +1,6 @@
 [submodule "hypercoil/examples/ds-synth"]
 	path = hypercoil/examples/ds-synth
 	url = https://github.com/rciric/ds-synth
+[submodule "docs"]
+	path = docs
+	url = https://github.com/rciric/diff-ni-docs.git
