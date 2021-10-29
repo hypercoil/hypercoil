@@ -52,14 +52,14 @@ class TestMatrix:
         out = spd(self.Bt)
         ref = out.transpose(-1, -2)
         assert self.approx(out, ref)
-        L, _ = torch.symeig(out)
+        L = torch.linalg.eigvalsh(out)
         assert torch.all(L > 0)
 
     def test_spd_singular(self):
         out = spd(self.BLRt, method='eig')
         ref = out.transpose(-1, -2)
         assert self.approx(out, ref)
-        L, _ = torch.symeig(out)
+        L = torch.linalg.eigvalsh(out)
         assert torch.all(L > 0)
 
     def test_toeplitz(self):
