@@ -15,10 +15,8 @@ from hypercoil.functional import (
 )
 
 
-def lr_std_mean(dim=100, rank=None, std=0.05, iter=1000):
-    distr = torch.distributions.normal.Normal(
-        torch.Tensor([0]), torch.Tensor([std]))
-    lrns = LowRankNoiseSource(rank=rank, distr=distr)
+def lr_std_mean(dim=100, rank=None, var=0.05, iter=1000):
+    lrns = LowRankNoiseSource(rank=rank, var=var)
     return torch.Tensor(
         [lrns.sample([dim]).std() for _ in range(iter)
     ]).mean()
@@ -37,22 +35,22 @@ class TestNoise:
         out = lr_std_mean()
         ref = 0.05
         assert self.approx(out, ref)
-        out = lr_std_mean(std=0.2)
+        out = lr_std_mean(var=0.2)
         ref = 0.2
         assert self.approx(out, ref)
-        out = lr_std_mean(std=0.03, rank=7)
+        out = lr_std_mean(var=0.03, rank=7)
         ref = 0.03
         assert self.approx(out, ref)
 
     def test_spsd_spsd(self):
         spsdns = SPSDNoiseSource()
         out = spsdns.sample([100])
-        assert np.allclose(out, out.T, atol=1e-5)
+        assert torch.allclose(out, out.T, atol=1e-5)
+        L = torch.linalg.eigvalsh(out)
         # ignore effectively-zero eigenvalues
-        L = np.linalg.eigvals(out)
-        L[np.abs(L) < 1e-5] = 0
+        L[torch.abs(L) < 1e-5] = 0
         assert L.min() >= 0
-        assert np.all(L >= 0)
+        assert torch.all(L >= 0)
 
     def test_band_correction(self):
         bds = BandDropoutSource()
