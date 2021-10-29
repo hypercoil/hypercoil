@@ -19,8 +19,7 @@ def crosshair_dot(A, B, row=-2, col=-1):
     The product dimensions are accordingly equal to the dimensions of the input
     matrices.
 
-    Dimension
-    ---------
+    :Dimension:
     The input tensors must have at least two axes and must have the same shape.
     The dimension of the output tensor exactly equals the dimension of the
     input tensor.
@@ -61,8 +60,7 @@ def crosshair_norm_l2(A, row=-2, col=-1):
     column as the entry. The norm dimensions are accordingly equal to the
     dimensions of the input matrices.
 
-    Dimension
-    ---------
+    :Dimension:
     The input tensors must have at least two axes and must have the same shape.
     The dimension of the output tensor exactly equals the dimension of the
     input tensor.
@@ -94,8 +92,7 @@ def crosshair_norm_l1(A, row=-2, col=-1):
     column as the entry. The norm dimensions are accordingly equal to the
     dimensions of the input matrices.
 
-    Dimension
-    ---------
+    :Dimension:
     The input tensors must have at least two axes and must have the same shape.
     The dimension of the output tensor exactly equals the dimension of the
     input tensor.

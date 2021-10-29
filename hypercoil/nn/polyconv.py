@@ -22,13 +22,13 @@ class PolyConv2D(Module):
     The convolution kernel's ith input channel thus views the input dataset
     raised to the ith power.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, P, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      P denotes number of variables, O denotes number of observations.
-    - Output: :math:`(N, *, C_{out}, P, O)`
-      :math:`C_{out}` denotes number of output channels.
+    :Dimension: **Input :** :math:`(N, *, P, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, P denotes number of data channels
+                    or variables, O denotes number of time points or
+                    observations per channel.
+                **Output :** :math:`(N, *, C_{out}, P, O)`
+                    :math:`C_{out}` denotes number of output channels.
 
     Parameters
     ----------
@@ -144,6 +144,9 @@ class PolyConv2D(Module):
         return s
 
     def forward(self, input):
+        """
+        Convolve a polynomial expansion of a signal with the module kernel.
+        """
         if self.future_sight:
             weight = self.weight
         else:

@@ -7,7 +7,7 @@ Normed penalty
 Generalised module for applying a normed penalty to the weight parameter
 of a module.
 """
-from torch import diff, norm as pnorm
+from torch import norm as pnorm
 from torch.nn import Module
 from functools import partial
 

@@ -306,8 +306,8 @@ class _UnweightedCov(_Cov):
 
 class UnaryCovariance(_UnaryCov, _WeightedCov):
     """
-    Covariance measures of a single tensor, with a full complement of learnable
-    weights.
+    Covariance measures of a single tensor, with a full complement of
+    learnable weights.
 
     The input tensor is interpreted as a set of multivariate observations.
     A covariance estimator computes some measure of statistical dependence
@@ -315,14 +315,13 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
     stochastic noise and dropout to re-weight observations and regularise the
     model.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, C, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C denotes number of variables or data channels, O denotes number of time
-      points or observations.
-    - Output: :math:`(N, *, W, C, C)`
-      W denotes number of sets of weights.
+    :Dimension: **Input :** :math:`(N, *, C, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, C denotes number of data channels
+                    or variables, O denotes number of time points or
+                    observations per channel
+                **Output :** :math:`(N, *, W, C, C)`
+                    W denotes number of sets of weights.
 
     Parameters
     ----------
@@ -333,6 +332,7 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         Covariance estimator, e.g. from `hypercoil.functional.cov`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
+
         - `cov`: Raw empirical covariance.
         - `corr`: Pearson correlation.
         - `precision`: Precision.
@@ -348,8 +348,8 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
-        axis and the penultimate axis is the variable axis. If False, then this
-        relationship is transposed.
+        axis and the penultimate axis is the variable axis. If False, then
+        this relationship is transposed.
     bias : bool (default False)
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
@@ -358,29 +358,30 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         Degrees of freedom for normalisation. If this is specified, it
         overrides the normalisation factor automatically determined using the
         `bias` parameter.
-    l2: nonnegative float (default 0)
-        L2 regularisation term to add to the maximum likelihood estimate of the
-        covariance matrix. This can be set to a positive value to obtain an
+    l2 : nonnegative float (default 0)
+        L2 regularisation term to add to the maximum likelihood estimate of
+        the covariance matrix. This can be set to a positive value to obtain
         intermediate for estimating the regularised inverse covariance or to
-        ensure that the covariance matrix is non-singular (if, for instance,
-        it needs to be inverted or projected into a tangent space).
-    noise: NoiseSource object or None (default None)
+        an ensure that the covariance matrix is non-singular (if, for
+        instance, it needs to be inverted or projected into a tangent space).
+    noise : NoiseSource object or None (default None)
         Noise source to inject into the weights. A diagonal noise source adds
         stochasticity into observation weights and can be used to regularise a
         zero-lag covariance. A positive semidefinite noise source ensures that
         the weight tensor remains in the positive semidefinite cone.
-    dropout: DropoutSource object or None (default None)
-        Dropout source to inject into the weights. A dropout source can be used
-        to randomly ignore a subset of observations and thereby perform a type
-        of data augmentation (similar to bootstrapped covariance estimates).
-    init: Initialiser object or None (default None)
+    dropout : DropoutSource object or None (default None)
+        Dropout source to inject into the weights. A dropout source can be
+        used to randomly ignore a subset of observations and thereby perform a
+        type of data augmentation (similar to bootstrapped covariance
+        estimates).
+    init : Initialiser object or None (default None)
         An initialiser object from `hypercoil.init`, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
-        function of lag, such that the weights at 0 lag are e^-|0| = 1, the
-        weights at 1 or -1 lag are e^-|1|, etc. Note that if the maximum lag
-        is 0, this default initialisation will be equivalent to an unweighted
-        covariance.
+        function of lag, such that the weights at 0 lag are
+        :math:`e^{-|0|} = 1`, the weights at 1 or -1 lag are :math:`e^{-|1|}`,
+        etc. Note that if the maximum lag is 0, this default initialisation
+        will be equivalent to an unweighted covariance.
 
     Attributes
     ----------
@@ -403,8 +404,8 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         then it must be square, symmetric, and positive semidefinite. In this
         case, diagonal entries again correspond to relative importances, while
         off-diagonal entries indicate coupling factors. For instance, a banded
-        or multi-diagonal tensor can be used to specify inter-temporal coupling
-        for a time series covariance.
+        or multi-diagonal tensor can be used to specify inter-temporal
+        coupling for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
         and dropout sources are injected and after final masking.
@@ -430,14 +431,13 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
     stochastic noise and dropout to re-weight observations and regularise the
     model.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, C, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C denotes number of variables or data channels, O denotes number of time
-      points or observations.
-    - Output: :math:`(N, *, W, C, C)`
-      W denotes number of sets of weights.
+    :Dimension: **Input :** :math:`(N, *, C, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, C denotes number of data channels
+                    or variables, O denotes number of time points or
+                    observations per channel
+                **Output :** :math:`(N, *, W, C, C)`
+                    W denotes number of sets of weights.
 
     Parameters
     ----------
@@ -448,6 +448,7 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         Covariance estimator, e.g. from `hypercoil.functional.cov`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
+
         - `cov`: Raw empirical covariance.
         - `corr`: Pearson correlation.
         - `precision`: Precision.
@@ -463,8 +464,8 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
-        axis and the penultimate axis is the variable axis. If False, then this
-        relationship is transposed.
+        axis and the penultimate axis is the variable axis. If False, then
+        this relationship is transposed.
     bias : bool (default False)
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
@@ -473,38 +474,39 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         Degrees of freedom for normalisation. If this is specified, it
         overrides the normalisation factor automatically determined using the
         `bias` parameter.
-    l2: nonnegative float (default 0)
-        L2 regularisation term to add to the maximum likelihood estimate of the
-        covariance matrix. This can be set to a positive value to obtain an
-        intermediate for estimating the regularised inverse covariance or to
-        ensure that the covariance matrix is non-singular (if, for instance,
-        it needs to be inverted or projected into a tangent space).
-    noise: NoiseSource object or None (default None)
+    l2 : nonnegative float (default 0)
+        L2 regularisation term to add to the maximum likelihood estimate of
+        the covariance matrix. This can be set to a positive value to obtain
+        an intermediate for estimating the regularised inverse covariance or
+        to ensure that the covariance matrix is non-singular (if, for
+        instance, it needs to be inverted or projected into a tangent space).
+    noise : NoiseSource object or None (default None)
         Noise source to inject into the weights. A diagonal noise source adds
         stochasticity into observation weights and can be used to regularise a
         zero-lag covariance. A positive semidefinite noise source ensures that
         the weight tensor remains in the positive semidefinite cone.
-    dropout: DropoutSource object or None (default None)
-        Dropout source to inject into the weights. A dropout source can be used
-        to randomly ignore a subset of observations and thereby perform a type
-        of data augmentation (similar to bootstrapped covariance estimates).
-    init: Initialiser object or None (default None)
+    dropout : DropoutSource object or None (default None)
+        Dropout source to inject into the weights. A dropout source can be
+        used to randomly ignore a subset of observations and thereby perform a
+        type of data augmentation (similar to bootstrapped covariance
+        estimates).
+    init : Initialiser object or None (default None)
         An initialiser object from `hypercoil.init`, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
-        function of lag, such that the weights at 0 lag are e^-|0| = 1, the
-        weights at 1 or -1 lag are e^-|1|, etc. Note that if the maximum lag
-        is 0, this default initialisation will be equivalent to an unweighted
-        covariance.
+        function of lag, such that the weights at 0 lag are
+        :math:`e^{-|0|} = 1`, the weights at 1 or -1 lag are :math:`e^{-|1|}`,
+        etc. Note that if the maximum lag is 0, this default initialisation
+        will be equivalent to an unweighted covariance.
 
     Attributes
     ----------
     prepreweight_c, prepreweight_r : Tensor :math:`(W, L)`
-        Toeplitz matrix generators for the columns (lag) and rows (lead) of the
-        weight matrix. L denotes the maximum lag. These parameters are repeated
-        along each diagonal of the weight matrix up to the maximum lag. The
-        prepreweights are initialised as double exponentials with a maximum of
-        1 at the origin (zero lag).
+        Toeplitz matrix generators for the columns (lag) and rows (lead) of
+        the weight matrix. L denotes the maximum lag. These parameters are
+        repeated along each diagonal of the weight matrix up to the maximum
+        lag. The prepreweights are initialised as double exponentials with a
+        maximum of 1 at the origin (zero lag).
     preweight : Tensor :math:`(W, O, O)`
         Tensor containing raw internal values of the weights. This is the
         preimage of the weights under the transformation specified in the
@@ -516,8 +518,8 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         then it must be square, symmetric, and positive semidefinite. In this
         case, diagonal entries again correspond to relative importances, while
         off-diagonal entries indicate coupling factors. For instance, a banded
-        or multi-diagonal tensor can be used to specify inter-temporal coupling
-        for a time series covariance.
+        or multi-diagonal tensor can be used to specify inter-temporal
+        coupling for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
         and dropout sources are injected and after final masking.
@@ -548,14 +550,13 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
     dropout terms, it can produce several different estimates of covariance
     from the same source data.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, C, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C denotes number of variables or data channels, O denotes number of time
-      points or observations.
-    - Output: :math:`(N, *, W, C, C)`
-      W denotes number of sets of weights.
+    :Dimension: **Input :** :math:`(N, *, C, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, C denotes number of data channels
+                    or variables, O denotes number of time points or
+                    observations per channel
+                **Output :** :math:`(N, *, W, C, C)`
+                    W denotes number of sets of weights.
 
     Parameters
     ----------
@@ -566,6 +567,7 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
         Covariance estimator, e.g. from `hypercoil.functional.cov`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
+
         - `cov`: Raw empirical covariance.
         - `corr`: Pearson correlation.
         - `precision`: Precision.
@@ -575,8 +577,8 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
-        axis and the penultimate axis is the variable axis. If False, then this
-        relationship is transposed.
+        axis and the penultimate axis is the variable axis. If False, then
+        this relationship is transposed.
     bias : bool (default False)
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
@@ -586,20 +588,21 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
         overrides the normalisation factor automatically determined using the
         `bias` parameter.
     l2: nonnegative float (default 0)
-        L2 regularisation term to add to the maximum likelihood estimate of the
-        covariance matrix. This can be set to a positive value to obtain an
-        intermediate for estimating the regularised inverse covariance or to
-        ensure that the covariance matrix is non-singular (if, for instance,
-        it needs to be inverted or projected into a tangent space).
+        L2 regularisation term to add to the maximum likelihood estimate of
+        the covariance matrix. This can be set to a positive value to obtain
+        an intermediate for estimating the regularised inverse covariance or
+        to ensure that the covariance matrix is non-singular (if, for
+        instance, it needs to be inverted or projected into a tangent space).
     noise: NoiseSource object or None (default None)
         Noise source to inject into the weights. A diagonal noise source adds
         stochasticity into observation weights and can be used to regularise a
         zero-lag covariance. A positive semidefinite noise source ensures that
         the weight tensor remains in the positive semidefinite cone.
     dropout: DropoutSource object or None (default None)
-        Dropout source to inject into the weights. A dropout source can be used
-        to randomly ignore a subset of observations and thereby perform a type
-        of data augmentation (similar to bootstrapped covariance estimates).
+        Dropout source to inject into the weights. A dropout source can be
+        used to randomly ignore a subset of observations and thereby perform a
+        type of data augmentation (similar to bootstrapped covariance
+        estimates).
 
     Attributes
     ----------
@@ -610,8 +613,8 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
         then it must be square, symmetric, and positive semidefinite. In this
         case, diagonal entries again correspond to relative importances, while
         off-diagonal entries indicate coupling factors. For instance, a banded
-        or multi-diagonal tensor can be used to specify inter-temporal coupling
-        for a time series covariance.
+        or multi-diagonal tensor can be used to specify inter-temporal
+        coupling for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
         and dropout sources are injected and after final masking.
@@ -637,21 +640,20 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
     stochastic noise and dropout to re-weight observations and regularise the
     model.
 
-    Dimension
-    ---------
-    - Input 1: :math:`(N, *, C_1, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_1` denotes number of variables or data channels, O denotes
-      number of time points or observations.
-    - Input 2: :math:`(N, *, C_2, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_2` denotes number of variables or data channels, O denotes
-      number of time points or observations.
-    - Output: :math:`(N, *, W, C_{*}, C_{*})`
-      W denotes number of sets of weights. :math:`C_{*}` can denote either
-      :math:`C_1` or :math:`C_2`, depending on the estimator provided. Paired
-      estimators produce one axis of each size, while conditional estimators
-      produce both axes of size :math:`C_1`.
+    :Dimension: **Input 1:** :math:`(N, *, C_1, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, :math:`C_1` denotes number of data
+                    channels or variables, O denotes number of time points or
+                    observations per channel.
+                **Input 2:** :math:`(N, *, C_2, O)`
+                    :math:`C_2` denotes number of data channels or variables
+                    in the second input tensor.
+                **Output :** :math:`(N, *, W, C_{*}, C_{*})`
+                    W denotes number of sets of weights. :math:`C_{*}` can
+                    denote either :math:`C_1` or :math:`C_2`, depending on the
+                    estimator provided. Paired estimators produce one axis of
+                    each size, while conditional estimators produce both axes
+                    of size :math:`C_1`.
 
     Parameters
     ----------
@@ -660,16 +662,17 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         dimension of each slice of the covariance weight tensor.
     estimator : callable
         Covariance estimator, e.g. from `hypercoil.functional.cov`. The
-        estimator must be binary: it should accept two tensors rather than one.
-        Some available options are:
+        estimator must be binary: it should accept two tensors rather than
+        one. Some available options are:
+
         - `pairedcov`: Empirical covariance between variables in tensor 1 and
           those in tensor 2.
         - `pairedcorr`: Pearson correlation between variables in tensor 1 and
           those in tensor 2.
         - `conditionalcov`: Covariance between variables in tensor 1 after
-          conditioning on variables in tensor 2. Can be used to control for the
-          effects of confounds and is equivalent to confound regression with
-          the addition of an intercept term.
+          conditioning on variables in tensor 2. Can be used to control for
+          the effects of confounds and is equivalent to confound regression
+          with the addition of an intercept term.
         - `conditionalcorr`: Pearson correlation between variables in tensor 1
           after conditioning on variables in tensor 2.
     max_lag : int or None (default 0)
@@ -683,8 +686,8 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
-        axis and the penultimate axis is the variable axis. If False, then this
-        relationship is transposed.
+        axis and the penultimate axis is the variable axis. If False, then
+        this relationship is transposed.
     bias : bool (default False)
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
@@ -693,29 +696,30 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         Degrees of freedom for normalisation. If this is specified, it
         overrides the normalisation factor automatically determined using the
         `bias` parameter.
-    l2: nonnegative float (default 0)
-        L2 regularisation term to add to the maximum likelihood estimate of the
-        covariance matrix. This can be set to a positive value to obtain an
-        intermediate for estimating the regularised inverse covariance or to
-        ensure that the covariance matrix is non-singular (if, for instance,
-        it needs to be inverted or projected into a tangent space).
-    noise: NoiseSource object or None (default None)
+    l2 : nonnegative float (default 0)
+        L2 regularisation term to add to the maximum likelihood estimate of
+        the covariance matrix. This can be set to a positive value to obtain
+        an intermediate for estimating the regularised inverse covariance or
+        to ensure that the covariance matrix is non-singular (if, for
+        instance, it needs to be inverted or projected into a tangent space).
+    noise : NoiseSource object or None (default None)
         Noise source to inject into the weights. A diagonal noise source adds
         stochasticity into observation weights and can be used to regularise a
         zero-lag covariance. A positive semidefinite noise source ensures that
         the weight tensor remains in the positive semidefinite cone.
-    dropout: DropoutSource object or None (default None)
-        Dropout source to inject into the weights. A dropout source can be used
-        to randomly ignore a subset of observations and thereby perform a type
-        of data augmentation (similar to bootstrapped covariance estimates).
-    init: Initialiser object or None (default None)
+    dropout : DropoutSource object or None (default None)
+        Dropout source to inject into the weights. A dropout source can be
+        used to randomly ignore a subset of observations and thereby perform a
+        type of data augmentation (similar to bootstrapped covariance
+        estimates).
+    init : Initialiser object or None (default None)
         An initialiser object from `hypercoil.init`, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
-        function of lag, such that the weights at 0 lag are e^-|0| = 1, the
-        weights at 1 or -1 lag are e^-|1|, etc. Note that if the maximum lag
-        is 0, this default initialisation will be equivalent to an unweighted
-        covariance.
+        function of lag, such that the weights at 0 lag are
+        :math:`e^{-|0|} = 1`, the weights at 1 or -1 lag are :math:`e^{-|1|}`,
+        etc. Note that if the maximum lag is 0, this default initialisation
+        will be equivalent to an unweighted covariance.
 
     Attributes
     ----------
@@ -738,8 +742,8 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         then it must be square, symmetric, and positive semidefinite. In this
         case, diagonal entries again correspond to relative importances, while
         off-diagonal entries indicate coupling factors. For instance, a banded
-        or multi-diagonal tensor can be used to specify inter-temporal coupling
-        for a time series covariance.
+        or multi-diagonal tensor can be used to specify inter-temporal
+        coupling for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
         and dropout sources are injected and after final masking.
@@ -765,21 +769,20 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
     stochastic noise and dropout to re-weight observations and regularise the
     model.
 
-    Dimension
-    ---------
-    - Input 1: :math:`(N, *, C_1, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_1` denotes number of variables or data channels, O denotes
-      number of time points or observations.
-    - Input 2: :math:`(N, *, C_2, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_2` denotes number of variables or data channels, O denotes
-      number of time points or observations.
-    - Output: :math:`(N, *, W, C_{*}, C_{*})`
-      W denotes number of sets of weights. :math:`C_{*}` can denote either
-      :math:`C_1` or :math:`C_2`, depending on the estimator provided. Paired
-      estimators produce one axis of each size, while conditional estimators
-      produce both axes of size :math:`C_1`.
+    :Dimension: **Input 1:** :math:`(N, *, C_1, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, :math:`C_1` denotes number of data
+                    channels or variables, O denotes number of time points or
+                    observations per channel.
+                **Input 2:** :math:`(N, *, C_2, O)`
+                    :math:`C_2` denotes number of data channels or variables
+                    in the second input tensor.
+                **Output :** :math:`(N, *, W, C_{*}, C_{*})`
+                    W denotes number of sets of weights. :math:`C_{*}` can
+                    denote either :math:`C_1` or :math:`C_2`, depending on the
+                    estimator provided. Paired estimators produce one axis of
+                    each size, while conditional estimators produce both axes
+                    of size :math:`C_1`.
 
     Parameters
     ----------
@@ -788,16 +791,17 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         dimension of each slice of the covariance weight tensor.
     estimator : callable
         Covariance estimator, e.g. from `hypercoil.functional.cov`. The
-        estimator must be binary: it should accept two tensors rather than one.
-        Some available options are:
+        estimator must be binary: it should accept two tensors rather than
+        one. Some available options are:
+
         - `pairedcov`: Empirical covariance between variables in tensor 1 and
           those in tensor 2.
         - `pairedcorr`: Pearson correlation between variables in tensor 1 and
           those in tensor 2.
         - `conditionalcov`: Covariance between variables in tensor 1 after
-          conditioning on variables in tensor 2. Can be used to control for the
-          effects of confounds and is equivalent to confound regression with
-          the addition of an intercept term.
+          conditioning on variables in tensor 2. Can be used to control for
+          the effects of confounds and is equivalent to confound regression
+          with the addition of an intercept term.
         - `conditionalcorr`: Pearson correlation between variables in tensor 1
           after conditioning on variables in tensor 2.
     max_lag : int or None (default 0)
@@ -811,8 +815,8 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
-        axis and the penultimate axis is the variable axis. If False, then this
-        relationship is transposed.
+        axis and the penultimate axis is the variable axis. If False, then
+        this relationship is transposed.
     bias : bool (default False)
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
@@ -821,38 +825,39 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         Degrees of freedom for normalisation. If this is specified, it
         overrides the normalisation factor automatically determined using the
         `bias` parameter.
-    l2: nonnegative float (default 0)
-        L2 regularisation term to add to the maximum likelihood estimate of the
-        covariance matrix. This can be set to a positive value to obtain an
-        intermediate for estimating the regularised inverse covariance or to
-        ensure that the covariance matrix is non-singular (if, for instance,
-        it needs to be inverted or projected into a tangent space).
-    noise: NoiseSource object or None (default None)
+    l2 : nonnegative float (default 0)
+        L2 regularisation term to add to the maximum likelihood estimate of
+        the covariance matrix. This can be set to a positive value to obtain
+        an intermediate for estimating the regularised inverse covariance or
+        to ensure that the covariance matrix is non-singular (if, for
+        instance, it needs to be inverted or projected into a tangent space).
+    noise : NoiseSource object or None (default None)
         Noise source to inject into the weights. A diagonal noise source adds
         stochasticity into observation weights and can be used to regularise a
         zero-lag covariance. A positive semidefinite noise source ensures that
         the weight tensor remains in the positive semidefinite cone.
-    dropout: DropoutSource object or None (default None)
-        Dropout source to inject into the weights. A dropout source can be used
-        to randomly ignore a subset of observations and thereby perform a type
-        of data augmentation (similar to bootstrapped covariance estimates).
-    init: Initialiser object or None (default None)
+    dropout : DropoutSource object or None (default None)
+        Dropout source to inject into the weights. A dropout source can be
+        used to randomly ignore a subset of observations and thereby perform a
+        type of data augmentation (similar to bootstrapped covariance
+        estimates).
+    init : Initialiser object or None (default None)
         An initialiser object from `hypercoil.init`, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
-        function of lag, such that the weights at 0 lag are e^-|0| = 1, the
-        weights at 1 or -1 lag are e^-|1|, etc. Note that if the maximum lag
-        is 0, this default initialisation will be equivalent to an unweighted
-        covariance.
+        function of lag, such that the weights at 0 lag are
+        :math:`e^{-|0|} = 1`, the weights at 1 or -1 lag are :math:`e^{-|1|}`,
+        etc. Note that if the maximum lag is 0, this default initialisation
+        will be equivalent to an unweighted covariance.
 
     Attributes
     ----------
     prepreweight_c, prepreweight_r : Tensor :math:`(W, L)`
-        Toeplitz matrix generators for the columns (lag) and rows (lead) of the
-        weight matrix. L denotes the maximum lag. These parameters are repeated
-        along each diagonal of the weight matrix up to the maximum lag. The
-        prepreweights are initialised as double exponentials with a maximum of
-        1 at the origin (zero lag).
+        Toeplitz matrix generators for the columns (lag) and rows (lead) of
+        the weight matrix. L denotes the maximum lag. These parameters are
+        repeated along each diagonal of the weight matrix up to the maximum
+        lag. The prepreweights are initialised as double exponentials with a
+        maximum of 1 at the origin (zero lag).
     preweight : Tensor :math:`(W, O, O)`
         Tensor containing raw internal values of the weights. This is the
         preimage of the weights under the transformation specified in the
@@ -864,8 +869,8 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         then it must be square, symmetric, and positive semidefinite. In this
         case, diagonal entries again correspond to relative importances, while
         off-diagonal entries indicate coupling factors. For instance, a banded
-        or multi-diagonal tensor can be used to specify inter-temporal coupling
-        for a time series covariance.
+        or multi-diagonal tensor can be used to specify inter-temporal
+        coupling for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
         and dropout sources are injected and after final masking.
@@ -897,21 +902,20 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
     dropout terms, it can produce several different estimates of covariance
     from the same source data.
 
-    Dimension
-    ---------
-    - Input 1: :math:`(N, *, C_1, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_1` denotes number of variables or data channels, O denotes
-      number of time points or observations.
-    - Input 2: :math:`(N, *, C_2, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_2` denotes number of variables or data channels, O denotes
-      number of time points or observations.
-    - Output: :math:`(N, *, W, C_{*}, C_{*})`
-      W denotes number of sets of weights. :math:`C_{*}` can denote either
-      :math:`C_1` or :math:`C_2`, depending on the estimator provided. Paired
-      estimators produce one axis of each size, while conditional estimators
-      produce both axes of size :math:`C_1`.
+    :Dimension: **Input 1:** :math:`(N, *, C_1, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, :math:`C_1` denotes number of data
+                    channels or variables, O denotes number of time points or
+                    observations per channel.
+                **Input 2:** :math:`(N, *, C_2, O)`
+                    :math:`C_2` denotes number of data channels or variables
+                    in the second input tensor.
+                **Output :** :math:`(N, *, W, C_{*}, C_{*})`
+                    W denotes number of sets of weights. :math:`C_{*}` can
+                    denote either :math:`C_1` or :math:`C_2`, depending on the
+                    estimator provided. Paired estimators produce one axis of
+                    each size, while conditional estimators produce both axes
+                    of size :math:`C_1`.
 
     Parameters
     ----------
@@ -920,16 +924,17 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
         dimension of each slice of the covariance weight tensor.
     estimator : callable
         Covariance estimator, e.g. from `hypercoil.functional.cov`. The
-        estimator must be binary: it should accept two tensors rather than one.
-        Some available options are:
+        estimator must be binary: it should accept two tensors rather than
+        one. Some available options are:
+
         - `pairedcov`: Empirical covariance between variables in tensor 1 and
           those in tensor 2.
         - `pairedcorr`: Pearson correlation between variables in tensor 1 and
           those in tensor 2.
         - `conditionalcov`: Covariance between variables in tensor 1 after
-          conditioning on variables in tensor 2. Can be used to control for the
-          effects of confounds and is equivalent to confound regression with
-          the addition of an intercept term.
+          conditioning on variables in tensor 2. Can be used to control for
+          the effects of confounds and is equivalent to confound regression
+          with the addition of an intercept term.
         - `conditionalcorr`: Pearson correlation between variables in tensor 1
           after conditioning on variables in tensor 2.
     out_channels : int (default 1)
@@ -937,8 +942,8 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
         produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
-        axis and the penultimate axis is the variable axis. If False, then this
-        relationship is transposed.
+        axis and the penultimate axis is the variable axis. If False, then
+        this relationship is transposed.
     bias : bool (default False)
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
@@ -948,20 +953,21 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
         overrides the normalisation factor automatically determined using the
         `bias` parameter.
     l2: nonnegative float (default 0)
-        L2 regularisation term to add to the maximum likelihood estimate of the
-        covariance matrix. This can be set to a positive value to obtain an
-        intermediate for estimating the regularised inverse covariance or to
-        ensure that the covariance matrix is non-singular (if, for instance,
-        it needs to be inverted or projected into a tangent space).
+        L2 regularisation term to add to the maximum likelihood estimate of
+        the covariance matrix. This can be set to a positive value to obtain
+        an intermediate for estimating the regularised inverse covariance or
+        to ensure that the covariance matrix is non-singular (if, for
+        instance, it needs to be inverted or projected into a tangent space).
     noise: NoiseSource object or None (default None)
         Noise source to inject into the weights. A diagonal noise source adds
         stochasticity into observation weights and can be used to regularise a
         zero-lag covariance. A positive semidefinite noise source ensures that
         the weight tensor remains in the positive semidefinite cone.
     dropout: DropoutSource object or None (default None)
-        Dropout source to inject into the weights. A dropout source can be used
-        to randomly ignore a subset of observations and thereby perform a type
-        of data augmentation (similar to bootstrapped covariance estimates).
+        Dropout source to inject into the weights. A dropout source can be
+        used to randomly ignore a subset of observations and thereby perform a
+        type of data augmentation (similar to bootstrapped covariance
+        estimates).
 
     Attributes
     ----------
@@ -972,8 +978,8 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
         then it must be square, symmetric, and positive semidefinite. In this
         case, diagonal entries again correspond to relative importances, while
         off-diagonal entries indicate coupling factors. For instance, a banded
-        or multi-diagonal tensor can be used to specify inter-temporal coupling
-        for a time series covariance.
+        or multi-diagonal tensor can be used to specify inter-temporal
+        coupling for a time series covariance.
     postweight : Tensor :math:`(W, O, O)`
         Final weights as seen by the data. This is the weight after any noise
         and dropout sources are injected and after final masking.

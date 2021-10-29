@@ -12,25 +12,26 @@ from . import symmap, symlog, symexp, symsqrt, invert_spd, spd
 
 
 def tangent_project_spd(input, reference, recondition=0):
-    """
+    r"""
     Project a batch of symmetric matrices from the positive semidefinite cone
     into a tangent subspace.
 
     Given a tangency point :math:`\Omega`, each input :math:`\Theta` is
     projected as:
 
-    :math:`\bar{\Theta} = \log_M \Omega^{-1/2} \Theta \Omega^{-1/2}`
+    :math:`\vec{\Theta} = \log \Omega^{-1/2} \Theta \Omega^{-1/2}`
 
     where :math:`\Omega^{-1/2}` denotes the inverse matrix square root of
-    :math:`\Omega` and :math:`log_M` denotes the matrix-valued logarithm.
+    :math:`\Omega` and :math:`\log` denotes the matrix-argument logarithm.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, D, D)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      D denotes matrix row and column dimension
-    - Reference: :math:`(*, D, D)`
-    - Output: :math:`(N, *, D, D)`
+    :Dimension: **Input :** :math:`(N, *, D, D)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, D denotes matrix row and column
+                    dimension.
+                **Reference :** :math:`(*, D, D)`
+                    As above.
+                **Output :** :math:`(N, *, D, D)`
+                    As above.
 
     Parameters
     ----------
@@ -44,7 +45,8 @@ def tangent_project_spd(input, reference, recondition=0):
     recondition : float in [0, 1]
         Conditioning factor to promote positive definiteness. If this is in
         (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix.
+        of the input and an identity matrix (with the conditioning factor
+        :math:`\psi`).
 
         :math:`\hat{X} = (1 - \psi) X + \psi I`
 
@@ -65,25 +67,26 @@ def tangent_project_spd(input, reference, recondition=0):
 
 
 def cone_project_spd(input, reference, recondition=0):
-    """
+    r"""
     Project a batch of symmetric matrices from a tangent subspace into the
     positive semidefinite cone.
 
     Given a tangency point :math:`\Omega`, each input :math:`\Theta` is
     projected as:
 
-    :math:`\bar{\Theta} = \Omega^{1/2} \exp_M \Theta \Omega^{1/2}`
+    :math:`\Theta = \Omega^{1/2} \exp \vec{\Theta} \Omega^{1/2}`
 
     where :math:`\Omega^{1/2}` denotes the matrix square root of :math:`\Omega`
-    and :math:`exp_M` denotes the matrix-valued exponential.
+    and :math:`\exp` denotes the matrix-argument exponential.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, D, D)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      D denotes matrix row and column dimension
-    - Reference: :math:`(*, D, D)`
-    - Output: :math:`(N, *, D, D)`
+    :Dimension: **Input :** :math:`(N, *, D, D)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, D denotes matrix row and column
+                    dimension.
+                **Reference :** :math:`(*, D, D)`
+                    As above.
+                **Output :** :math:`(N, *, D, D)`
+                    As above.
 
     Parameters
     ----------
@@ -96,7 +99,8 @@ def cone_project_spd(input, reference, recondition=0):
     recondition : float in [0, 1]
         Conditioning factor to promote positive definiteness. If this is in
         (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix.
+        of the input and an identity matrix (with the conditioning factor
+        :math:`\psi`).
 
         :math:`\hat{X} = (1 - \psi) X + \psi I`
 
@@ -125,12 +129,19 @@ def cone_project_spd(input, reference, recondition=0):
 
 
 def mean_euc_spd(input, axis=0):
-    """
+    r"""
     Batch-wise Euclidean mean of tensors in the positive semidefinite cone.
 
     This is the familiar arithmetic mean:
 
-    :math:`\frac{1}{N}\sum_{i=1}^N X_{i}`
+    :math:`\bar{X} = \frac{1}{N}\sum_{i=1}^N X_{i}`
+
+    :Dimension: **Input :** :math:`(N, *, D, D)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, D denotes matrix row and column
+                    dimension.
+                **Output :** :math:`(*, D, D)`
+                    As above.
 
     Dimension
     ---------
@@ -155,20 +166,20 @@ def mean_euc_spd(input, axis=0):
 
 
 def mean_harm_spd(input, axis=0):
-    """
+    r"""
     Batch-wise harmonic mean of tensors in the positive semidefinite cone.
 
     The harmonic mean is computed as the matrix inverse of the Euclidean mean
     of matrix inverses:
 
-    :math:`\left(\frac{1}{N}\sum_{i=1}^N X_{i}^{-1}\right)^{-1}`
+    :math:`\bar{X} = \left(\frac{1}{N}\sum_{i=1}^N X_{i}^{-1}\right)^{-1}`
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, D, D)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      D denotes matrix row and column dimension
-    - Output: :math:`(*, D, D)`
+    :Dimension: **Input :** :math:`(N, *, D, D)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, D denotes matrix row and column
+                    dimension.
+                **Output :** :math:`(*, D, D)`
+                    As above.
 
     Parameters
     ----------
@@ -186,20 +197,20 @@ def mean_harm_spd(input, axis=0):
 
 
 def mean_logeuc_spd(input, axis=0):
-    """
+    r"""
     Batch-wise log-Euclidean mean of tensors in the positive semidefinite cone.
 
     The log-Euclidean mean is computed as the matrix exponential of the mean of
     matrix logarithms.
 
-    :math:`\exp_M \left(\frac{1}{N}\sum_{i=1}^N \log_M X_{i}\right)`
+    :math:`\bar{X} = \exp \left(\frac{1}{N}\sum_{i=1}^N \log X_{i}\right)`
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, D, D)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      D denotes matrix row and column dimension
-    - Output: :math:`(*, D, D)`
+    :Dimension: **Input :** :math:`(N, *, D, D)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, D denotes matrix row and column
+                    dimension.
+                **Output :** :math:`(*, D, D)`
+                    As above.
 
     Parameters
     ----------
@@ -217,7 +228,7 @@ def mean_logeuc_spd(input, axis=0):
 
 
 def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10, axis=0):
-    """
+    r"""
     Batch-wise geometric mean of tensors in the positive semidefinite cone.
 
     The geometric mean is computed via gradient descent along the geodesic on
@@ -238,12 +249,12 @@ def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10, axis=0):
        than a specified threshold, or when a maximum number of iterations has
        been attained.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, D, D)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      D denotes matrix row and column dimension
-    - Output: :math:`(*, D, D)`
+    :Dimension: **Input :** :math:`(N, *, D, D)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, D denotes matrix row and column
+                    dimension.
+                **Output :** :math:`(*, D, D)`
+                    As above.
 
     Parameters
     ----------
@@ -252,9 +263,10 @@ def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10, axis=0):
     recondition : float in [0, 1]
         Conditioning factor to promote positive definiteness. If this is in
         (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix.
+        of the input and an identity matrix (with the conditioning factor
+        :math:`\psi`).
 
-        :math:`\hat{X} = (1 - \psi) X + \psi I`
+        :math:`\bar{X} = \hat{X} = (1 - \psi) X + \psi I`
 
         A suitable value can be used to ensure that all eigenvalues are
         positive and therefore guarantee that the matrix is in the domain of

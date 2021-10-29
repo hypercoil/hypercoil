@@ -6,7 +6,7 @@ Smoothness
 ~~~~~~~~~~
 Penalise backwards differences to favour smoothness.
 """
-from torch import diff
+import torch
 from functools import partial
 from .norm import NormedRegularisation
 
@@ -14,7 +14,7 @@ from .norm import NormedRegularisation
 class SmoothnessPenalty(NormedRegularisation):
     def __init__(self, nu=1, axis=-1, prepend=None, append=None, norm=2):
         reg = partial(
-            diff, dim=axis, prepend=prepend, append=append
+            torch.diff, dim=axis, prepend=prepend, append=append
         )
         super(SmoothnessPenalty, self).__init__(nu=nu, p=norm, reg=reg)
 
