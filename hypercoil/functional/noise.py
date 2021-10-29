@@ -100,8 +100,8 @@ class _IIDSquareNoiseSource(_IIDNoiseSource):
     sampled noise additively into an existing tensor.
 
     Subclasses are responsible for implementing the correct `sample` method
-    that accepts a dimension argument. Currently there is a square matrix
-    input assumption in the `inject` method that future work might revise.
+    that accepts a dimension argument. For use when there is a square matrix
+    input assumption in the `inject` method.
 
     See also
     --------
@@ -243,8 +243,8 @@ class DiagonalNoiseSource(_IIDSquareNoiseSource):
     """
     Diagonal noise source.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     distr : torch.distributions object
         Distribution from which each element is sampled independently. If not
         specified, this defaults to the standard normal distribution.
@@ -293,11 +293,10 @@ class LowRankNoiseSource(_IIDNoiseSource):
     potentially very undesirable properties, particularly when the rank becomes
     larger.
 
-    Parameters/Attributes
-    ---------------------
-    distr : torch.distributions object
-        Distribution from which each element is sampled independently. If not
-        specified, this defaults to the standard normal distribution.
+    Parameters
+    ----------
+    var : torch.distributions object
+        Average variance across entries of the output matrix.
     rank : int or None (default None)
         Maximum rank of each sampled matrix; inner dimension of the positive
         semidefinite product. If this is less than the sampled dimension, the
@@ -308,12 +307,14 @@ class LowRankNoiseSource(_IIDNoiseSource):
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
     """
-    def __init__(self, distr=None, rank=None, training=True):
-        super(LowRankNoiseSource, self).__init__(distr, training)
+    def __init__(self, var=1, rank=None, training=True):
+        super(LowRankNoiseSource, self).__init__(
+            distr=None, training=training)
         self.rank = rank
+        self.var = var
 
     def sample(self, dim):
-        """
+        r"""
         Sample a random matrix :math:`K \in \mathbb{R}^{d \times r}` and
         computes the rank-r positive semidefinite product :math:`KK^\intercal`.
         For the outcome entries to have standard deviation near :math:`\sigma`,
@@ -321,11 +322,8 @@ class LowRankNoiseSource(_IIDNoiseSource):
 
         :math:`\mathcal{N}\left(0, \frac{\sigma}{\sqrt{r + \frac{r^2}{d}}}\right)`
 
-        The mean of this noise source is not exactly zero, but it trends toward
-        zero as the dimension d increases. TODO: revisit this later and work
-        out what is going on mathematically. Here's a start:
-        https://math.stackexchange.com/questions/101062/ ...
-        is-the-product-of-two-gaussian-random-variables-also-a-gaussian
+        The mean of this noise source is not exactly zero, but it trends
+        toward zero as the dimension d increases.
 
         Parameters
         ----------
@@ -335,20 +333,30 @@ class LowRankNoiseSource(_IIDNoiseSource):
         Returns
         -------
         output : Tensor
-            Block of symmetric, positive semidefinite matrices sampled from the
-            low-rank noise source.
+            Block of symmetric, positive semidefinite matrices sampled from
+            the low-rank noise source.
+
+        See also
+        --------
+        SPSDNoiseSource
+            Another way to sample noise from the cone of symmetric, positive
+            semidefinite matrices.
         """
+        #TODO: revisit this later and work out what is going on
+        # mathematically. Here's a start:
+        # https://math.stackexchange.com/questions/101062/ ...
+        # is-the-product-of-two-gaussian-random-variables-also-a-gaussian
         if self.training:
             rank = self.rank or dim[-1]
             noise = torch.empty((*dim, rank))
-            var = self.distr.scale / math.sqrt(rank + (rank ** 2) / dim[-1])
+            var = self.var / math.sqrt(rank + (rank ** 2) / dim[-1])
             noise.normal_(std=math.sqrt(var))
             return noise @ noise.transpose(-1, -2)
         else:
             return 0
 
 
-class SPSDNoiseSource(_IIDNoiseSource):
+class SPSDNoiseSource(_IIDSquareNoiseSource):
     """
     Symmetric positive semidefinite noise source.
 
@@ -358,8 +366,8 @@ class SPSDNoiseSource(_IIDNoiseSource):
     is recomposed. Note that due to numerical errors some extremely small
     negative eigenvalues can occur in the sampled matrix.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     distr : torch.distributions object
         Distribution from which each element is sampled independently. If not
         specified, this defaults to the standard normal distribution.
@@ -384,8 +392,7 @@ class SPSDNoiseSource(_IIDNoiseSource):
             noise source.
         """
         if self.training:
-            noise = torch.empty((*dim, dim[-1]))
-            noise.normal_()
+            noise = self.distr.sample((*dim, dim[-1])).squeeze(-1)
             sym = noise + noise.transpose(-1, -2)
             spd = torch.matrix_exp(sym)
             return spd / (spd.std() / self.distr.scale)
@@ -434,8 +441,8 @@ class DiagonalDropoutSource(_IIDSquareDropoutSource):
     """
     Diagonal dropout source.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     distr : torch.distributions object
         Distribution from which each element is sampled independently. If not
         specified, this defaults to an equiprobable Bernoulli distribution.
@@ -482,8 +489,8 @@ class BandDropoutSource(_IIDSquareDropoutSource):
     dropout mask by multiplying together the band mask with a dropout mask
     in which a random subset of rows and columns are zeroed.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     distr : torch.distributions object
         Distribution from which each element is sampled independently. If not
         specified, this defaults to an equiprobable Bernoulli distribution. For
@@ -570,8 +577,8 @@ class SPSDDropoutSource(_IIDSquareDropoutSource):
     potentially very undesirable properties. This will be revisited in the
     future to determine if a better source can be provided.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     distr : torch.distributions object
         Distribution from which each element is sampled independently. If not
         specified, this defaults to an equiprobable Bernoulli distribution. For
