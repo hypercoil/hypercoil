@@ -13,16 +13,19 @@ from .matrix import invert_spd
 def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     """
     Empirical covariance of variables in a tensor batch.
+
     Thanks to https://github.com/pytorch/pytorch/issues/19037 for a more
     complete implementation.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, C, obs)` or :math:`(N, *, obs, C)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C denotes number of data channels or variables to be correlated
-    - Weight: :math:`(obs)` or :math:`(obs, obs)`
-    - Output: :math:`(N, *, C, C)`
+    :Dimension: **Input :** :math:`(N, *, C, obs)` or :math:`(N, *, obs, C)`
+                    N denotes batch size, `*` denotes any number of
+                    intervening dimensions, C denotes number of data channels
+                    or variables to be correlated, obs denotes number of
+                    observations per channel
+                **Weight :** :math:`(obs)` or :math:`(obs, obs)`
+                    As above
+                **Output :** :math:`(N, *, C, C)`
+                    As above
 
     Parameters
     ----------
@@ -52,14 +55,14 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
         off-diagonal entries indicate coupling factors. For instance, a banded
         or multi-diagonal tensor can be used to specify inter-temporal coupling
         for a time series covariance.
-    l2: nonnegative float (default 0)
+    l2 : nonnegative float (default 0)
         L2 regularisation term to add to the maximum likelihood estimate of the
         covariance matrix. This can be set to a positive value to obtain an
         intermediate for estimating the regularised inverse covariance.
 
     Returns
     -------
-    sigma: Tensor
+    sigma : Tensor
         Empirical covariance matrix of the variables in the input tensor.
 
     See also
@@ -88,7 +91,9 @@ def corr(X, **params):
     r"""
     Pearson correlation of variables in a tensor batch.
 
-    Consult the `cov` documentation for complete parameter characteristics.
+    Consult the :func:`cov` documentation for complete parameter
+    characteristics.
+
     The correlation is obtained via normalisation of the covariance. Given a
     covariance matrix :math:`\hat{\Sigma} \in \mathbb{R}^{n \times n}`, each
     entry of the correlation matrix :math:`R \in \mathbb{R}^{n \times n}` is
@@ -105,11 +110,13 @@ def partialcov(X, **params):
     """
     Partial covariance of variables in a tensor batch.
 
-    Consult the `cov` documentation for complete parameter characteristics. The
-    partial covariance is obtained by conditioning the covariance of each pair
-    of variables on all other observed variables. It can be interpreted as a
-    measurement of the direct relationship between each variable pair. The
-    partial covariance is computed via inversion of the covariance matrix,
+    Consult the :func:`cov` documentation for complete parameter
+    characteristics.
+
+    The partial covariance is obtained by conditioning the covariance of each
+    pair of variables on all other observed variables. It can be interpreted
+    as a measurement of the direct relationship between each variable pair.
+    The partial covariance is computed via inversion of the covariance matrix,
     followed by negation of off-diagonal entries.
     """
     omega = precision(X, **params)
@@ -123,13 +130,14 @@ def partialcorr(X, **params):
     """
     Partial Pearson correlation of variables in a tensor batch.
 
-    Consult the `cov` documentation for complete parameter characteristics. The
-    partial correlation is obtained by conditioning the covariance of each pair
-    of variables on all other observed variables. It can be interpreted as a
-    measurement of the direct relationship between each variable pair. The
-    partial correlation is efficiently computed via successive inversion and
-    normalisation of the covariance matrix, accompanied by negation of off-
-    diagonal entries.
+    Consult the :func:`cov` documentation for complete parameter characteristics.
+
+    The partial correlation is obtained by conditioning the covariance of each
+    pair of variables on all other observed variables. It can be interpreted
+    as a measurement of the direct relationship between each variable pair.
+    The partial correlation is efficiently computed via successive inversion
+    and normalisation of the covariance matrix, accompanied by negation of
+    off-diagonal entries.
     """
     omega = partialcov(X, **params)
     fact = corrnorm(omega)
@@ -143,18 +151,18 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     This function does not offer any performance improvement relative to
     computing the complete covariance matrix of all variables.
 
-    Dimension
-    ---------
-    - Input X: :math:`(N, *, C_X, obs)` or :math:`(N, *, obs, C_X)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C_X denotes number of data channels or variables to be correlated with
-      those in input Y
-    - Input Y: :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C_Y denotes number of data channels or variables to be correlated with
-      those in input X
-    - Weight: :math:`(obs)` or :math:`(obs, obs)`
-    - Output: :math:`(N, *, C_X, C_Y)`
+    :Dimension: **Input X:** :math:`(N, *, C_X, obs)` or :math:`(N, *, obs, C_X)`
+                    N denotes batch size, `*` denotes any number of
+                    intervening dimensions, :math:`C_X` denotes number of data
+                    channels or variables to be correlated, obs denotes number
+                    of observations per channel
+                **Input Y:** :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
+                    :math:`C_Y` denotes number of data channels or variables
+                    to be correlated
+                **Weight :** :math:`(obs)` or :math:`(obs, obs)`
+                    As above
+                **Output :** :math:`(N, *, C_X, C_Y)`
+                    As above
 
     Parameters
     ----------
@@ -164,9 +172,10 @@ def pairedcov(X, Y, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
         the penultimate axis corresponds to a data channel or more generally a
         variable.
     rowvar, bias, ddof, weight
-        Consult the `cov` documentation for complete parameter characteristics.
+        Consult the :func:`cov` documentation for complete parameter
+        characteristics.
     l2
-        Has no effect. Included for conformance with `cov`.
+        Has no effect. Included for conformance with :func:`cov`.
     """
     X = _prepare_input(X, rowvar)
     Y = _prepare_input(Y, rowvar)
@@ -188,7 +197,9 @@ def pairedcorr(X, Y, **params):
     r"""
     Empirical Pearson correlation between variables in two tensor batches.
 
-    Consult the `pairedcov`documentation for complete parameter details.
+    Consult the :func:`pairedcov` documentation for complete parameter
+    details.
+
     The empirical paired correlation is obtained via normalisation of the
     paired covariance. Given a paired covariance matrix
     :math:`\hat{\Sigma} \in \mathbb{R}^{n \times n}`, each entry of the
@@ -211,7 +222,7 @@ def conditionalcov(X, Y, **params):
     computed from the covariance A of X , the covariance C of Y, and the
     covariance B between X and Y. It is defined as the Schur complement of C:
 
-    :math:`\widetilde{Sigma} = A - B C^{-1} B^\intercal`
+    :math:`\widetilde{\Sigma} = A - B C^{-1} B^\intercal`
 
     The conditional covariance is equivalent to the covariance of the first set
     of variables after residualising them with respect to the second set of
@@ -219,16 +230,18 @@ def conditionalcov(X, Y, **params):
     covariance of variables of interest (the first set) after controlling for
     the effects of confounds or nuisance variables (the second set).
 
-    Dimension
-    ---------
-    - Input X: :math:`(N, *, C_X, obs)` or :math:`(N, *, obs, C_X)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C_X denotes number of data channels or variables
-    - Input Y: :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C_Y denotes number of data channels or variables
-    - Weight: :math:`(obs)` or :math:`(obs, obs)`
-    - Output: :math:`(N, *, C_X, C_X)`
+    :Dimension: **Input X :** :math:`(N, *, C_X, obs)` or :math:`(N, *, obs, C_X)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, :math:`C_X` denotes number of data
+                    channels or variables to be correlated, obs denotes number
+                    of observations per channel
+                **Input Y :** :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
+                    :math:`C_Y` denotes number of data channels or variables
+                    to be conditioned on
+                **Weight :** :math:`(obs)` or :math:`(obs, obs)`
+                    As above
+                **Output :** :math:`(N, *, C_X, C_X)`
+                    As above
 
     Parameters
     ----------
@@ -245,11 +258,12 @@ def conditionalcov(X, Y, **params):
         slice along the penultimate axis corresponds to a data channel or more
         generally a variable.
     rowvar, bias, ddof, weight, l2
-        Consult the `cov` documentation for complete parameter characteristics.
+        Consult the :func:`cov` documentation for complete parameter
+        characteristics.
 
     Returns
     -------
-    sigma: Tensor
+    sigma : Tensor
         Conditional empirical covariance matrix of the variables in input
         tensor X conditioned on the variables in input tensor Y.
 
@@ -268,9 +282,11 @@ def conditionalcorr(X, Y, **params):
     r"""
     Conditional Pearson correlation of variables in a tensor batch.
 
-    Consult the `conditionalcov` and `cov` documentation for complete parameter
-    characteristics. The conditional correlation is obtained via normalisation
-    of the conditional covariance. Given a conditional covariance matrix
+    Consult the :func:`conditionalcov` documentation for complete parameter
+    characteristics.
+
+    The conditional correlation is obtained via normalisation of the
+    conditional covariance. Given a conditional covariance matrix
     :math:`\hat{\Sigma} \in \mathbb{R}^{n \times n}`, each entry of the
     conditional correlation matrix :math:`R \in \mathbb{R}^{n \times n}`
     is defined according to
@@ -288,7 +304,7 @@ def precision(X, **params):
 
     The precision matrix is the inverse of the covariance matrix. Parameters
     available for covariance estimation are thus also available for precision
-    estimation. Consult the `cov` documentation for complete parameter
+    estimation. Consult the :func:`cov` documentation for complete parameter
     characteristics.
     """
     sigma = cov(X, **params)
@@ -316,32 +332,32 @@ def corrnorm(A):
 
 
 def covariance(*pparams, **params):
-    """Alias for `cov`."""
+    """Alias for :func:`cov`."""
     return cov(*pparams, **params)
 
 
 def correlation(*pparams, **params):
-    """Alias for `corr`."""
+    """Alias for :func:`corr`."""
     return corr(*pparams, **params)
 
 
 def corrcoef(*pparams, **params):
-    """Alias for `corr`."""
+    """Alias for :func:`corr`."""
     return corr(*pparams, **params)
 
 
 def pcorr(*pparams, **params):
-    """Alias for `partialcorr`."""
+    """Alias for :func:`partialcorr`."""
     return partialcorr(*pparams, **params)
 
 
 def ccov(*pparams, **params):
-    """Alias for `conditionalcov`."""
+    """Alias for :func:`conditionalcov`."""
     return conditionalcov(*pparams, **params)
 
 
 def ccorr(*pparams, **params):
-    """Alias for `conditionalcorr`."""
+    """Alias for :func:`conditionalcorr`."""
     return conditionalcorr(*pparams, **params)
 
 

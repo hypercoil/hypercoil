@@ -19,8 +19,8 @@ class Atanh(_Domain):
     Hyperbolic tangent domain mapper. Constrain tensor values between some
     finite scale value and its negation.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     scale : float (default 1)
         Maximum/minimum value attained by the hyperbolic tangent map. Scale
         factor applied to the image. The multiplicative inverse (reciprocal)
@@ -47,8 +47,8 @@ class AmplitudeAtanh(_PhaseAmplitudeDomain, Atanh):
     Hyperbolic tangent amplitude domain mapper. Constrain the amplitudes of a
     complex-valued tensor between zero and some finite scale value.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     scale : float (default 1)
         Maximum/minimum value attained by the hyperbolic tangent map. Scale
         factor applied to the image. The multiplicative inverse (reciprocal)
@@ -72,8 +72,8 @@ class Logit(_Domain):
     Logistic/sigmoid domain mapper. Constrain tensor values between 0 and some
     finite scale value.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     scale : float (default 1)
         Maximum value attainable by the logistic map. Scale factor applied to
         the image. The multiplicative inverse (reciprocal) is applied before
@@ -107,8 +107,8 @@ class MultiLogit(_Domain):
     as an 'inverse'. For a relatively well-behaved map, use together with
     init.dirichlet.DirichletInit
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     axis : int (default -1)
         Axis of tensors in the domain along which 1D slices are mapped to the
         probability simplex.
@@ -139,8 +139,8 @@ class AmplitudeMultiLogit(_PhaseAmplitudeDomain, MultiLogit):
     softmax function does not have a unique inverse; here we use the
     elementwise natural logarithm as an 'inverse'.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     axis : int (default -1)
         Axis of tensors in the domain along which 1D slices are mapped to the
         probability simplex.
@@ -167,8 +167,8 @@ class NullOptionMultiLogit(_Domain):
     inverse; the `preimage_map` should really only be used for initialising
     weights in this domain.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     axis : int (default -1)
         Axis of tensors in the domain along which 1D slices are mapped to the
         probability simplex.
@@ -230,8 +230,8 @@ class ANOML(_PhaseAmplitudeDomain, NullOptionMultiLogit):
     close to having a unique inverse; the `preimage_map` should really only
     be used for initialising weights in this domain.
 
-    Parameters/Attributes
-    ---------------------
+    Parameters
+    ----------
     axis : int (default -1)
         Axis of tensors in the domain along which 1D slices are mapped to the
         probability simplex.

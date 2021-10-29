@@ -53,41 +53,41 @@ class TangentProject(_TangentProject):
     At initialisation, a data sample is required to set the point of tangency.
     In particular, the tangency point is initialised as a mean of the dataset,
     which can be the standard Euclidean mean or a measure of central tendency
-    specifically created for positive semidefinite matrices. Data transported
+    specifically derived for positive semidefinite matrices. Data transported
     through the module is projected from the positive semidefinite cone into a
     proper subspace tangent to the cone at the reference point which is the
     module weight. Given a tangency point :math:`\Omega`, each input
     :math:`\Theta` is projected as:
 
-    :math:`\bar{\Theta} = \log_M \Omega^{-1/2} \Theta \Omega^{-1/2}`
+    :math:`\vec{\Theta} = \log \Omega^{-1/2} \Theta \Omega^{-1/2}`
 
     Alternatively, the module destination can be set to the semidefinite cone,
-    in which case symmetric matrices are projected into the cone using the same
-    reference point:
+    in which case symmetric matrices are projected into the cone using the
+    same reference point:
 
-    :math:`\bar{\Theta} = \Omega^{1/2} \exp_M \Theta \Omega^{1/2}`
+    :math:`\Theta = \Omega^{1/2} \exp \vec{\Theta} \Omega^{1/2}`
 
     From initialisation, the tangency point can be learned to optimise any
     differentiable loss.
 
-    Dimension
-    ---------
-    - Input: :math:`(*, N, N)`
-      `*` denotes any number of preceding dimensions and N denotes the size of
-      each square symmetric matrix.
-    - Output: :math:`(*, C, N, N)`
-      C denotes the number of output channels (points of tangency).
+    :Dimension: **Input :** :math:`(*, N, N)`
+                    ``*`` denotes any number of preceding dimensions and N
+                    denotes the size of each square symmetric matrix.
+                **Output :** :math:`(*, C, N, N)`
+                    C denotes the number of output channels (points of
+                    tangency).
 
     Parameters
     ----------
     init_data : Tensor
         Data sample whose central tendency initialises the reference point of
         tangency.
-    mean_specs : list(_SemidefiniteMean object)
+    mean_specs : list(`_SemidefiniteMean` object)
         Objects encoding a measure of central tendency in the positive
-        semidefinite cone. Used to initialise the reference points of tangency.
+        semidefinite cone. Used to initialise the reference points of
+        tangency.
     recondition : float in [0, 1]
-        Conditioning factor :math:`psi` to promote positive definiteness. If
+        Conditioning factor :math:`\psi` to promote positive definiteness. If
         this is in (0, 1], the original input will be replaced with a convex
         combination of the input and an identity matrix.
 
@@ -97,16 +97,16 @@ class TangentProject(_TangentProject):
         positive and therefore guarantee that the matrix is in the domain.
     std : float
         Standard deviation of the positive semidefinite noise added to each
-        channel of the weight matrix. This can be used to ensure that different
-        channels initialised from the same mean receive different gradients
-        and differentiate from one another.
+        channel of the weight matrix. This can be used to ensure that
+        different channels initialised from the same mean receive different
+        gradients and differentiate from one another.
 
     Attributes
     ----------
     weight : Tensor :math:`(*, C, N, N)`
-        Reference point of tangency for the projection between the semidefinite
-        cone and a tangent subspace.
-    dest : `tangent` or `cone`
+        Reference point of tangency for the projection between the
+        semidefinite cone and a tangent subspace.
+    dest : ``'tangent'`` or ``'cone'``
         Target space/manifold of the projection operation.
     """
     def __init__(self, init_data, mean_specs=None, recondition=0, std=0):
@@ -140,38 +140,42 @@ class BatchTangentProject(_TangentProject):
     reference point. Given a tangency point :math:`\Omega`, each input
     :math:`\Theta` is projected as:
 
-    :math:`\bar{\Theta} = \log_M \Omega^{-1/2} \Theta \Omega^{-1/2}`
+    :math:`\vec{\Theta} = \log \Omega^{-1/2} \Theta \Omega^{-1/2}`
 
     Alternatively, the module destination can be set to the semidefinite cone,
-    in which case symmetric matrices are projected into the cone using the same
-    reference point:
+    in which case symmetric matrices are projected into the cone using the
+    same reference point:
 
-    :math:`\bar{\Theta} = \Omega^{1/2} \exp_M \Theta \Omega^{1/2}`
+    :math:`\Theta = \Omega^{1/2} \exp \vec{\Theta} \Omega^{1/2}`
 
     Here, the tangency point is computed as a convex combination of the
-    previous tangency point and some measure of central tendency in the current
-    data batch. The tangency point is *not* learnable. This module is almost
-    definitely a bad idea, but it might somehow be helpful for regularisation,
-    augmentation, or increasing the model's robustness to different views on
-    the input data.
+    previous tangency point and some measure of central tendency in the
+    current data batch. The tangency point is *not* learnable. This module is
+    almost definitely a bad idea, but it might somehow be helpful for
+    regularisation, augmentation, or increasing the model's robustness to
+    different views on the input data.
 
-    The weight is updated ONLY during projection into tangent space.
+    The weight is updated ONLY during projection into tangent space. Given an
+    inertial parameter :math:`\eta` and a measure of central tendency
+    :math:`\bar{\Theta}`, the weight is updated as
 
-    Dimension
-    ---------
-    - Input: :math:`(*, N, N)`
-      `*` denotes any number of preceding dimensions and N denotes the size of
-      each square symmetric matrix.
-    - Output: :math:`(*, C, N, N)`
-      C denotes the number of output channels (points of tangency).
+    :math:`\Omega_t := \eta \Omega_{t-1} + (1 - \eta) \bar{\Theta}`
+
+    :Dimension: **Input :** :math:`(*, N, N)`
+                    ``*`` denotes any number of preceding dimensions and N
+                    denotes the size of each square symmetric matrix.
+                **Output :** :math:`(*, C, N, N)`
+                    C denotes the number of output channels (points of
+                    tangency).
 
     Parameters
     ----------
     mean_specs : list(_SemidefiniteMean object)
         Objects encoding a measure of central tendency in the positive
-        semidefinite cone. Used to initialise the reference points of tangency.
+        semidefinite cone. Used to initialise the reference points of
+        tangency.
     recondition : float in [0, 1]
-        Conditioning factor :math:`psi` to promote positive definiteness. If
+        Conditioning factor :math:`\psi` to promote positive definiteness. If
         this is in (0, 1], the original input will be replaced with a convex
         combination of the input and an identity matrix.
 
@@ -180,17 +184,17 @@ class BatchTangentProject(_TangentProject):
         A suitable value can be used to ensure that all eigenvalues are
         positive and therefore guarantee that the matrix is in the domain.
     inertia : float in [0, 1]
-        Parameter describing the relative weighting of the historical tangency
-        point and the current batch mean. Zero inertia strictly uses the
-        current batch mean. High inertia prevents the tangency point from
-        skipping by heavily weighting the history.
+        Parameter :math:`\eta` describing the relative weighting of the
+        historical tangencypoint and the current batch mean. Zero inertia
+        strictly uses the current batch mean. High inertia prevents the
+        tangency point from skipping by heavily weighting the history.
 
     Attributes
     ----------
     weight : Tensor :math:`(*, C, N, N)`
-        Current reference point of tangency for the projection between the
-        semidefinite cone and a tangent subspace.
-    dest : `tangent` or `cone`
+        Current reference point of tangency :math:`\Omega` for the projection
+        between the semidefinite cone and a tangent subspace.
+    dest : ``'tangent'`` or ``'cone'``
         Target space/manifold of the projection operation.
     """
     def __init__(self, mean_specs=None, recondition=0, inertia=0):
@@ -199,10 +203,21 @@ class BatchTangentProject(_TangentProject):
         self.weight = None
 
     def forward(self, input, dest=None):
+        """
+        Project a batch of matrices into the destination manifold, updating
+        the weight (reference point for projection) if the destination is a
+        tangent subspace.
+
+        If no `dest` parameter is provided, then the destination manifold will
+        be set to
+        """
+        dest = dest or self.dest
         if dest != 'cone':
             weight = mean_block_spd(self.mean_specs, input)
             if self.weight is None:
                 self.weight = weight.detach()
+            #TODO: rather than a simple convex combination, use the module's
+            # assigned mean.
             self.weight = (
                 self.inertia * self.weight + (1 - self.inertia) * weight
             ).detach()

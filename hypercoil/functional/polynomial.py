@@ -11,24 +11,25 @@ import torch
 
 def polyconv2d(X, weight, include_const=False, bias=None,
                padding=None, **params):
-    """
+    r"""
     Perform convolution using a polynomial channel basis.
 
     Convolution using a kernel whose ith input channel views the input dataset
     raised to the ith power.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, C, obs)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C denotes number of data channels or variables, obs denotes number of
-      observations
-    - Weight: :math:`(C_o, K, *, C\ \mathrm{or}\ 1, R)`
-      C_o denotes number of output channels, K denotes number of input channels
-      (equivalent to the maximum degree of the polynomial), `*` denotes any
-      number of intervening dimensions, C denotes number of data channels or
-      variables, and R < obs denotes the number of observations viewed at once
-    - Output: :math:`(N, C_o *, C, obs)`
+    :Dimension: **Input :** :math:`(N, *, C, obs)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, C denotes number of data channels
+                    or variables, obs denotes number of observations per
+                    channel.
+                **Weight :** :math:`(C_o, K, *, C\ \mathrm{or}\ 1, R)`
+                    :math:`C_o` denotes number of output channels, K denotes
+                    number of input channels (equivalent to the maximum degree
+                    of the polynomial), and R < obs denotes the number of
+                    observations viewed at once (i.e., in a single convolutional
+                    window)
+                **Output :** :math:`(N, C_o, *, C, obs)`
+                    As above.
 
     Parameters
     ----------
@@ -60,7 +61,8 @@ def polyconv2d(X, weight, include_const=False, bias=None,
         Padding for convolution, as for `torch.conv2d`. If not explicitly
         specified, this will default to 'time series' padding: no padding in
         the penultimate axis, and R // 2 in the final axis.
-    Additional parameters can be passed to `torch.conv2d`.
+    **params
+        Additional parameters can be passed to `torch.conv2d`.
 
     Returns
     -------
@@ -74,11 +76,19 @@ def polyconv2d(X, weight, include_const=False, bias=None,
 
 
 def polychan(X, degree=2, include_const=False):
-    """
+    r"""
     Create a polynomial channel basis for the data.
 
     Single-channel data are mapped across K channels, and raised to the ith
     power at the ith channel.
+
+    :Dimension: **Input :** :math:`(N, *, C, obs)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, C denotes number of data channels
+                    or variables, obs denotes number of observations per
+                    channel.
+                **Output :** :math:`(N, K, *, C, obs)`
+                    K denotes maximum polynomial degree to include
 
     Dimension
     ---------

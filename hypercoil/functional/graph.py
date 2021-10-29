@@ -10,7 +10,7 @@ import torch
 
 
 def girvan_newman_null(A):
-    """
+    r"""
     Girvan-Newman null model for a tensor block.
 
     The Girvan-Newman null model is defined as the expected connection weight
@@ -26,14 +26,14 @@ def girvan_newman_null(A):
 
     :math:`P_{GN} = \frac{1}{\mathbf{1}^\intercal A \mathbf{1}} A \mathbf{1} \mathbf{1}^\intercal A`
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, I, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      I denotes number of vertices in the source set and O denotes number of
-      vertices in the sink set. If the same set of vertices emits and receives
-      edges, then :math:`I = O`.
-    - Output: :math:`(N, *, I, O)`
+    :Dimension: **Input :** :math:`(N, *, I, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, I denotes number of vertices in
+                    the source set and O denotes number of vertices in the
+                    sink set. If the same set of vertices emits and receives
+                    edges, then :math:`I = O`.
+                **Output :** :math:`(N, *, I, O)`
+                    As above.
 
     Parameters
     ----------
@@ -55,7 +55,7 @@ def girvan_newman_null(A):
 
 def modularity_matrix(A, gamma=1, null=girvan_newman_null,
                       normalise=False, **params):
-    """
+    r"""
     Modularity matrices for a tensor block.
 
     The modularity matrix is defined as a normalised, weighted difference
@@ -65,14 +65,14 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
 
     :math:`B = \frac{1}{2m} \left( A - \gamma P \right)`
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, I, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      I denotes number of vertices in the source set and O denotes number of
-      vertices in the sink set. If the same set of vertices emits and receives
-      edges, then :math:`I = O`.
-    - Output: :math:`(N, *, I, O)`
+    :Dimension: **Input :** :math:`(N, *, I, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, I denotes number of vertices in
+                    the source set and O denotes number of vertices in the
+                    sink set. If the same set of vertices emits and receives
+                    edges, then :math:`I = O`.
+                **Output :** :math:`(N, *, I, O)`
+                    As above.
 
     Parameters
     ----------
@@ -92,7 +92,8 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
         matrix degree. This may not be necessary for many use cases -- for
         instance, where the arg max of a function of the modularity matrix is
         desired.
-    Any additional parameters are passed to the null model.
+    **params
+        Any additional parameters are passed to the null model.
 
     Returns
     -------
@@ -112,7 +113,7 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
 
 
 def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True):
-    """
+    r"""
     Coaffiliation of vertices under a community structure.
 
     Given community affiliation matrices
@@ -124,16 +125,18 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True):
 
     :math:`H = C^{(i)} \Omega C^{(o)\intercal}`
 
-    Dimension
-    ---------
-    - C_i: :math:`(*, I, C)`
-      `*` denotes any number of intervening dimensions, I denotes number of
-      vertices in the source set, and C denotes the total number of communities
-      in the proposed partition.
-    - C_o: :math:`(*, O, C)`
-      O denotes number of vertices in the sink set. If the same set of vertices
-      emits and receives edges, then :math:`I = O`.
-    - L: :math:`(*, C, C)`
+    :Dimension: **C_i :** :math:`(*, I, C)`
+                    `*` denotes any number of preceding dimensions, I denotes
+                    number of vertices in the source set, and C denotes the
+                    total number of communities in the proposed partition.
+                **C_o :** :math:`(*, I, C)`
+                    O denotes number of vertices in the sink set. If the same
+                    set of vertices emits and receives edges, then
+                    :math:`I = O`.
+                **L :** :math:`(*, C, C)`
+                    As above.
+                **Output :** :math:`(*, I, O)`
+                    As above.
 
     Parameters
     ----------
@@ -176,31 +179,34 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True):
 def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
                        null=girvan_newman_null, normalise=True, directed=False,
                        **params):
-    """
+    r"""
     A relaxation of the modularity of a network given a community partition.
 
     This relaxation supports non-deterministic assignments of vertices to
-    communities and non-assortative linkages between communities. It reverts to
-    standard behaviour when the inputs it is provided are standard.
+    communities and non-assortative linkages between communities. It reverts
+    to standard behaviour when the inputs it is provided are standard.
 
-    The relaxed modularity is defined as the sum of all entries in the Hadamard
-    (elementwise) product between the modularity matrix and the coaffiliation
-    matrix.
+    The relaxed modularity is defined as the sum of all entries in the
+    Hadamard (elementwise) product between the modularity matrix and the
+    coaffiliation matrix.
 
     :math:`Q = \mathbf{1}^\intercal \left( B \circ H \right) \mathbf{1}`
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, I, O)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      I denotes number of vertices in the source set and O denotes number of
-      vertices in the sink set. If the same set of vertices emits and receives
-      edges, then :math:`I = O`.
-    - C: :math:`(*, I, C)`
-      C denotes the total number of communities in the proposed partition.
-    - C_o: :math:`(*, O, C)`
-    - L: :math:`(*, C, C)`
-    - Output: :math:`(N, *)`
+    :Dimension: **Input :** :math:`(N, *, I, O)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, I denotes number of vertices in
+                    the source set and O denotes number of vertices in the
+                    sink set. If the same set of vertices emits and receives
+                    edges, then :math:`I = O`.
+                **C :** :math:`(*, I, C)`
+                    C denotes the total number of communities in the proposed
+                    partition.
+                **C_o :** :math:`(*, I, C)`
+                    As above.
+                **L :** :math:`(*, C, C)`
+                    As above.
+                **Output :** :math:`(N, *)`
+                    As above.
 
     Parameters
     ----------
@@ -241,7 +247,8 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
     directed : bool (default False)
         Indicates that the input adjacency matrices should be considered as a
         directed graph.
-    Any additional parameters are passed to the null model.
+    **params
+        Any additional parameters are passed to the null model.
 
     Returns
     -------

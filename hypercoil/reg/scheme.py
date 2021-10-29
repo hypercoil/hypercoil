@@ -6,7 +6,7 @@ Regularisation scheme
 ~~~~~~~~~~~~~~~~~~~~~
 Module for additively applying a set of several regularisations to a tensor.
 """
-from torch import tensor, diff, norm as pnorm
+import torch
 from torch.nn import Module
 
 
@@ -39,12 +39,14 @@ class RegularisationScheme(Module):
         return f'RegularisationScheme({s}\n)'
 
     def _listify(self, x):
+        if x is None:
+            return None
         if not isinstance(x, list):
             return list(x)
         return x
 
     def forward(self, weight):
-        losses = tensor(0., requires_grad=True)
+        losses = torch.tensor(0., requires_grad=True)
         for r in self:
             losses = losses + r(weight)
         return losses

@@ -10,16 +10,17 @@ import torch.fft
 
 
 def product_filter(X, weight, **params):
-    """
+    r"""
     Convolve a multivariate signal via multiplication in the frequency domain.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, obs)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      obs denotes number of observations
-    - Weight: :math:`(*, \left\lfloor \frac{obs}{2} \right\rfloor + 1)`
-    - Output: :math:`(N, *, 2 \left\lfloor \frac{obs}{2} \right\rfloor )`
+    :Dimension: **Input :** :math:`(N, *, obs)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, obs denotes number of observations
+                    per data channel.
+                **Weight :** :math:`(*, \left\lfloor \frac{obs}{2} \right\rfloor + 1)`
+                    As above.
+                **Output :** :math:`(N, *, 2 \left\lfloor \frac{obs}{2} \right\rfloor )`
+                    As above.
 
     Parameters
     ----------
@@ -31,8 +32,9 @@ def product_filter(X, weight, **params):
         high along the last axis. Dimensions before the last can be used to
         apply different filters to different variables in the input signal
         according to tensor broadcasting rules.
-    Any additional parameters provided will be passed to `torch.fft.rfft` and
-        `torch.fft.irfft`.
+    **params
+        Any additional parameters provided will be passed to `torch.fft.rfft`
+        and `torch.fft.irfft`.
 
     Returns
     -------
@@ -47,7 +49,7 @@ def product_filter(X, weight, **params):
 
 
 def product_filtfilt(X, weight, **params):
-    """
+    r"""
     Perform zero-phase digital filtering of a signal via multiplication in the
     frequency domain.
 
@@ -60,13 +62,14 @@ def product_filtfilt(X, weight, **params):
     depending on the context. (The gradient could still have an imaginary
     component.)
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, obs)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      obs denotes number of observations
-    - Weight: :math:`(*, \left\lfloor \frac{obs}{2} \right\rfloor + 1)`
-    - Output: :math:`(N, *, 2 \left\lfloor \frac{obs}{2} \right\rfloor )`
+    :Dimension: **Input :** :math:`(N, *, obs)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, obs denotes number of observations
+                    per data channel.
+                **Weight :** :math:`(*, \left\lfloor \frac{obs}{2} \right\rfloor + 1)`
+                    As above.
+                **Output :** :math:`(N, *, 2 \left\lfloor \frac{obs}{2} \right\rfloor )`
+                    As above.
 
     Parameters
     ----------
@@ -78,7 +81,8 @@ def product_filtfilt(X, weight, **params):
         high along the last axis. Dimensions before the last can be used to
         apply different filters to different variables in the input signal
         according to tensor broadcasting rules.
-    Any additional parameters provided will be passed to `torch.fft.rfft` and
+    **params
+        Any additional parameters provided will be passed to `torch.fft.rfft` and
         `torch.fft.irfft`.
 
     Returns

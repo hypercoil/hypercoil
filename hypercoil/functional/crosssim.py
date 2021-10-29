@@ -23,15 +23,15 @@ def crosshair_similarity(X, W):
     Note that each output slice of this procedure is often a matrix
     approximately of rank 1 (first singular value will dominate variance).
 
-    Dimension
-    ---------
-    - X: :math:`(N, *, C_{in}, H, W)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_{in}` denotes number of input data channels, H and W denote
-      height and width of each input matrix.
-    - W: :math:`(*, C_{out}, C_{in}, H, W)`
-      :math:`C_{out}` denotes number of output data channels.
-    - Output: :math:`(N, *, C_{out}, H, W)`
+    :Dimension: **X :** :math:`(N, *, C_{in}, H, W)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, :math:`C_{in}` denotes number of
+                    input data channels, H and W denote height and width of
+                    each input matrix.
+                **W :** :math:`(*, C_{out}, C_{in}, H, W)`
+                    :math:`C_{out}` denotes number of output data channels.
+                **Output :** :math:`(N, *, C_{out}, H, W)`
+                    As above.
 
     Parameters
     ----------
@@ -64,15 +64,15 @@ def crosshair_cosine_similarity(X, W):
     Note that each output slice of this procedure is often a matrix
     approximately of rank 1 (first singular value will dominate variance).
 
-    Dimension
-    ---------
-    - X: :math:`(N, *, C_{in}, H, W)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_{in}` denotes number of input data channels, H and W denote
-      height and width of each input matrix.
-    - W: :math:`(C_{out}, C_{in}, H, W)`
-      :math:`C_{out}` denotes number of output data channels.
-    - Output: :math:`(N, *, C_{out}, H, W)`
+    :Dimension: **X :** :math:`(N, *, C_{in}, H, W)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, :math:`C_{in}` denotes number of
+                    input data channels, H and W denote height and width of
+                    each input matrix.
+                **W :** :math:`(C_{out}, C_{in}, H, W)`
+                    :math:`C_{out}` denotes number of output data channels.
+                **Output :** :math:`(N, *, C_{out}, H, W)`
+                    As above.
 
     Parameters
     ----------
@@ -108,15 +108,15 @@ def crosshair_l1_similarity(X, W):
     Note that each output slice of this procedure is often a matrix
     approximately of rank 1 (first singular value will dominate variance).
 
-    Dimension
-    ---------
-    - X: :math:`(N, *, C_{in}, H, W)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_{in}` denotes number of input data channels, H and W denote
-      height and width of each input matrix.
-    - W: :math:`(C_{out}, C_{in}, H, W)`
-      :math:`C_{out}` denotes number of output data channels.
-    - Output: :math:`(N, *, C_{out}, H, W)`
+    :Dimension: **X :** :math:`(N, *, C_{in}, H, W)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, :math:`C_{in}` denotes number of
+                    input data channels, H and W denote height and width of
+                    each input matrix.
+                **W :** :math:`(C_{out}, C_{in}, H, W)`
+                    :math:`C_{out}` denotes number of output data channels.
+                **Output :** :math:`(N, *, C_{out}, H, W)`
+                    As above.
 
     Parameters
     ----------
@@ -150,15 +150,15 @@ def crosshair_l2_similarity(X, W):
     Note that each output slice of this procedure is often a matrix
     approximately of rank 1 (first singular value will dominate variance).
 
-    Dimension
-    ---------
-    - X: :math:`(N, *, C_{in}, H, W)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      :math:`C_{in}` denotes number of input data channels, H and W denote
-      height and width of each input matrix.
-    - W: :math:`(C_{out}, C_{in}, H, W)`
-      :math:`C_{out}` denotes number of output data channels.
-    - Output: :math:`(N, *, C_{out}, H, W)`
+    :Dimension: **X :** :math:`(N, *, C_{in}, H, W)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, :math:`C_{in}` denotes number of
+                    input data channels, H and W denote height and width of
+                    each input matrix.
+                **W :** :math:`(C_{out}, C_{in}, H, W)`
+                    :math:`C_{out}` denotes number of output data channels.
+                **Output :** :math:`(N, *, C_{out}, H, W)`
+                    As above.
 
     Parameters
     ----------

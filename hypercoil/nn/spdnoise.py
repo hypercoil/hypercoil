@@ -23,12 +23,11 @@ class SPDNoise(Module):
     also positive semidefinite. The addition of noise is optionally followed by
     a renormalisation.
 
-    Dimension
-    ---------
-    - Input: :math:`(*, N, N)`
-      `*` denotes any number of preceding dimensions and N denotes the size of
-      each square matrix.
-    - Output: :math:`(*, N, N)`
+    :Dimension: **Input :** :math:`(*, N, N)`
+                    ``*`` denotes any number of preceding dimensions and N
+                    denotes the size of each square matrix.
+                **Output :** :math:`(*, N, N)`
+                    As above.
 
     Parameters
     ----------
@@ -55,10 +54,18 @@ class SPDNoise(Module):
         self.noise = SPSDNoiseSource(std=std)
 
     def train(self, mode=True):
+        """
+        Set the module into training mode.
+        """
         super(_Cov, self).train(mode)
         self.noise.train(mode)
 
     def eval(self):
+        """
+        Set the module into evaluation mode.
+
+        In evaluation mode, the module does nothing.
+        """
         super(_Cov, self).eval()
         self.noise.eval()
 
@@ -66,6 +73,9 @@ class SPDNoise(Module):
         return f'SPDNoise(std={self.noise.std}, norm={self.norm})'
 
     def forward(self, input):
+        """
+        Inject symmetric positive definite noise into the input.
+        """
         x = self.noise.inject(input)
         if self.norm:
             return x / corrnorm(x)

@@ -25,14 +25,13 @@ class FrequencyDomainFilter(Module):
     transformed back into the time domain. To ensure a zero-phase filter, the
     filtered time series are reversed and the process is repeated.
 
-    Dimension
-    ---------
-    - Input: :math:`(N, *, C, T)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      C denotes number of variables or data channels, T denotes number of time
-      points or observations.
-    - Output: :math:`(N, *, F, C, T)`
-      F denotes number of filters.
+    :Dimension: **Input :** :math:`(N, *, C, T)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, :math:`C` denotes number of data
+                    channels or variables, T denotes number of time points or
+                    observations per channel.
+                **Output :** :math:`(N, *, F, C, T)`
+                    F denotes number of filters.
 
     Parameters
     ----------
@@ -155,6 +154,10 @@ class FrequencyDomainFilter(Module):
         return s
 
     def forward(self, input):
+        """
+        Transform the input into the frequency domain, filter it, and
+        transform the filtered signal back.
+        """
         if input.dim() > 1 and input.size(-2) > 1:
             input = input.unsqueeze(-3)
             weight = self.weight.unsqueeze(-2)

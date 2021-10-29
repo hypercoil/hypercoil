@@ -120,8 +120,8 @@ class UnionTransform(ColumnTransform):
 
     See also
     --------
-    `IntersectionTransform` : logical intersection.
-    `NegationTransform` : logical negation
+    IntersectionTransform : logical intersection.
+    NegationTransform : logical negation
     """
     def __init__(self):
         regex = r'^or\((?P<child0>.*)\)'
@@ -157,8 +157,8 @@ class IntersectionTransform(ColumnTransform):
 
     See also
     --------
-    `UnionTransform` : logical union.
-    `NegationTransform` : logical negation
+    UnionTransform : logical union.
+    NegationTransform : logical negation
     """
     def __init__(self):
         regex = r'^and\((?P<child0>.*)\)'
@@ -197,8 +197,8 @@ class NegationTransform(ColumnTransform):
 
     See also
     --------
-    `UnionTransform` : logical union.
-    `IntersectionTransform` : logical intersection.
+    UnionTransform : logical union.
+    IntersectionTransform : logical intersection.
     """
     def __init__(self):
         regex = r'not\((?P<child0>.*)\)'
