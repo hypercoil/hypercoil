@@ -8,12 +8,20 @@ Patch of pytorch default_collate and associated functionality that enables
 additional arguments.
 """
 
+#TODO
+# Keeping this in sync with pytorch could be a nuisance and a failure point.
+# Update for autonomy.
+
 import torch
 import re
-from torch._six import container_abcs, string_classes, int_classes
+import collections.abc as container_abcs
+from torch._six import string_classes
 from .functional import extend_to_max_size
 
 np_str_obj_array_pattern = re.compile(r'[SaUO]')
+
+
+int_classes = int
 
 
 gen_collate_err_msg_format = (
