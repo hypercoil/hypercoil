@@ -255,7 +255,7 @@ class SurfaceAtlas(DiscreteAtlas):
         _, model_axis = self._cifti_model_axes()
         cortex = {
             'L': self.compartments['cortex_L'],
-            'R': self.compartments['cortex_R']
+            'R': self.compartments['cortex_R'],
         }
         sub = self.compartments['subcortex']
         self.coors = np.zeros((self.vox, 3))
@@ -269,9 +269,9 @@ class SurfaceAtlas(DiscreteAtlas):
 
     def _compartment_masks(self):
         self.compartments = {
-            'cortex_L' : None,
-            'cortex_R' : None,
-            'subcortex': None
+            'cortex_L' : slice(0, 0),
+            'cortex_R' : slice(0, 0),
+            'subcortex': slice(0, 0),
         }
         _, model_axis = self._cifti_model_axes()
         for struc, slc, _ in (model_axis.iter_structures()):
@@ -279,9 +279,12 @@ class SurfaceAtlas(DiscreteAtlas):
                 self.compartments['cortex_L'] = slc
             elif struc == self.cortex['R']:
                 self.compartments['cortex_R'] = slc
-        vol_mask = np.where(model_axis.volume_mask)[0]
-        vol_min, vol_max = vol_mask.min(), vol_mask.max() + 1
-        self.compartments['subcortex'] = slice(vol_min, vol_max)
+        try:
+            vol_mask = np.where(model_axis.volume_mask)[0]
+            vol_min, vol_max = vol_mask.min(), vol_mask.max() + 1
+            self.compartments['subcortex'] = slice(vol_min, vol_max)
+        except ValueError:
+            pass
 
     def _cifti_model_axes(self):
         """
