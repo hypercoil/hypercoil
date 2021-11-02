@@ -224,6 +224,84 @@ class ContinuousAtlas(Atlas):
         return self._smooth_and_mask(map, sigma)
 
 
+class SurfaceAtlas(DiscreteAtlas):
+    """
+    CIfTI surface-based atlas container object.
+    """
+    def __init__(self, path, surf_L, surf_R, name=None,
+                 label_dict=None, mask_L=None, mask_R=None, null=0,
+                 cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
+                 cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT'):
+        super(SurfaceAtlas, self).__init__(
+            path, name=name, label_dict=label_dict, mask=None, null=null
+        )
+        self.time, self.vox = self.image.shape
+        self.surf = {
+            'L': surf_L,
+            'R': surf_R
+        }
+        self.mask = {
+            'L': mask_L,
+            'R': mask_R
+        }
+        self.cortex = {
+            'L': cortex_L,
+            'R': cortex_R
+        }
+        self._init_coors()
+
+    def _init_coors(self):
+        self._compartment_masks()
+        _, model_axis = self._cifti_model_axes()
+        cortex = {
+            'L': self.compartments['cortex_L'],
+            'R': self.compartments['cortex_R']
+        }
+        sub = self.compartments['subcortex']
+        self.coors = np.zeros((self.vox, 3))
+        self.coors[sub] = model_axis.voxel[sub]
+        for hemi in ('L', 'R'):
+            mask = nb.load(self.mask[hemi])
+            coor = nb.load(self.surf[hemi])
+            mask = mask.darrays[0].data.astype(bool)
+            coor = coor.darrays[0].data[mask]
+            self.coors[cortex[hemi]] = coor
+
+    def _compartment_masks(self):
+        self.compartments = {
+            'cortex_L' : None,
+            'cortex_R' : None,
+            'subcortex': None
+        }
+        _, model_axis = self._cifti_model_axes()
+        for struc, slc, _ in (model_axis.iter_structures()):
+            if struc == self.cortex['L']:
+                self.compartments['cortex_L'] = slc
+            elif struc == self.cortex['R']:
+                self.compartments['cortex_R'] = slc
+        vol_mask = np.where(model_axis.volume_mask)[0]
+        vol_min, vol_max = vol_mask.min(), vol_mask.max() + 1
+        self.compartments['subcortex'] = slice(vol_min, vol_max)
+
+    def _cifti_model_axes(self):
+        """
+        Thanks to Chris Markiewicz for tutorials that shaped this
+        implementation.
+        """
+        return [
+            self.ref.header.get_axis(i)
+            for i in range(self.ref.ndim)
+        ]
+
+    def _smooth_and_mask(self, map, sigma):
+        if sigma is not None:
+            #TODO
+            raise NotImplementedError(
+                'Spherical convolution not yet implemented'
+            )
+        return map
+
+
 def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None,
                 normalise=False):
     """
