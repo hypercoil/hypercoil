@@ -38,6 +38,12 @@ class TestSpherical:
             [-2 ** 0.5 / 2, 0, -2 ** 0.5 / 2],
             [0, 0, -1]                  # south pole
         ])
+        # Truncated distance mask at pi / 2 radians.
+        self.truncated = torch.ones((self.n, self.n))
+        self.truncated[0, 3] = 0
+        self.truncated[0, 4] = 0
+        self.truncated[1, 3] = 0
+        self.truncated = torch.minimum(self.truncated, self.truncated.T)
         # random spherical coors
         self.coor_sph_rand = torch.rand(self.n, 3)
         self.coor_sph_rand /= torch.norm(self.coor_sph_rand, dim=0, p=2)
@@ -109,4 +115,16 @@ class TestSpherical:
             data=self.data,
             coor=self.coor_sph_rand,
             scale=scale
+        )
+        # truncation test
+        out = spherical_conv(
+            data=self.data,
+            coor=sphere_to_normals(self.coor_sph),
+            scale=scale,
+            truncate=(torch.pi / 2)
+        )
+        out = (out[:, :self.n] == 0).float()
+        assert torch.allclose(
+            out + self.truncated,
+            torch.ones((self.n, self.n))
         )
