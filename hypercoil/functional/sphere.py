@@ -128,7 +128,7 @@ def spherical_geodesic(X, Y=None, r=1):
 
 
 def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
-                 max_bin=10000):
+                 max_bin=10000, truncate=None):
     """
     Convolve data on a manifold with an isotropic kernel.
 
@@ -175,6 +175,8 @@ def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
     max_bin : int
         Maximum number of points to include in a distance computation. If you
         run out of memory, try decreasing this.
+    truncate : float or None (default None)
+        Maximum distance at which data points can be convolved together.
 
     Returns
     -------
@@ -189,13 +191,15 @@ def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
         coor_block = coor[start:end, :]
         dist = metric(coor_block, coor)
         weight = kernel(dist)
+        if truncate is not None:
+            weight[dist > truncate] = 0
         data_conv[start:end, :] = weight @ data
         start = end
         end += max_bin
     return data_conv
 
 
-def spherical_conv(data, coor, scale=1, r=1, max_bin=10000):
+def spherical_conv(data, coor, scale=1, r=1, max_bin=10000, truncate=None):
     """
     Convolve data on a 2-sphere with a Gaussian kernel.
 
@@ -230,6 +234,8 @@ def spherical_conv(data, coor, scale=1, r=1, max_bin=10000):
     max_bin : int
         Maximum number of points to include in a distance computation. If you
         run out of memory, try decreasing this.
+    truncate : float or None (default None)
+        Maximum distance at which data points can be convolved together.
 
     Returns
     -------
@@ -240,7 +246,7 @@ def spherical_conv(data, coor, scale=1, r=1, max_bin=10000):
     kernel = partial(kernel_gaussian, scale=scale)
     metric = partial(spherical_geodesic, r=r)
     return spatial_conv(data=data, coor=coor, kernel=kernel,
-                        metric=metric, max_bin=max_bin)
+                        metric=metric, max_bin=max_bin, truncate=truncate)
 
 
 def _euc_dist(X, Y=None):
