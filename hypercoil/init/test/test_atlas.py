@@ -83,7 +83,9 @@ class TestAtlasInit:
         assert np.allclose(out.detach().numpy(), ref.T)
 
     def test_atlas_nn_reductions(self):
-        # Currently we're only testing z-scoring.
+        #TODO
+        # Currently we're only testing z-scoring. Add tests for other
+        # reductions.
         self.lin.reduction = 'zscore'
         out = self.lin(self.inpT)
         assert np.allclose(out.mean(-1).detach(), 0, atol=1e-5)
