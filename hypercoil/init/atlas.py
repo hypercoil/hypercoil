@@ -17,6 +17,9 @@ from ..functional.domain import Identity
 from ..functional.sphere import spherical_conv, euclidean_conv
 
 
+#TODO: restore doc strings when github stops being absolute garbage
+
+
 class _SingleReferenceMixin:
     def _load_reference(self, path):
         ref = nb.load(path)
@@ -105,6 +108,34 @@ class _SpatialConvMixin:
 
 
 class Atlas:
+    """
+    Atlas object for linear mapping from voxels to labels.
+
+    Base class inherited by discrete and continuous atlas containers.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to a NIfTI file containing the atlas.
+    label_dict : dict or None (default None)
+        Dictionary mapping labels or volumes in the image to parcel or region
+        names or identifiers.
+
+    Attributes
+    ----------
+    ref : nb.Nifti1Image
+        NIfTI image object container for the atlas data.
+    image : np.ndarray
+        Atlas volume(s).
+    mask : np.ndarray
+        Mask indicating the voxels to include in the mapping.
+    labels : set
+        Unique labels in the atlas.
+    n_labels : int
+        Total number of labels, parcels, regions, or volumes in the atlas.
+    n_voxels : int
+        Total number of voxels to include in the atlas.
+    """
     def __init__(self, path, name=None, mask=None,
                  label_dict=None, thresh=0, null=0):
         self.path = path
@@ -118,6 +149,35 @@ class Atlas:
         self.n_voxels = self.mask.sum()
 
     def map(self, sigma=None, noise=None, normalise=True):
+        """
+        Obtain a matrix representation of the linear mapping from mask voxels
+        to atlas labels.
+
+        Parameters
+        ----------
+        sigma : float or None (default None)
+            If this is a float, then a Gaussian smoothing kernel with the
+            specified width is applied to each label after it is extracted.
+        noise : UnstructuredNoiseSource object or None (default None)
+            If this is a noise source, then noise sampled from the source is
+            added to the label.
+        normalise : bool (default True)
+            Indicates whether the result should be normalised such that each
+            label time series is a weighted mean over voxel time series.
+
+        Returns
+        -------
+        map : Tensor
+            A matrix representation of the linear mapping from mask voxels to
+            atlas labels.
+
+        The order of operations is:
+        1. Label extraction
+        2. Gaussian spatial filtering
+        3. Casting to Tensor
+        4. IID noise injection
+        5. Normalisation
+        """
         map = self._configure_maps(self.ref)
         sigma = self._configure_sigma(sigma)
         map = self._convolve(sigma, map)
@@ -153,7 +213,7 @@ class Atlas:
         return mask.squeeze().astype(bool)
 
 
-class AtlasWithCoordinates(Atlas):
+class _AtlasWithCoordinates(Atlas):
     def __init__(self, path, surf_L=None, surf_R=None, name=None,
                  label_dict=None, mask_L=None, mask_R=None, null=0,
                  cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
@@ -245,7 +305,38 @@ class DiscreteAtlas(
     _TelescopeCfgMixin,
     _EvenlySampledConvMixin
 ):
-    pass
+    """
+    Discrete atlas container object. Use for atlases stored in single-volume
+    images with non-overlapping, discrete-valued parcels.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to a NIfTI file containing the atlas.
+    label_dict : dict or None (default None)
+        Dictionary mapping labels in the image to parcel or region names or
+        identifiers.
+    mask : np.ndarray or 'auto' or None (default None)
+        Mask indicating the voxels to include in the mapping. If this is
+        'auto', then a mask is automatically formed from voxels with non-null
+        values (before smoothing).
+    null : float (default 0)
+        Value in the image indicating that the voxel belongs to no label. To
+        assign every voxel a label, specify a number not in the image.
+
+    Attributes
+    ----------
+    ref : nb.Nifti1Image
+        NIfTI image object container for the atlas data.
+    image : np.ndarray
+        Atlas volume.
+    labels : set
+        Unique labels in the atlas.
+    n_labels : int
+        Total number of labels, parcels, or regions in the atlas.
+    n_voxels : int
+        Total number of voxels to include in the atlas.
+    """
 
 
 class MultivolumeAtlas(
@@ -254,7 +345,40 @@ class MultivolumeAtlas(
     _AxisRollCfgMixin,
     _EvenlySampledConvMixin
 ):
-    pass
+    """
+    Continuous atlas container object. Use for atlases whose labels overlap and
+    must therefore be stored across multiple image volumes -- for instance,
+    probabilistic segmentations or ICA results.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to a NIfTI file containing the atlas.
+    label_dict : dict or None (default None)
+        Dictionary mapping labels or volumes in the image to parcel or region
+        names or identifiers.
+    mask : np.ndarray or 'auto' or None (default None)
+        Mask indicating the voxels to include in the mapping. If this is
+        'auto', then a mask is automatically formed from voxels with non-null
+        values (before smoothing).
+    thresh : float (default 0)
+        Threshold for auto-masking.
+
+    Attributes
+    ----------
+    ref : nb.Nifti1Image
+        NIfTI image object container for the atlas data.
+    image : np.ndarray
+        Atlas volume.
+    mask : np.ndarray
+        Mask indicating the voxels to include in the mapping.
+    labels : set
+        Unique labels in the atlas.
+    n_labels : int
+        Total number of labels, parcels, regions, or volumes in the atlas.
+    n_voxels : int
+        Total number of voxels to include in the atlas.
+    """
 
 
 class MultifileAtlas(
@@ -263,16 +387,84 @@ class MultifileAtlas(
     _ConcatenateCfgMixin,
     _EvenlySampledConvMixin
 ):
-    pass
+    """
+    Continuous atlas container object. Use for atlases whose labels overlap and
+    must therefore be stored across multiple image files -- for instance,
+    probabilistic segmentations or ICA results.
+
+    Parameters
+    ----------
+    path : list(str) or list(pathlib.Path)
+        List of paths to NIfTI files containing the atlas. Each entry in the
+        list will be interpreted as a separate atlas label.
+    label_dict : dict or None (default None)
+        Dictionary mapping labels or volumes in the image to parcel or region
+        names or identifiers.
+    mask : np.ndarray or 'auto' or None (default None)
+        Mask indicating the voxels to include in the mapping. If this is
+        'auto', then a mask is automatically formed from voxels with non-null
+        values (before smoothing).
+    thresh : float (default 0)
+        Threshold for auto-masking.
+
+    Attributes
+    ----------
+    ref : nb.Nifti1Image
+        NIfTI image object container for the atlas data.
+    image : np.ndarray
+        Atlas volume.
+    mask : np.ndarray
+        Mask indicating the voxels to include in the mapping.
+    labels : set
+        Unique labels in the atlas.
+    n_labels : int
+        Total number of labels, parcels, regions, or volumes in the atlas.
+    n_voxels : int
+        Total number of voxels to include in the atlas.
+    """
 
 
 class SurfaceAtlas(
-    AtlasWithCoordinates,
+    _AtlasWithCoordinates,
     _SingleReferenceMixin,
     _TelescopeCfgMixin,
     _SpatialConvMixin
 ):
-    pass
+    """
+    CIfTI surface-based atlas container object.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to a CIfTI file containing the atlas.
+    surf_L and surf_R : str or pathlib.Path
+        Paths to GIfTI files containing coordinates of the cortical surfaces of
+        the left and right hemispheres. Only spherical coordinates are
+        currently supported.
+    label_dict : dict or None (default None)
+        Dictionary mapping labels or volumes in the image to parcel or region
+        names or identifiers.
+    mask_L and mask_R : str or pathlib.Path (default None)
+        GIfTI files containing masks that are immediately to be applied to
+        `surf_L` and `surf_R`. These can be used to exclude coordinates not
+        annotated by the CIfTI parcellation -- for instance, the medial wall.
+    cortex_L and cortex_R : str
+        Names of brain model axis objects corresponding to cortex. Default to
+        'CIFTI_STRUCTURE_CORTEX_LEFT' and 'CIFTI_STRUCTURE_CORTEX_RIGHT'.
+    max_bin : int (default 10000)
+        Spatial convolution parameter. Maximum number of voxels considered per
+        convolution. If you run out of memory, try decreasing this.
+    truncate : float (default None)
+        Spatial convolution parameter. Maximum kernel radius for convolution:
+        all data outside of this radius from a given point will not be
+        convolved into that point.
+    spherical_scale : float (default 1)
+        Spatial convolution parameter. Allows setting different sigmas for the
+        convolutions on volumetric and spherical data. The sigma for volumetric
+        data will be as provided to the `map` function, and the sigma for
+        spherical data will be the provided sigma multiplied by the scaling
+        factor `spherical_scale`.
+    """
 
 
 def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None,
