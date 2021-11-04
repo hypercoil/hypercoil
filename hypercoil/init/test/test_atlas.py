@@ -12,7 +12,8 @@ import templateflow.api as tflow
 from nilearn.input_data import NiftiLabelsMasker
 from hypercoil.nn.atlas import AtlasLinear
 from hypercoil.init.atlas import (
-    ContinuousAtlas,
+    MultifileAtlas,
+    MultivolumeAtlas,
     DiscreteAtlas,
     AtlasInit
 )
@@ -40,7 +41,7 @@ class TestAtlasInit:
             'OASIS30ANTs',
             resolution=1,
             suffix='probseg')
-        self.atlas_continuous = ContinuousAtlas(paths, mask='auto')
+        self.atlas_continuous = MultifileAtlas(paths, mask='auto')
         self.tsr_continuous = torch.empty((
             self.atlas_continuous.n_labels,
             self.atlas_continuous.n_voxels
