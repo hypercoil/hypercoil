@@ -6,7 +6,9 @@ Initialisation
 """
 from .atlas import (
     DiscreteAtlas,
-    ContinuousAtlas
+    MultivolumeAtlas,
+    MultifileAtlas,
+    SurfaceAtlas
 )
 from .iirfilter import (
     IIRFilterSpec
