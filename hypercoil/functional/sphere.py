@@ -147,7 +147,7 @@ def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
     3. Use the loading weights to perform a matrix product and obtain the
        kernel-convolved dataset.
 
-    :Dimension: **data :** :math:`(*, C, N)`
+    :Dimension: **data :** :math:`(*, N, C)`
                     `*` denotes any number of intervening dimensions, `C`
                     denotes the number of data channels, and `N` denotes the
                     number of data observations per channel.
@@ -185,9 +185,10 @@ def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
         completely separately as of now.
     """
     start = 0
-    end = min(start + max_bin, data.shape[-1])
+    end = min(start + max_bin, data.shape[-2])
     data_conv = torch.zeros_like(data)
-    while start < data.shape[-1]:
+    while start < data.shape[-2]:
+        # TODO: Won't work if the array is more than 2D.
         coor_block = coor[start:end, :]
         dist = metric(coor_block, coor)
         weight = kernel(dist)
@@ -261,11 +262,11 @@ def _euc_dist(X, Y=None):
     return torch.sqrt(((X- Y) ** 2).sum(-1))
 
 
-def euclidean_conv(data, coor, scale=1, max_bin=10000):
+def euclidean_conv(data, coor, scale=1, max_bin=10000, truncate=None):
     """
     Spatial convolution using the standard L2 metric and a Gaussian kernel.
     Please don't use this function. For testing/illustrative purposes only.
     """
     kernel = partial(kernel_gaussian, scale=scale)
     return spatial_conv(data=data, coor=coor, kernel=kernel,
-                        metric=_euc_dist, max_bin=max_bin)
+                        metric=_euc_dist, max_bin=max_bin, truncate=truncate)
