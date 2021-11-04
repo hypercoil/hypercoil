@@ -34,7 +34,6 @@ class TestAtlasSurfInit:
             data=self.cifti,
             coor=self.gifti,
             shift=(3 * torch.pi / 4),
-            cmap='hot'
         )
         plotter()
         plt.savefig(out_ref, bbox_inches='tight')
