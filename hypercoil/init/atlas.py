@@ -14,233 +14,159 @@ from scipy.ndimage import gaussian_filter
 from .base import DomainInitialiser
 from ..functional import UnstructuredNoiseSource
 from ..functional.domain import Identity
+from ..functional.sphere import spherical_conv, euclidean_conv
 
 
-class Atlas(object):
-    """
-    Atlas object for linear mapping from voxels to labels.
+class _SingleReferenceMixin:
+    def _load_reference(self, path):
+        ref = nb.load(path)
+        self.imshape = ref.get_fdata().shape[:3]
+        return ref
 
-    Base class inherited by discrete and continuous atlas containers.
 
-    Parameters
-    ----------
-    path : str or pathlib.Path
-        Path to a NIfTI file containing the atlas.
-    label_dict : dict or None (default None)
-        Dictionary mapping labels or volumes in the image to parcel or region
-        names or identifiers.
+class _MultiReferenceMixin:
+    def _load_reference(self, paths):
+        ref = [nb.load(path) for path in paths]
+        self.imshape = ref[0].get_fdata().shape[:3]
+        return ref
 
-    Attributes
-    ----------
-    ref : nb.Nifti1Image
-        NIfTI image object container for the atlas data.
-    image : np.ndarray
-        Atlas volume(s).
-    mask : np.ndarray
-        Mask indicating the voxels to include in the mapping.
-    labels : set
-        Unique labels in the atlas.
-    n_labels : int
-        Total number of labels, parcels, regions, or volumes in the atlas.
-    n_voxels : int
-        Total number of voxels to include in the atlas.
-    """
-    def __init__(self, path, name=None, label_dict=None):
+
+class _TelescopeCfgMixin:
+    def _configure_maps(self, X):
+        maps = np.zeros((self.n_labels, *self.imshape))
+        X = X.get_fdata().squeeze()
+        for i, l in enumerate(self.labels):
+            maps[i] = (X == l)
+        return maps.squeeze()
+
+    def _configure_labels(self, null):
+        self.labels = set(np.unique(self.ref.get_fdata())) - set([null])
+        self.labels = list(self.labels)
+        self.labels.sort()
+
+
+class _ConcatenateCfgMixin:
+    def _configure_maps(self, X):
+        maps = np.zeros((self.n_labels, *self.imshape))
+        for i, l in enumerate(X):
+            maps[i] = l.get_fdata()
+        return maps.squeeze()
+
+    def _configure_labels(self, null=None):
+        self.labels = list(range(len(self.ref)))
+
+
+
+class _AxisRollCfgMixin:
+    def _configure_maps(self, X):
+        return np.moveaxis(X.get_fdata(), (0, 1, 2, 3), (3, 0, 1, 2)).squeeze()
+
+    def _configure_labels(self, null=None):
+        self.labels = list(range(self.ref.shape[-1]))
+
+
+
+class _EvenlySampledConvMixin:
+    def _configure_sigma(self, sigma):
+        if sigma is not None:
+            scale = self.ref.header.get_zooms()[:3]
+            sigma = [sigma / s for s in scale]
+            sigma = [0] + [sigma]
+        return sigma
+
+    def _convolve(self, sigma, map):
+        if sigma is not None:
+            gaussian_filter(map, sigma=sigma, output=map)
+        return map
+
+
+class _SpatialConvMixin:
+    def _configure_sigma(self, sigma):
+        return sigma
+
+    def _convolve(self, sigma, map):
+        if sigma is not None:
+            coors = torch.tensor(self.coors)
+            map = torch.tensor(map)
+            for compartment, slc in self.compartments.items():
+                if compartment =='subcortex':
+                    map[:, slc] = euclidean_conv(
+                        data=map[:, slc].T, coor=coors[slc],
+                        scale=sigma, max_bin=self.max_bin,
+                        truncate=self.truncate
+                    ).T
+                else:
+                    map[:, slc] = spherical_conv(
+                        data=map[:, slc].T, coor=coors[slc],
+                        scale=(self.spherical_scale * sigma), r=100,
+                        max_bin=self.max_bin, truncate=self.truncate
+                    ).T
+        return map
+
+
+class Atlas:
+    def __init__(self, path, name=None, mask=None,
+                 label_dict=None, thresh=0, null=0):
         self.path = path
-        self.ref = nb.load(self.path)
-        self.image = self.ref.get_fdata()
+        self.ref = self._load_reference(path)
         self.name = name or 'atlas'
         self.label_dict = label_dict
+        self._configure_labels(null)
+        self.n_labels = len(self.labels)
+        map = self._configure_maps(self.ref)
+        self.mask = self._configure_mask(mask, thresh, map)
+        self.n_voxels = self.mask.sum()
 
     def map(self, sigma=None, noise=None, normalise=True):
-        """
-        Obtain a matrix representation of the linear mapping from mask voxels
-        to atlas labels.
-
-        Parameters
-        ----------
-        sigma : float or None (default None)
-            If this is a float, then a Gaussian smoothing kernel with the
-            specified width is applied to each label after it is extracted.
-        noise : UnstructuredNoiseSource object or None (default None)
-            If this is a noise source, then noise sampled from the source is
-            added to the label.
-        normalise : bool (default True)
-            Indicates whether the result should be normalised such that each
-            label time series is a weighted mean over voxel time series.
-
-        Returns
-        -------
-        map : Tensor
-            A matrix representation of the linear mapping from mask voxels to
-            atlas labels.
-
-        The order of operations is:
-        1. Label extraction
-        2. Gaussian spatial filtering
-        3. Casting to Tensor
-        4. IID noise injection
-        5. Normalisation
-        """
-        map = np.zeros((self.n_labels, self.n_voxels))
-        for i, l in enumerate(self.labels):
-            map[i] = self._extract_label(l, sigma)
-        map = torch.Tensor(map)
+        map = self._configure_maps(self.ref)
+        sigma = self._configure_sigma(sigma)
+        map = self._convolve(sigma, map)
+        map = torch.tensor(self.unfold(map))
         if noise is not None:
             map = noise(map)
         if normalise:
             map /= map.sum(1, keepdim=True)
         return map
 
+    def unfold(self, map):
+        return map[:, self.mask].reshape(self.n_labels, self.n_voxels)
+
+    def fold(self, map):
+        folded_map = np.zeros((self.n_labels, *self.imshape))
+        folded_map[:, self.mask] = map
+        return folded_map
+
+    def foldmax(self, map):
+        map = self.fold(map)
+        return map.max(0)
+
     def _set_dims(self, mask):
-        self.mask = mask.astype(np.bool)
-        self.n_labels = len(self.labels)
-        self.n_voxels = self.mask.sum()
+        self.mask = mask
 
-    def _smooth_and_mask(self, map, sigma):
-        if sigma is not None:
-            gaussian_filter(map, sigma=sigma, output=map)
-        return map[self.mask]
-
-    def __repr__(self):
-        s = f'{type(self).__name__}({self.name}, '
-        s += f'labels={self.n_labels}, voxels={self.n_voxels}'
-        s += ')'
-        return s
-
-
-class DiscreteAtlas(Atlas):
-    """
-    Discrete atlas container object. Use for atlases stored in single-volume
-    images with non-overlapping, discrete-valued parcels.
-
-    Parameters
-    ----------
-    path : str or pathlib.Path
-        Path to a NIfTI file containing the atlas.
-    label_dict : dict or None (default None)
-        Dictionary mapping labels in the image to parcel or region names or
-        identifiers.
-    mask : np.ndarray or 'auto' or None (default None)
-        Mask indicating the voxels to include in the mapping. If this is
-        'auto', then a mask is automatically formed from voxels with non-null
-        values (before smoothing).
-    null : float (default 0)
-        Value in the image indicating that the voxel belongs to no label. To
-        assign every voxel a label, specify a number not in the image.
-
-    Attributes
-    ----------
-    ref : nb.Nifti1Image
-        NIfTI image object container for the atlas data.
-    image : np.ndarray
-        Atlas volume.
-    labels : set
-        Unique labels in the atlas.
-    n_labels : int
-        Total number of labels, parcels, or regions in the atlas.
-    n_voxels : int
-        Total number of voxels to include in the atlas.
-    """
-    def __init__(self, path, name=None, label_dict=None, mask=None, null=0):
-        super(DiscreteAtlas, self).__init__(
-            path=path, name=name, label_dict=label_dict)
-        self.labels = set(np.unique(self.image)) - set([null])
+    def _configure_mask(self, mask, thresh, map):
         if isinstance(mask, np.ndarray):
             pass
         elif mask == 'auto':
-            mask = (self.image != null)
+            mask = (map.sum(0) > thresh)
         elif mask is None:
-            mask = np.ones_like(self.image)
-        self._set_dims(mask)
-
-    def _extract_label(self, label_id, sigma=None):
-        map = (self.image == label_id).astype(np.float)
-        return self._smooth_and_mask(map, sigma)
+            mask = np.ones(self.imshape)
+        return mask.squeeze().astype(bool)
 
 
-class ContinuousAtlas(Atlas):
-    """
-    Continuous atlas container object. Use for atlases whose labels overlap and
-    must therefore be stored across multiple image volumes -- for instance,
-    probabilistic segmentations or ICA results.
-
-    Parameters
-    ----------
-    path : str or pathlib.Path or list
-        Path to a NIfTI file containing the atlas. If this is a list, then each
-        entry in the list will be interpreted as a separate atlas label.
-    label_dict : dict or None (default None)
-        Dictionary mapping labels or volumes in the image to parcel or region
-        names or identifiers.
-    mask : np.ndarray or 'auto' or None (default None)
-        Mask indicating the voxels to include in the mapping. If this is
-        'auto', then a mask is automatically formed from voxels with non-null
-        values (before smoothing).
-    thresh : float (default 0)
-        Threshold for auto-masking.
-
-    Attributes
-    ----------
-    ref : nb.Nifti1Image
-        NIfTI image object container for the atlas data.
-    image : np.ndarray
-        Atlas volume.
-    mask : np.ndarray
-        Mask indicating the voxels to include in the mapping.
-    labels : set
-        Unique labels in the atlas.
-    n_labels : int
-        Total number of labels, parcels, regions, or volumes in the atlas.
-    n_voxels : int
-        Total number of voxels to include in the atlas.
-    """
-    def __init__(self, path, name=None, label_dict=None, mask=None, thresh=0):
-        if isinstance(path, list) or isinstance(path, tuple):
-            self._init_from_paths(path=path, name=name, label_dict=label_dict)
-        else:
-            super(ContinuousAtlas, self).__init__(
-                path=path, name=name, label_dict=label_dict)
-        self.labels = list(range(self.image.shape[-1]))
-        if isinstance(mask, np.ndarray):
-            pass
-        elif mask == 'auto':
-            mask = ((np.abs(self.image)).sum(-1) > thresh)
-        elif mask is None:
-            mask = np.ones(self.image.shape[:-1])
-        self._set_dims(mask)
-
-    def _init_from_paths(self, path, name, label_dict):
-        self.path = path
-        self.ref = [nb.load(p) for p in self.path]
-        self.image = np.stack([r.get_fdata() for r in self.ref], -1)
-        self.label_dict = label_dict
-        self.name = name or 'atlas'
-
-    def _extract_label(self, label_id, sigma=None):
-        slc = [slice(None)] * len(self.image.shape)
-        slc[-1] = label_id
-        map = self.image[tuple(slc)]
-        return self._smooth_and_mask(map, sigma)
-
-
-class SurfaceAtlas(DiscreteAtlas):
-    """
-    CIfTI surface-based atlas container object.
-    """
-    def __init__(self, path, surf_L, surf_R, name=None,
+class AtlasWithCoordinates(Atlas):
+    def __init__(self, path, surf_L=None, surf_R=None, name=None,
                  label_dict=None, mask_L=None, mask_R=None, null=0,
                  cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
-                 cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT'):
-        super(SurfaceAtlas, self).__init__(
+                 cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
+                 max_bin=10000, truncate=None, spherical_scale=1.):
+        super(AtlasWithCoordinates, self).__init__(
             path, name=name, label_dict=label_dict, mask=None, null=null
         )
-        self.time, self.vox = self.image.shape
         self.surf = {
             'L': surf_L,
             'R': surf_R
         }
-        self.mask = {
+        self.masks = {
             'L': mask_L,
             'R': mask_R
         }
@@ -248,7 +174,18 @@ class SurfaceAtlas(DiscreteAtlas):
             'L': cortex_L,
             'R': cortex_R
         }
+        self.max_bin = max_bin
+        self.truncate = truncate
+        self.spherical_scale = spherical_scale
         self._init_coors()
+
+    def dump_coors(self, compartments=None):
+        if compartments is None:
+            return self.coors
+        compartments = np.r_[
+            tuple([self.compartments[c] for c in compartments])
+        ]
+        return self.coors[compartments]
 
     def _init_coors(self):
         self._compartment_masks()
@@ -258,13 +195,18 @@ class SurfaceAtlas(DiscreteAtlas):
             'R': self.compartments['cortex_R'],
         }
         sub = self.compartments['subcortex']
-        self.coors = np.zeros((self.vox, 3))
+        self.coors = np.zeros((self.n_voxels, 3))
         self.coors[sub] = model_axis.voxel[sub]
         for hemi in ('L', 'R'):
-            mask = nb.load(self.mask[hemi])
+            if self.surf[hemi] is None:
+                continue
             coor = nb.load(self.surf[hemi])
-            mask = mask.darrays[0].data.astype(bool)
-            coor = coor.darrays[0].data[mask]
+            if self.masks[hemi] is not None:
+                mask = nb.load(self.masks[hemi])
+                mask = mask.darrays[0].data.astype(bool)
+                coor = coor.darrays[0].data[mask]
+            else:
+                coor = coor.darrays[0].data
             self.coors[cortex[hemi]] = coor
 
     def _compartment_masks(self):
@@ -296,13 +238,41 @@ class SurfaceAtlas(DiscreteAtlas):
             for i in range(self.ref.ndim)
         ]
 
-    def _smooth_and_mask(self, map, sigma):
-        if sigma is not None:
-            #TODO
-            raise NotImplementedError(
-                'Spherical convolution not yet implemented'
-            )
-        return map
+
+class DiscreteAtlas(
+    Atlas,
+    _SingleReferenceMixin,
+    _TelescopeCfgMixin,
+    _EvenlySampledConvMixin
+):
+    pass
+
+
+class MultivolumeAtlas(
+    Atlas,
+    _SingleReferenceMixin,
+    _AxisRollCfgMixin,
+    _EvenlySampledConvMixin
+):
+    pass
+
+
+class MultifileAtlas(
+    Atlas,
+    _MultiReferenceMixin,
+    _ConcatenateCfgMixin,
+    _EvenlySampledConvMixin
+):
+    pass
+
+
+class SurfaceAtlas(
+    AtlasWithCoordinates,
+    _SingleReferenceMixin,
+    _TelescopeCfgMixin,
+    _SpatialConvMixin
+):
+    pass
 
 
 def atlas_init_(tensor, atlas, kernel_sigma=None, noise_sigma=None,
