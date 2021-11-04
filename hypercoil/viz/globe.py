@@ -60,11 +60,15 @@ def brain_globe(data, coor, shift=0, cmap='flag',
     return ax
 
 
-class GlobeBrain:
-    def __init__(self, data, coor, shift=0, cmap='flag',
+class _GlobeBrain:
+    def __init__(self, data, coor, shift=0,
+                 coor_mask=None, struc_tag=None, cmap='flag',
                  figsize=(12, 12), projection='mollweide'):
-        self.data = data
-        self.coor = coor
+        self.data, self.coor = self._select_data_and_coor(
+            data, coor,
+            coor_mask,
+            struc_tag
+        )
         self.shift = shift
         self.cmap = cmap
         self.figsize = figsize
@@ -78,22 +82,11 @@ class GlobeBrain:
         )
 
 
-class GlobeCortexL(GlobeBrain):
-    def __init__(self, data, coor, cmap='flag',
-                 figsize=(12, 12), projection='mollweide'):
-        super().__init__(
-            data=data, coor=coor, shift=(3 * np.pi / 4),
-            cmap=cmap, figsize=figsize, projection=projection
-        )
-
-
-class GlobeCortexR(GlobeBrain):
-    def __init__(self, data, coor, cmap='flag',
-                 figsize=(12, 12), projection='mollweide'):
-        super().__init__(
-            data=data, coor=coor, shift=(-3 * np.pi / 4),
-            cmap=cmap, figsize=figsize, projection=projection
-        )
+class _SurfNoActionMixin:
+    def _select_data_and_coor(self, data, coor,
+                              coor_mask=None,
+                              struc_tag=None):
+        return data, coor
 
 
 class _SurfFromFilesMixin:
@@ -140,13 +133,27 @@ class _CortexRfsLR32KMixin(_SurfFromFilesMixin):
         )
 
 
-class GlobeFromFiles(GlobeBrain, _SurfFromFilesMixin):
-    def __init__(self, data, coor, coor_mask=None, struc_tag=None, shift=0,
-                 cmap='flag', figsize=(12, 12), projection='mollweide'):
-        data, coor = self._select_data_and_coor(data=data, coor=coor,
-                                                coor_mask=coor_mask,
-                                                struc_tag=struc_tag)
+class GlobeBrain(_GlobeBrain, _SurfNoActionMixin):
+    pass
+
+
+class GlobeCortexL(_GlobeBrain, _SurfNoActionMixin):
+    def __init__(self, data, coor, cmap='flag',
+                 figsize=(12, 12), projection='mollweide'):
         super().__init__(
-            data=data, coor=coor, shift=shift,
+            data=data, coor=coor, shift=(3 * np.pi / 4),
             cmap=cmap, figsize=figsize, projection=projection
         )
+
+
+class GlobeCortexR(_GlobeBrain, _SurfNoActionMixin):
+    def __init__(self, data, coor, cmap='flag',
+                 figsize=(12, 12), projection='mollweide'):
+        super().__init__(
+            data=data, coor=coor, shift=(np.pi / 4),
+            cmap=cmap, figsize=figsize, projection=projection
+        )
+
+
+class GlobeFromFiles(_GlobeBrain, _SurfFromFilesMixin):
+    pass

@@ -219,7 +219,7 @@ class _AtlasWithCoordinates(Atlas):
                  cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
                  cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
                  max_bin=10000, truncate=None, spherical_scale=1.):
-        super(AtlasWithCoordinates, self).__init__(
+        super(_AtlasWithCoordinates, self).__init__(
             path, name=name, label_dict=label_dict, mask=None, null=null
         )
         self.surf = {
