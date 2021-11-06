@@ -302,6 +302,53 @@ def read_json(path):
     return metadata
 
 
+def nifti_header(path):
+    """
+    Load some of the most essential (TM) metadata from a NIfTI file's header
+    into a python dictionary. Right now, this means the TR.
+
+    Note that this operation is not smart enough to figure out the units if
+    they're not in the header. It will also assume that the fourth dimension is
+    time when setting repetition time. If it's not, you probably don't need
+    a repetition time anyway.
+
+    Path
+    ----
+    Path to the NIfTI file.
+
+    Returns
+    -------
+    metadata : dict
+        Python dictionary containing all metadata in the NIfTI header.
+    """
+    metadata = {}
+    hdr = nb.load(path).header
+    try: # standard NIfTI case
+        t_rep = hdr['pixdim'][4]
+        t_units = hdr.get_xyzt_units()[1]
+        if t_units in ('s', 'sec', 'seconds'):
+            pass
+        elif t_units in ('ms', 'msec', 'millisec', 'milliseconds'):
+            t_rep /= 1000.
+        else:
+            raise RuntimeError(f'Unrecognised units: {units}')
+        metadata['RepetitionTime'] = t_rep
+    except TypeError: # CIfTI case
+        t_rep = [
+            ax.series_step for ax in hdr.matrix if ax.series_unit == 'SECOND'
+        ]
+        if len(t_rep) != 1:
+            raise RuntimeError(
+                f'Conflicting or missing information for TR: {t_rep}'
+            )
+        metadata['RepetitionTime'] = t_rep[0]
+    try:
+        metadata['RepetitionTime']
+    except KeyError:
+        raise RuntimeError(f'Failed to find required field: repetition time')
+    return metadata
+
+
 def dump_data(dataobj):
     """
     Return only the data block of an assigned DataObjectVariable.

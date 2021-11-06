@@ -373,6 +373,17 @@ class ChangeExtension(object):
         return f'{type(self).__name__}(new_ext={self.new_ext})'
 
 
+class NIfTIHeader(object):
+    """
+    Load metadata from a NIfTI header into a Python dictionary.
+    """
+    def __call__(self, path):
+        return F.nifti_header(path)
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
+
+
 class ToTensorX(DataObjectTransform, ToTensor):
     """
     `ToTensor` transformation applied to the assigned data of a
