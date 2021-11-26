@@ -16,6 +16,12 @@ from .dataset import (
 from .grabber import (
     LightGrabber
 )
+from .hcp import (
+    hcp_references,
+    HCPObject,
+    HCPLayout,
+    HCPDataset
+)
 from .neuro import (
     fMRIDataReference
 )
