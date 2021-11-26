@@ -10,17 +10,13 @@ import subprocess
 from ..formula import ModelSpec, FCConfoundModelSpec
 from .dataset import ReferencedDataset
 from .grabber import LightGrabber
-from .neuro import fMRIDataReference
+from .neuro import fMRIDataReference, fc_reference_prep
 from .dataref import data_references, DataQuery
 from .transforms import (
     NIfTIHeader, CWBCIfTIHeader, Compose, ChangeExtension, ReadJSON
 )
 from hypercoil.data.variables import (
     VariableFactory,
-    VariableFactoryFactory,
-    NeuroImageBlockVariable,
-    TableBlockVariable,
-    MetaValueBlockVariable,
     DataPathVariable
 )
 
@@ -157,23 +153,7 @@ def hcp_references(hcp_dir, additional_tables=None,
                    ignore=None, labels=('task',), outcomes=None,
                    model=None, tmask=None, observations=('subject',),
                    levels=('task', 'session', 'run')):
-    if isinstance(model, str):
-        model = [FCConfoundModelSpec(model)]
-    elif model is not None and not isinstance(model, ModelSpec):
-        model = [FCConfoundModelSpec(m, name=m)
-                 if isinstance(m, str) else m
-                 for m in model]
-    if isinstance(tmask, str):
-        tmask = [FCConfoundModelSpec(tmask)]
-    image_and_trep = {
-        'images': VariableFactoryFactory(NeuroImageBlockVariable),
-        't_r': VariableFactoryFactory(MetaValueBlockVariable,
-                                      key='RepetitionTime')
-    }
-    model_and_tmask = {
-        'confounds': VariableFactoryFactory(TableBlockVariable, spec=model),
-        'tmask': VariableFactoryFactory(TableBlockVariable, spec=tmask)
-    }
+    image_and_trep, model_and_tmask = fc_reference_prep(model, tmask)
     images = DataQuery(
         name='images',
         pattern=hcp_image_patterns[pattern],

@@ -135,3 +135,31 @@ class fMRIDataReference(DataReference):
             s += f',\n {sr}'
         s += '\n)'
         return s
+
+
+def fc_reference_prep(model, tmask):
+    from ..formula import ModelSpec, FCConfoundModelSpec
+    from .variables import (
+        VariableFactoryFactory,
+        NeuroImageBlockVariable,
+        MetaValueBlockVariable,
+        TableBlockVariable
+    )
+    if isinstance(model, str):
+        model = [FCConfoundModelSpec(model)]
+    elif model is not None and not isinstance(model, ModelSpec):
+        model = [FCConfoundModelSpec(m, name=m)
+                 if isinstance(m, str) else m
+                 for m in model]
+    if isinstance(tmask, str):
+        tmask = [FCConfoundModelSpec(tmask)]
+    image_and_trep = {
+        'images': VariableFactoryFactory(NeuroImageBlockVariable),
+        't_r': VariableFactoryFactory(MetaValueBlockVariable,
+                                      key='RepetitionTime')
+    }
+    model_and_tmask = {
+        'confounds': VariableFactoryFactory(TableBlockVariable, spec=model),
+        'tmask': VariableFactoryFactory(TableBlockVariable, spec=tmask)
+    }
+    return image_and_trep, model_and_tmask
