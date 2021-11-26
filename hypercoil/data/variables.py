@@ -128,17 +128,21 @@ class DatasetVariable(ABC):
             if len(value) > 1:
                 return value
             else:
-                return {self.name: list(value.values())[0]}
+                try:
+                    return {self.name: list(value.values())[0]}
+                except IndexError: # Nothing to retrieve -- discard variable
+                    return {}
         return {self.name: value}
 
     def __repr__(self):
         s = f'{self.name}={type(self).__name__}('
         #TODO: looks like this comma is awkwardly here even if there's
         # nothing after ... verify behaviour and change if so
-        s += f'assigned={self.assignment is not None}, '
+        pars = [f'assigned={self.assignment is not None}']
         if not isinstance(self.transform, IdentityTransform):
-            s += f'transform={type(self.transform).__name__}'
-        s += ')'
+            pars += [f'transform={type(self.transform).__name__}']
+        pars = ', '.join(pars)
+        s = f'{s}{pars})'
         return s
 
 
@@ -367,7 +371,7 @@ class DataPathVariable(DataObjectVariable):
         Transform to apply to the data provided at assignment time in order to
         read additional metadata local to the provided data object.
     """
-    def __init__(self, name, regex=None, metadata=None,
+    def __init__(self, name, regex, metadata=None,
                  metadata_global=None,
                  metadata_local=None):
         super(DataPathVariable, self).__init__(
@@ -398,13 +402,20 @@ class DataPathVariable(DataObjectVariable):
         """
         Parse variable attributes from the assigned path.
         """
-        vals = {k: re.match(v, self.path) for k, v in self.regex.items()}
-        vals = {k: v.groupdict()[k] for k, v in vals.items() if v is not None}
-        for k, v in vals.items():
+        for k, v in self.regex.items():
+            val = v
+            if isinstance(v, tuple):
+                val = v[0]
+            val = re.match(val, self.path)
+            if val is None: continue
+            val = val.groupdict()[k]
+            if val is None or val == '':
+                if isinstance(v, tuple):
+                    val = v[1]
             try:
-                self.attributes[k] = int(v)
+                self.attributes[k] = int(val)
             except ValueError:
-                self.attributes[k] = v
+                self.attributes[k] = val
 
     def get(self, key):
         try:
