@@ -384,6 +384,18 @@ class NIfTIHeader(object):
         return f'{type(self).__name__}()'
 
 
+class CWBCIfTIHeader(object):
+    """
+    Use connectome workbench to load metadata from a CIfTI header into a Python
+    dictionary.
+    """
+    def __call__(self, path):
+        return F.cwb_cifti_header(path)
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
+
+
 class ToTensorX(DataObjectTransform, ToTensor):
     """
     `ToTensor` transformation applied to the assigned data of a
