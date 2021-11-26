@@ -62,7 +62,7 @@ bids_regex = {
 class BIDSObjectFactory(VariableFactory):
     """
     Factory for producing LightBIDSObjects. Thin wrapper around
-    `LightBIDSObject`. Consult `hypercoil.data.LightBIDSObject` for further
+    `VariableFactory`. Consult `hypercoil.data.VariableFactory` for further
     documentation.
     """
     def __init__(self):
@@ -103,11 +103,10 @@ class LightBIDSLayout(LightGrabber):
         Query objects defining the variables to extract from the dataset via
         query.
     """
-    def __init__(self, root, patterns=None, queries=None):
+    def __init__(self, root, queries):
         super(LightBIDSLayout, self).__init__(
             root=root,
-            patterns=patterns,
-            queries=queries,
+            patterns=queries,
             template=BIDSObjectFactory()
         )
 
@@ -180,7 +179,7 @@ class fMRIPrepDataset(ReferencedDataset):
 
     def add_data(self, fmriprep_dir, space=None, additional_tables=None,
                  ignore=None, labels=('subject',), outcomes=None,
-                 model=None, observations=('subject',),
+                 model=None, tmask=None, observations=('subject',),
                  levels=('session', 'run', 'task')):
         """
         Add data from another directory. Call follows the same pattern as
@@ -189,7 +188,7 @@ class fMRIPrepDataset(ReferencedDataset):
         data_refs = fmriprep_references(
             fmriprep_dir=fmriprep_dir, space=space,
             additional_tables=additional_tables, ignore=ignore,
-            labels=labels, outcomes=outcomes, model=model,
+            labels=labels, outcomes=outcomes, model=model, tmask=tmask,
             observations=observations, levels=levels
         )
         super(fMRIPrepDataset, self).add_data(data_refs)
@@ -243,7 +242,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         List of data identifiers whose levels are packaged into separate data
         references. Each level should generally have the same values of any
         outcome variables.
-    levels : tuple or None (default ('session', 'run, task'))
+    levels : tuple or None (default ('session', 'run', 'task'))
         List of data identifiers whose levels are packaged as sublevels of the
         same data reference. This permits easier augmentation of data via
         pooling across sublevels.
