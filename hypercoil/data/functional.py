@@ -6,7 +6,7 @@ Data transform functions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 Functions for transforming various data modalities.
 """
-import re, json
+import re, json, subprocess, bs4, lxml
 import torch
 import pandas as pd
 import nibabel as nb
@@ -346,6 +346,23 @@ def nifti_header(path):
         metadata['RepetitionTime']
     except KeyError:
         raise RuntimeError(f'Failed to find required field: repetition time')
+    return metadata
+
+
+def cwb_cifti_header(path):
+    """
+    Nibabel is rather slow when it comes to parsing CIfTI data. To limit the
+    number of times we have to do this, we can use connectome workbench if it's
+    available to obtain header information from a CIfTI file. This isn't as
+    generalisable as `nifti_header`, but it should be more efficient for large
+    CIfTI datasets so long as connectome workbench is available.
+    """
+    metadata = {}
+    cmd = f'wb_command -nifti-information {path} -print-xml|grep SECOND'
+    data = bs4.BeautifulSoup(subprocess.check_output(cmd, shell=True), 'lxml')
+    metadata['RepetitionTime'] = float(
+        data.find('matrixindicesmap').get('seriesstep')
+    )
     return metadata
 
 
