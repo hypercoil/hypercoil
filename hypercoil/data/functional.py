@@ -124,6 +124,8 @@ def apply_model_specs(models, data, metadata=None):
     some use cases, it might be compulsory. The output is a dictionary mapping
     each model's name to its corresponding DataFrame.
     """
+    if models is None:
+        return {}
     return {m.name: m(data, metadata=metadata) for m in models}
 
 
