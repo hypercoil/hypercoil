@@ -31,42 +31,141 @@ class _MultiReferenceMixin:
     def _load_reference(self, paths):
         ref = [nb.load(path) for path in paths]
         self.imshape = ref[0].get_fdata().shape[:3]
+        #TODO: eventually we might wish to drop _ConcatenateCfgMixin. This
+        # could give us more interoperability between single- and multi-
+        # compartment functionality so that these are proper mixins
+        #ref = nb.Nifti1Image(
+        #    dataobj=np.stack([r.get_fdata() for r in ref]),
+        #    affine=ref[0].affine,
+        #    header=ref[0].header
+        #)
         return ref
 
 
 class _TelescopeCfgMixin:
-    def _configure_maps(self, X):
-        maps = np.zeros((self.n_labels, *self.imshape))
-        X = X.get_fdata().squeeze()
-        for i, l in enumerate(self.labels):
+    def _configure_maps(self, X, labels, space_dims):
+        n_labels = len(labels)
+        maps = np.zeros((n_labels, *space_dims))
+        for i, l in enumerate(labels):
             maps[i] = (X == l)
         return maps.squeeze()
 
-    def _configure_labels(self, null):
-        self.labels = set(np.unique(self.ref.get_fdata())) - set([null])
-        self.labels = list(self.labels)
-        self.labels.sort()
+    def _configure_labels(self, data, null):
+        labels = set(np.unique(data)) - set([null])
+        labels = list(labels)
+        labels.sort()
+        return labels
 
 
 class _ConcatenateCfgMixin:
-    def _configure_maps(self, X):
-        maps = np.zeros((self.n_labels, *self.imshape))
+    def _configure_maps(self, X, labels, space_dims):
+        n_labels = len(labels)
+        maps = np.zeros((n_labels, *space_dims))
         for i, l in enumerate(X):
             maps[i] = l.get_fdata()
         return maps.squeeze()
 
-    def _configure_labels(self, null=None):
-        self.labels = list(range(len(self.ref)))
+    def _configure_labels(self, data, null=None):
+        return list(range(len(data)))
 
 
 
 class _AxisRollCfgMixin:
-    def _configure_maps(self, X):
+    def _configure_maps(self, X, labels, space_dims):
         return np.moveaxis(X.get_fdata(), (0, 1, 2, 3), (3, 0, 1, 2)).squeeze()
 
-    def _configure_labels(self, null=None):
-        self.labels = list(range(self.ref.shape[-1]))
+    def _configure_labels(self, data, null=None):
+        return list(range(data.shape[-1]))
 
+
+class _SingleCompartmentMixin:
+    def unfold(self, map):
+        return map[:, self.mask].reshape(self.n_labels, self.n_voxels)
+
+    def fold(self, map):
+        folded_map = np.zeros((self.n_labels, *self.imshape))
+        folded_map[:, self.mask] = map
+        return folded_map
+
+    def foldmax(self, map):
+        map = self.fold(map)
+        return map.max(0)
+
+    def _compartment_masks(self):
+        self.compartments = None #{'all' : slice(None, None, None)}
+
+    def _configure_all_labels(self, null):
+        try:
+            data = self.ref.get_fdata()
+        except AttributeError:
+            data = self.ref
+        self.labels = self._configure_labels(data, null)
+        self.n_labels = len(self.labels)
+
+    def _configure_all_maps(self, img):
+        try:
+            X = img.get_fdata().squeeze()
+        except AttributeError:
+            X = img
+        return self._configure_maps(X, self.labels, self.imshape)
+
+    def _normalise_all_maps(self, map):
+        return map / map.sum(1, keepdim=True)
+
+    def _to_tensor(self, map):
+        return torch.tensor(map)
+
+
+class _MultiCompartmentMixin:
+    def unfold(self, map):
+        return map
+
+    def fold(self, map):
+        return map # only greyordinates as of now
+        # TODO: handle these reasonably
+        #for c, m in map.items():
+        #    map
+
+    def foldmax(self, map):
+        map = self.fold(map)
+        for c, m in map.items():
+            map[c] = map[c].max(0)
+        #TODO: plug it into a single array using the compartment indices
+        return map
+
+    def _compartment_masks(self):
+        self.compartments = {'all' : slice(None, None, None)}
+
+    def _configure_all_labels(self, null):
+        self.labels = {}
+        self.n_labels = {}
+        for c, slc in self.compartments.items():
+            #TODO: this is not going to work as expected when the reference is
+            # derived from a list of files
+            data = self.ref.get_fdata().squeeze()[slc]
+            self.labels[c] = self._configure_labels(data, null)
+            self.n_labels[c] = len(self.labels[c])
+
+    def _configure_all_maps(self, img):
+        maps = {}
+        for c, slc in self.compartments.items():
+            X = img.get_fdata().squeeze()[slc]
+            maps[c] = self._configure_maps(
+                X, self.labels[c], [slc.stop - slc.start]
+            )
+        return maps
+
+    def _normalise_all_maps(self, map):
+        map_n = {}
+        for c, m in map.items():
+            map_n[c] = map[c] / map[c].sum(1, keepdim=True)
+        return map_n
+
+    def _to_tensor(self, map):
+        map_t = {}
+        for c, m in map.items():
+            map_t[c] = torch.tensor(m)
+        return map_t
 
 
 class _EvenlySampledConvMixin:
@@ -142,9 +241,9 @@ class Atlas:
         self.ref = self._load_reference(path)
         self.name = name or 'atlas'
         self.label_dict = label_dict
-        self._configure_labels(null)
-        self.n_labels = len(self.labels)
-        map = self._configure_maps(self.ref)
+        self._compartment_masks()
+        self._configure_all_labels(null)
+        map = self._configure_all_maps(self.ref)
         self.mask = self._configure_mask(mask, thresh, map)
         self.n_voxels = self.mask.sum()
 
@@ -178,27 +277,15 @@ class Atlas:
         4. IID noise injection
         5. Normalisation
         """
-        map = self._configure_maps(self.ref)
+        map = self._configure_all_maps(self.ref)
         sigma = self._configure_sigma(sigma)
         map = self._convolve(sigma, map)
-        map = torch.tensor(self.unfold(map))
+        map = self._to_tensor(self.unfold(map))
         if noise is not None:
             map = noise(map)
         if normalise:
-            map /= map.sum(1, keepdim=True)
+            return self._normalise_all_maps(map)
         return map
-
-    def unfold(self, map):
-        return map[:, self.mask].reshape(self.n_labels, self.n_voxels)
-
-    def fold(self, map):
-        folded_map = np.zeros((self.n_labels, *self.imshape))
-        folded_map[:, self.mask] = map
-        return folded_map
-
-    def foldmax(self, map):
-        map = self.fold(map)
-        return map.max(0)
 
     def _set_dims(self, mask):
         self.mask = mask
@@ -213,15 +300,12 @@ class Atlas:
         return mask.squeeze().astype(bool)
 
 
-class _AtlasWithCoordinates(Atlas):
+class _AtlasWithCoordinates(Atlas, _MultiCompartmentMixin):
     def __init__(self, path, surf_L=None, surf_R=None, name=None,
                  label_dict=None, mask_L=None, mask_R=None, null=0,
                  cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
                  cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
                  max_bin=10000, truncate=None, spherical_scale=1.):
-        super(_AtlasWithCoordinates, self).__init__(
-            path, name=name, label_dict=label_dict, mask=None, null=null
-        )
         self.surf = {
             'L': surf_L,
             'R': surf_R
@@ -234,6 +318,9 @@ class _AtlasWithCoordinates(Atlas):
             'L': cortex_L,
             'R': cortex_R
         }
+        super(_AtlasWithCoordinates, self).__init__(
+            path, name=name, label_dict=label_dict, mask=None, null=null
+        )
         self.max_bin = max_bin
         self.truncate = truncate
         self.spherical_scale = spherical_scale
@@ -248,7 +335,6 @@ class _AtlasWithCoordinates(Atlas):
         return self.coors[compartments]
 
     def _init_coors(self):
-        self._compartment_masks()
         _, model_axis = self._cifti_model_axes()
         cortex = {
             'L': self.compartments['cortex_L'],
@@ -277,6 +363,8 @@ class _AtlasWithCoordinates(Atlas):
         }
         _, model_axis = self._cifti_model_axes()
         for struc, slc, _ in (model_axis.iter_structures()):
+            if slc.stop is None:
+                slc = slice(slc.start, model_axis.size, slc.step)
             if struc == self.cortex['L']:
                 self.compartments['cortex_L'] = slc
             elif struc == self.cortex['R']:
@@ -303,6 +391,7 @@ class DiscreteAtlas(
     Atlas,
     _SingleReferenceMixin,
     _TelescopeCfgMixin,
+    _SingleCompartmentMixin,
     _EvenlySampledConvMixin
 ):
     """
@@ -343,6 +432,7 @@ class MultivolumeAtlas(
     Atlas,
     _SingleReferenceMixin,
     _AxisRollCfgMixin,
+    _SingleCompartmentMixin,
     _EvenlySampledConvMixin
 ):
     """
@@ -385,6 +475,7 @@ class MultifileAtlas(
     Atlas,
     _MultiReferenceMixin,
     _ConcatenateCfgMixin,
+    _SingleCompartmentMixin,
     _EvenlySampledConvMixin
 ):
     """
@@ -456,7 +547,7 @@ class SurfaceAtlas(
         convolution. If you run out of memory, try decreasing this.
     truncate : float (default None)
         Spatial convolution parameter. Maximum kernel radius for convolution:
-        all data outside of this radius from a given point will not be
+        all data outside of this distance from a given point will not be
         convolved into that point.
     spherical_scale : float (default 1)
         Spatial convolution parameter. Allows setting different sigmas for the
