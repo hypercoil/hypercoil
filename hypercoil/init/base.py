@@ -107,10 +107,10 @@ class DomainInitialiser(object):
         self.init = init or uniform_init_
         self.domain = domain or Identity()
 
-    def __call__(self, tensor):
+    def __call__(self, tensor, **params):
         rg = tensor.requires_grad
         tensor.requires_grad = False
-        self.init(tensor)
+        self.init(tensor, **params)
         tensor[:] = self.domain.preimage(tensor)
         tensor.requires_grad = rg
 
@@ -134,10 +134,10 @@ class BaseInitialiser(DomainInitialiser):
         self.init = init or uniform_init_
         self.domain = Identity()
 
-    def __call__(self, tensor):
+    def __call__(self, tensor, **params):
         rg = tensor.requires_grad
         tensor.requires_grad = False
-        self.init(tensor)
+        self.init(tensor, **params)
         tensor.requires_grad = rg
 
 
