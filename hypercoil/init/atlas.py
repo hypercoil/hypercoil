@@ -31,14 +31,11 @@ class _MultiReferenceMixin:
     def _load_reference(self, paths):
         ref = [nb.load(path) for path in paths]
         self.imshape = ref[0].get_fdata().shape[:3]
-        #TODO: eventually we might wish to drop _ConcatenateCfgMixin. This
-        # could give us more interoperability between single- and multi-
-        # compartment functionality so that these are proper mixins
-        #ref = nb.Nifti1Image(
-        #    dataobj=np.stack([r.get_fdata() for r in ref]),
-        #    affine=ref[0].affine,
-        #    header=ref[0].header
-        #)
+        ref = nb.Nifti1Image(
+            dataobj=np.stack([r.get_fdata() for r in ref], -1),
+            affine=ref[0].affine,
+            header=ref[0].header
+        )
         return ref
 
 
@@ -57,22 +54,9 @@ class _TelescopeCfgMixin:
         return labels
 
 
-class _ConcatenateCfgMixin:
-    def _configure_maps(self, X, labels, space_dims):
-        n_labels = len(labels)
-        maps = np.zeros((n_labels, *space_dims))
-        for i, l in enumerate(X):
-            maps[i] = l.get_fdata()
-        return maps.squeeze()
-
-    def _configure_labels(self, data, null=None):
-        return list(range(len(data)))
-
-
-
 class _AxisRollCfgMixin:
     def _configure_maps(self, X, labels, space_dims):
-        return np.moveaxis(X.get_fdata(), (0, 1, 2, 3), (3, 0, 1, 2)).squeeze()
+        return np.moveaxis(X, (0, 1, 2, 3), (1, 2, 3, 0)).squeeze()
 
     def _configure_labels(self, data, null=None):
         return list(range(data.shape[-1]))
@@ -474,7 +458,7 @@ class MultivolumeAtlas(
 class MultifileAtlas(
     Atlas,
     _MultiReferenceMixin,
-    _ConcatenateCfgMixin,
+    _AxisRollCfgMixin,
     _SingleCompartmentMixin,
     _EvenlySampledConvMixin
 ):
@@ -606,3 +590,10 @@ class AtlasInit(DomainInitialiser):
         init = partial(atlas_init_, atlas=atlas, kernel_sigma=kernel_sigma,
                        noise_sigma=noise_sigma, normalise=normalise)
         super(AtlasInit, self).__init__(init=init, domain=domain)
+
+    def __call__(self, tensor):
+        if isinstance(tensor, dict):
+            for v in tensor.values():
+                super(AtlasInit, self).__call__(v)
+        else:
+            super(AtlasInit, self).__call__(tensor)
