@@ -7,7 +7,7 @@ Atlas layer
 Modules that linearly map voxelwise signals to labelwise signals.
 """
 import torch
-from torch.nn import Module, Parameter
+from torch.nn import Module, Parameter, ParameterDict
 from torch.distributions import Bernoulli
 from ..functional.domain import Identity
 from ..functional.noise import UnstructuredDropoutSource
@@ -94,7 +94,7 @@ class AtlasLinear(Module):
         inputs to the atlas transformation.
     """
     def __init__(self, atlas, kernel_sigma=None, noise_sigma=None,
-                 mask_input=True, spatial_dropout=0, min_voxels=1,
+                 mask_input=False, spatial_dropout=0, min_voxels=1,
                  domain=None, reduce='mean'):
         super(AtlasLinear, self).__init__()
 
@@ -106,9 +106,14 @@ class AtlasLinear(Module):
         self.mask_input = mask_input
         self.mask = (torch.from_numpy(self.atlas.mask)
                      if self.mask_input else None)
-        self.preweight = Parameter(torch.Tensor(
-            self.atlas.n_labels, self.atlas.n_voxels
-        ))
+        # not great -- ensure n_voxels tabulated for all compartments
+        if len(self.atlas.n_voxels) == 1: self.atlas.map()
+        self.preweight = ParameterDict({
+            c : Parameter(torch.Tensor(self.atlas.n_labels[c],
+                                       self.atlas.n_voxels[c]))
+            for c in self.atlas.compartments.keys()
+            if self.atlas.n_voxels[c] > 0
+        })
         self._configure_spatial_dropout(spatial_dropout, min_voxels)
         self.init = AtlasInit(
             atlas=self.atlas,
@@ -134,18 +139,35 @@ class AtlasLinear(Module):
 
     @property
     def weight(self):
-        return self.domain.image(self.preweight)
+        return {k: self.domain.image(v) for k, v in self.preweight.items()}
 
     @property
     def postweight(self):
         if self.dropout is not None:
-            while True:
-                n_voxels = (self.weight > 0).sum(-1)
-                weight = self.dropout(self.weight)
-                n_voxels = (weight > 0).sum(-1)
-                if torch.all(n_voxels >= self.min_voxels):
-                    return weight
+            weight = {}
+            for k, v in self.weight.items():
+                sufficient_voxels = False
+                while not sufficient_voxels:
+                    n_voxels = (v > 0).sum(-1)
+                    weight[k] = self.dropout(v)
+                    n_voxels = (weight[k] > 0).sum(-1)
+                    if torch.all(n_voxels >= self.min_voxels):
+                        sufficient_voxels = True
+            return weight
         return self.weight
+
+    def conform_and_reduce(self, input, weight):
+        index = [slice(None, None, None) for _ in input.size()]
+        out = {}
+        for k, v in weight.items():
+            # TODO: fix the completely broken code here
+            # -2 is expected to be space/voxel axis at this point
+            # This is only going to work for greyordinates.
+            index[-2:-1] = self.atlas.compartments[k]
+            idx = tuple(index)
+            conformed = input[idx]
+            out[k] = self.reduce(conformed, v)
+        return out
 
     def reduce(self, input, weight):
         out = weight @ input
@@ -178,7 +200,7 @@ class AtlasLinear(Module):
     def forward(self, input):
         if self.mask_input:
             input = self.apply_mask(input)
-        return self.reduce(input, self.postweight)
+        return self.conform_and_reduce(input, self.postweight)
 
     def __repr__(self):
         s = f'{type(self).__name__}(atlas={self.atlas}, '
