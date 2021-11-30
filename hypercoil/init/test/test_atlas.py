@@ -30,10 +30,12 @@ class TestAtlasInit:
             atlas='Schaefer2018',
             desc='100Parcels7Networks')
         self.atlas_discrete = DiscreteAtlas(path, mask='auto')
-        self.tsr_discrete = torch.empty((
-            self.atlas_discrete.n_labels,
-            self.atlas_discrete.n_voxels
-        ))
+        self.tsr_discrete = torch.nn.ParameterDict({
+            'all' : torch.nn.Parameter(torch.empty((
+                self.atlas_discrete.n_labels['_all_compartments'],
+                self.atlas_discrete.n_voxels
+            )))
+        })
         self.nil = NiftiLabelsMasker(labels_img=str(path),
                                      resampling_target=None)
         self.aff = nb.load(path).affine
@@ -42,17 +44,19 @@ class TestAtlasInit:
             resolution=1,
             suffix='probseg')
         self.atlas_continuous = MultifileAtlas(paths, mask='auto')
-        self.tsr_continuous = torch.empty((
-            self.atlas_continuous.n_labels,
-            self.atlas_continuous.n_voxels
-        ))
+        self.tsr_continuous = torch.nn.ParameterDict({
+            'all' : torch.nn.Parameter(torch.empty((
+                self.atlas_continuous.n_labels['_all_compartments'],
+                self.atlas_continuous.n_voxels
+            )))
+        })
         self.inp = np.linspace(
             0, 1000, 91 * 109 * 91 * 50).reshape(
             50, 109, 91, 91).swapaxes(0, -1)
         self.inp2 = torch.rand(
             2, 1, 1, 2, *self.atlas_discrete.mask.shape, 10)
         self.inpT = torch.Tensor(self.inp)
-        self.lin = AtlasLinear(self.atlas_discrete)
+        #self.lin = AtlasLinear(self.atlas_discrete)
 
     def test_discrete_atlas(self):
         init = AtlasInit(
@@ -60,8 +64,9 @@ class TestAtlasInit:
             normalise=True
         )
         init(self.tsr_discrete)
-        assert torch.allclose(self.tsr_discrete.sum(1), torch.Tensor([1]))
-        assert self.tsr_discrete[:, 1].argmax() == 38
+        map = self.tsr_discrete['all']
+        assert torch.allclose(map.sum(1), torch.Tensor([1]))
+        assert map[:, 1].argmax() == 38
 
     def test_continuous_atlas(self):
         init = AtlasInit(
@@ -69,8 +74,9 @@ class TestAtlasInit:
             normalise=True
         )
         init(self.tsr_continuous)
-        assert torch.allclose(self.tsr_continuous.sum(1), torch.Tensor([1]))
-        assert self.tsr_continuous[:, 1].argmax() == 4
+        map = self.tsr_continuous['all']
+        assert torch.allclose(map.sum(1), torch.Tensor([1]))
+        assert map[:, 1].argmax() == 4
 
     def test_atlas_nn_extradims(self):
         out = self.lin(self.inp2)
