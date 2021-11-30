@@ -142,7 +142,7 @@ class Atlas:
             self.labels['_all_compartments'],
             self.imshape)
         self.mask = self._configure_mask(mask, thresh, map)
-        self.n_voxels = self.mask.sum()
+        self.n_voxels = {'_all_compartments' : self.mask.sum()}
 
     def map(self, sigma=None, noise=None, normalise=True, compartments=None):
         """
@@ -194,6 +194,7 @@ class Atlas:
         data = self.ref.get_fdata().squeeze()[slc]
         labels = self.labels[compartment]
         voxel_dim = [s.stop - s.start for s in slc]
+        self.n_voxels[compartment] = np.prod(voxel_dim)
 
         map = self._configure_maps(data, labels, voxel_dim)
         sigma = self._configure_sigma(sigma)
@@ -302,7 +303,7 @@ class _AtlasWithCoordinates(Atlas):
             'R': self.compartments['cortex_R'],
         }
         sub = self.compartments['subcortex']
-        self.coors = np.zeros((self.n_voxels, 3))
+        self.coors = np.zeros((self.n_voxels['_all_compartments'], 3))
         self.coors[sub] = model_axis.voxel[sub]
         for hemi in ('L', 'R'):
             if self.surf[hemi] is None:
