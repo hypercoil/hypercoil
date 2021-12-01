@@ -11,23 +11,7 @@ import templateflow.api as tflow
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from hypercoil.functional.sphere import sphere_to_latlong
-
-
-TFLOW_MASK_QUERY = {
-    'template': 'fsLR',
-    'density': '32k',
-    'desc': 'nomedialwall'
-}
-TFLOW_COOR_QUERY = {
-    'template': 'fsLR',
-    'space': None,
-    'density': '32k',
-    'suffix': 'sphere'
-}
-TFLOW_COMPARTMENTS = {
-    'L': {'hemi': 'L'},
-    'R': {'hemi': 'R'}
-}
+from hypercoil.neuro.const import fsLR
 
 
 def brain_globe(data, coor, shift=0, cmap='flag',
@@ -149,8 +133,10 @@ class _CortexLfsLR32KMixin(_SurfFromFilesMixin):
                               struc_tag=None):
         return super()._select_data_and_coor(
             data=data,
-            coor=tflow.get(**TFLOW_COOR_QUERY, **TFLOW_COMPARTMENTS['L']),
-            coor_mask=tflow.get(**TFLOW_MASK_QUERY, **TFLOW_COMPARTMENTS['L']),
+            coor=tflow.get(**fsLR.TFLOW_COOR_QUERY,
+                           **fsLR.TFLOW_COMPARTMENTS['L']),
+            coor_mask=tflow.get(**fsLR.TFLOW_MASK_QUERY,
+                                **fsLR.TFLOW_COMPARTMENTS['L']),
             struc_tag='CIFTI_STRUCTURE_CORTEX_LEFT'
         )
 
@@ -165,8 +151,10 @@ class _CortexRfsLR32KMixin(_SurfFromFilesMixin):
                               struc_tag=None):
         return super()._select_data_and_coor(
             data=data,
-            coor=tflow.get(**TFLOW_COOR_QUERY, **TFLOW_COMPARTMENTS['R']),
-            coor_mask=tflow.get(**TFLOW_MASK_QUERY, **TFLOW_COMPARTMENTS['R']),
+            coor=tflow.get(**fsLR.TFLOW_COOR_QUERY,
+                           **fsLR.TFLOW_COMPARTMENTS['R']),
+            coor_mask=tflow.get(**fsLR.TFLOW_MASK_QUERY,
+                                **fsLR.TFLOW_COMPARTMENTS['R']),
             struc_tag='CIFTI_STRUCTURE_CORTEX_RIGHT'
         )
 
