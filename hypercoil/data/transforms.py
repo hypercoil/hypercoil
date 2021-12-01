@@ -230,6 +230,36 @@ class ApplyTransform(object):
         return f'{type(self).__name__}(transform={self.transform})'
 
 
+class ApplyToSelect(object):
+    """
+    Apply a transformation to selected values in an iterable.
+
+    If the iterable is a dictionary, each key-specified value is transformed;
+    if it is a list, each index-specified entry is transformed.
+
+    Parameters
+    ----------
+    transform : callable
+        Transform to apply.
+    selection : list
+        Terms to transform. If the input is a dictionary, this should be a list
+        of keys. If the input is a list, this should be a list of indices.
+        Fields not scheduled for transformation are returned untransformed.
+    """
+    def __init__(self, transform, selection):
+        self.transform = transform
+        self.selection = selection
+
+    def __call__(self, iterable):
+        return F.apply_to_select(
+            iterable, transform=self.transform, selection=self.selection
+        )
+
+    def __repr__(self):
+        return (f'{type(self).__name__}(transform={self.transform}, '
+                f'selection={self.selection})')
+
+
 class BlockTransform(object):
     """
     Apply a transformation to each entry in a list block. Only the base
@@ -483,3 +513,15 @@ class MetadataKeyX(object):
 
     def __repr__(self):
         return f'{type(self).__name__}({self.key})'
+
+
+class PolynomialDetrend(object):
+    """Apply a polynomial detrend of the specified order to a tensor."""
+    def __init__(self, order):
+        self.order = order
+
+    def __call__(self, data):
+        return F.polynomial_detrend(data, self.order)
+
+    def __repr__(self):
+        return f'{type(self).__name__}(order{self.order})'
