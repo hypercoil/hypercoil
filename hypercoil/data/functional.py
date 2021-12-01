@@ -8,6 +8,7 @@ Functions for transforming various data modalities.
 """
 import re, json, subprocess, bs4, lxml
 import torch
+import numpy as np
 import pandas as pd
 import nibabel as nb
 
@@ -107,7 +108,7 @@ def nanfill(data, fill=None):
         Input tensor with missing or invalid values populated.
     """
     if fill is not None:
-        if isinstance(data. np.ndarray):
+        if isinstance(data, np.ndarray):
             data[np.isnan(data)] = fill
         elif isinstance(data, torch.Tensor):
             data[torch.isnan(data)] = fill
@@ -142,6 +143,21 @@ def apply_transform(iterable, transform):
         return {k: transform(v) for k, v in iterable.items()}
     else:
         return [transform(v) for v in iterable]
+
+
+def apply_to_select(iterable, transform, selection=None):
+    """
+    Apply a transformation to selected values in an iterable.
+
+    If the iterable is a dictionary, each key-specified value is transformed;
+    if it is a list, each index-specified entry is transformed.
+    """
+    if isinstance(iterable, dict):
+        return {k: transform(v) if k in selection else v
+                for k, v in iterable.items()}
+    else:
+        return [transform(v) if i in selection else v
+                for i, v in enumerate(iterable)]
 
 
 def transform_block(block, transform):
@@ -232,7 +248,13 @@ def read_neuro_image(path, **kwargs):
     are forwarded to `nibabel.load`.
     """
     path = get_path_from_var(path)
-    return nb.load(path, **kwargs).get_fdata()
+    img = nb.load(path, **kwargs)
+    if isinstance(img, nb.Cifti2Image):
+        #TODO: should check the matrix axes for the time dimension and flip it
+        # to the end. Right now instead we assume HCP-style CIfTI input,
+        # greyordinates x time
+        return img.get_fdata().transpose(-1, -2)
+    return img.get_fdata()
 
 
 def vector_encode(data, encoding, dtype='torch.FloatTensor'):
@@ -380,3 +402,13 @@ def get_metadata_variable(dataobj, key):
     Obtain a value from the metadata block of an assigned DataObjectVariable.
     """
     return dataobj.metadata.get(key)
+
+
+def polynomial_detrend(tensor, order=0):
+    """Apply a polynomial detrend of the specified order to the data."""
+    base = torch.linspace(0, 1, tensor.size(-1))
+    X = torch.zeros((tensor.size(-1), order + 1))
+    for o in range(order + 1):
+        X[:, o] = base ** o
+    betas = torch.linalg.pinv(X.T @ X) @ X.T @ tensor.transpose(-1, -2)
+    return tensor - betas.transpose(-1, -2) @ X.T
