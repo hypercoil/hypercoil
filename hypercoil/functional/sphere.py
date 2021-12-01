@@ -18,6 +18,9 @@ def kernel_gaussian(x, scale=1):
     # Written for consistency with scipy's gaussian_filter1d.
     # I do not know where the constant 4 comes from in the denominator.
     # Constants shouldn't matter much for our purposes anyway...
+    # TODO
+    # It's not even consistent. Drop the normalisation and update the unit
+    # tests to just check that the ratio is consistent.
     return (
         torch.exp(-((x / scale) ** 2) / 2) /
         (4 * scale * (2 * torch.pi) ** 0.5)
