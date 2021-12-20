@@ -39,6 +39,8 @@ def invert_spd(A):
         Li = torch.inverse(L)
         return Li.transpose(-1, -2) @ Li
     except RuntimeError:
+        #TODO: getting to this point often means the matrix is singular,
+        # so it probably should fail or at least have the option to
         return torch.pinverse(A)
 
 
