@@ -16,6 +16,9 @@ from . import functional as F
 INDENT = '    '
 
 
+#TODO: make these nn modules. Use torchvision equivalents wherever possible.
+
+
 class Compose(object):
     """
     Compose a sequence of transforms. Identical to torchvision's Compose.
@@ -167,7 +170,8 @@ class NaNFill(object):
         self.fill = fill
 
     def __call__(self, data):
-        return F.nanfill(data, fill=self.fill)
+        data, _ = F.nanfill(data, fill=self.fill)
+        return data
 
     def __repr__(self):
         return f'{type(self).__name__}(fill={self.fill})'
@@ -426,6 +430,17 @@ class CWBCIfTIHeader(object):
         return f'{type(self).__name__}()'
 
 
+class Transpose(object):
+    """
+    Transpose the final two dimensions of an array.
+    """
+    def __call__(self, data):
+        return F.transpose(data)
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
+
+
 class ToTensorX(DataObjectTransform, ToTensor):
     """
     `ToTensor` transformation applied to the assigned data of a
@@ -524,4 +539,13 @@ class PolynomialDetrend(object):
         return F.polynomial_detrend(data, self.order)
 
     def __repr__(self):
-        return f'{type(self).__name__}(order{self.order})'
+        return f'{type(self).__name__}(order={self.order})'
+
+
+class Normalise(object):
+    """Z-score a tensor."""
+    def __call__(self, data):
+        return F.normalise(data)
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
