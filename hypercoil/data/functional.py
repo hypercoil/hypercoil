@@ -472,17 +472,6 @@ def polynomial_detrend(tensor, order=0):
     return tensor - betas.transpose(-1, -2) @ X.T
 
 
-"""
-def polynomial_detrend(data, order=0):
-    base = np.linspace(0, 1, data.shape[-1])
-    X = np.zeros((data.shape[-1], order + 1))
-    for o in range(order + 1):
-        X[:, o] = base ** o
-    betas = np.linalg.pinv(X.T @ X) @ X.T @ data.swapaxes(-1, -2)
-    return data - betas.swapaxes(-1, -2) @ X.T
-"""
-
-
 def transpose(data):
     return data.transpose(-1, -2)
 
