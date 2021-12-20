@@ -143,3 +143,100 @@ class Sylo(nn.Module):
         return sylo(input, self.weight_L, self.weight_R,
                     self.bias, self.symmetry, self.similarity)
 
+
+class SyloResBlock(nn.Module):
+    """
+    Sylo-based residual block by convolutional analogy. Patterned after
+    torchvision's `BasicBlock`. Restructured to follow principles from
+    He et al. 2016, 'Identity Mappings in Deep Residual Networks'.
+    Vertical compression module handles both stride-over-vertices and
+    downsampling. It precedes all other operations and the specified dimension
+    should be the compressed dimension.
+    """
+    def __init__(
+        self,
+        dim,
+        in_channels,
+        out_channels,
+        norm_layer=None,
+        compression=None
+    ):
+        super().__init__()
+        norm_layer = norm_layer or nn.BatchNorm2d
+        self.bn1 = norm_layer(in_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.sylo1 = Sylo(
+            in_channels,
+            out_channels,
+            dim,
+            rank=3,
+            bias=False,
+            symmetry='cross'
+        )
+        self.bn2 = norm_layer(out_channels)
+        self.sylo2 = Sylo(
+            out_channels,
+            out_channels,
+            dim,
+            rank=3,
+            bias=False,
+            symmetry='cross'
+        )
+        self.compression = compression
+
+    def forward(self, X):
+        if self.compression is not None:
+            X = self.compression(X)
+        identity = X
+
+        out = self.bn1(X)
+        out = self.relu(out)
+        out = self.sylo1(out)
+        out = self.bn2(out)
+        out  =self.relu(out)
+        out = self.sylo2(out)
+
+        out += identity
+        return out
+
+
+class SyloBottleneck(nn.Module):
+    def __init__(
+        self,
+        dim,
+        in_channels,
+        out_channels,
+        norm_layer=None,
+        compression=None
+    ):
+        super().__init__()
+        norm_layer = norm_layer or nn.BatchNorm2d
+        raise NotImplementedError('Bottleneck analogy is incomplete')
+
+
+class SyloResNet(nn.Module):
+    def __init__(
+        self,
+        dim,
+        in_channels,
+        channel_sequence=(16, 32, 64, 128),
+        block=SyloResBlock,
+        norm_layer=None,
+        compressions=None
+    ):
+    super().__init__()
+    norm_layer = norm_layer or nn.BatchNorm2d
+    self._norm_layer = norm_layer
+
+    self.channel_sequence = channel_sequence
+    # TODO: revisit after adding channel groups to sylo
+
+    # TODO: enable community group
+    self.sylo1 = Sylo(
+        in_cnannels,
+        channel_sequence[0],
+        dim,
+        rank=1,
+        bias=False,
+        symmetry='cross'
+    )
