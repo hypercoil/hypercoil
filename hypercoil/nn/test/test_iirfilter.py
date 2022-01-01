@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from scipy.signal import butter, lfilter, filtfilt
 from hypercoil.nn.iirfilter import DTDF
-from hypercoil.init.iirfilterbutforreal import IIRFilterSpec
+from hypercoil.init.iirfilter import IIRFilterSpec
 
 
 class TestIIRFilter:

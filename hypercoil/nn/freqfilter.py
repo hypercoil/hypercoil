@@ -11,7 +11,7 @@ from torch.nn import Module, Parameter
 from itertools import chain
 from ..functional import product_filtfilt
 from ..functional.domain import AmplitudeAtanh, Clip
-from ..init.iirfilter import iirfilter_init_, clamp_init_
+from ..init.freqfilter import freqfilter_init_, clamp_init_
 
 
 class FrequencyDomainFilter(Module):
@@ -35,10 +35,10 @@ class FrequencyDomainFilter(Module):
 
     Parameters
     ----------
-    filter_specs : list(IIRFilterSpec)
-        A list of filter specifications implemented as `IIRFilterSpec` objects
-        (`hypercoil.init.IIRFilterSpec`). These determine the filter bank that
-        is applied to the input. Consult the `IIRFilterSpec` documentation for
+    filter_specs : list(FreqFilterSpec)
+        A list of filter specifications implemented as `FreqFilterSpec` objects
+        (`hypercoil.init.FreqFilterSpec`). These determine the filter bank that
+        is applied to the input. Consult the `FreqFilterSpec` documentation for
         further details.
     dim : int or None
         Number of frequency bins. This must be conformant with the time series
@@ -71,7 +71,7 @@ class FrequencyDomainFilter(Module):
         total number of filters in the bank, and D denotes the dimension of the
         input dataset in the frequency domain. The weights are initialised to
         emulate each  of the filters specified in the `filter_specs` parameter
-        following the `iirfilter_init_` function.
+        following the `freqfilter_init_` function.
     weight : Tensor :math:`(F, D)`
         The transfer function weights as seen by the input dataset in the
         frequency domain. This entails mapping the weights out of the specified
@@ -104,7 +104,7 @@ class FrequencyDomainFilter(Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        iirfilter_init_(self.preweight, self.filter_specs, domain=self.domain)
+        freqfilter_init_(self.preweight, self.filter_specs, domain=self.domain)
         if self.clamp_points is not None:
             clamp_init_(self.clamp_points,
                         self.clamp_values,
