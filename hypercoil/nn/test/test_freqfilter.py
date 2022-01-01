@@ -9,9 +9,9 @@ import numpy as np
 import torch
 from hypercoil.nn import FrequencyDomainFilter
 from hypercoil.functional.domain import Identity
-from hypercoil.init.iirfilter import (
-    IIRFilterSpec,
-    iirfilter_init_,
+from hypercoil.init.freqfilter import (
+    FreqFilterSpec,
+    freqfilter_init_,
     clamp_init_
 )
 
@@ -23,23 +23,23 @@ class TestFreqFilter:
         N = torch.Tensor([[1], [4]])
         Wn = torch.Tensor([[0.1, 0.3], [0.4, 0.6]])
         self.filter_specs = [
-            IIRFilterSpec(Wn=[0.1, 0.3]),
-            IIRFilterSpec(Wn=Wn, N=N),
-            IIRFilterSpec(Wn=Wn, ftype='ideal'),
-            IIRFilterSpec(Wn=[0.1, 0.2], N=[2, 2], btype='lowpass'),
-            IIRFilterSpec(Wn=Wn, N=N, ftype='cheby1', rp=0.1),
-            IIRFilterSpec(Wn=Wn, N=N, ftype='cheby2', rs=20),
-            IIRFilterSpec(Wn=Wn, N=N, ftype='ellip', rs=20, rp=0.1)
+            FreqFilterSpec(Wn=[0.1, 0.3]),
+            FreqFilterSpec(Wn=Wn, N=N),
+            FreqFilterSpec(Wn=Wn, ftype='ideal'),
+            FreqFilterSpec(Wn=[0.1, 0.2], N=[2, 2], btype='lowpass'),
+            FreqFilterSpec(Wn=Wn, N=N, ftype='cheby1', rp=0.1),
+            FreqFilterSpec(Wn=Wn, N=N, ftype='cheby2', rs=20),
+            FreqFilterSpec(Wn=Wn, N=N, ftype='ellip', rs=20, rp=0.1)
         ]
         self.clamped_specs = [
-            IIRFilterSpec(Wn=[0.1, 0.3]),
-            IIRFilterSpec(Wn=Wn, clamps=[{}, {0.1: 1}]),
-            IIRFilterSpec(Wn=[0.1, 0.3], clamps=[{0.1: 0, 0.5:1}]),
-            IIRFilterSpec(Wn=Wn, N=N, clamps=[{0.05: 1, 0.1: 0},
+            FreqFilterSpec(Wn=[0.1, 0.3]),
+            FreqFilterSpec(Wn=Wn, clamps=[{}, {0.1: 1}]),
+            FreqFilterSpec(Wn=[0.1, 0.3], clamps=[{0.1: 0, 0.5:1}]),
+            FreqFilterSpec(Wn=Wn, N=N, clamps=[{0.05: 1, 0.1: 0},
                                               {0.2: 0, 0.5: 1}])
         ]
         self.identity_spec = [
-            IIRFilterSpec(Wn=[0, 1], ftype='ideal')
+            FreqFilterSpec(Wn=[0, 1], ftype='ideal')
         ]
         self.Z1 = torch.rand(99)
         self.Z2 = torch.rand(1, 99)

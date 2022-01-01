@@ -18,7 +18,7 @@ from hypercoil.nn import (
     UnaryCovarianceUW
 )
 from hypercoil.functional import corr
-from hypercoil.init import IIRFilterSpec
+from hypercoil.init import FreqFilterSpec
 from hypercoil.functional.activation import complex_decompose
 from hypercoil.functional.domain import Identity
 from hypercoil.functional.noise import UnstructuredDropoutSource
@@ -41,7 +41,7 @@ class TestFrequencyFilterNetwork:
         np.random.seed(0)
         self.X, y, target = synthesise(n=self.n)
         self.y = y[TEST_BAND]
-        self.target = IIRFilterSpec(Wn=target[TEST_BAND], ftype='ideal')
+        self.target = FreqFilterSpec(Wn=target[TEST_BAND], ftype='ideal')
         self.max_epoch = 300
         self.loss = torch.nn.MSELoss()
         self.log_interval = 5
@@ -53,7 +53,7 @@ class TestFrequencyFilterNetwork:
             os.path.dirname(hypercoil.__file__))
 
         torch.manual_seed(0)
-        filter_specs = [IIRFilterSpec(
+        filter_specs = [FreqFilterSpec(
             Wn=None, ftype='randn', btype=None, # clamps = [{0: 0}]
             ampl_scale=0.01, phase_scale=0.01
         )]
