@@ -18,20 +18,11 @@ from torch.nn import Module, Parameter
 from torch import FloatTensor
 from numpy.random import uniform
 
-"""
-self.b0 = Parameter(FloatTensor([uniform(-1, 1)]))
-self.b1 = Parameter(FloatTensor([uniform(-1, 1)]))
-self.b2 = Parameter(FloatTensor([uniform(-1, 1)]))
-self.a1 = Parameter(FloatTensor([uniform(-0.5, 0.5)]))
-self.a2 = Parameter(FloatTensor([uniform(-0.5, 0.5)]))
-"""
-
 
 class DTDFCell(Module):
     def __init__(self, init_spec):
         super(DTDFCell, self).__init__()
         self.N = init_spec.N
-        #assert self.N == 2 # Right now we only support second-order filter
         self.multiplier = 1
         if init_spec.btype in ('bandpass', 'bandstop'):
             self.multiplier = 2
