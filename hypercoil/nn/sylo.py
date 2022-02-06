@@ -10,7 +10,7 @@ import math
 import torch
 from torch import nn
 from torch.nn import init, Parameter
-from ..functional import sylo, crosshair_similarity
+from ..functional import sylo, crosshair_similarity, delete_diagonal
 from ..init.sylo import sylo_init_
 
 
@@ -68,6 +68,8 @@ class Sylo(nn.Module):
     init: dict
         Dictionary of parameters to pass to the sylo initialisation function.
         Default: {'nonlinearity': 'relu'}
+    delete_diagonal: bool
+        Delete the diagonal of the output.
 
     Attributes
     ----------
@@ -80,7 +82,8 @@ class Sylo(nn.Module):
     __constants__ = ['in_channels', 'out_channels', 'H', 'W', 'rank', 'bias']
 
     def __init__(self, in_channels, out_channels, dim, rank=1, bias=True,
-                 symmetry=True, similarity=crosshair_similarity, init=None):
+                 symmetry=True, similarity=crosshair_similarity,
+                 delete_diagonal=False, init=None):
         super(Sylo, self).__init__()
 
         if isinstance(dim, int):
@@ -100,6 +103,7 @@ class Sylo(nn.Module):
         self.dim = (H, W)
         self.symmetry = symmetry
         self.similarity = similarity
+        self.delete_diagonal = delete_diagonal
         self.init = init
 
         self.weight_L = Parameter(
@@ -140,8 +144,11 @@ class Sylo(nn.Module):
         return s
 
     def forward(self, input):
-        return sylo(input, self.weight_L, self.weight_R,
-                    self.bias, self.symmetry, self.similarity)
+        out = sylo(input, self.weight_L, self.weight_R,
+                   self.bias, self.symmetry, self.similarity)
+        if self.delete_diagonal:
+            return delete_diagonal(out)
+        return out
 
 
 class SyloResBlock(nn.Module):
@@ -224,19 +231,19 @@ class SyloResNet(nn.Module):
         norm_layer=None,
         compressions=None
     ):
-    super().__init__()
-    norm_layer = norm_layer or nn.BatchNorm2d
-    self._norm_layer = norm_layer
+        super().__init__()
+        norm_layer = norm_layer or nn.BatchNorm2d
+        self._norm_layer = norm_layer
 
-    self.channel_sequence = channel_sequence
-    # TODO: revisit after adding channel groups to sylo
+        self.channel_sequence = channel_sequence
+        # TODO: revisit after adding channel groups to sylo
 
-    # TODO: enable community group
-    self.sylo1 = Sylo(
-        in_cnannels,
-        channel_sequence[0],
-        dim,
-        rank=1,
-        bias=False,
-        symmetry='cross'
-    )
+        # TODO: enable community group
+        self.sylo1 = Sylo(
+            in_cnannels,
+            channel_sequence[0],
+            dim,
+            rank=1,
+            bias=False,
+            symmetry='cross'
+        )
