@@ -77,7 +77,8 @@ def iirfilter_coefs(iirfilter, N, Wn, btype='bandpass', fs=None,
 def kuznetsov_init(N, btype='bandpass'):
     multiplier = 1
     if btype in ('bandpass', 'bandstop'):
-        multiplier = 1
+        multiplier = 2
+    #val, _ = torch.sort(torch.abs(X))
     b = uniform(-1, 1, N * multiplier + 1)
     a = uniform(-0.5, 0.5, N * multiplier + 1)
     a[0] = 1

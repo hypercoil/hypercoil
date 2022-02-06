@@ -13,3 +13,6 @@ from .atlas import (
 from .freqfilter import (
     FreqFilterSpec
 )
+from .iirfilter import (
+    IIRFilterSpec
+)
