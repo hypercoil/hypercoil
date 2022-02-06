@@ -93,3 +93,28 @@ class DTDF(Module):
             return out_sequence
         else:
             return out_sequence, states
+
+
+class IIRFilter(DTDF):
+    """Currently an alias for DTDF."""
+
+
+class IIRFiltFilt(IIRFilter):
+    def forward(self, input, initial_states=None, feature_ax=False):
+        out = super().forward(
+            input=input,
+            initial_states=initial_states,
+            feature_ax=feature_ax
+        )
+        if not feature_ax:
+            out = out.flip(-1)
+        else:
+            out = out.flip(-2)
+        out = super().forward(
+            input=out,
+            initial_states=initial_states,
+            feature_ax=feature_ax
+        )
+        if not feature_ax:
+            return out.flip(-1)
+        return out.flip(-2)
