@@ -13,7 +13,8 @@ from .freqfilter import (
     FrequencyDomainFilter
 )
 from .iirfilter import (
-    DTDF
+    IIRFilter,
+    IIRFiltFilt
 )
 from .polyconv import (
     PolyConv2D
