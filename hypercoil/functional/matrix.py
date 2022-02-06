@@ -178,6 +178,16 @@ def expand_outer(L, R=None, symmetry=None):
     return output
 
 
+def delete_diagonal(A):
+    """
+    Delete the diagonal from a block of square matrices. Dimension is inferred
+    from the final axis.
+    """
+    dim = A.shape[-1]
+    diag = torch.eye(dim) * torch.diagonal(A, dim1=-2, dim2=-1).unsqueeze(-2)
+    return A - diag
+
+
 def toeplitz(c, r=None, dim=None, fill_value=0):
     """
     Populate a block of tensors with Toeplitz banded structure.
