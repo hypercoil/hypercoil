@@ -6,7 +6,8 @@ Initialisation
 """
 from .norm import (
     ReducingRegularisation,
-    NormedRegularisation
+    NormedRegularisation,
+    UnilateralNormedRegularisation
 )
 from .scheme import (
     RegularisationScheme
