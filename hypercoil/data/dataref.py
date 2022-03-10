@@ -307,7 +307,7 @@ class DataQuery(object):
 
 
 def data_references(data_dir, layout, reference, labels, outcomes,
-                    observations, levels, queries=None, filters=None,
+                    observations, levels, queries, filters=None,
                     additional_tables=None, ignore=None):
     """
     Obtain data references for a specified directory.
@@ -369,9 +369,11 @@ def data_references(data_dir, layout, reference, labels, outcomes,
     # it and refactor before it becomes even more of a nuisance.
     labels = labels or []
     outcomes = outcomes or []
+    filters = filters or {}
     df = layout.dataset(observations, levels,
-                        ignore=None, queries=None,
-                        additional_tables=None, **filters)
+                        ignore=ignore, queries=queries,
+                        additional_tables=additional_tables,
+                        **filters)
     observations = [o for o in observations if o in df.index.names]
     levels = [l for l in levels if l in df.index.names]
     obs = all_observations(df.index, observations, levels)

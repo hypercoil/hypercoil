@@ -12,8 +12,15 @@ from .cov import(
 from .freqfilter import (
     FrequencyDomainFilter
 )
+from .iirfilter import (
+    IIRFilter,
+    IIRFiltFilt
+)
 from .polyconv import (
     PolyConv2D
+)
+from .resid import (
+    Residualise
 )
 from .semidefinite import(
     TangentProject, BatchTangentProject

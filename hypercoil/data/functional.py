@@ -11,6 +11,12 @@ import torch
 import numpy as np
 import pandas as pd
 import nibabel as nb
+from functools import reduce, partial
+
+
+def identity(data):
+    """Return the input."""
+    return data
 
 
 def get_col(df, label):
@@ -47,7 +53,8 @@ def to_tensor(data, dtype='torch.FloatTensor', dim='auto'):
         PyTorch Tensor containing the input data.
     """
     if isinstance(data, pd.DataFrame):
-        data = data.values
+        #TODO: transposing as a patch here. Move it somewhere reasonable.
+        data = data.values.T
     try:
         tensor = torch.Tensor(data).type(dtype)
     except TypeError:
@@ -107,12 +114,19 @@ def nanfill(data, fill=None):
     data : Tensor
         Input tensor with missing or invalid values populated.
     """
+    nanmask = None
     if fill is not None:
         if isinstance(data, np.ndarray):
+            nanmask = np.isnan(data)
+            if fill == 'mean':
+                fill = np.nanmean(data)
             data[np.isnan(data)] = fill
         elif isinstance(data, torch.Tensor):
+            nanmask = torch.isnan(data)
+            if fill == 'mean':
+                fill = data.nanmean()
             data[torch.isnan(data)] = fill
-    return data
+    return data, nanmask
 
 
 def apply_model_specs(models, data, metadata=None):
@@ -191,7 +205,50 @@ def consolidate_block(block):
         out = extend_to_max_size(block)
     else:
         out = extend_to_max_size([consolidate_block(e) for e in block])
-    return torch.stack(out)
+    out = torch.stack(out)
+    #TODO: stupid patch here to skip leading singleton dimension.
+    if out.size(0) == 1:
+        return out.squeeze(0)
+    return out
+
+
+def consolidate_to_tensor(block, dtype=torch.FloatTensor, dim='auto'):
+    """
+    Convenience function for ReferencedDataset because pydra doesn't always
+    play well with tensors. Wraps `consolidate_block` and `to_tensor` while
+    also handling subdictionaries if they exist.
+    """
+    if isinstance(block, dict):
+        return {k: consolidate_to_tensor(v, dtype=dtype, dim=dim)
+                for k, v in block.items()}
+    tt = partial(to_tensor, dtype=dtype, dim=dim)
+    block = transform_block(block, tt)
+    return consolidate_block(block)
+
+
+
+def ravel(lst, stack=[], max_depth=None):
+    try:
+        dim = reduce(lambda x, y: x * y, stack)
+    except TypeError:
+        dim = 1
+    max_depth = max_depth or float('inf')
+    depth = len(stack)
+    while depth < max_depth:
+        stack += [len(lst) // dim]
+        if not isinstance(lst[0], list):
+            break
+        lst = [item for sublist in lst for item in sublist]
+        dim *= stack[-1]
+        depth = len(stack)
+    return lst, stack
+
+
+def fold(lst, stack):
+    while len(stack) > 0:
+        dim = stack.pop()
+        lst = list(zip(*[iter(lst)] * dim))
+    return lst[0], stack
 
 
 def extend_to_max_size(tensor_list):
@@ -215,10 +272,11 @@ def extend_to_size(tensor, size):
     populated by chaining this with a call to `nanfill`.
     """
     out = torch.empty(*size) * float('nan')
-    names = tensor.names
-    tensor = tensor.rename(None)
+    #TODO: revisit named tensors when they are stable
+    #names = tensor.names
+    #tensor = tensor.rename(None)
     out[[slice(s) for s in tensor.size()]] = tensor
-    out.names = names
+    #out.names = names
     return out
 
 
@@ -412,3 +470,57 @@ def polynomial_detrend(tensor, order=0):
         X[:, o] = base ** o
     betas = torch.linalg.pinv(X.T @ X) @ X.T @ tensor.transpose(-1, -2)
     return tensor - betas.transpose(-1, -2) @ X.T
+
+
+def transpose(data):
+    return data.transpose(-1, -2)
+
+
+def standardise(data, axis=-1):
+    #TODO: confusing: standardise for np arrays, normalise for tensors . . .
+    # but then, the whole functional/data transform module needs a major
+    # cleanup / revamp
+    mu = np.nanmean(data, axis=axis, keepdims=True)
+    std = np.nanstd(data, axis=axis, keepdims=True)
+    return (data - mu) / std
+
+
+def normalise(data, axis=-1):
+    mu = data.nanmean(axis=axis, keepdims=True)
+    #TODO: replace with nanstd when torch adds support
+    # Right now, this is biased, so it won't give output with unbiased SD 1
+    std = torch.nanmean(
+        (data - mu) ** 2,
+        axis=axis,
+        keepdims=True
+    ).sqrt()
+    return (data - mu) / std
+
+
+def window(data, window_length, window_start=0):
+    window_end = window_start + window_length
+    return data[..., window_start:window_end]
+
+
+def random_window(data, window_length, axis=-1):
+    #TODO: enable random (integer) length sampled from distribution
+    # and non-uniform distribution for sampling start
+    end = data.shape[axis]
+    if window_length is None:
+        return (end, 0)
+    maximum = max(end - window_length, 1)
+    window_start = np.random.randint(maximum)
+    return (window_length, window_start)
+
+
+def window_map(data, keys, window_length):
+    window_length, window_start = random_window(data[keys[0]], window_length)
+    return {
+        k: (window(v, window_length, window_start) if k in keys else v)
+        for k, v in data.items()
+    }
+
+
+def fillnan(data, nanmask):
+    data[nanmask] = float('nan')
+    return data

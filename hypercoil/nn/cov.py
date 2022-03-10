@@ -10,7 +10,7 @@ import torch
 from torch.nn import Module, Parameter, init
 from ..functional.activation import laplace
 from ..functional.domain import Identity
-from ..functional.matrix import toeplitz
+from ..functional.matrix import toeplitz, expand_outer
 from ..init.base import (
     BaseInitialiser,
     ConstantInitialiser,
@@ -127,15 +127,18 @@ class _UnaryCov(_Cov):
 
     Consult specific implementations for comprehensive documentation.
     """
-    def forward(self, input):
+    def forward(self, input, mask=None):
         if input.dim() > 2 and self.out_channels > 1 and input.size(-3) > 1:
             input = input.unsqueeze(-3)
+        W = self.postweight
+        if mask is not None:
+            W = W * expand_outer(mask)
         return self.estimator(
             input,
             rowvar=self.rowvar,
             bias=self.bias,
             ddof=self.ddof,
-            weight=self.postweight,
+            weight=W,
             l2=self.l2
         )
 
@@ -152,18 +155,21 @@ class _BinaryCov(_Cov):
 
     Consult specific implementations for comprehensive documentation.
     """
-    def forward(self, x, y):
+    def forward(self, x, y, mask=None):
         if self.out_channels > 1:
             if x.dim() > 2 and x.size(-3) > 1:
                 x = x.unsqueeze(-3)
             if y.dim() > 2 and y.size(-3) > 1:
                 y = y.unsqueeze(-3)
+        W = self.postweight
+        if mask is not None:
+            W = W * expand_outer(mask)
         return self.estimator(
             x, y,
             rowvar=self.rowvar,
             bias=self.bias,
             ddof=self.ddof,
-            weight=self.postweight,
+            weight=W,
             l2=self.l2
         )
 

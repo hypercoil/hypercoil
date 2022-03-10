@@ -10,7 +10,7 @@ import math
 import torch
 from torch import nn
 from torch.nn import init, Parameter
-from ..functional import sylo, crosshair_similarity
+from ..functional import sylo, crosshair_similarity, delete_diagonal
 from ..init.sylo import sylo_init_
 
 
@@ -68,6 +68,8 @@ class Sylo(nn.Module):
     init: dict
         Dictionary of parameters to pass to the sylo initialisation function.
         Default: {'nonlinearity': 'relu'}
+    delete_diagonal: bool
+        Delete the diagonal of the output.
 
     Attributes
     ----------
@@ -80,7 +82,8 @@ class Sylo(nn.Module):
     __constants__ = ['in_channels', 'out_channels', 'H', 'W', 'rank', 'bias']
 
     def __init__(self, in_channels, out_channels, dim, rank=1, bias=True,
-                 symmetry=True, similarity=crosshair_similarity, init=None):
+                 symmetry=True, similarity=crosshair_similarity,
+                 delete_diagonal=False, init=None):
         super(Sylo, self).__init__()
 
         if isinstance(dim, int):
@@ -100,6 +103,7 @@ class Sylo(nn.Module):
         self.dim = (H, W)
         self.symmetry = symmetry
         self.similarity = similarity
+        self.delete_diagonal = delete_diagonal
         self.init = init
 
         self.weight_L = Parameter(
@@ -140,6 +144,106 @@ class Sylo(nn.Module):
         return s
 
     def forward(self, input):
-        return sylo(input, self.weight_L, self.weight_R,
-                    self.bias, self.symmetry, self.similarity)
+        out = sylo(input, self.weight_L, self.weight_R,
+                   self.bias, self.symmetry, self.similarity)
+        if self.delete_diagonal:
+            return delete_diagonal(out)
+        return out
 
+
+class SyloResBlock(nn.Module):
+    """
+    Sylo-based residual block by convolutional analogy. Patterned after
+    torchvision's `BasicBlock`. Restructured to follow principles from
+    He et al. 2016, 'Identity Mappings in Deep Residual Networks'.
+    Vertical compression module handles both stride-over-vertices and
+    downsampling. It precedes all other operations and the specified dimension
+    should be the compressed dimension.
+    """
+    def __init__(
+        self,
+        dim,
+        in_channels,
+        out_channels,
+        norm_layer=None,
+        compression=None
+    ):
+        super().__init__()
+        norm_layer = norm_layer or nn.BatchNorm2d
+        self.bn1 = norm_layer(in_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.sylo1 = Sylo(
+            in_channels,
+            out_channels,
+            dim,
+            rank=3,
+            bias=False,
+            symmetry='cross'
+        )
+        self.bn2 = norm_layer(out_channels)
+        self.sylo2 = Sylo(
+            out_channels,
+            out_channels,
+            dim,
+            rank=3,
+            bias=False,
+            symmetry='cross'
+        )
+        self.compression = compression
+
+    def forward(self, X):
+        if self.compression is not None:
+            X = self.compression(X)
+        identity = X
+
+        out = self.bn1(X)
+        out = self.relu(out)
+        out = self.sylo1(out)
+        out = self.bn2(out)
+        out  =self.relu(out)
+        out = self.sylo2(out)
+
+        out += identity
+        return out
+
+
+class SyloBottleneck(nn.Module):
+    def __init__(
+        self,
+        dim,
+        in_channels,
+        out_channels,
+        norm_layer=None,
+        compression=None
+    ):
+        super().__init__()
+        norm_layer = norm_layer or nn.BatchNorm2d
+        raise NotImplementedError('Bottleneck analogy is incomplete')
+
+
+class SyloResNet(nn.Module):
+    def __init__(
+        self,
+        dim,
+        in_channels,
+        channel_sequence=(16, 32, 64, 128),
+        block=SyloResBlock,
+        norm_layer=None,
+        compressions=None
+    ):
+        super().__init__()
+        norm_layer = norm_layer or nn.BatchNorm2d
+        self._norm_layer = norm_layer
+
+        self.channel_sequence = channel_sequence
+        # TODO: revisit after adding channel groups to sylo
+
+        # TODO: enable community group
+        self.sylo1 = Sylo(
+            in_cnannels,
+            channel_sequence[0],
+            dim,
+            rank=1,
+            bias=False,
+            symmetry='cross'
+        )

@@ -105,7 +105,7 @@ class MultiLogit(_Domain):
     The forward function is a softmax. Note that the softmax function does
     not have a unique inverse; here we use the elementwise natural logarithm
     as an 'inverse'. For a relatively well-behaved map, use together with
-    init.dirichlet.DirichletInit
+    `init.dirichlet.DirichletInit`
 
     Parameters
     ----------
@@ -245,3 +245,110 @@ class ANOML(_PhaseAmplitudeDomain, NullOptionMultiLogit):
         Object specifying a method for handling out-of-domain entries.
     """
     pass
+
+
+def bandpass_iir(X, feature_ax=False):
+    dim = X.shape[-1]
+    if feature_ax:
+        dim = X.shape[-2]
+    mask = torch.ones(dim)
+    mask[slice(1, None, 2)] = 0
+    mask[slice(2, None, 4)] = -1
+    if feature_ax:
+        X = X + torch.flip(X, (-2,))
+        mask = mask.unsqueeze(-1)
+    else:
+        X = X + torch.flip(X, (-1,))
+    return mask * X
+
+
+class IIRNumerator(_Domain):
+    #TODO: fix limits
+    # default limits based roughly on Kuznetsov init
+    def __init__(self, handler=None, limits=(0, 1), peak=0.5,
+                 btype='bandpass', order=1, feature_ax=False):
+        super(IIRNumerator, self).__init__(
+            handler=handler, bound=limits,
+            loc=0, scale=1, limits=limits)
+        self.btype = btype
+        self.peak = peak
+        self.order = order
+        self.feature_ax = feature_ax
+        self._init_mask()
+        self.preimage_map = lambda x: self.encode(x)
+        self.image_map = lambda x: self.iircoefs(x)
+
+    def _init_mask(self):
+        if self.btype == 'bandpass':
+            self.mask = torch.ones(self.order * 2 + 1)
+            self.mask[slice(1, None, 2)] = 0
+            self.mask[slice(2, None, 4)] = -1
+        elif self.btype == 'bandstop':
+            self.mask = torch.ones(self.order * 2 + 1)
+            if self.peak < 0.5:
+                self.mask[slice(1, None, 2)] = -1
+            elif self.peak == 0.5:
+                self.mask[slice(1, None, 2)] = 0
+        elif self.btype =='lowpass':
+            self.mask = torch.ones(self.order + 1)
+        elif self.btype =='highpass':
+            self.mask = torch.ones(self.order + 1)
+            self.mask[slice(1, None, 2)] = -1
+        if self.feature_ax:
+            self.mask = self.mask.unsqueeze(-1)
+
+    def iircoefs(self, X):
+        if self.feature_ax:
+            X = X + torch.flip(X, (-2,))
+        else:
+            X = X + torch.flip(X, (-1,))
+        return self.mask * X / 2
+
+    def encode(self, X):
+        if self.btype == 'bandpass':
+            y = torch.zeros(self.order * 2 + 1)
+            y[slice(0, len(X) * 2, 2)] = X
+        else:
+            if self.btype == 'bandstop':
+                y = torch.zeros(self.order * 2 + 1)
+            elif self.btype == 'lowpass' or self.btype == 'highpass':
+                y = torch.empty(self.order + 1)
+            y[slice(0, len(X), 1)] = X
+        y = y + torch.flip(y, (-1,))
+        y[len(y) // 2] /= 2
+        return torch.abs(y)
+
+
+class IIRDenominator(_Domain):
+    #TODO: fix limits
+    # default limits based roughly on Kuznetsov init
+    def __init__(self, handler=None, limits=(0, 0.5), peak=0.5,
+                 btype='bandpass', order=1, feature_ax=False):
+        super(IIRDenominator, self).__init__(
+            handler=handler, bound=limits,
+            loc=0, scale=1, limits=limits)
+        self.btype = btype
+        self.peak = peak
+        self.order = order
+        self.feature_ax = feature_ax
+        self._init_mask()
+        self.preimage_map = lambda x: self.encode(x)
+        self.image_map = lambda x: self.iircoefs(x)
+
+    def _init_mask(self):
+        if self.btype == 'bandpass' or self.btype == 'bandstop':
+            self.mask = torch.ones(self.order * 2)
+        elif self.btype == 'highpass' or self.btype == 'highpass':
+            self.mask = torch.ones(self.order)
+        if self.peak < 0.5:
+            self.mask[slice(0, None, 2)] = -1
+        elif self.peak == 0.5:
+            self.mask[slice(0, None, 2)] = 0
+        if self.feature_ax:
+            self.mask = self.mask.unsqueeze(-1)
+
+    def iircoefs(self, X):
+        return self.mask * X
+
+    def encode(self, X):
+        return torch.abs(X)
