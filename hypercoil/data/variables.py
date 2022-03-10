@@ -382,6 +382,8 @@ class DataPathVariable(DataObjectVariable):
         self.attributes = {}
 
     def __getattr__(self, key):
+        if key == 'attributes':
+            raise AttributeError()
         value = self.get(key)
         if value is None:
             raise AttributeError(f'Invalid attribute: {key}')

@@ -10,6 +10,9 @@ from .atlas import (
     MultifileAtlas,
     SurfaceAtlas
 )
+from .freqfilter import (
+    FreqFilterSpec
+)
 from .iirfilter import (
     IIRFilterSpec
 )

@@ -39,6 +39,8 @@ def invert_spd(A):
         Li = torch.inverse(L)
         return Li.transpose(-1, -2) @ Li
     except RuntimeError:
+        #TODO: getting to this point often means the matrix is singular,
+        # so it probably should fail or at least have the option to
         return torch.pinverse(A)
 
 
@@ -174,6 +176,16 @@ def expand_outer(L, R=None, symmetry=None):
     if symmetry == 'cross' or symmetry == 'skew':
         return symmetric(output, skew=symmetry)
     return output
+
+
+def delete_diagonal(A):
+    """
+    Delete the diagonal from a block of square matrices. Dimension is inferred
+    from the final axis.
+    """
+    dim = A.shape[-1]
+    diag = torch.eye(dim) * torch.diagonal(A, dim1=-2, dim2=-1).unsqueeze(-2)
+    return A - diag
 
 
 def toeplitz(c, r=None, dim=None, fill_value=0):
