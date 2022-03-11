@@ -178,6 +178,40 @@ def expand_outer(L, R=None, symmetry=None):
     return output
 
 
+def recondition_eigenspaces(A, psi, xi):
+    r"""
+    Recondition a positive semidefinite matrix such that it has no zero
+    eigenvalues, and all of its eigenspaces have dimension one.
+
+    This reconditioning operation should help stabilise differentiation
+    through singular value decomposition.
+
+    This operation modifies the input matrix A following
+
+    :math:`A := A + \left(\psi - \frac{\xi}{2}\right) I + I\mathbf{x}`
+
+    :math:`x_i \sim \mathrm{Uniform}(0, \xi) \forall x_i`
+
+    :math:`\psi > \xi`
+
+    Parameters
+    ----------
+    A : tensor
+        Matrix or matrix block to be reconditioned.
+    psi : float
+        Reconditioning parameter for ensuring nonzero eigenvalues.
+    xi : float
+        Reconditioning parameter for ensuring nondegenerate eigenvalues.
+
+    Returns
+    -------
+    tensor
+        Reconditioned matrix or matrix block.
+    """
+    x = xi * torch.rand(A.shape[-1])
+    return A + (psi - xi / 2 + x) * torch.eye(A.shape[-1])
+
+
 def delete_diagonal(A):
     """
     Delete the diagonal from a block of square matrices. Dimension is inferred
