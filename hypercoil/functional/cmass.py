@@ -7,6 +7,10 @@ Centre of mass
 Differentiably compute a weight's centre of mass.
 """
 import torch
+from functools import partial
+
+
+from ..functional.sphere import spherical_geodesic
 
 
 def cmass(X, axes=None, na_rm=False):
@@ -68,3 +72,27 @@ def cmass(X, axes=None, na_rm=False):
         if na_rm is not False:
             out[denom == 0, i] = na_rm
     return out
+
+
+def cmass_coor(X, coor, radius=None):
+    num = (X.unsqueeze(-3) * coor.unsqueeze(-2)).sum(-1)
+    denom = X.sum(-1)
+    if radius is not None:
+        cmass_euc = num / denom
+        return radius * cmass_euc / torch.linalg.norm(cmass_euc, 2, -3)
+    return num / denom
+
+
+def diffuse(X, coor, norm=2, floor=0, radius=None):
+    cm = cmass_coor(X, coor, radius=radius)
+    if radius is None:
+        dist = cm.unsqueeze(-1) - coor.unsqueeze(-2)
+        dist = torch.linalg.norm(dist, p=2, dim=-3)
+    else:
+        dist = spherical_geodesic(
+            coor.transpose(-1, -2),
+            cm.transpose(-1, -2),
+            r=radius
+        )
+    dist = torch.maximum(dist - floor, torch.tensor(0))
+    return (X * dist).mean()
