@@ -74,6 +74,14 @@ def cmass(X, axes=None, na_rm=False):
     return out
 
 
+def cmass_reference_displacement(weight, refs, axes=None, na_rm=False):
+    """
+    Displacement of centres of mass from reference points.
+    """
+    cm = cmass(weight, axes=axes, na_rm=na_rm)
+    return cm - refs
+
+
 def cmass_coor(X, coor, radius=None):
     """
     Differentiably compute a weight's centre of mass.

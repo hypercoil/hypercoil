@@ -7,13 +7,8 @@ Reference proximity
 Regularisations using centre-of-mass proximity to a reference.
 """
 from functools import partial
-from .norm import NormedRegularisation
-from ..functional.cmass import cmass
-
-
-def cmass_reference_displacement(weight, refs, axes=None, na_rm=False):
-    cm = cmass(weight, axes=axes, na_rm=na_rm)
-    return cm - refs
+from .norm import NormedRegularisation, ReducingRegularisation
+from ..functional.cmass import cmass_reference_displacement, diffuse
 
 
 class CentroidAnchor(NormedRegularisation):
@@ -25,3 +20,21 @@ class CentroidAnchor(NormedRegularisation):
             na_rm=na_rm
         )
         super(SymmetricBimodal, self).__init__(nu=nu, p=norm, reg=reg)
+
+
+class Compactness(ReducingRegularisation):
+    def __init__(self, coor, nu=1, norm=2, floor=0,
+                 radius=None, reduction=None):
+        reduction = reduction or torch.mean
+        reg = partial(
+            diffuse,
+            coor=coor,
+            norm=norm,
+            floor=floor,
+            radius=radius
+        )
+        super(Compactness, self).__init__(
+            nu=nu,
+            reduction=reduction,
+            reg=reg
+        )
