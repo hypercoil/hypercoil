@@ -4,6 +4,27 @@
 """
 Initialisation
 """
+from .cmass import (
+    Compactness,
+    CentroidAnchor
+)
+from .determinant import (
+    Determinant,
+    LogDet,
+    DetCorr,
+    LogDetCorr
+)
+from .entropy import (
+    Entropy,
+    SoftmaxEntropy
+)
+from .equilibrium import (
+    Equilibrium,
+    SoftmaxEquilibrium
+)
+from .modularity import (
+    ModularityRegularisation
+)
 from .norm import (
     ReducingRegularisation,
     NormedRegularisation,
@@ -11,6 +32,9 @@ from .norm import (
 )
 from .scheme import (
     RegularisationScheme
+)
+from .secondmoment import (
+    SecondMoment
 )
 from .smoothness import (
     SmoothnessPenalty
