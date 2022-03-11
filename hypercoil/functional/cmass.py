@@ -75,6 +75,33 @@ def cmass(X, axes=None, na_rm=False):
 
 
 def cmass_coor(X, coor, radius=None):
+    """
+    Differentiably compute a weight's centre of mass.
+
+    :Dimension: **Input :** :math:`(*, W, L)`
+                    ``*`` denotes any number of preceding dimensions, W
+                    denotes number of weights (e.g., regions of an atlas),
+                    and L denotes number of locations (e.g., voxels).
+                **coor :** :math:`(*, D, L)`
+                    D denotes the dimension of the embedding space of the
+                    locations.
+
+    Parameters
+    ----------
+    X : Tensor
+        Weight whose centre of mass is to be computed.
+    coor : Tensor
+        Coordinates corresponding to each column (location/voxel) in X.
+    radius : float or None (default None)
+        If this is not None, then the computed centre of mass is projected
+        onto a sphere with the specified radius.
+
+    Returns
+    -------
+    Tensor
+        Tensor containing the coordinates of the centre of mass of each row of
+        input X.
+    """
     num = (X.unsqueeze(-3) * coor.unsqueeze(-2)).sum(-1)
     denom = X.sum(-1)
     if radius is not None:
@@ -84,6 +111,41 @@ def cmass_coor(X, coor, radius=None):
 
 
 def diffuse(X, coor, norm=2, floor=0, radius=None):
+    r"""
+    Compute a compactness score for a weight.
+
+    The compactness is defined as
+
+    :math:`\mathbf{1}^\intercal\left(A \circ \left\|C - \frac{C \circ A}{\mathbf{1}^\intercal A} \right\|_{cols} \right)\mathbf{1}`
+
+    :Dimension: **Input :** :math:`(*, W, L)`
+                    ``*`` denotes any number of preceding dimensions, W
+                    denotes number of weights (e.g., regions of an atlas),
+                    and L denotes number of locations (e.g., voxels).
+                **coor :** :math:`(*, D, L)`
+                    D denotes the dimension of the embedding space of the
+                    locations.
+
+    Parameters
+    ----------
+    X : Tensor
+        Weight for which the compactness score is to be computed.
+    coor : Tensor
+        Coordinates corresponding to each column (location/voxel) in X.
+    norm
+        Indicator of the type of norm to use for the distance function.
+    floor : float (default 0)
+        Any points closer to the centre of mass than the floor are assigned
+        a compactness score of 0.
+    radius : float or None (default None)
+        If this is not None, then the centre of mass and distances are
+        computed on a sphere with the specified radius.
+
+    Returns
+    -------
+    float
+        Measure of each weight's compactness about its centre of mass.
+    """
     cm = cmass_coor(X, coor, radius=radius)
     if radius is None:
         dist = cm.unsqueeze(-1) - coor.unsqueeze(-2)
