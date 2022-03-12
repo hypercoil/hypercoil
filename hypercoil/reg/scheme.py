@@ -38,6 +38,9 @@ class RegularisationScheme(Module):
         s = ','.join(s)
         return f'RegularisationScheme({s}\n)'
 
+    def __getitem__(self, key):
+        return self.reg[key]
+
     def _listify(self, x):
         if x is None:
             return None

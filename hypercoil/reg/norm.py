@@ -20,6 +20,9 @@ class ReducingRegularisation(Module):
         self.reduction = reduction
         self.reg = reg
 
+    def __repr__(self):
+        return f'[ν = {self.nu}]{type(self).__name__}'
+
     def forward(self, weight):
         return self.nu * self.reduction(self.reg(weight))
 
