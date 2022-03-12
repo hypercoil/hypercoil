@@ -128,7 +128,7 @@ def soft_atlas_example(d=25, c=9, walk_length=15, seed=None):
     return A.view(c, d, d)
 
 
-def plot_atlas(parcels, d, saveh=None, saves=None):
+def plot_atlas(parcels, d, c=9, saveh=None, saves=None):
     """
     Plotting utility for synthetic atlases, or for learned models of them.
 
@@ -157,8 +157,9 @@ def plot_atlas(parcels, d, saveh=None, saves=None):
     if saveh:
         plt.savefig(saveh)
     plt.figure(figsize=(8, 8))
-    for i in range(9):
-        plt.subplot(3, 3, i + 1)
+    q = int(np.ceil(np.sqrt(c)))
+    for i in range(c):
+        plt.subplot(q, q, i + 1)
         lim = torch.abs(parcels[i, :]).max().detach().numpy()
         plt.imshow(
             parcels[i, :].view(d, d).detach().numpy(),
@@ -206,18 +207,17 @@ def embed_data_in_atlas(A, t=300, signal_dim=100, atlas_dim=9,
             ts = synth_slow_signals(
                 time_dim=t, signal_dim=signal_dim, lp=lp
             )
-        ts_reg = mix_data(
-            ts=ts, atlas_dim=atlas_dim,
-            signal_dim=signal_dim
+        ts_reg = mix_data_01(
+            ts=ts, mixture_dim=atlas_dim
         )
     if parc == 'hard':
         data = torch.zeros(image_dim, image_dim, t)
         for i in range(atlas_dim):
-            data[A == i] = torch.FloatTensor(ts_reg[:, i]).reshape(1, 1, -1)
+            data[A == i] = torch.FloatTensor(ts_reg[i, :]).reshape(1, 1, -1)
     elif parc == 'soft':
         data = (
             A.view(atlas_dim, image_dim * image_dim).transpose(-1, -2) @
-            torch.FloatTensor(ts_reg.T)
+            torch.FloatTensor(ts_reg)
         )
         data = data.view(image_dim, image_dim, t)
     return data, ts_reg
