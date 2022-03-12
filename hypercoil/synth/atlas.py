@@ -18,6 +18,10 @@ from .mix import (
 
 
 def hard_atlas_example(d=25):
+    """
+    Synthesise a simple hard parcellation ground truth. The parameter
+    d specifies the dimension of the parcellated image.
+    """
     A = torch.zeros((d, d))
     ax_x = torch.arange(d).view(1, -1).tile(d, 1)
     ax_y = torch.arange(d).view(-1, 1).tile(1, d)
@@ -38,6 +42,11 @@ def hard_atlas_example(d=25):
 
 
 def hard_atlas_homologue(d=25):
+    """
+    Synthesise an alternative simple hard parcellation ground truth, whose
+    parcels exhibit clear homology with those from `hard_atlas_example`. The
+    parameter d specifies the dimension of the parcellated image.
+    """
     A = torch.zeros((d, d))
     ax_x = torch.arange(d).view(1, -1).tile(d, 1)
     ax_y = torch.arange(d).view(-1, 1).tile(1, d)
@@ -59,6 +68,27 @@ def hard_atlas_homologue(d=25):
 
 
 def soft_atlas_example(d=25, c=9, walk_length=15, seed=None):
+    """
+    Synthesise a simple soft parcellation ground truth.
+
+    The parcellation is synthesised as follows:
+    1. For each parcel, randomly select an origin point.
+    2. Take a random walk from that origin point, adding each traversed point
+       to the parcel.
+    3. Convolve the parcel using a Gaussian with scale parameter d // 5.
+    4. Square and normalise parcels.
+
+    Parameters
+    ----------
+    d : int (default 25)
+        Dimension of the parcellated image.
+    c : int (default 9)
+        Number of parcels.
+    walk_length : int (default 15)
+        Length of random walk used when generating parcels.
+    seed : int (default None)
+        Seed for RNG.
+    """
     ax_x = torch.arange(d).view(1, -1).tile(d, 1)
     ax_y = torch.arange(d).view(-1, 1).tile(1, d)
 
@@ -99,6 +129,22 @@ def soft_atlas_example(d=25, c=9, walk_length=15, seed=None):
 
 
 def plot_atlas(parcels, d, saveh=None, saves=None):
+    """
+    Plotting utility for synthetic atlases, or for learned models of them.
+
+    Parameters
+    ----------
+    parcels : tensor
+        Tensor containing each voxel's affiliation weight to each parcel.
+        Its dimension should be the number of parcels by the number of
+        voxels.
+    d : int
+        Dimension of parcellated image.
+    saveh : str or None
+        Location to save the figure representing the hard view of the parcels.
+    saves : str or None
+        Location to save the figure representing the soft view of the parcels.
+    """
     plt.figure(figsize=(8, 8))
     plt.imshow(
         parcels.argmax(0).view(d, d).detach().numpy(),
@@ -129,6 +175,32 @@ def plot_atlas(parcels, d, saveh=None, saves=None):
 def embed_data_in_atlas(A, t=300, signal_dim=100, atlas_dim=9,
                         image_dim=25, lp=0.3, parc='hard',
                         ts=None, ts_reg=None):
+    """
+    Embed the specified time series in the specified atlas.
+
+    Parameters
+    ----------
+    A : np array
+        Atlas array.
+    t : int (default 300)
+        Time dimension of time series data.
+    signal_dim : int (default 300)
+        Number of latent signals to generate and embed.
+    atlas_dim : int (default 9)
+        Number of atlas parcels. Also the number of observed signals to
+        compose as linear combinations of the latent signals.
+    image_dim : int (default 25)
+        Image dimension (side length in pixels) of the parcellation.
+    lp : float (default 0.3)
+        Fraction of lowest frequencies to spare from obliteration.
+    parc : 'soft' or 'hard'
+        Kind of parcellation.
+    ts : array
+        If specified, use these as the latent time series.
+    ts_reg : array
+        If specified, use these as the observed regional time series. Note
+        that the argument `ts` is ignored if this is specified.
+    """
     if ts_reg is None:
         if ts is None:
             ts = synth_slow_signals(
@@ -152,6 +224,32 @@ def embed_data_in_atlas(A, t=300, signal_dim=100, atlas_dim=9,
 
 
 def get_model_matrices(A, data, d=25, r=9, t=300, parc='hard'):
+    """
+    Obtain the atlas and the time series in matrix form for easy use in
+    training.
+
+    Parameters
+    ----------
+    A : array
+        Atlas as a spatial array.
+    data : tensor
+        Time series as a spatial array.
+    d : int (default 25)
+        Image dimension (side length in pixels) of the parcellation.
+    r : int (default 9)
+        Number of atlas parcels.
+    t : int (default 300)
+        Time dimension of time series data.
+    parc : 'soft' or 'hard'
+        Kind of parcellation.
+
+    Returns
+    -------
+    ref : tensor
+        Atlas as a regions x pixels tensor.
+    tsmat : tensor
+        Time series as a pixels x time tensor.
+    """
     tsmat = data.view(d * d, t)
     if parc == 'hard':
         ref = torch.zeros(r, d * d)
