@@ -157,7 +157,7 @@ def diffuse(X, coor, norm=2, floor=0, radius=None):
     cm = cmass_coor(X, coor, radius=radius)
     if radius is None:
         dist = cm.unsqueeze(-1) - coor.unsqueeze(-2)
-        dist = torch.linalg.norm(dist, p=2, dim=-3)
+        dist = torch.linalg.norm(dist, ord=2, dim=-3)
     else:
         dist = spherical_geodesic(
             coor.transpose(-1, -2),
