@@ -128,6 +128,68 @@ def soft_atlas_example(d=25, c=9, walk_length=15, seed=None):
     return A.view(c, d, d)
 
 
+def hierarchical_atlas_example(
+    init=None, d=25, axis=0, sources=None, seed=None,
+    scales=None, divide=5, t=300, latent_dim=100
+):
+    if init is None: init = torch.ones((d, d))
+    if scales is None: scales = [0.1, 0.5, 0.5, 0.2, 0.1]
+    if sources is None:
+        sources = synth_slow_signals(
+            time_dim=t,
+            signal_dim=latent_dim,
+            seed=seed
+        )
+
+    mix = scales[0] * torch.FloatTensor(mix_data_01(sources, mixture_dim=1))
+    ts = init.view(d, d, 1) * mix.view(1, 1, -1)
+    parc = init
+    #print(ts.shape)
+    scales = scales[1:]
+
+    if len(scales) > 0:
+        S = (init.sum(int(not axis)) != 0)
+        loc = torch.where(S)
+        partition_min = loc[0].min().item()
+        partition_max = loc[0].max().item()
+        partition_step = int((partition_max + 1 - partition_min) / divide)
+        #print(partition_min, partition_max, partition_step, scales)
+        start = partition_min
+        for i in range(divide):
+            new_init = torch.zeros((d, d))
+            end = start + partition_step
+            #print(start, end)
+            if axis == 0:
+                new_init[start:end, :] = 1
+            elif axis == 1:
+                new_init[:, start:end] = 1
+            new_init = init * new_init
+            #print(new_init)
+            #plt.figure()
+            #plt.imshow(new_init.numpy(), cmap='bone')
+            ts_loc, parc_loc = hierarchical_atlas_example(
+                init=new_init,
+                axis=int(not axis),
+                sources=sources,
+                scales=scales,
+                divide=divide
+            )
+            parc = parc + (i + 1) * parc_loc
+            ts = ts + ts_loc
+            start = end
+        axis = int(not axis)
+    return ts, parc
+
+
+def plot_hierarchical(parc, save=None):
+    plt.figure(figsize=(8, 8))
+    plt.imshow(torch.log(parc), cmap='magma')
+    plt.xticks([])
+    plt.yticks([])
+    if save is not None:
+        plt.savefig(save)
+
+
 def plot_atlas(parcels, d, c=9, saveh=None, saves=None):
     """
     Plotting utility for synthetic atlases, or for learned models of them.
