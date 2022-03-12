@@ -132,6 +132,42 @@ def hierarchical_atlas_example(
     init=None, d=25, axis=0, sources=None, seed=None,
     scales=None, divide=5, t=300, latent_dim=100
 ):
+    """
+    Synthesise a hierarchical parcellation ground truth. Unlike the example
+    hard and soft parcellations, note that this returns both the time series
+    dataset and a representation of the parcellation. Also note that the
+    parcellation representation is currently wrong but nonetheless
+    intelligible.
+
+    A hierarchical parcellation proceeds by partitioning space into `divide`
+    subparts along the specified `axis`. It then repeats this process,
+    switching axes at each depth. A time series particular to each cell is
+    added in proportion to the `scale` of that tier of the hierarchy.
+    (The first tier corresponds to a global signal.) The same sources are
+    sampled from at all tiers.
+
+    Parameters
+    ----------
+    init : Tensor or None (default None)
+        Used by the recursive call. Leave as None.
+    d : int (default 25)
+        Dimension of the parcellated image.
+    axis : 0 or 1 (default 0)
+        Axis along which the highest level of partition proceeds.
+    sources : Tensor or None (default None)
+        Used by the recursive call. Leave as None.
+    seed : int (default None)
+        Seed for RNG.
+    scales : list (default [0.1, 0.5, 0.5, 0.2, 0.1])
+        Scales applied to time series at each level of the hierarchy.
+    divide : int
+        Number of subsections to partition into at each level of the
+        hierarchy.
+    t : int (default 300)
+        Time dimension of time series data.
+    latent_dim : int (default 100)
+        Number of latent signals to generate and embed.
+    """
     if init is None: init = torch.ones((d, d))
     if scales is None: scales = [0.1, 0.5, 0.5, 0.2, 0.1]
     if sources is None:
@@ -144,7 +180,6 @@ def hierarchical_atlas_example(
     mix = scales[0] * torch.FloatTensor(mix_data_01(sources, mixture_dim=1))
     ts = init.view(d, d, 1) * mix.view(1, 1, -1)
     parc = init
-    #print(ts.shape)
     scales = scales[1:]
 
     if len(scales) > 0:
@@ -153,20 +188,15 @@ def hierarchical_atlas_example(
         partition_min = loc[0].min().item()
         partition_max = loc[0].max().item()
         partition_step = int((partition_max + 1 - partition_min) / divide)
-        #print(partition_min, partition_max, partition_step, scales)
         start = partition_min
         for i in range(divide):
             new_init = torch.zeros((d, d))
             end = start + partition_step
-            #print(start, end)
             if axis == 0:
                 new_init[start:end, :] = 1
             elif axis == 1:
                 new_init[:, start:end] = 1
             new_init = init * new_init
-            #print(new_init)
-            #plt.figure()
-            #plt.imshow(new_init.numpy(), cmap='bone')
             ts_loc, parc_loc = hierarchical_atlas_example(
                 init=new_init,
                 axis=int(not axis),
@@ -182,6 +212,10 @@ def hierarchical_atlas_example(
 
 
 def plot_hierarchical(parc, save=None):
+    """
+    Plot a representation of a hierarchical atlas. This is a dumb function and
+    shouldn't be used outside of the specific experiment where it's called.
+    """
     plt.figure(figsize=(8, 8))
     plt.imshow(torch.log(parc), cmap='magma')
     plt.xticks([])
