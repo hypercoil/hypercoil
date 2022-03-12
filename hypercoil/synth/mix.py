@@ -75,8 +75,8 @@ def mix_data_01(ts, mixture_dim=9, return_mix_matrix=False, seed=None):
     signal_dim = ts.shape[-2]
     mix = np.random.randint(-1, 2, (mixture_dim, signal_dim))
     if return_mix_matrix:
-        return (mix @ ts.T).T, mix
-    return (mix @ ts.T).T
+        return (mix @ ts), mix
+    return mix @ ts
 
 
 def mix_card_probs_poisson_normalised(latent_dim, mu=1, loc=1):

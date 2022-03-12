@@ -36,7 +36,7 @@ def second_moment(weight, data):
 
 class SecondMoment(ReducingRegularisation):
     def __init__(self, nu=1, reduction=None):
-        reduction = reduction or torch.mean
+        reduction = reduction or mean
         super(SecondMoment, self).__init__(
             nu=nu,
             reduction=reduction,
