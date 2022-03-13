@@ -16,24 +16,18 @@ from .mix import (
     synthesise_mixture,
     mix_data
 )
-
-
-DEFAULT_BANDS = (
-    (0.05, 0.1),
-    (0.1, 0.3),
-    (0.3, 0.6)
-)
+from hypercoil.functional.activation import complex_decompose
 
 
 APPROX_ORTHO_THRESH = 0.1
 
 
 def synthesise_across_bands(
+    bands,
     time_dim=1000,
     observed_dim=7,
     latent_dim=100,
-    seed=None,
-    bands=DEFAULT_BANDS
+    seed=None
 ):
     np.random.seed(seed)
     sources = np.random.randn(observed_dim, time_dim)
@@ -91,3 +85,19 @@ def collate_observed_signals(sources_filt, local, bandfill):
     collate = lambda a, b: a + b
     signal = reduce(collate, sources_filt) + bandfill
     return signal
+
+
+def plot_frequency_partition(bands, filter, save=None):
+    freq_dim = filter.weight.shape[-1]
+    plt.figure(figsize=(12, 8))
+    for (hp, lp) in bands:
+        plt.axvline(hp, ls=':', color='grey')
+        plt.axvline(lp, ls=':', color='grey')
+    # Omit the last weight. Here we assume it corresponds to a rejection band.
+    ampl = complex_decompose(filter.weight)[0][:-1]
+    for s in ampl:
+        plt.plot(np.linspace(0, 1, freq_dim), s.detach().numpy())
+        plt.ylim([0, 1])
+        plt.xlim([0, 1])
+    if save:
+        plt.savefig(save, bbox_inches='tight')
