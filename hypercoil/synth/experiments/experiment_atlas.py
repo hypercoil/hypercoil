@@ -100,7 +100,7 @@ def atlas_experiment(
         )
     elif parcellation == 'hierarchical':
         plot_hierarchical(
-            A, save=f'{save}-ref.png'
+            A, save=f'{save}hard-ref.png'
         )
     else:
         plot_atlas(

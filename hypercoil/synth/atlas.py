@@ -221,7 +221,7 @@ def plot_hierarchical(parc, save=None):
     plt.xticks([])
     plt.yticks([])
     if save is not None:
-        plt.savefig(save)
+        plt.savefig(save, bbox_inches='tight')
 
 
 def plot_atlas(parcels, d, c=9, saveh=None, saves=None):
@@ -251,7 +251,7 @@ def plot_atlas(parcels, d, c=9, saveh=None, saves=None):
     plt.xticks([])
     plt.yticks([])
     if saveh:
-        plt.savefig(saveh)
+        plt.savefig(saveh, bbox_inches='tight')
     plt.figure(figsize=(8, 8))
     q = int(np.ceil(np.sqrt(c)))
     for i in range(c):
@@ -266,7 +266,7 @@ def plot_atlas(parcels, d, c=9, saveh=None, saves=None):
         plt.xticks([])
         plt.yticks([])
     if saves:
-        plt.savefig(saves)
+        plt.savefig(saves, bbox_inches='tight')
 
 
 def embed_data_in_atlas(A, t=300, signal_dim=100, atlas_dim=9,
