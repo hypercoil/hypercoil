@@ -8,7 +8,8 @@ Regularisations using centre-of-mass proximity to a reference.
 """
 from functools import partial
 from torch import mean
-from .norm import NormedRegularisation, ReducingRegularisation
+from .base import ReducingRegularisation
+from .norm import NormedRegularisation
 from ..functional.cmass import cmass_reference_displacement, diffuse
 
 

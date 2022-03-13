@@ -4,6 +4,13 @@
 """
 Initialisation
 """
+from .base import (
+    ReducingRegularisation
+)
+from .batchcorr import (
+    BatchCorrelation,
+    QCFC
+)
 from .cmass import (
     Compactness,
     CentroidAnchor
@@ -26,7 +33,6 @@ from .modularity import (
     ModularityRegularisation
 )
 from .norm import (
-    ReducingRegularisation,
     NormedRegularisation,
     UnilateralNormedRegularisation
 )

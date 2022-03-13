@@ -8,7 +8,7 @@ Regularisations to favour equal weight across one dimension.
 """
 import torch
 from functools import partial
-from .norm import ReducingRegularisation
+from .base import ReducingRegularisation
 
 
 def equilibrium(X, axis=-1):

@@ -10,7 +10,7 @@ One example is QC-FC.
 import torch
 from functools import partial
 from ..functional import pairedcorr
-from .norm import ReducingRegularisation
+from .base import ReducingRegularisation
 
 
 def auto_tol(batch_size, significance=0.1, tails=2):

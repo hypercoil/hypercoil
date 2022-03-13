@@ -8,7 +8,7 @@ Regularise the second moment, e.g. to favour regions whose time series are
 homogeneous across space.
 """
 from torch import mean
-from .norm import ReducingRegularisation
+from .base import ReducingRegularisation
 from functools import partial
 
 

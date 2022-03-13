@@ -11,26 +11,13 @@ import torch
 from torch.linalg import vector_norm as pnorm
 from torch.nn import Module
 from functools import partial
+from .base import ReducingRegularisation
 
 
 def norm_reduction(X, p=2, axis=-1, reduction=None):
     reduction = reduction or torch.mean
     norm = pnorm(X, ord=p, dim=axis)
     return reduction(norm)
-
-
-class ReducingRegularisation(Module):
-    def __init__(self, nu, reduction, reg):
-        super(ReducingRegularisation, self).__init__()
-        self.nu = nu
-        self.reduction = reduction
-        self.reg = reg
-
-    def __repr__(self):
-        return f'[ν = {self.nu}]{type(self).__name__}'
-
-    def forward(self, weight):
-        return self.nu * self.reduction(self.reg(weight))
 
 
 class NormedRegularisation(ReducingRegularisation):

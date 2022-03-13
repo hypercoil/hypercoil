@@ -8,7 +8,7 @@ Regularisations using the entropy of a distribution.
 """
 import torch
 from functools import partial
-from .norm import ReducingRegularisation
+from .base import ReducingRegularisation
 
 
 #TODO: make sure this is fine for half precision, etc.

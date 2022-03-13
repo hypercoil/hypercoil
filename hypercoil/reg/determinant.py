@@ -8,7 +8,7 @@ Regularisations using the determinant or log determinant.
 """
 import torch
 from functools import partial
-from .norm import ReducingRegularisation
+from .base import ReducingRegularisation
 from ..functional import corr
 from ..functional.matrix import recondition_eigenspaces
 
