@@ -8,7 +8,7 @@ Modules supporting model selection, as for denoising/confound regression.
 """
 import torch
 from torch.nn import Module, Linear, Parameter
-from ..functional.domain import Atanh
+from ..functional.domain import Logit
 from ..init.base import (
     DistributionInitialiser
 )
@@ -22,9 +22,14 @@ class LinearCombinationSelector(Linear):
             bias=False
         )
 
+    def forward(self, x):
+        return super().forward(x.transpose(-1, -2)).transpose(-1, -2)
+
 
 class EliminationSelector(Module):
-    def __init__(self, n_columns, or_dim=1, and_dim=1, init=None):
+    def __init__(self, n_columns, infimum=-1.5, supremum=2.5,
+                 or_dim=1, and_dim=1, init=None):
+        super(EliminationSelector, self).__init__()
         self.n_columns = n_columns
         self.or_dim = or_dim
         self.and_dim = and_dim
@@ -33,9 +38,11 @@ class EliminationSelector(Module):
             self.and_dim,
             self.n_columns
         ))
-        self.domain = Atanh()
+        scale = (supremum - infimum) / 2
+        loc = supremum - scale
+        self.domain = Logit(scale=scale, loc=loc)
         self.init = DistributionInitialiser(
-            distr=torch.distributions.Uniform(0.4, 0.6),
+            distr=torch.distributions.Uniform(0., 1.),
             domain=self.domain
         )
         self.reset_parameters()
@@ -45,12 +52,12 @@ class EliminationSelector(Module):
 
     @property
     def weight(self):
-        w = self.domain(self.preweight)
+        w = self.domain.image(self.preweight)
         return torch.maximum(w, torch.tensor(0))
 
     @property
     def postweight(self):
-        w = self.weight.sum(0).prod(1).view(-1, 1)
+        return self.weight.sum(0).prod(0).view(-1, 1)
 
     def forward(self, x):
         return self.postweight * x
