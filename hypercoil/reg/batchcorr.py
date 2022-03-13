@@ -16,9 +16,8 @@ from .norm import ReducingRegularisation
 def auto_tol(batch_size, significance=0.1, tails=2):
     import numpy as np
     from scipy.stats import t
-    tval = t.ppf(q=(1 - significance / tails), df=(batch_size - 2))
-    q = tval ** 2 / (batch_size - 2)
-    return torch.tensor(np.sqrt(q / (1 + q)))
+    tsq = t.ppf(q=(1 - significance / tails), df=(batch_size - 2)) ** 2
+    return torch.tensor(np.sqrt(tsq / (batch_size - 2 + tsq)))
 
 
 def batch_corr(X, N, tol=0, tol_sig=0.1):
