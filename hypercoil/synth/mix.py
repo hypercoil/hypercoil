@@ -16,6 +16,7 @@ def synth_slow_signals(
         time_dim=200,
         subject_dim=1,
         lp=0.3,
+        hp=0.0,
         seed=None
     ):
     """
@@ -39,10 +40,14 @@ def synth_slow_signals(
     """
     np.random.seed(seed)
     sources = np.random.rand(subject_dim, signal_dim, time_dim)
-    sources_freq = rfft(sources, n=time_dim)
+    sources_freq = rfft(sources, n=time_dim, axis=-1)
+    freq_dim = time_dim // 2 + 1
+    #print(freq_dim, sources_freq.shape[-1])
+    #assert(freq_dim == sources_freq.shape[-1])
     sources_freq[:, :, 0] = 0
-    sources_freq[:, :, (int(lp * time_dim)):] = 0
-    sources_filt = irfft(sources_freq, n=time_dim)
+    sources_freq[:, :, (int(lp * freq_dim)):] = 0
+    sources_freq[:, :, :(int(hp * freq_dim))] = 0
+    sources_filt = irfft(sources_freq, n=time_dim, axis=-1)
     return (
         (sources_filt.T - sources_filt.T.mean(0)) /
         sources_filt.T.std(0)
@@ -187,6 +192,7 @@ def synthesise_mixture(
         include_local=False,
         local_scale=0.25,
         lp=0.3,
+        hp=0.0,
         seed=0,
         mixture=None,
         return_mix_matrix=False
@@ -227,15 +233,19 @@ def synthesise_mixture(
         time_dim=time_dim,
         subject_dim=subject_dim,
         lp=lp,
+        hp=hp,
         seed=seed
     )
     if include_local:
+        localseed = seed
+        if localseed is not None: localseed += 1
         local = synth_slow_signals(
             signal_dim=observed_dim,
             time_dim=time_dim,
             subject_dim=subject_dim,
             lp=lp,
-            seed=(seed + 1)
+            hp=hp,
+            seed=localseed
         )
     else:
         local = None
