@@ -88,7 +88,7 @@ class Logit(_Domain):
         Object specifying a method for handling out-of-domain entries.
     """
     def __init__(self, scale=1, loc=None, handler=None, limits=(-4.5, 4.5)):
-        loc = loc or (scale / 2)
+        if loc is None: loc = (scale / 2)
         shift = loc - scale / 2
         super(Logit, self).__init__(
             handler=handler, bound=(loc - scale / 2, loc + scale / 2),
