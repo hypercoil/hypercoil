@@ -34,8 +34,9 @@ def overfit_and_plot_progress(
     color = np.array([value_min] * 3)
     incr = (value_max - color) / max_epoch
 
+    print('Statistics at train start:')
     for i in range(len(reg)):
-        print(reg[i], reg[i](penalise(model)))
+        print(f'- {reg[i]}: {reg[i](penalise(model)).detach().item()}')
 
     # Not sure that we actually need this here...
     torch.manual_seed(seed)
