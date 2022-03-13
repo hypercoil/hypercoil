@@ -13,12 +13,22 @@ from ..functional import pairedcorr
 from .norm import ReducingRegularisation
 
 
-def batch_corr(X, N, tol=0):
+def auto_tol(batch_size, significance=0.1, tails=2):
+    import numpy as np
+    from scipy.stats import t
+    tval = t.ppf(q=(1 - significance / tails), df=(batch_size - 2))
+    q = tval ** 2 / (batch_size - 2)
+    return torch.tensor(np.sqrt(q / (1 + q)))
+
+
+def batch_corr(X, N, tol=0, tol_sig=0.1):
     batch_size = X.shape[0]
     batchcorr = pairedcorr(
         X.transpose(0, -1).reshape(-1, batch_size),
         N
     )
+    if tol == 'auto':
+        tol = auto_tol(batch_size, significance=tol_sig)
     return torch.maximum(
         batchcorr.abs() - tol,
         torch.tensor(0)
@@ -26,9 +36,9 @@ def batch_corr(X, N, tol=0):
 
 
 class BatchCorrelation(ReducingRegularisation):
-    def __init__(self, nu=1, reduction=None, tol=0):
+    def __init__(self, nu=1, reduction=None, tol=0, tol_sig=0.1):
         reduction = reduction or torch.mean
-        reg = partial(batch_corr, tol=tol)
+        reg = partial(batch_corr, tol=tol, tol_sig=tol_sig)
         super(BatchCorrelation, self).__init__(
             nu=nu,
             reduction=reduction,
@@ -39,8 +49,8 @@ class BatchCorrelation(ReducingRegularisation):
         return self.nu * self.reduction(self.reg(data, measure))
 
 
-def qcfc_loss(FC, QC, tol=0):
-    return batch_corr(X=FC, N=QC, tol=0)
+def qcfc_loss(FC, QC, tol=0, tol_sig=0.1):
+    return batch_corr(X=FC, N=QC, tol=tol, tol_sig=tol_sig)
 
 
 class QCFC(BatchCorrelation):
