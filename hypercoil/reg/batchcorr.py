@@ -14,6 +14,24 @@ from .norm import ReducingRegularisation
 
 
 def auto_tol(batch_size, significance=0.1, tails=2):
+    r"""
+    Automatically set the tolerance for batch-dimension correlations based on
+    a significance level.
+
+    From the t-value associated with the specified significance level, the
+    tolerance is computed as
+
+    :math:`r_{tol} = \sqrt{\frac{t^2}{N - 2 - t^2}}`
+
+    Parameters
+    ----------
+    batch_size : int
+        Number of observations in the batch.
+    significance : float in (0, 1) (default 0.1)
+        Significance level at which the tolerance should be computed.
+    tails : 1 or 2 (default 2)
+        Number of tails for the t-test.
+    """
     import numpy as np
     from scipy.stats import t
     tsq = t.ppf(q=(1 - significance / tails), df=(batch_size - 2)) ** 2
@@ -21,6 +39,32 @@ def auto_tol(batch_size, significance=0.1, tails=2):
 
 
 def batch_corr(X, N, tol=0, tol_sig=0.1):
+    """
+    Correlation over the batch dimension.
+
+    Parameters
+    ----------
+    X : tensor
+        Tensor block containing measures to be correlated with those in `N`.
+    N : tensor
+        Vector of measures with which the measures in `X` are to be
+        correlated.
+    tol : nonnegative float or `'auto'` (default 0)
+        Tolerance for correlations. Only correlation values above `tol` are
+        counted. If this is set to `'auto'`, a tolerance is computed for the
+        batch size given the significance level in `tol_sig`.
+    tol_sig : float in (0, 1)
+        Significance level for correlation tolerance. Used only if `tol` is
+        set to `'auto'`.
+
+    Returns
+    -------
+    tensor
+        Absolute correlation of each vector in `X` with `N`, after
+        thresholding at `tol`. Note that, if you want the original
+        correlations back, you will have to add `tol` to any nonzero
+        correlations.
+    """
     batch_size = X.shape[0]
     batchcorr = pairedcorr(
         X.transpose(0, -1).reshape(-1, batch_size),
