@@ -7,7 +7,7 @@ Special matrix functions.
 import torch
 
 
-def invert_spd(A):
+def invert_spd(A, force_invert_singular=True):
     """
     Invert a symmetric positive definite matrix.
 
@@ -41,7 +41,15 @@ def invert_spd(A):
     except RuntimeError:
         #TODO: getting to this point often means the matrix is singular,
         # so it probably should fail or at least have the option to
-        return torch.pinverse(A)
+        #TODO: Right now we're using the pseudoinverse here. Does this make
+        # more sense than trying again with a reconditioned matrix?
+        if force_invert_singular:
+            return torch.pinverse(A)
+            return symmetric(invert_spd(
+                recondition_eigenspaces(A, psi=1e-4, xi=1e-5),
+                force_invert_singular=False
+            ))
+        raise
 
 
 def symmetric(X, skew=False, axes=(-2, -1)):
