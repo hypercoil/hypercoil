@@ -7,7 +7,7 @@ Batch-dimension correlation
 Regularisations to penalise a correlation across the batch dimension.
 One example is QC-FC.
 """
-from torch import mean
+import torch
 from functools import partial
 from ..functional import pairedcorr
 from .norm import ReducingRegularisation
@@ -15,19 +15,19 @@ from .norm import ReducingRegularisation
 
 def batch_corr(X, N, tol=0):
     batch_size = X.shape[0]
-    secondordercorr = pairedcorr(
+    batchcorr = pairedcorr(
         X.transpose(0, -1).reshape(-1, batch_size),
         N
     )
     return torch.maximum(
-        secondordercorr.abs() - tol,
+        batchcorr.abs() - tol,
         torch.tensor(0)
     )
 
 
 class BatchCorrelation(ReducingRegularisation):
     def __init__(self, nu=1, reduction=None, tol=0):
-        reduction = reduction or mean
+        reduction = reduction or torch.mean
         reg = partial(batch_corr, tol=tol)
         super(BatchCorrelation, self).__init__(
             nu=nu,
