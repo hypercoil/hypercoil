@@ -120,9 +120,7 @@ def partialcov(X, **params):
     followed by negation of off-diagonal entries.
     """
     omega = precision(X, **params)
-    #TODO: let's add a test to make sure this in-place op doesn't mess up the
-    # computational graph
-    omega[..., ~torch.eye(omega.size(-1), dtype=torch.bool)] *= -1
+    omega = omega * (2 * torch.eye(omega.size(-1)) - 1)
     return omega
 
 
