@@ -8,9 +8,15 @@ Generalised module for applying a normed penalty to the weight parameter
 of a module.
 """
 import torch
-from torch import norm as pnorm
+from torch.linalg import vector_norm as pnorm
 from torch.nn import Module
 from functools import partial
+
+
+def norm_reduction(X, p=2, axis=-1, reduction=None):
+    reduction = reduction or torch.mean
+    norm = pnorm(X, ord=p, dim=axis)
+    return reduction(norm)
 
 
 class ReducingRegularisation(Module):
@@ -28,8 +34,14 @@ class ReducingRegularisation(Module):
 
 
 class NormedRegularisation(ReducingRegularisation):
-    def __init__(self, nu, p=2, reg=None):
-        reduction = partial(pnorm, p=p)
+    def __init__(self, nu, p=2, reg=None, axis=None, reduction=None):
+        reduction = reduction or torch.mean
+        reduction = partial(
+            norm_reduction,
+            p=p,
+            axis=axis,
+            reduction=reduction
+        )
         if reg is None:
             reg = lambda x: x
         super(NormedRegularisation, self).__init__(
