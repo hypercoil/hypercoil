@@ -185,6 +185,7 @@ class NullOptionMultiLogit(_Domain):
         Object specifying a method for handling out-of-domain entries.
     """
     def __init__(self, axis=-1, minim=1e-4, buffer=1e-4, handler=None):
+        raise NotImplementedError
         super(NullOptionMultiLogit, self).__init__(
             handler=handler, bound=(minim, 1 - minim))
         self.axis = axis
@@ -244,7 +245,15 @@ class ANOML(_PhaseAmplitudeDomain, NullOptionMultiLogit):
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
     """
-    pass
+    def __init__(self, axis=-1, minim=1e-4, buffer=1e-4, handler=None):
+        raise NotImplementedError
+        super(ANOML, self).__init__(
+            axis=axis,
+            minim=minim,
+            buffer=buffer,
+            handler=handler
+        )
+        self.preimage_map = torch.log
 
 
 def bandpass_iir(X, feature_ax=False):
