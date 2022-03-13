@@ -100,6 +100,7 @@ def plot_all(X, n_subj=100, cor=True, save=None):
     if save:
         plt.savefig(save, bbox_inches='tight')
 
+
 def plot_select(select, save=None):
     plt.figure(figsize=(10, 1))
     plt.imshow(select.postweight.detach().t().numpy(), cmap='bone', vmin=0)

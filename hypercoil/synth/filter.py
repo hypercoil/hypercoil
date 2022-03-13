@@ -29,6 +29,25 @@ def synthesise_across_bands(
     latent_dim=100,
     seed=None
 ):
+    """
+    Synthesise a dataset that has a different correlation structure in
+    different frequency bands.
+
+    Parameters
+    ----------
+    bands : list(tuple)
+        Frequency bands into which structured, correlated data is injected.
+        The data in each band will have a different structure. Denote as
+        (high pass, low pass) as a fraction of Nyquist.
+    time_dim : int (default 1000)
+        Number of time points per signal.
+    observed_dim : int (default 7)
+        Number of observed signals to return.
+    latent_dim : int (default 100)
+        Number of latent signals to synthesise.
+    seed : int (default None)
+        Seed for RNG.
+    """
     np.random.seed(seed)
     sources = np.random.randn(observed_dim, time_dim)
     local = np.random.randn(observed_dim, time_dim)
@@ -69,6 +88,10 @@ def synthesise_across_bands(
 
 
 def bs_signals(sources, bands, n):
+    """
+    Fill frequency bands outside the specified list using the specified
+    sources.
+    """
     sources_fft = rfft(sources, n=n)
     n_bins = sources_fft.shape[-1]
     for band in bands:
@@ -88,6 +111,9 @@ def collate_observed_signals(sources_filt, local, bandfill):
 
 
 def plot_frequency_partition(bands, filter, save=None):
+    """
+    Plotting utility when learning a partition over frequencies.
+    """
     freq_dim = filter.weight.shape[-1]
     plt.figure(figsize=(12, 8))
     for (hp, lp) in bands:
