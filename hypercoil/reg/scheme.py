@@ -26,6 +26,9 @@ class RegularisationScheme(Module):
         self.n = 0
         return self
 
+    def __len__(self):
+        return len(self.reg)
+
     def __next__(self):
         if self.n < len(self.reg):
             self.n += 1
