@@ -53,6 +53,8 @@ def model_selection_experiment(
     jitter=(0.1, 0.5, 1.5),
     include=(1, 1, 1),
     lp=0.3,
+    tol=0,
+    tol_sig=0.1,
     seed=None,
     orthogonalise=False,
     batch_size=None,
@@ -123,7 +125,7 @@ def model_selection_experiment(
         )
     if batch_size is None:
         batch_size = subject_dim
-    loss = QCFC() #tol=0.02)
+    loss = QCFC(tol=tol, tol_sig=tol_sig)
     reg = NormedRegularisation(nu=l1_nu, p=1, axis=-1)
     opt = torch.optim.Adam(params=model.parameters(), lr=lr)
 
@@ -164,7 +166,7 @@ def model_selection_experiment(
             + reg(elim.weight)
         )
         loss_epoch.backward()
-        score = ((corr(torch.tensor(X[batch_index])) - cor.detach()) ** 2).mean()
+        score = ((corr(torch.tensor(X)) - conditionalcorr(XN, model(N)).detach()) ** 2).mean()
         losses += [loss_epoch.detach().numpy()]
         scores += [score]
         opt.step()
@@ -367,8 +369,8 @@ if __name__ == '__main__':
         model='combination',
         l1_nu=0,
         lr=0.01,
-        max_epoch=101,
-        log_interval=100,
+        max_epoch=201,
+        log_interval=200,
         time_dim=1000,
         observed_dim=20,
         latent_dim=30,
@@ -383,6 +385,7 @@ if __name__ == '__main__':
         lp=0.3,
         seed=8,
         batch_size=50,
+        tol='auto',
         save=f'{results}/denoise_expt-batch50/denoise_expt-batch50'
     )
 
@@ -394,8 +397,8 @@ if __name__ == '__main__':
         model='combination',
         l1_nu=0,
         lr=0.01,
-        max_epoch=101,
-        log_interval=100,
+        max_epoch=401,
+        log_interval=400,
         time_dim=1000,
         observed_dim=20,
         latent_dim=30,
@@ -410,6 +413,7 @@ if __name__ == '__main__':
         lp=0.3,
         seed=8,
         batch_size=25,
+        tol='auto',
         save=f'{results}/denoise_expt-batch25/denoise_expt-batch25'
     )
 
@@ -421,8 +425,8 @@ if __name__ == '__main__':
         model='combination',
         l1_nu=0,
         lr=0.01,
-        max_epoch=101,
-        log_interval=100,
+        max_epoch=801,
+        log_interval=800,
         time_dim=1000,
         observed_dim=20,
         latent_dim=30,
@@ -437,6 +441,7 @@ if __name__ == '__main__':
         lp=0.3,
         seed=8,
         batch_size=12,
+        tol='auto',
         save=f'{results}/denoise_expt-batch12/denoise_expt-batch12'
     )
 
