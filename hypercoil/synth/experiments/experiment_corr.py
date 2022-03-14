@@ -25,7 +25,7 @@ from hypercoil.synth.experiments.overfit_plot import overfit_and_plot_progress
 
 
 def state_detection_experiment(
-    lr=1,
+    lr=0.01,
     max_epoch=1000,
     log_interval=25,
     time_dim=1000,

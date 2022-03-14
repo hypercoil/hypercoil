@@ -24,7 +24,8 @@ from .graph import (
 )
 from .matrix import (
     invert_spd, expand_outer, spd, symmetric,
-    delete_diagonal, recondition_eigenspaces, toeplitz
+    delete_diagonal, recondition_eigenspaces, toeplitz,
+    sym2vec, vec2sym, squareform
 )
 from .noise import (
     DiagonalNoiseSource, SPSDNoiseSource,
