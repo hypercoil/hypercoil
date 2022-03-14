@@ -357,3 +357,11 @@ def vec2sym(vec, offset=1):
         mask = torch.eye(side).bool()
         sym[..., mask] = sym[..., mask] / 2
     return sym
+
+
+def squareform(X):
+    if (X.shape[-2] == X.shape[-1]
+        and torch.allclose(X, X.transpose(-1, -2))):
+        return sym2vec(X, offset=1)
+    else:
+        return vec2sym(X, offset=1)
