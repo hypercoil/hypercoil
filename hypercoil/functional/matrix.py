@@ -5,6 +5,7 @@
 Special matrix functions.
 """
 import torch
+import math
 
 
 def invert_spd(A, force_invert_singular=True):
@@ -426,7 +427,8 @@ def squareform(X):
 
     Notes
     -----
-    Unlike numpy or matlab implementations, this performs no checks.
+    Unlike numpy or matlab implementations, this does not verify a conformant
+    input.
     """
     if (X.shape[-2] == X.shape[-1]
         and torch.allclose(X, X.transpose(-1, -2))):
