@@ -338,6 +338,30 @@ def _strided_view_toeplitz(r, c, out_shp):
 
 
 def sym2vec(sym, offset=1):
+    """
+    Convert a block of symmetric matrices into ravelled vector form.
+
+    Ordering in the ravelled form follows the upper triangle of the matrix
+    block.
+
+    Parameters
+    ----------
+    sym : tensor
+        Block of tensors to convert. The last two dimensions should be equal,
+        with each slice along the final 2 axes being a square, symmetric
+        matrix.
+    offset : int (default 1)
+        Offset from the main diagonal where the upper triangle begins. By
+        default, the main diagonal is not included. Set this to 0 to include
+        the main diagonal.
+
+    Returns
+    -------
+    vec : tensor
+        Block of ravelled vectors formed from the upper triangles of the input
+        `sym`, beginning with the diagonal offset from the main by the input
+        `offset`.
+    """
     idx = torch.triu_indices(*sym.shape[-2:], offset=offset)
     shape = sym.shape[:-2]
     vec = sym[..., idx[0], idx[1]]
@@ -345,6 +369,30 @@ def sym2vec(sym, offset=1):
 
 
 def vec2sym(vec, offset=1):
+    """
+    Convert a block of ravelled vectors into symmetric matrices.
+
+    The ordering of the input vectors should follow the upper triangle of the
+    matrices to be formed.
+
+    Parameters
+    ----------
+    vec : tensor
+        Block of vectors to convert. Input vectors should be of length
+        (n choose 2), where n is the number of elements on the offset
+        diagonal, plus 1.
+    offset : int (default 1)
+        Offset from the main diagonal where the upper triangle begins. By
+        default, the main diagonal is not included. Set this to 0 to place
+        elements along the main diagonal.
+
+    Returns
+    -------
+    sym : tensor
+        Block of symmetric matrices formed by first populating the offset
+        upper triangle with the elements from the input `vec`, then
+        symmetrising.
+    """
     shape = vec.shape[:-1]
     vec = vec.view(*shape, -1)
     cn2 = vec.shape[-1]
@@ -360,6 +408,26 @@ def vec2sym(vec, offset=1):
 
 
 def squareform(X):
+    """
+    Convert between symmetric matrix and vector forms.
+
+    Parameters
+    ----------
+    X : tensor
+        Block of symmetric matrices, in either square matrix or vectorised
+        form.
+
+    Returns
+    -------
+    tensor
+        If the input block is in square matrix form, returns it in vector
+        form. If the input block is in vector form, returns it in square
+        matrix form.
+
+    Notes
+    -----
+    Unlike numpy or matlab implementations, this performs no checks.
+    """
     if (X.shape[-2] == X.shape[-1]
         and torch.allclose(X, X.transpose(-1, -2))):
         return sym2vec(X, offset=1)
