@@ -335,3 +335,25 @@ def _strided_view_toeplitz(r, c, out_shp):
     return torch.as_strided(vals[out_shp[0]:],
                             shape=out_shp,
                             strides=(-n, n))
+
+
+def sym2vec(sym, offset=1):
+    idx = torch.triu_indices(*sym.shape[-2:], offset=offset)
+    shape = sym.shape[:-2]
+    vec = sym[..., idx[0], idx[1]]
+    return vec.view(*shape, -1)
+
+
+def vec2sym(vec, offset=1):
+    shape = vec.shape[:-1]
+    vec = vec.view(*shape, -1)
+    cn2 = vec.shape[-1]
+    side = int(0.5 * (math.sqrt(8 * cn2 + 1) + 1)) + (offset - 1)
+    idx = torch.triu_indices(side, side, offset)
+    sym = torch.zeros((*shape, side, side)).type(vec.dtype)
+    sym[..., idx[0], idx[1]] = vec
+    sym = sym + sym.transpose(-1, -2)
+    if offset == 0:
+        mask = torch.eye(side).bool()
+        sym[..., mask] = sym[..., mask] / 2
+    return sym
