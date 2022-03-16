@@ -10,7 +10,8 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
-from hypercoil.functional.cov import pairedcorr
+from hypercoil.functional.cov import corr, pairedcorr
+from hypercoil.functional.matrix import toeplitz, sym2vec
 from .mix import (
     synthesise_mixture,
     create_mixture_matrix,
@@ -214,3 +215,37 @@ def correlation_alignment(X, X_hat, n_states):
         aligncorr[:, x_hat] = 0
     realigned = X[list(zip(*alignments))[0], :]
     return realigned
+
+
+def sliding_window_weight(window_length, step_size, time_dim):
+    full = toeplitz(
+        c=torch.tensor([1 for _ in range(window_length)]),
+        r=torch.tensor([1]),
+        dim=(time_dim, time_dim)
+    )
+    sliding = full[(window_length - 1):, :]
+    step = slice(0, None, step_size)
+    sliding = sliding[step, :]
+    return sliding
+
+
+def kmeans_init(
+    X,
+    n_states=6,
+    window_length=50,
+    step_size=10,
+    subject_dim=100,
+    time_dim=1000
+):
+    from scipy.cluster.vq import kmeans
+    sliding = sliding_window_weight(
+        window_length=window_length,
+        step_size=step_size,
+        time_dim=time_dim
+    )
+    swc = corr(X, weight=sliding.unsqueeze(-2))
+    centroids, error = kmeans(
+        sym2vec(swc).view(subject_dim * sliding.shape[0], -1),
+        k_or_guess=n_states
+    )
+    return torch.tensor(centroids).type(X.dtype).to(X.device)
