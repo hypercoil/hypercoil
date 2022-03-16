@@ -154,7 +154,7 @@ def model_selection_experiment(
 
 
     for epoch in range(max_epoch):
-        batch_index = torch.LongTensor(np.random.permutation(100)[:batch_size])
+        batch_index = torch.LongTensor(np.random.permutation(subject_dim)[:batch_size])
         regs = model(N[batch_index])
         #TODO: We're making spike regressors in the elimination model. Not
         # necessarily what we want to be doing.

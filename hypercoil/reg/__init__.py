@@ -21,6 +21,9 @@ from .determinant import (
     DetCorr,
     LogDetCorr
 )
+from .dispersion import (
+    VectorDispersion
+)
 from .entropy import (
     Entropy,
     SoftmaxEntropy
