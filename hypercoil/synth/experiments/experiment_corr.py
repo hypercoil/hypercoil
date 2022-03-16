@@ -10,7 +10,7 @@ Simple experiments using covariance modules. Basically, state detection.
 import torch
 import numpy as np
 from matplotlib.pyplot import close
-from hypercoil.functional.cov import corr
+from hypercoil.functional.cov import corr, pairedcorr
 from hypercoil.functional.domain import (
     Identity,
     MultiLogit
@@ -23,8 +23,10 @@ from hypercoil.nn.cov import UnaryCovariance
 from hypercoil.reg import (
     Entropy,
     Equilibrium,
+    NormedRegularisation,
     SmoothnessPenalty,
     SymmetricBimodal,
+    VectorDispersion,
     RegularisationScheme
 )
 from hypercoil.synth.corr import (
@@ -34,7 +36,8 @@ from hypercoil.synth.corr import (
     plot_states,
     plot_state_ts,
     plot_state_transitions,
-    correlation_alignment
+    correlation_alignment,
+    kmeans_init
 )
 from hypercoil.synth.experiments.overfit_plot import overfit_and_plot_progress
 
@@ -86,8 +89,6 @@ def state_detection_experiment(
     X = torch.Tensor(X)
     Y = torch.Tensor(Y[test_state])
     target = target[:, test_state]
-    #print(model(X))
-    #raise Exception
 
 
     overfit_and_plot_progress(
@@ -119,6 +120,8 @@ def unsupervised_state_detection_experiment(
     entropy_nu=0.01,
     equilibrium_nu=5000,
     dist_nu=1,
+    within_nu=0.002,
+    between_nu=0.5,
     time_dim=1000,
     subject_dim=100,
     latent_dim=10,
@@ -126,11 +129,14 @@ def unsupervised_state_detection_experiment(
     state_weight=1,
     subject_weight=1,
     n_states=6,
+    batch_size=None,
     transition_matrix=None,
     begin_states=None,
     seed=None,
     save=None
 ):
+    if seed is not None: torch.manual_seed(seed)
+    np.random.seed(seed)
     (
         observed_ts,
         srcmat,
@@ -226,14 +232,176 @@ def unsupervised_state_detection_experiment(
         )
 
     else:
-        pass
+        #TODO: One day we must come back and clean up this monstrosity of
+        # code.
+        transitions = np.where(np.diff(srcmat[0]) != 0)[0]
+
+        reg_time = RegularisationScheme([
+            SmoothnessPenalty(nu=smoothness_nu),
+            Entropy(nu=entropy_nu, axis=0),
+            Equilibrium(nu=equilibrium_nu)
+        ])
+        reg_corr = SymmetricBimodal(nu=symbimodal_nu, modes=(-1, 1))
+
+        reg = (
+            (reg_time, lambda model, X, Y: model)
+            (reg_corr, lambda model, X, Y: Y.mean(0))
+        )
+
+        nr = NormedRegularisation(nu=within_nu, p=1)
+        disp = VectorDispersion(nu=between_nu)
+
+        X = torch.FloatTensor(observed_ts).unsqueeze(-3)
+        best_states = corr(
+            X,
+            weight=torch.tensor(active_state.swapaxes(-1, -2)).unsqueeze(-2)
+        ).mean(0)
+
+        losses = []
+        measures = []
+
+
+        individual_model = torch.log(
+            torch.distributions.Uniform(0.45, 0.55).sample(
+                (subject_dim, n_states, 1, time_dim)
+            )
+        )
+        #group_model = sym2vec(
+        #    corr(X).mean(0) + 0.05 * torch.rand(
+        #        (n_states, observed_dim, observed_dim)
+        #    )
+        #).float()
+        group_model = kmeans_init(
+            X=X,
+            n_states=n_states,
+            time_dim=time_dim,
+            subject_dim=subject_dim
+        )
+        individual_model.requires_grad = True
+        group_model.requires_grad = True
+
+        static = corr(X)
+        subject_specific = (static - static.mean(0))
+        subject_specific_vec = sym2vec(subject_specific)
+
+
+        opt = torch.optim.Adam(params=[individual_model, group_model], lr=lr)
+
+        for epoch in range(max_epoch):
+            if batch_size is not None:
+                batch_index = torch.LongTensor(
+                    np.random.permutation(subject_dim)[:batch_size]
+                )
+            else:
+                batch_index = torch.arange(subject_dim)
+
+            individual_mnorm = torch.softmax(
+                individual_model[batch_index],
+                axis=-3
+            )
+            correl = corr(X[batch_index], weight=individual_mnorm)
+            cor = correl - subject_specific[batch_index]
+            loss_epoch = 0
+            for r, penalise in reg:
+                loss_epoch += r(penalise(individual_mnorm, X, correl))
+
+            corvex = sym2vec(cor)
+            loss_epoch -= dist_nu * torch.cdist(corvex, corvex, p=1).mean()
+            loss_epoch += nr(sym2vec(cor) - group_model)
+            loss_epoch += disp(group_model)
+
+            loss_epoch.backward()
+            losses += [loss_epoch.detach().item()]
+            opt.step()
+            individual_model.grad.zero_()
+            group_model.grad.zero_()
+
+            """
+            # If you dare attempt this without a good initialisation, growing
+            # the lr might be of help. But it likely won't end well.
+            lr_max = 0.01
+            if epoch > 100:
+                if (epoch + 1) % 100 == 0 and lr < lr_max:
+                    lr *= 2
+                    opt.param_groups[0]['lr'] = lr
+                    print(f'Learning rate: {lr}')
+                if (epoch + 1) % 100 == 0 and lr > lr_max:
+                    lr = lr_max
+                    print(f'Not really. Real learning rate: {lr}')
+            """
+
+            if epoch % log_interval == 0:
+
+                statecorr = pairedcorr(
+                    group_model,
+                    sym2vec(corr(torch.FloatTensor(state_mix)))
+                )
+                maxim = statecorr.max()
+                measure = (
+                    statecorr.max(0)[0] -
+                    statecorr.median(0)[0]
+                ).mean().detach().item()
+                measures += [measure]
+
+                print(f'[ Epoch {epoch} | Loss {loss_epoch} | Measure {measure} | Maximum {maxim} ]')
+                print(f'- {reg[0][0][0]}: {reg[0][0][0](individual_mnorm)}')
+                print(f'- {reg[0][0][1]}: {reg[0][0][1](individual_mnorm)}')
+                print(f'- {reg[0][0][2]}: {reg[0][0][2](individual_mnorm)}')
+                print(f'- {reg[1][0]}: {reg[1][0](cor)}')
+                print(f'- [ν = {dist_nu}]Indiv. Dispersion: {-dist_nu * torch.cdist(corvex, corvex, p=1).mean()}')
+                print(f'- {nr}: {nr(sym2vec(cor) - group_model)}')
+                print(f'- {disp}: {disp(group_model)}')
+
+                recovered_states = corr(
+                    X,
+                    weight=torch.softmax(individual_model, axis=-3)
+                ).mean(0)
+                plot_state_transitions(
+                    individual_mnorm[0].detach().squeeze().t().numpy(),
+                    transitions=transitions,
+                    save=f'{save}_transitionTS-{epoch:08}.png',
+                )
+                plot_states(
+                    (vec2sym(group_model).detach().numpy() +
+                        np.eye(observed_dim)),
+                    save=f'{save}_stateTemplates-{epoch:08}.png',
+                    vpct=.9
+                )
+                plot_states(
+                    recovered_states.detach().numpy(),
+                    save=f'{save}_states-{epoch:08}.png',
+                    vpct=.9
+                )
+                close('all')
+        realigned_best = correlation_alignment(
+            X=sym2vec(best_states).float(),
+            X_hat=sym2vec(recovered_states).float(),
+            n_states=n_states
+        )
+        groundtruth = corr(
+            torch.FloatTensor(state_mix),
+        )
+        realigned_groundtruth = correlation_alignment(
+            X=sym2vec(groundtruth).float(),
+            X_hat=sym2vec(recovered_states).float(),
+            n_states=n_states
+        )
+        plot_states(
+            vec2sym(realigned_best).detach().numpy() + np.eye(observed_dim),
+            save=f'{save}_states-best.png',
+            vpct=.9
+        )
+        plot_states(
+            (vec2sym(realigned_groundtruth).detach().numpy() +
+                np.eye(observed_dim)),
+            save=f'{save}_states-true.png'
+        )
 
 
 if __name__ == '__main__':
     import os, hypercoil
     results = os.path.abspath(f'{hypercoil.__file__}/../results')
 
-    """
     print('\n-----------------------------------------')
     print('Experiment 1: State Identification')
     print('-----------------------------------------')
@@ -251,7 +419,6 @@ if __name__ == '__main__':
         seed=11,
         save=f'{results}/corr_expt-stateident/corr_expt-stateident.svg',
     )
-    """
 
     print('\n-----------------------------------------')
     print('Experiment 2: Single-Subject Parcellation')
@@ -261,10 +428,10 @@ if __name__ == '__main__':
         lr=0.01,
         max_epoch=1001,
         log_interval=20,
-        smoothness_nu=5,
+        smoothness_nu=10,
         symbimodal_nu=1,
-        entropy_nu=0.01,
-        equilibrium_nu=5000,
+        entropy_nu=0.,
+        equilibrium_nu=2000,
         dist_nu=1,
         time_dim=1000,
         subject_dim=1,
@@ -275,4 +442,30 @@ if __name__ == '__main__':
         n_states=6,
         seed=1,
         save=f'{results}/corr_expt-parcellation1/corr_expt-parcellation1',
+    )
+
+    print('\n-----------------------------------------')
+    print('Experiment 3: Population Parcellation')
+    print('-----------------------------------------')
+    os.makedirs(f'{results}/corr_expt-parcellation2', exist_ok=True)
+    unsupervised_state_detection_experiment(
+        lr=0.01,
+        max_epoch=501,
+        log_interval=20,
+        smoothness_nu=5,
+        symbimodal_nu=.5,
+        entropy_nu=.1,
+        equilibrium_nu=200,
+        dist_nu=1,
+        within_nu=0.002,
+        between_nu=0.2,
+        time_dim=1000,
+        subject_dim=100,
+        latent_dim=10,
+        observed_dim=30,
+        state_weight=1,
+        subject_weight=1,
+        n_states=6,
+        seed=1,
+        save=f'{results}/corr_expt-parcellation2/corr_expt-parcellation2',
     )
