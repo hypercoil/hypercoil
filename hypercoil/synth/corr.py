@@ -113,7 +113,7 @@ def synthesise_state_markov_chain(
         signal_dim=latent_dim,
         time_dim=time_dim,
         subject_dim=subject_dim,
-        seed=seed
+        seed=(seed + 1)
     )
     all_state_ts = all_mixtures @ latents
     observed_ts = (
@@ -164,12 +164,14 @@ def overall_signal(signals, weights):
     )
 
 
-def plot_states(cors, save=None):
+def plot_states(cors, save=None, lim=0.4, vpct=None):
     n_states = cors.shape[0]
     plt.figure(figsize=(3 * n_states, 3))
     for i, s in enumerate(cors):
         plt.subplot(1, 6, i + 1)
-        plt.imshow(s, cmap='coolwarm', vmin=-0.4, vmax=0.4)
+        if vpct is not None:
+            lim = np.quantile(s - np.eye(s.shape[-1]), vpct)
+        plt.imshow(s, cmap='coolwarm', vmin=-lim, vmax=lim)
         plt.xticks([])
         plt.yticks([])
     if save is not None:
