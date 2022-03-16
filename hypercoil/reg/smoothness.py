@@ -16,7 +16,12 @@ class SmoothnessPenalty(NormedRegularisation):
         reg = partial(
             torch.diff, dim=axis, prepend=prepend, append=append
         )
-        super(SmoothnessPenalty, self).__init__(nu=nu, p=norm, reg=reg)
+        super(SmoothnessPenalty, self).__init__(
+            nu=nu,
+            p=norm,
+            reg=reg,
+            axis=axis
+        )
 
     def extra_repr(self):
         return f'nu={self.nu}, norm=L{self.p}'
