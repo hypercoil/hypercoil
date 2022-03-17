@@ -15,6 +15,13 @@ from ..functional.matrix import recondition_eigenspaces
 from cvxpylayers.torch import CvxpyLayer
 
 
+def hinge_loss(Y_hat, Y):
+    return torch.maximum(
+        1 - Y * Y_hat,
+        torch.tensor([0])
+    ).sum()
+
+
 def polynomial_kernel(X, Z, order):
     return (X @ Z.transpose(-1, -2)) ** order
 
@@ -80,7 +87,10 @@ class SVM(CvxpyLayer):
         ----------
         n : int
             Number of observations in the training dataset. Because we use
-            the dual, this is a required parameter.
+            the dual, this is a required parameter. We could automatically
+            grab it in `fit` and this would probably be better in the long
+            run (and more conformant with sklearn syntax), but we'll get to
+            that later...
         K : callable (default Gaussian)
             Kernel function. The callable signature should accept either
             one or two :math:`n \times d` matrices and return a single
@@ -144,7 +154,11 @@ class SVM(CvxpyLayer):
         # It appears it might sometimes cast to double precision.
         self.X, self.Y = X, Y
         ker = self.K(self.X)
-        ker = recondition_eigenspaces(ker)
+        #TODO: the below could be a problem. Make this a parameter to the
+        # module.
+        eps = torch.finfo(ker.dtype).eps
+        fac = 0.01 * torch.linalg.matrix_norm(ker, 2)
+        ker = recondition_eigenspaces(ker, psi=fac, xi=fac)
         symsqker = symsqrt(ker)
         L, Q = torch.linalg.eigh(ker)
         self.alpha = super().forward(
@@ -199,9 +213,10 @@ class SVM(CvxpyLayer):
         # Phantom code using consistency weighting.
         #wei = self._consistency_weighting(b_est)
         #b = ((b_est * wei).sum() / wei.sum()).item()
-        #b = torch.sign(b_est[torch.abs(b_est).argmin()]) * torch.abs(b_est).min()
+        # b = torch.sign(
+        #     b_est[torch.abs(b_est).argmin()]
+        # ) * torch.abs(b_est).min()
         b = self._modal_selection(b_est)
-        print(b_est, b)
         #print(b_est, wei, b)
         return b
     
@@ -229,24 +244,26 @@ class SVM(CvxpyLayer):
         wei = torch.tanh(wei.median() / wei)
         return wei
     
-    def _modal_selection(self, estimates):
+    def _modal_selection(self, estimates, ratio=2):
         """
         Select a reasonable bias term by finding what passes as the mode.
 
-        This is probably not necessary.
+        TODO: This is probably not necessary. Test the code using all the
+        estimates and see if it suffers.
         """
         dist = torch.abs((estimates.view(-1, 1) - estimates.view(1, -1)))
         dist = (torch.sqrt(dist)).mean(0)
         _, modal_idx = torch.sort(dist)
         n_sv = len(modal_idx)
-        modal = estimates[modal_idx[:(n_sv // 2 + 1)]]
+        modal = estimates[modal_idx[:(n_sv // ratio + 1)]]
         return modal.mean()
 
     def transform(self, X):
         """
         Differentiably classify new data using the fit SVM parameters.
         """
-        return (self.alpha * self.Y).squeeze() @ self.K(self.X, X) + self.bias
+        return (self.alpha * self.Y).squeeze() @ (
+            self.K(self.X, X)) + self.bias
 
     def fit_transform(self, X, Y):
         """
@@ -256,5 +273,14 @@ class SVM(CvxpyLayer):
         self.fit(X, Y)
         return self.transform(X)
 
-    def forward(self, X, Y):
-        return self.fit_transform(X, Y)
+    def forward(self, X, Y=None):
+        if self.training:
+            if Y is None:
+                raise ValueError(
+                    'Labelled examples are required when training. Either '
+                    'provide a label set as input `Y` or set the `training` '
+                    'attribute to False to perform inference.'
+                )
+            return self.fit_transform(X, Y)
+        else:
+            return self.transform(X)
