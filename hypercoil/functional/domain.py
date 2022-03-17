@@ -118,14 +118,17 @@ class MultiLogit(_Domain):
         infinities when the tensor's values include the supremum or infimum
         (0 and 1) and restricting parameter values to a range where the
         gradient has not vanished.
+    smoothing : nonnegative float (default 0)
+        For use in preimage mapping. Increasing the smoothing will result in
+        a higher-entropy / more equiprobable image.
     handler : _OutOfDomainHandler object (default Clip)
         Object specifying a method for handling out-of-domain entries.
     """
-    def __init__(self, axis=-1, minim=1e-3, handler=None):
+    def __init__(self, axis=-1, minim=1e-3, smoothing=0, handler=None):
         super(MultiLogit, self).__init__(
             handler=handler, bound=(minim, 1 - minim))
         self.axis = axis
-        self.preimage_map = torch.log
+        self.preimage_map = lambda x: torch.log(x + smoothing)
         self.image_map = lambda x: torch.softmax(x, self.axis)
 
 
