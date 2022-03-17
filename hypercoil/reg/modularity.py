@@ -14,7 +14,8 @@ from ..functional.graph import relaxed_modularity, girvan_newman_null
 class ModularityRegularisation(Module):
     def __init__(self, nu, reg=None, exclude_diag=True, gamma=1,
                  null=girvan_newman_null, normalise_modularity=True,
-                 normalise_coaffiliation=True, directed=False, **params):
+                 normalise_coaffiliation=True, directed=False, sign='+',
+                 **params):
         super(ModularityRegularisation, self).__init__()
         if reg is None:
             reg = lambda x: x
@@ -26,11 +27,16 @@ class ModularityRegularisation(Module):
         self.normalise_modularity = normalise_modularity
         self.normalise_coaffiliation = normalise_coaffiliation
         self.directed = directed
+        self.sign = sign
         self.params = params
 
     def forward(self, A, C, C_o=None, L=None):
         if C_o is None:
             C_o = C
+        if self.sign == '+':
+            A = torch.relu(A)
+        elif self.sign == '-':
+            A = -torch.relu(-A)
         return -self.nu * relaxed_modularity(
             A=A, C=self.reg(C), C_o=self.reg(C_o), L=L,
             exclude_diag=self.exclude_diag,
