@@ -8,14 +8,15 @@ Experiment deployment
 Framework for deploying synthetic data experiments.
 """
 import os
+import re
 import json
+import glob
 import click
 import hypercoil
 from importlib import import_module
 
 
 def run_experiment(layer, expt, index=None):
-    import os, hypercoil
     experiments = (
         f'{os.path.dirname(hypercoil.__file__)}/synth/experiments/config'
     )
@@ -48,6 +49,23 @@ def run_experiment(layer, expt, index=None):
         **experiment['parameters'],
         save=f'{results}/layer-{layer}_expt-{expt}/layer-{layer}_expt-{expt}'
     )
+
+
+def run_layer_experiments(layer):
+    exptdir = (
+        f'{os.path.dirname(hypercoil.__file__)}/synth/experiments/config'
+    )
+    experiments = glob.glob(f'{exptdir}/layer-{layer}*.json')
+    for i, experiment in enumerate(experiments):
+        search = re.search(
+            'layer-(?P<layer>[^_.]*)_expt-(?P<expt>[^_.]*)',
+            experiment
+        )
+        run_experiment(
+            layer=search.group('layer'),
+            expt=search.group('expt'),
+            index=(i + 1)
+        )
 
 
 @click.command()
