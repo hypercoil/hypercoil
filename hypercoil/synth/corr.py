@@ -4,7 +4,7 @@
 """
 Data synthesis: covariance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
-Synthesise a dataset for the covariance autoencoder test.
+Synthesise a dataset for experimental tests of the covariance module.
 """
 import torch
 import numpy as np

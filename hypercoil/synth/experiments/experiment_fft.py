@@ -115,6 +115,8 @@ def frequency_band_identification_experiment(
             Wn=None, ftype='randn', btype=None, # clamps = [{0: 0}]
             ampl_scale=0.01, phase_scale=0.01
         ) for _ in range(N_BANDS + 1)]
+        #TODO: When the ANOML domain is working, we should use that here
+        # instead.
         fftfilter = FrequencyDomainFilter(
             dim=freq_dim,
             filter_specs=filter_specs,
@@ -222,24 +224,6 @@ def frequency_band_partition_experiment(
             print(f'- Equilibrium: {reg[2](mnorm)}')
             print(f'- Second Moment: {reg2m(mnorm, X)}')
             print(f'- Log det: {regdet(ts_parc)}')
-        loss_epoch = 0
-        if supervised:
-            loss_epoch = loss(corrmat[uniq_idx], Y[uniq_idx])
-        loss_epoch = loss_epoch + reg(mnorm) + reg2m(mnorm, X) + regdet(ts_parc)
-        loss_epoch.backward()
-        losses += [loss_epoch.detach().item()]
-        opt.step()
-        model.grad.zero_()
-        if epoch % log_interval == 0:
-            print(f'[ Epoch {epoch} | Loss {loss_epoch} ]')
-            plot_atlas(
-                mnorm,
-                d=image_dim,
-                c=parcel_count,
-                saveh=f'{save}hard-{epoch:08}.png',
-                saves=f'{save}soft-{epoch:08}.png'
-            )
-            close('all')
         """
 
 
@@ -322,5 +306,5 @@ if __name__ == '__main__':
         test_band=0,
         log_interval=10,
         supervised=False,
-        save=f'{results}/fft_expt-parcellation/fft_expt-parcellation.png',
+        save=f'{results}/fft_expt-parcellation/fft_expt-parcellation',
     )
