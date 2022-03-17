@@ -57,10 +57,10 @@ def symmap(input, map, spd=True, psi=0):
         if psi > 1:
             raise ValueError('Nonconvex combination. Select psi in [0, 1].')
         input = (1 - psi) * input + psi * torch.eye(input.size(-1))
-    if spd:
+    if not spd:
         Q, L, _ = torch.svd(symmetric(input))
     else:
-        L, Q = torch.linalg.eigh(symmetric(input), eigenvectors=True)
+        L, Q = torch.linalg.eigh(symmetric(input))
     Lmap = torch.diag_embed(map(L))
     return symmetric(Q @ Lmap @ Q.transpose(-1, -2))
 
