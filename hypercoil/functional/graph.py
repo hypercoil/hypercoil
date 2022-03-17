@@ -54,7 +54,7 @@ def girvan_newman_null(A):
 
 
 def modularity_matrix(A, gamma=1, null=girvan_newman_null,
-                      normalise=False, **params):
+                      normalise=False, sign='+', **params):
     r"""
     Modularity matrices for a tensor block.
 
@@ -92,6 +92,8 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
         matrix degree. This may not be necessary for many use cases -- for
         instance, where the arg max of a function of the modularity matrix is
         desired.
+    sign : '+', '-', or None (default '+')
+        Sign of connections to be considered in the modularity.
     **params
         Any additional parameters are passed to the null model.
 
@@ -105,6 +107,10 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
     --------
     relaxed_modularity: Compute the modularity given a community structure.
     """
+    if sign == '+':
+        A = torch.relu(A)
+    elif sign == '-':
+        A = -torch.relu(-A)
     mod = A - gamma * null(A, **params)
     if normalise:
         two_m = A.sum([-2, -1], keepdim=True)
@@ -185,7 +191,8 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True, normalise=False):
 
 def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
                        null=girvan_newman_null, normalise_modularity=True,
-                       normalise_coaffiliation=True, directed=False, **params):
+                       normalise_coaffiliation=True, directed=False, sign='+',
+                       **params):
     r"""
     A relaxation of the modularity of a network given a community partition.
 
@@ -254,6 +261,8 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
     directed : bool (default False)
         Indicates that the input adjacency matrices should be considered as a
         directed graph.
+    sign : '+', '-', or None (default '+')
+        Sign of connections to be considered in the modularity.
     **params
         Any additional parameters are passed to the null model.
 
@@ -263,7 +272,7 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
         Modularity of each input adjacency matrix.
     """
     B = modularity_matrix(A, gamma=gamma, null=null,
-                          normalise=normalise_modularity, **params)
+                          normalise=normalise_modularity, sign=sign, **params)
     C = coaffiliation(C, C_o=C_o, L=L, exclude_diag=exclude_diag,
                       normalise=normalise_coaffiliation)
     Q = (B * C).sum([-2, -1])

@@ -33,10 +33,6 @@ class ModularityRegularisation(Module):
     def forward(self, A, C, C_o=None, L=None):
         if C_o is None:
             C_o = C
-        if self.sign == '+':
-            A = torch.relu(A)
-        elif self.sign == '-':
-            A = -torch.relu(-A)
         return -self.nu * relaxed_modularity(
             A=A, C=self.reg(C), C_o=self.reg(C_o), L=L,
             exclude_diag=self.exclude_diag,
@@ -45,5 +41,6 @@ class ModularityRegularisation(Module):
             normalise_modularity=self.normalise_modularity,
             normalise_coaffiliation=self.normalise_coaffiliation,
             directed=self.directed,
+            sign=self.sign,
             **self.params
         ).squeeze()
