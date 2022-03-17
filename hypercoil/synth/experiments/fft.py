@@ -227,84 +227,10 @@ def frequency_band_partition_experiment(
         """
 
 
+def main():
+    from hypercoil.synth.experiments.run import run_layer_experiments
+    run_layer_experiments('fft')
+
+
 if __name__ == '__main__':
-    import os, hypercoil
-    results = os.path.abspath(f'{hypercoil.__file__}/../results')
-
-    print('\n-----------------------------------------')
-    print('Experiment 1: Band 1 Identification')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/fft_expt-bandident', exist_ok=True)
-    frequency_band_identification_experiment(
-        lr=5e-3,
-        seed=0,
-        max_epoch=300,
-        latent_dim=7,
-        observed_dim=100,
-        time_dim=1000,
-        smoothness_nu=0.2,
-        symbimodal_nu=0.05,
-        l2_nu=0.015,
-        test_band=0,
-        log_interval=5,
-        save=f'{results}/fft_expt-bandident/fft_expt-bandident0.svg',
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 2: Band 2 Identification')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/fft_expt-bandident', exist_ok=True)
-    frequency_band_identification_experiment(
-        lr=5e-3,
-        seed=0,
-        max_epoch=300,
-        latent_dim=7,
-        observed_dim=100,
-        time_dim=1000,
-        smoothness_nu=0.2,
-        symbimodal_nu=0.05,
-        l2_nu=0.015,
-        test_band=1,
-        log_interval=5,
-        save=f'{results}/fft_expt-bandident/fft_expt-bandident1.svg',
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 3: Band 3 Identification')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/fft_expt-bandident', exist_ok=True)
-    frequency_band_identification_experiment(
-        lr=5e-3,
-        seed=0,
-        max_epoch=300,
-        latent_dim=7,
-        observed_dim=100,
-        time_dim=1000,
-        smoothness_nu=0.2,
-        symbimodal_nu=0.05,
-        l2_nu=0.015,
-        test_band=2,
-        log_interval=5,
-        save=f'{results}/fft_expt-bandident/fft_expt-bandident2.svg',
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 4: Band Parcellation')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/fft_expt-parcellation', exist_ok=True)
-    frequency_band_identification_experiment(
-        lr=5e-3,
-        seed=0,
-        max_epoch=600,
-        latent_dim=7,
-        observed_dim=100,
-        time_dim=1000,
-        smoothness_nu=0.4,
-        symbimodal_nu=0.05,
-        entropy_nu=0.1,
-        l2_nu=0.015,
-        test_band=0,
-        log_interval=10,
-        supervised=False,
-        save=f'{results}/fft_expt-parcellation/fft_expt-parcellation',
-    )
+    main()

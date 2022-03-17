@@ -1,0 +1,26 @@
+{
+    "layer" : "fft",
+    "expt" : "parcellation",
+    "name" : "Unsupervised Frequency Parcellation",
+    "type" : "frequency_band_identification_experiment",
+    "tags" : [
+        "fft", "frequency", "filter", "band identification",
+        "unsupervised", "parcellation", "frequency domain"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "lr" : 5e-3,
+        "max_epoch" : 601,
+        "log_interval" : 10,
+        "latent_dim" : 7,
+        "observed_dim" : 100,
+        "time_dim" : 1000,
+        "smoothness_nu" : 0.4,
+        "symbimodal_nu" : 0.05,
+        "entropy_nu" : 0.1,
+        "l2_nu" : 0.015,
+        "test_band" : 0,
+        "supervised": false,
+        "seed" : 0
+    }
+}
