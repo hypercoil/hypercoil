@@ -71,25 +71,6 @@ def make_labels(n=(100, 100)):
     ])
 
 
-def labels_one_vs_rest(labels):
-    uniq = labels.unique()
-    return [
-        2 * (labels == u).float() - 1
-        for u in uniq
-    ]
-
-
-def labels_one_vs_one(labels):
-    uniq = labels.unique()
-    uniqlist = uniq.tolist()
-    label_combinations = product(uniqlist, uniqlist)
-    return [
-        (labels == label1).float() - (labels == label2).float()
-        for label1, label2 in label_combinations
-        if label1 != label2
-    ]
-
-
 def plot_prediction(
     X, Y, Y_hat,
     plot_confusion=False,
