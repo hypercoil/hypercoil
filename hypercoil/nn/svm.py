@@ -149,7 +149,7 @@ class SVM(torch.nn.Module):
         prohibitively slow for large problems. A long-term solution would
         involve finding the analytic derivative through the SVM and
         implementing a custom backward method while using the sklearn forward.
-        Or, alternatively finding a way to use SVMLIB as the back end solver.
+        Or, alternatively finding a way to use libSVM as the back end solver.
 
         Parameters
         ----------
@@ -305,6 +305,15 @@ class SVM(torch.nn.Module):
     def formulate_problem(self, n, C=None):
         """
         Formulate a single binary SVM classifier's dual problem in CVX.
+
+        Notes
+        -----
+            This problem is framed as the dual of a soft-margin SVM. See
+            10:15 here: https://www.youtube.com/watch?v=zzn80wmclnw
+
+            Note that we must introduce the new variable Z below to
+            satisfy the `cxvpylayers` disciplined parametric programming
+            requirement.
         """
         if C is None:
             C = self.C
