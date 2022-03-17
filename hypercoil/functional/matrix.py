@@ -217,8 +217,9 @@ def recondition_eigenspaces(A, psi, xi):
     tensor
         Reconditioned matrix or matrix block.
     """
-    x = xi * torch.rand(A.shape[-1])
-    return A + (psi - xi / 2 + x) * torch.eye(A.shape[-1])
+    x = xi * torch.rand(A.shape[-1], dtype=A.dtype, device=A.device)
+    mask = torch.eye(A.shape[-1], dtype=A.dtype, device=A.device)
+    return A + (psi - xi + x) * mask
 
 
 def delete_diagonal(A):
@@ -227,8 +228,8 @@ def delete_diagonal(A):
     from the final axis.
     """
     dim = A.shape[-1]
-    diag = torch.eye(dim) * torch.diagonal(A, dim1=-2, dim2=-1).unsqueeze(-2)
-    return A - diag
+    mask = (~torch.eye(dim, device=A.device, dtype=torch.bool)).type(A.dtype)
+    return A * mask
 
 
 def toeplitz(c, r=None, dim=None, fill_value=0):
