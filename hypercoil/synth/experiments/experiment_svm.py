@@ -20,8 +20,6 @@ from hypercoil.synth.svm import (
     generate_data,
     orient_data,
     make_labels,
-    labels_one_vs_one,
-    labels_one_vs_rest,
     plot_prediction,
     plot_training
 )
@@ -37,7 +35,7 @@ def separation_experiment(
     ori=None,
     learnable_parameter='mu',
     learnable_idx=0,
-    multiclass_type='one_vs_rest',
+    multiclass_type='ovr',
     max_epoch=500,
     lr=0.005,
     lr_decay=0.995,
@@ -66,24 +64,24 @@ def separation_experiment(
     Y = make_labels(n)
     if len(n) > 2:
         multiclass = True
-        # This is going to be moved into the SVM module.
-        if multiclass_type == 'one_vs_rest':
-            Y = labels_one_vs_rest(Y)
-        elif multiclass_type == 'one_vs_one':
-            Y = labels_one_vs_one(Y)
 
     if kernel == 'rbf':
-        kernel = GaussianKernel(sigma=sigma)
+        K = GaussianKernel(sigma=sigma)
     elif kernel == 'linear':
-        kernel = LinearKernel()
+        K = LinearKernel()
 
     model = SVM(
-        n=sum(n),
-        K=kernel
+        n_observations=sum(n),
+        n_classes=2,
+        kernel=kernel,
+        C=C,
+        gamma=(1 / (2 * sigma ** 2)),
+        decision_function_shape=multiclass_type
     )
 
     X = torch.cat(X)
     Y_hat = model(X, Y)
+    #raise Exception
     plot_prediction(X, Y, Y_hat, save=f'{save}_epoch-start.png')
 
     opt = torch.optim.Adam(params=[param], lr=lr)
@@ -95,7 +93,7 @@ def separation_experiment(
         X = orient_data(x, mu=mu, ori=ori)
         X = torch.cat(X)
         Y_hat = model(X, Y)
-        loss = hinge_loss(Y_hat, Y.squeeze())
+        loss = hinge_loss(Y_hat, model.Y)
         losses += [loss.detach().item()]
         if learnable_parameter == 'mu':
             coor0s += [param[0].clone().detach().numpy()]
@@ -106,14 +104,11 @@ def separation_experiment(
             frob = torch.linalg.matrix_norm(param)
             frobs += [frob.detach().item()]
         loss.backward()
-        #print(model.symsqker.grad)
-        #print(model.ker.grad)
-        #print(O.grad)
         opt.step()
         opt.param_groups[0]['lr'] *= lr_decay
         if epoch % log_interval == 0:
             plot_prediction(
-                X, Y, Y_hat,
+                X, model.Y, Y_hat,
                 save=f'{save}_epoch-{epoch:07}.png',
                 plot_confusion=(not multiclass),
                 legend=False
@@ -149,7 +144,7 @@ if __name__ == '__main__':
         n=(100, 100),
         d=2,
         mu=[torch.tensor([1., -1.]), torch.ones(2)],
-        ori=[torch.tensor([[-2., 1.], [1., -2.]]) for _ in range(2)],
+        ori=[torch.tensor([[2., 1.], [1., 2.]]) for _ in range(2)],
         learnable_parameter='mu',
         learnable_idx=0,
         max_epoch=101,
@@ -161,7 +156,7 @@ if __name__ == '__main__':
     )
 
     print('\n-----------------------------------------')
-    print('Experiment 1: Linear B')
+    print('Experiment 2: Linear B')
     print('-----------------------------------------')
     os.makedirs(f'{results}/svm_expt-linear1', exist_ok=True)
     separation_experiment(
@@ -196,7 +191,7 @@ if __name__ == '__main__':
         learnable_parameter='ori',
         learnable_idx=0,
         max_epoch=501,
-        lr=0.005,
+        lr=0.01,
         lr_decay=0.995,
         log_interval=1,
         seed=0,
@@ -218,9 +213,9 @@ if __name__ == '__main__':
         learnable_parameter='ori',
         learnable_idx=0,
         max_epoch=501,
-        lr=0.02,
-        lr_decay=0.995,
+        lr=0.01,
+        lr_decay=1,
         log_interval=1,
-        seed=0,
+        seed=11,
         save=f'{results}/svm_expt-rbfexpand/svm_expt-rbfexpand'
     )
