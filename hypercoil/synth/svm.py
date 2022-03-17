@@ -60,11 +60,6 @@ def orient_data(x, mu=None, ori=None):
 
 
 def make_labels(n=(100, 100)):
-    if len(n) == 2:
-        return torch.cat((
-            torch.ones((n[0], 1)),
-            -torch.ones((n[1], 1))
-        ))
     return torch.cat([
         label * torch.ones((count, 1), dtype=torch.int64)
         for label, count in enumerate(n)
