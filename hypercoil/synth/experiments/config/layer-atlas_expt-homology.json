@@ -1,0 +1,24 @@
+{
+    "layer" : "atlas",
+    "expt" : "homology",
+    "name" : "Supervised Homology",
+    "type" : "atlas_experiment",
+    "tags" : [
+        "atlas", "parcellation", "spatial", "supervised",
+        "homology", "hard", "deterministic", "labels"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "lr" : 0.01,
+        "max_epoch" : 251,
+        "log_interval" : 10,
+        "parcellation" : "hard",
+        "homologue_parcellation" : true,
+        "entropy_nu" : 0,
+        "logdet_nu" : 0.02,
+        "secondmoment_nu" : 1000,
+        "compactness_nu" : 0,
+        "equilibrium_nu" : 0,
+        "supervised" : true
+    }
+}

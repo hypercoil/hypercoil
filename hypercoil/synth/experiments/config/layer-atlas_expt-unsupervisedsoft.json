@@ -1,0 +1,24 @@
+{
+    "layer" : "atlas",
+    "expt" : "unsupervisedsoft",
+    "name" : "Unsupervised -- Soft Parcellation",
+    "type" : "atlas_experiment",
+    "tags" : [
+        "atlas", "parcellation", "spatial", "unsupervised",
+        "soft", "overlap"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "lr" : 0.001,
+        "max_epoch" : 10001,
+        "log_interval" : 100,
+        "parcellation" : "soft",
+        "entropy_nu" : 0,
+        "logdet_nu" : 0.02,
+        "secondmoment_nu" : 1000,
+        "compactness_nu" : 1,
+        "compactness_floor" : 5,
+        "equilibrium_nu" : 0,
+        "seed" : 7
+    }
+}

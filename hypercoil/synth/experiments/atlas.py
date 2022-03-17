@@ -179,94 +179,10 @@ def atlas_experiment(
             close('all')
 
 
+def main():
+    from hypercoil.synth.experiments.run import run_layer_experiments
+    run_layer_experiments('atlas')
+
+
 if __name__ == '__main__':
-    import os
-    import hypercoil
-    results = os.path.abspath(f'{hypercoil.__file__}/../results')
-
-    print('\n-----------------------------------------')
-    print('Experiment 1: Homology')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/atlas_expt-homology', exist_ok=True)
-    atlas_experiment(
-        parcellation='hard',
-        homologue_parcellation=True,
-        save=f'{results}/atlas_expt-homology/atlas_expt-homology_',
-        entropy_nu=0,
-        logdet_nu=0.02,
-        secondmoment_nu=1000,
-        compactness_nu=0,
-        equilibrium_nu=0,
-        supervised=True,
-        max_epoch=250,
-        log_interval=10
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 2: Unsupervised -- hard')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/atlas_expt-unsupervisedhard', exist_ok=True)
-    atlas_experiment(
-        parcellation='hard',
-        save=f'{results}/atlas_expt-unsupervisedhard/atlas_expt-unsupervisedhard_',
-        entropy_nu=0,
-        logdet_nu=0.02,
-        secondmoment_nu=1000,
-        compactness_nu=0,
-        equilibrium_nu=0,
-        max_epoch=1000,
-        log_interval=25
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 3: Unsupervised -- soft')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/atlas_expt-unsupervisedsoft', exist_ok=True)
-    atlas_experiment(
-        parcellation='soft',
-        save=f'{results}/atlas_expt-unsupervisedsoft/atlas_expt-unsupervisedsoft_',
-        entropy_nu=0,
-        logdet_nu=0.02,
-        secondmoment_nu=1000,
-        compactness_nu=0.5,
-        compactness_floor=5,
-        equilibrium_nu=0,
-        seed=7,
-        lr=0.001
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 4: Hierarchical tier 1')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/atlas_expt-hierarchical1', exist_ok=True)
-    atlas_experiment(
-        parcellation='hierarchical',
-        save=f'{results}/atlas_expt-hierarchical1/atlas_expt-hierarchical1_',
-        entropy_nu=0,
-        logdet_nu=0.02,
-        secondmoment_nu=1000,
-        compactness_nu=0,
-        equilibrium_nu=0,
-        max_epoch=500,
-        log_interval=10,
-        seed=11,
-        parcel_count=5
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 5: Hierarchical tier 2')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/atlas_expt-hierarchical2', exist_ok=True)
-    atlas_experiment(
-        parcellation='hierarchical',
-        save=f'{results}/atlas_expt-hierarchical2/atlas_expt-hierarchical2_',
-        entropy_nu=0,
-        logdet_nu=0.02,
-        secondmoment_nu=1000,
-        compactness_nu=0,
-        equilibrium_nu=0,
-        max_epoch=500,
-        log_interval=10,
-        seed=11,
-        parcel_count=25
-    )
+    main()
