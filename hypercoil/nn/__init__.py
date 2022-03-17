@@ -19,6 +19,9 @@ from .iirfilter import (
 from .polyconv import (
     PolyConv2D
 )
+from .recombinator import (
+    Recombinator
+)
 from .resid import (
     Residualise
 )
@@ -27,4 +30,10 @@ from .semidefinite import(
 )
 from .spdnoise import (
     SPDNoise
+)
+from .svm import (
+    SVM
+)
+from .sylo import (
+    Sylo
 )
