@@ -244,7 +244,7 @@ def unsupervised_state_detection_experiment(
         reg_corr = SymmetricBimodal(nu=symbimodal_nu, modes=(-1, 1))
 
         reg = (
-            (reg_time, lambda model, X, Y: model)
+            (reg_time, lambda model, X, Y: model),
             (reg_corr, lambda model, X, Y: Y.mean(0))
         )
 
@@ -398,74 +398,10 @@ def unsupervised_state_detection_experiment(
         )
 
 
+def main():
+    from hypercoil.synth.experiments.run import run_layer_experiments
+    run_layer_experiments('corr')
+
+
 if __name__ == '__main__':
-    import os, hypercoil
-    results = os.path.abspath(f'{hypercoil.__file__}/../results')
-
-    print('\n-----------------------------------------')
-    print('Experiment 1: State Identification')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/corr_expt-stateident', exist_ok=True)
-    state_detection_experiment(
-        lr=0.01,
-        max_epoch=500,
-        log_interval=25,
-        time_dim=1000,
-        latent_dim=20,
-        observed_dim=100,
-        n_states=2,
-        state_timing='equipartition',
-        test_state=-1,
-        seed=11,
-        save=f'{results}/corr_expt-stateident/corr_expt-stateident.svg',
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 2: Single-Subject Parcellation')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/corr_expt-parcellation1', exist_ok=True)
-    unsupervised_state_detection_experiment(
-        lr=0.01,
-        max_epoch=1001,
-        log_interval=20,
-        smoothness_nu=10,
-        symbimodal_nu=1,
-        entropy_nu=0.,
-        equilibrium_nu=2000,
-        dist_nu=1,
-        time_dim=1000,
-        subject_dim=1,
-        latent_dim=10,
-        observed_dim=30,
-        state_weight=1,
-        subject_weight=1,
-        n_states=6,
-        seed=1,
-        save=f'{results}/corr_expt-parcellation1/corr_expt-parcellation1',
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 3: Population Parcellation')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/corr_expt-parcellation2', exist_ok=True)
-    unsupervised_state_detection_experiment(
-        lr=0.01,
-        max_epoch=501,
-        log_interval=20,
-        smoothness_nu=5,
-        symbimodal_nu=.5,
-        entropy_nu=.1,
-        equilibrium_nu=200,
-        dist_nu=1,
-        within_nu=0.002,
-        between_nu=0.2,
-        time_dim=1000,
-        subject_dim=100,
-        latent_dim=10,
-        observed_dim=30,
-        state_weight=1,
-        subject_weight=1,
-        n_states=6,
-        seed=1,
-        save=f'{results}/corr_expt-parcellation2/corr_expt-parcellation2',
-    )
+    main()

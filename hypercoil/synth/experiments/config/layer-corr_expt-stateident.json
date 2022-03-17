@@ -6,12 +6,12 @@
     "tags" : [
         "corr", "correlation", "cov", "covariance",
         "state", "state detection", "state identification",
-        "dynamics"
+        "dynamics", "supervised"
     ],
     "notes" : [],
     "parameters" :{
         "lr" : 0.01,
-        "max_epoch" : 500,
+        "max_epoch" : 501,
         "log_interval" : 25,
         "time_dim" : 1000,
         "latent_dim" : 20,

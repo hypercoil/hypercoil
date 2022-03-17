@@ -1,0 +1,31 @@
+{
+    "layer" : "corr",
+    "expt" : "parcellationgroup",
+    "name" : "Sample-Level State Parcellation",
+    "type" : "unsupervised_state_detection_experiment",
+    "tags" : [
+        "corr", "correlation", "cov", "covariance",
+        "state", "state detection", "state identification",
+        "dynamics", "unsupervised", "group-level"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "lr" : 0.01,
+        "max_epoch" : 501,
+        "log_interval" : 20,
+        "smoothness_nu" : 5,
+        "symbimodal_nu" : 0.5,
+        "entropy_nu" : 0.1,
+        "equilibrium_nu" : 200,
+        "dist_nu" : 1,
+        "within_nu" : 0.002,
+        "between_nu" : 0.1,
+        "time_dim" : 1000,
+        "latent_dim" : 10,
+        "observed_dim" : 30,
+        "n_states" : 6,
+        "state_weight" : 1,
+        "subject_weight" : 1,
+        "seed" : 1
+    }
+}
