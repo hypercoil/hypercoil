@@ -6,6 +6,7 @@ HCP interfaces
 ~~~~~~~~~~~~~~~
 Interfaces for loading HCP-like neuroimaging data.
 """
+import torch
 import subprocess
 from ..formula import ModelSpec, FCConfoundModelSpec
 from .dataset import ReferencedDataset
@@ -152,8 +153,72 @@ class HCPDataset(ReferencedDataset):
 def hcp_references(hcp_dir, additional_tables=None,
                    ignore=None, labels=('task',), outcomes=None,
                    model=None, tmask=None, observations=('subject',),
-                   levels=('task', 'session', 'run')):
-    image_and_trep, model_and_tmask = fc_reference_prep(model, tmask)
+                   levels=('task', 'session', 'run'),
+                   dtype=torch.float, device='cpu'):
+    """
+    Obtain data references for a directory containing data processed with
+    fMRIPrep.
+
+    Parameters
+    ----------
+    hcp_dir : str
+        Path to the top-level directory containing all HCP neuroimaging data.
+    additional_tables : list(str) or None (default None)
+        List of paths to files containing additional data. Each file should
+        include index columns corresponding to all identifiers present in the
+        dataset (e.g., subject, run, etc.).
+    ignore : dict(str: list) or None (default None)
+        Dictionary indicating identifiers to be ignored. Currently this
+        doesn't support any logical composition and takes logical OR over all
+        ignore specifications. In other words, data will be ignored if they
+        satisfy any of the ignore criteria.
+    labels : tuple or None (default ('task',))
+        List of categorical outcome variables to include in data references.
+        These variables can be taken either from data identifiers or from
+        additional tables. Labels become available as prediction targets for
+        classification models. By default, the subject identifier is included.
+    outcomes : tuple or None (default None)
+        List of continuous outcome variables to include in data references.
+        These variables can be taken either from data identifiers or from
+        additional tables. Labels become available as prediction targets for
+        regression models. By default, the subject identifier is included.
+    model : str, list, or None (default None)
+        Formula expressions representing confound models to create for each
+        subject. For example, a 36-parameter expanded model can be specified as
+        `(dd1(rps + wm + csf + gsr))^^2`.
+    tmask : str or None (default None)
+        A formula expression representing the temporal mask to create for each
+        subject. For instance `and(uthr0.5(fd) + uthr1.5(dv))` results in a mask
+        that includes time points with less than 0.5 framewise displacement and
+        less than 1.5 standardised DVARS.
+    observations : tuple (default ('subject',))
+        List of data identifiers whose levels are packaged into separate data
+        references. Each level should generally have the same values of any
+        outcome variables.
+    levels : tuple or None (default ('session', 'run', 'task'))
+        List of data identifiers whose levels are packaged as sublevels of the
+        same data reference. This permits easier augmentation of data via
+        pooling across sublevels.
+    dtype : torch datatype
+        Datatype of sampled DataReferences at creation. Note that, if you are
+        using a `WebDataset` for training (strongly recommended), this will
+        not constrain the data type used at training.
+    device : str (default 'cpu')
+        Device on which DataReferences are to be sampled at creation. Note
+        that, if you are using a `WebDataset` for training (strongly
+        recommended), this will not constrain the device used at training.
+
+    Returns
+    -------
+    data_refs : list(fMRIDataReference)
+        List of data reference objects created from files found in the input
+        directory.
+    """
+    image_and_trep, model_and_tmask = fc_reference_prep(
+        model, tmask,
+        dtype=dtype,
+        device=device
+    )
     images = DataQuery(
         name='images',
         pattern=hcp_image_patterns[pattern],
