@@ -204,7 +204,7 @@ class NullOptionMultiLogit(_Domain):
             renorm = x.sum(self.axis, keepdim=True)
             maximum = torch.maximum(
                 renorm.max() + self.buffer,
-                torch.tensor(1.0)
+                torch.tensor(1.0, dtype=x.dtype, device=x.device)
             )
             nulls = maximum - renorm
             z = torch.cat((x, nulls), self.axis)
@@ -216,7 +216,10 @@ class NullOptionMultiLogit(_Domain):
             x = torch.softmax(x, self.axis)
             return x.index_select(
                 self.axis,
-                torch.arange(0, x.size(self.axis) - 1)
+                torch.arange(
+                    0, x.size(self.axis) - 1
+                    dtype=x.dtype, device=x.device
+                )
             )
 
         self.preimage_map = preimage_map
@@ -256,14 +259,13 @@ class ANOML(_PhaseAmplitudeDomain, NullOptionMultiLogit):
             buffer=buffer,
             handler=handler
         )
-        self.preimage_map = torch.log
 
 
 def bandpass_iir(X, feature_ax=False):
     dim = X.shape[-1]
     if feature_ax:
         dim = X.shape[-2]
-    mask = torch.ones(dim)
+    mask = torch.ones(dim, dtype=X.dtype, device=X.device)
     mask[slice(1, None, 2)] = 0
     mask[slice(2, None, 4)] = -1
     if feature_ax:
@@ -314,7 +316,7 @@ class IIRNumerator(_Domain):
             X = X + torch.flip(X, (-2,))
         else:
             X = X + torch.flip(X, (-1,))
-        return self.mask * X / 2
+        return self.mask.type(X.dtype).to(X.device) * X / 2
 
     def encode(self, X):
         if self.btype == 'bandpass':
@@ -322,9 +324,17 @@ class IIRNumerator(_Domain):
             y[slice(0, len(X) * 2, 2)] = X
         else:
             if self.btype == 'bandstop':
-                y = torch.zeros(self.order * 2 + 1)
+                y = torch.zeros(
+                    self.order * 2 + 1,
+                    dtype=X.dtype,
+                    device=X.device
+                )
             elif self.btype == 'lowpass' or self.btype == 'highpass':
-                y = torch.empty(self.order + 1)
+                y = torch.empty(
+                    self.order + 1,
+                    dtype=X.dtype,
+                    device=X.device
+                )
             y[slice(0, len(X), 1)] = X
         y = y + torch.flip(y, (-1,))
         y[len(y) // 2] /= 2
@@ -360,7 +370,7 @@ class IIRDenominator(_Domain):
             self.mask = self.mask.unsqueeze(-1)
 
     def iircoefs(self, X):
-        return self.mask * X
+        return self.mask.type(X.dtype).to(X.device) * X
 
     def encode(self, X):
         return torch.abs(X)

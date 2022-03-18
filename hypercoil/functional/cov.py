@@ -86,7 +86,7 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     else:
         sigma = X0 @ weight @ X0.transpose(-1, -2) / fact
     if l2 > 0:
-        sigma += l2 * torch.eye(X.size(-2))
+        sigma += l2 * torch.eye(X.size(-2), dtype=X.dtype, device=X.device)
     return sigma
 
 
@@ -123,7 +123,9 @@ def partialcov(X, **params):
     followed by negation of off-diagonal entries.
     """
     omega = precision(X, **params)
-    omega = omega * (2 * torch.eye(omega.size(-1)) - 1)
+    omega = omega * (
+        2 * torch.eye(omega.size(-1), dtype=X.dtype, device=X.device) - 1
+    )
     return omega
 
 

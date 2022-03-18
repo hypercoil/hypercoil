@@ -64,7 +64,7 @@ class Clip(_OutOfDomainHandler):
             Copy of the input tensor with out-of-domain entries clipped.
         """
         out = x.detach().clone()
-        bound = torch.Tensor(bound)
+        bound = torch.tensor(bound, dtype=x.dtype, device=x.device)
         out[out > bound[-1]] = bound[-1]
         out[out < bound[0]] = bound[0]
         return out
@@ -114,7 +114,7 @@ class Normalise(_OutOfDomainHandler):
         #
         # It could hardly be handled worse.
         out = x.detach().clone()
-        bound = torch.Tensor(bound)
+        bound = torch.tensor(bound, dtype=x.dtype, device=x.device)
         if axis is None:
             upper = out.max()
             lower = out.min()
@@ -166,8 +166,8 @@ class _Domain(torch.nn.Module):
         self.handler = handler or Clip()
         bound = bound or [-float('inf'), float('inf')]
         limits = limits or [-float('inf'), float('inf')]
-        self.bound = torch.Tensor(bound)
-        self.limits = torch.Tensor(limits)
+        self.bound = bound
+        self.limits = limits
         self.loc = loc
         self.scale = scale
         self.signature = {}
@@ -177,9 +177,11 @@ class _Domain(torch.nn.Module):
         Map a tensor to its preimage under the transformation. Any values
         outside the transformation's range are first handled.
         """
-        x = self.handler.apply(x, self.bound)
+        bound = torch.tensor(self.bound, dtype=x.dtype, device=x.device)
+        limits = torch.tensor(self.limits, dtype=x.dtype, device=x.device)
+        x = self.handler.apply(x, bound)
         i = self.preimage_map((x - self.loc) / self.scale)
-        i = self.handler.apply(i, self.limits)
+        i = self.handler.apply(i, limits)
         return i
 
     def image(self, x):

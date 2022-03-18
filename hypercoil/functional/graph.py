@@ -185,7 +185,7 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True, normalise=False):
     else:
         C = C_i @ L @ C_o.transpose(-1, -2)
     if exclude_diag:
-        C[torch.eye(C.size(-1), dtype=torch.bool)] = 0
+        C[torch.eye(C.size(-1), dtype=torch.bool, device=C.device)] = 0
     return C
 
 

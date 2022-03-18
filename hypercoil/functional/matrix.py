@@ -46,10 +46,10 @@ def invert_spd(A, force_invert_singular=True):
         # more sense than trying again with a reconditioned matrix?
         if force_invert_singular:
             return torch.pinverse(A)
-            return symmetric(invert_spd(
-                recondition_eigenspaces(A, psi=1e-4, xi=1e-5),
-                force_invert_singular=False
-            ))
+            #return symmetric(invert_spd(
+            #    recondition_eigenspaces(A, psi=1e-4, xi=1e-5),
+            #    force_invert_singular=False
+            #))
         raise
 
 
@@ -132,8 +132,14 @@ def spd(X, eps=1e-6, method='eig'):
     if method == 'eig':
         L = torch.linalg.eigvalsh(symmetric(X))
         lmin = L.amin(axis=-1) - eps
-        lmin = torch.minimum(lmin, torch.zeros(1)).squeeze()
-        return symmetric(X - lmin[..., None, None] * torch.eye(X.size(-1)))
+        lmin = torch.minimum(
+            lmin,
+            torch.zeros(1, dtype=L.dtype, device=L.device)
+        ).squeeze()
+        return symmetric(
+            X - lmin[..., None, None] *
+            torch.eye(X.size(-1), dtype=X.dtype, device=X.device)
+        )
     elif method == 'svd':
         Q, L, _ = torch.svd(symmetric(X))
         return symmetric(Q @ torch.diag_embed(L) @ Q.transpose(-1, -2))
@@ -400,11 +406,13 @@ def vec2sym(vec, offset=1):
     cn2 = vec.shape[-1]
     side = int(0.5 * (math.sqrt(8 * cn2 + 1) + 1)) + (offset - 1)
     idx = torch.triu_indices(side, side, offset)
-    sym = torch.zeros((*shape, side, side)).type(vec.dtype)
+    sym = torch.zeros(
+        (*shape, side, side), dtype=vec.dtype, device=vec.device
+    )
     sym[..., idx[0], idx[1]] = vec
     sym = sym + sym.transpose(-1, -2)
     if offset == 0:
-        mask = torch.eye(side).bool()
+        mask = torch.eye(side, device=sym.device, dtype=torch.bool)
         sym[..., mask] = sym[..., mask] / 2
     return sym
 

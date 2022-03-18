@@ -66,8 +66,7 @@ class _IIDNoiseSource(_IIDSource):
     _IIDDropoutSource : For multiplicative sample injection.
     """
     def __init__(self, distr=None, training=True):
-        distr = distr or torch.distributions.normal.Normal(
-            torch.Tensor([0]), torch.Tensor([1]))
+        distr = distr or torch.distributions.Normal(0, 1)
         super(_IIDNoiseSource, self).__init__(distr, training)
 
     def inject(self, tensor):
@@ -86,7 +85,8 @@ class _IIDNoiseSource(_IIDSource):
             Tensor block with noise injected from the source.
         """
         if self.training:
-            return tensor + self.sample(tensor.size())
+            return tensor + self.sample(
+                tensor.size()).type(tensor.dtype).to(tensor.device)
         else:
             return tensor
 
@@ -117,7 +117,8 @@ class _IIDSquareNoiseSource(_IIDNoiseSource):
                                  'tensors. The tensors must be square along '
                                  'the last two dimensions.')
         if self.training:
-            return tensor + self.sample(tensor.size()[:-1])
+            return tensor + self.sample(
+                tensor.size()[:-1]).type(tensor.dtype).to(tensor.device)
         else:
             return tensor
 
@@ -136,13 +137,13 @@ class _IIDDropoutSource(_IIDSource):
     _IIDNoiseSource : For additive sample injection.
     """
     def __init__(self, distr=None, training=True):
-        distr = distr or torch.distributions.bernoulli.Bernoulli(
-            torch.Tensor([0.5]))
+        distr = distr or torch.distributions.bernoulli.Bernoulli(0.5)
         super(_IIDDropoutSource, self).__init__(distr, training)
 
     def inject(self, tensor):
         if self.training:
-            return tensor * self.sample(tensor.size())
+            return tensor * self.sample(
+                tensor.size()).type(tensor.dtype).to(tensor.device)
         else:
             return tensor
 
@@ -173,7 +174,8 @@ class _IIDSquareDropoutSource(_IIDDropoutSource):
                                  'tensors. The tensors must be square along '
                                  'the last two dimensions.')
         if self.training:
-            return tensor * self.sample(tensor.size()[:-1])
+            return tensor * self.sample(
+                tensor.size()[:-1]).type(tensor.dtype).to(tensor.device)
         else:
             return tensor
 

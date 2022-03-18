@@ -61,9 +61,9 @@ def cmass(X, axes=None, na_rm=False):
         axes = all_axes
     out_dim = [s for ax, s in enumerate(dim) if all_axes[ax] not in axes]
     out_dim += [len(axes)]
-    out = torch.zeros(out_dim)
+    out = torch.zeros(out_dim, dtype=X.dtype, device=X.device)
     for i, ax in enumerate(axes):
-        coor = torch.arange(1, X.size(ax) + 1)
+        coor = torch.arange(1, X.size(ax) + 1, dtype=X.dtype, device=X.device)
         while coor.dim() < ndim - all_axes[ax]:
             coor.unsqueeze_(-1)
         num = (coor * X).sum(axes)
@@ -164,5 +164,6 @@ def diffuse(X, coor, norm=2, floor=0, radius=None):
             cm.transpose(-1, -2),
             r=radius
         )
-    dist = torch.maximum(dist - floor, torch.tensor(0))
+    dist = torch.maximum(dist - floor, torch.tensor(
+        0,dtype=dist.dtype, device=dist.device))
     return (X * dist).mean()

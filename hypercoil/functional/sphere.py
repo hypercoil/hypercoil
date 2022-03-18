@@ -49,8 +49,10 @@ def sphere_to_normals(coor, r=1):
         Tensor containing 3-tuple coordinates indicating zero-centred x, y, and
         z values of each point at radius r.
     """
-    lat, long = coor.T
-    coor = torch.empty((coor.shape[0], 3))
+    lat, long = coor.t(-2, -1)
+    coor = torch.empty(
+        (coor.shape[0], 3), device=coor.device, dtype=coor.dtype
+    )
     coor[:, 0] = r * torch.cos(lat) * torch.cos(long)
     coor[:, 1] = r * torch.cos(lat) * torch.sin(long)
     coor[:, 2] = r * torch.sin(lat)
@@ -77,9 +79,11 @@ def sphere_to_latlong(coor):
         Tensor containing 2-tuple coordinates indicating the latitude and
         longitude of each point.
     """
-    x, y, z = coor.T
+    x, y, z = coor.t(-2, -1)
     R = torch.sqrt((coor[0] ** 2).sum())
-    coor = torch.empty((coor.shape[0], 2))
+    coor = torch.empty(
+        (coor.shape[0], 2), device=coor.device, dtype=coor.dtype
+    )
     coor[:, 0] = torch.atan2(z, torch.sqrt(x ** 2 + y ** 2))
     coor[:, 1] = torch.atan2(y, x)
     return coor
@@ -126,6 +130,7 @@ def spherical_geodesic(X, Y=None, r=1):
     num = (crXY ** 2).sum(-1).sqrt()
     denom = torch.sum(X * Y, dim=-1)
     dist = torch.atan2(num, denom)
+    #TODO: replace in-place op
     dist[dist < 0] += torch.pi
     return r * dist
 
@@ -268,7 +273,6 @@ def _euc_dist(X, Y=None):
 def euclidean_conv(data, coor, scale=1, max_bin=10000, truncate=None):
     """
     Spatial convolution using the standard L2 metric and a Gaussian kernel.
-    Please don't use this function. For testing/illustrative purposes only.
     """
     kernel = partial(kernel_gaussian, scale=scale)
     return spatial_conv(data=data, coor=coor, kernel=kernel,

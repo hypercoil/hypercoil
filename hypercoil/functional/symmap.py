@@ -16,7 +16,9 @@ from . import symmetric, recondition_eigenspaces
 # regarding limitations and more efficient implementations
 
 
-def symmap(input, map, spd=True, psi=0, recondition='eigenspaces'):
+def symmap(input, map, spd=True, psi=0,
+           recondition='eigenspaces',
+           truncate_eigenvalues=False):
     r"""
     Apply a specified matrix-valued transformation to a batch of symmetric
     (probably positive semidefinite) tensors.
@@ -56,10 +58,18 @@ def symmap(input, map, spd=True, psi=0, recondition='eigenspaces'):
 
           :math:`\widetilde{X} = X + \psi I - \xi I`
 
-          where :math:`\xi` is sampled uniformly from :math:`(0, \psi)`.
-          In addition to promoting positive definiteness, this method
-          promotes eigenspaces with dimension 1 (no degenerate eigenvalues).
-          This is required for differentiation through SVD.
+          where each element of :math:`\xi` is independently sampled uniformly
+          from :math:`(0, \psi)`. In addition to promoting positive
+          definiteness, this method promotes eigenspaces with dimension 1 (no
+          degenerate/repeated eigenvalues). Nondegeneracy of eigenvalues is
+          required for differentiation through SVD.
+    truncate_eigenvalues : bool (default False)
+        Indicates that very small eigenvalues, which might for instance occur
+        due to numerical errors in the decomposition, should be truncated to
+        zero. Note that you should not do this if you wish to differentiate
+        through this operation, or if you require the input to be positive
+        definite. For these use cases, consider using the `psi` and
+        `recondition` parameters.
 
     Returns
     -------
@@ -70,13 +80,21 @@ def symmap(input, map, spd=True, psi=0, recondition='eigenspaces'):
         if psi > 1:
             raise ValueError('Nonconvex combination. Select psi in [0, 1].')
         if recondition == 'convexcombination':
-            input = (1 - psi) * input + psi * torch.eye(input.size(-1))
+            input = (1 - psi) * input + psi * torch.eye(
+                input.size(-1), dtype=input.dtype, device=input.device
+            )
         elif recondition == 'eigenspaces':
             input = recondition_eigenspaces(input, psi=psi, xi=psi)
     if not spd:
         Q, L, _ = torch.svd(symmetric(input))
     else:
         L, Q = torch.linalg.eigh(symmetric(input))
+    if truncate_eigenvalues:
+        # Based on xmodar's implementation here:
+        # https://github.com/pytorch/pytorch/issues/25481
+        above_cutoff = L > L.max() * L.size(-1) * torch.finfo(L.dtype).eps
+        L = L[..., above_cutoff]
+        Q = Q[..., above_cutoff]
     Lmap = torch.diag_embed(map(L))
     return symmetric(Q @ Lmap @ Q.transpose(-1, -2))
 
