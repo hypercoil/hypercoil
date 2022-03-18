@@ -21,8 +21,8 @@
         "learnable_index" : 0,
         "max_epoch" : 101,
         "log_interval" : 1,
-        "lr" : 0.05,
-        "lr_decay" : 0.995,
+        "lr" : 0.1,
+        "lr_decay" : 1,
         "seed" : 0
     }
 }

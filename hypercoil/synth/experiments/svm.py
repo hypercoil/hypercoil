@@ -109,6 +109,7 @@ def separation_experiment(
             frobs += [frob.detach().item()]
         loss.backward()
         opt.step()
+        param.grad.zero_()
         opt.param_groups[0]['lr'] *= lr_decay
         if epoch % log_interval == 0:
             plot_prediction(
