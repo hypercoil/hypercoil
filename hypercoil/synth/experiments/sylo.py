@@ -26,8 +26,8 @@ from hypercoil.synth.sylo import (
 
 
 def shallow_autoencoder_experiment(
-    max_epoch = 50001,
-    learning_rate = 1e-3,
+    max_epoch=50001,
+    lr=1e-3,
     recombinator_nonnegative_l2_nu=0.1,
     nonnegative_l2_nu=0.01,
     modularity_nu=0.2,
@@ -55,7 +55,7 @@ def shallow_autoencoder_experiment(
     )
 
     loss = torch.nn.MSELoss()
-    opt = torch.optim.Adam(sy_low.parameters(), lr=learning_rate)
+    opt = torch.optim.Adam(sy_low.parameters(), lr=lr)
     losses = []
 
     mod_softmax = partial(torch.softmax, dim=-1)
@@ -106,38 +106,10 @@ def shallow_autoencoder_experiment(
             close('all')
 
 
+def main():
+    from hypercoil.synth.experiments.run import run_layer_experiments
+    run_layer_experiments('sylo')
+
+
 if __name__ == '__main__':
-    import os, hypercoil
-    results = os.path.abspath(f'{hypercoil.__file__}/../results')
-
-    print('\n-----------------------------------------')
-    print('Experiment 1: No regularisation')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/sylo_expt-noreg', exist_ok=True)
-    shallow_autoencoder_experiment(
-        max_epoch = 50001,
-        learning_rate = 1e-3,
-        recombinator_nonnegative_l2_nu=0,
-        nonnegative_l2_nu=0,
-        modularity_nu=0,
-        n_nodes=100,
-        rank=4,
-        seed=11,
-        save=f'{results}/sylo_expt-noreg/sylo_expt-noreg'
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 2: Regularisation')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/sylo_expt-reg', exist_ok=True)
-    shallow_autoencoder_experiment(
-        max_epoch = 50001,
-        learning_rate = 1e-3,
-        recombinator_nonnegative_l2_nu=0.1,
-        nonnegative_l2_nu=0.01,
-        modularity_nu=0.2,
-        n_nodes=100,
-        rank=4,
-        seed=11,
-        save=f'{results}/sylo_expt-reg/sylo_expt-reg'
-    )
+    main()
