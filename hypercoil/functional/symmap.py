@@ -8,7 +8,7 @@ Differentiable computation of matrix logarithm, exponential, and square root.
 For use with symmetric (typically positive semidefinite) matrices.
 """
 import torch
-from . import symmetric
+from . import symmetric, recondition_eigenspaces
 
 
 #TODO: Look here more closely:
@@ -16,7 +16,7 @@ from . import symmetric
 # regarding limitations and more efficient implementations
 
 
-def symmap(input, map, spd=True, psi=0):
+def symmap(input, map, spd=True, psi=0, recondition='eigenspaces'):
     r"""
     Apply a specified matrix-valued transformation to a batch of symmetric
     (probably positive semidefinite) tensors.
@@ -40,13 +40,26 @@ def symmap(input, map, spd=True, psi=0):
         eigenvalues are nonnegative.
     psi : float in [0, 1]
         Conditioning factor to promote positive definiteness. If this is in
-        (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix.
+        (0, 1],
+    recondition : 'convexcombination' or 'eigenspaces' (default 'eigenspaces')
+        Method for reconditioning.
+        - `'convexcombination'` denotes that the original input will be
+          replaced with a convex combination of the input and an identity
+          matrix.
 
-        :math:`\widetilde{X} = (1 - \psi) X + \psi I`
+          :math:`\widetilde{X} = (1 - \psi) X + \psi I`
 
-        A suitable :math:`\psi` can be used to ensure that all eigenvalues are
-        positive.
+          A suitable :math:`\psi` can be used to ensure that all eigenvalues
+          are positive.
+        - `'eigenspaces'` denotes that noise will be added to the original
+          input along the diagonal.
+
+          :math:`\widetilde{X} = X + \psi I - \xi I`
+
+          where :math:`\xi` is sampled uniformly from :math:`(0, \psi)`.
+          In addition to promoting positive definiteness, this method
+          promotes eigenspaces with dimension 1 (no degenerate eigenvalues).
+          This is required for differentiation through SVD.
 
     Returns
     -------
@@ -56,7 +69,10 @@ def symmap(input, map, spd=True, psi=0):
     if psi > 0:
         if psi > 1:
             raise ValueError('Nonconvex combination. Select psi in [0, 1].')
-        input = (1 - psi) * input + psi * torch.eye(input.size(-1))
+        if recondition == 'convexcombination':
+            input = (1 - psi) * input + psi * torch.eye(input.size(-1))
+        elif recondition == 'eigenspaces':
+            input = recondition_eigenspaces(input, psi=psi, xi=psi)
     if not spd:
         Q, L, _ = torch.svd(symmetric(input))
     else:
