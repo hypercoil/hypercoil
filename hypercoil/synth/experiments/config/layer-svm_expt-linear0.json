@@ -1,0 +1,28 @@
+{
+    "layer" : "svm",
+    "expt" : "linear0",
+    "name" : "Linear A",
+    "type" : "separation_experiment",
+    "tags" : [
+        "svm", "model", "mean", "classification", "supervised"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "kernel" : "linear",
+        "C" : 1,
+        "n" : [100, 100],
+        "d" : 2,
+        "mu" : [[1, -1], [1, 1]],
+        "ori" : [
+            [[2, 1], [1, 2]],
+            [[2, 1], [1, 2]]
+        ],
+        "learnable_parameter" : "mu",
+        "learnable_index" : 0,
+        "max_epoch" : 101,
+        "log_interval" : 1,
+        "lr" : 0.05,
+        "lr_decay" : 0.995,
+        "seed" : 0
+    }
+}

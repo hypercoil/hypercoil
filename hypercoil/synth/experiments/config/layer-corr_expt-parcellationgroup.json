@@ -23,6 +23,7 @@
         "time_dim" : 1000,
         "latent_dim" : 10,
         "observed_dim" : 30,
+        "subject_dim" : 100,
         "n_states" : 6,
         "state_weight" : 1,
         "subject_weight" : 1,

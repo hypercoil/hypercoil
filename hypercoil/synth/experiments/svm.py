@@ -34,7 +34,7 @@ def separation_experiment(
     mu=None,
     ori=None,
     learnable_parameter='mu',
-    learnable_idx=0,
+    learnable_index=0,
     multiclass_type='ovr',
     max_epoch=500,
     lr=0.005,
@@ -45,14 +45,18 @@ def separation_experiment(
 ):
     if mu is None:
         mu = [torch.zeros(d) for _ in n]
+    else:
+        mu = [torch.FloatTensor(x) for x in mu]
     if ori is None:
         ori = [torch.eye(d) for _ in n]
+    else:
+        ori = [torch.FloatTensor(x) for x in ori]
     if learnable_parameter == 'mu':
-        param = mu[learnable_idx]
+        param = mu[learnable_index]
         coor0s = []
         coor1s = []
     elif learnable_parameter == 'ori':
-        param = ori[learnable_idx]
+        param = ori[learnable_index]
         dets = []
         frobs = []
     param.requires_grad = True
@@ -127,95 +131,13 @@ def separation_experiment(
             training_legend=('loss', '|det|', 'Frob. norm'),
             save=f'{save}_training.png'
         )
+    close('all')
+
+
+def main():
+    from hypercoil.synth.experiments.run import run_layer_experiments
+    run_layer_experiments('svm')
 
 
 if __name__ == '__main__':
-    import os
-    import hypercoil
-    results = os.path.abspath(f'{hypercoil.__file__}/../results')
-
-    print('\n-----------------------------------------')
-    print('Experiment 1: Linear A')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/svm_expt-linear0', exist_ok=True)
-    separation_experiment(
-        kernel='linear',
-        C=1.,
-        n=(100, 100),
-        d=2,
-        mu=[torch.tensor([1., -1.]), torch.ones(2)],
-        ori=[torch.tensor([[2., 1.], [1., 2.]]) for _ in range(2)],
-        learnable_parameter='mu',
-        learnable_idx=0,
-        max_epoch=101,
-        lr=0.05,
-        lr_decay=0.995,
-        log_interval=1,
-        seed=0,
-        save=f'{results}/svm_expt-linear0/svm_expt-linear0'
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 2: Linear B')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/svm_expt-linear1', exist_ok=True)
-    separation_experiment(
-        kernel='linear',
-        C=1.,
-        n=(100, 100),
-        d=2,
-        mu=[torch.tensor([1., -1.]), torch.ones(2)],
-        ori=[torch.tensor([[1., -2.], [-2., 1.]]) for _ in range(2)],
-        learnable_parameter='mu',
-        learnable_idx=0,
-        max_epoch=101,
-        lr=0.05,
-        lr_decay=0.995,
-        log_interval=1,
-        seed=0,
-        save=f'{results}/svm_expt-linear1/svm_expt-linear1'
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 3: Radial Collapse')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/svm_expt-rbfcollapse', exist_ok=True)
-    separation_experiment(
-        kernel='rbf',
-        sigma=1,
-        C=0.1,
-        n=(100, 100),
-        d=2,
-        mu=[torch.ones(2) for _ in range(2)],
-        ori=[2 * torch.eye(2), 4 * torch.eye(2)],
-        learnable_parameter='ori',
-        learnable_idx=0,
-        max_epoch=501,
-        lr=0.01,
-        lr_decay=0.995,
-        log_interval=1,
-        seed=0,
-        save=f'{results}/svm_expt-rbfcollapse/svm_expt-rbfcollapse'
-    )
-
-    print('\n-----------------------------------------')
-    print('Experiment 4: Radial Expansion')
-    print('-----------------------------------------')
-    os.makedirs(f'{results}/svm_expt-rbfexpand', exist_ok=True)
-    separation_experiment(
-        kernel='rbf',
-        sigma=3,
-        C=0.1,
-        n=(100, 100),
-        d=2,
-        mu=[torch.ones(2) for _ in range(2)],
-        ori=[5 * torch.eye(2), 3 * torch.eye(2)],
-        learnable_parameter='ori',
-        learnable_idx=0,
-        max_epoch=501,
-        lr=0.01,
-        lr_decay=1,
-        log_interval=1,
-        seed=11,
-        save=f'{results}/svm_expt-rbfexpand/svm_expt-rbfexpand'
-    )
+    main()
