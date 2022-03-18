@@ -103,15 +103,24 @@ class ToTensor(object):
         singleton dimension is iteratively added until the tensor dimension
         is greater than or equal to the specified argument.
     """
-    def __init__(self, dtype='torch.FloatTensor', dim='auto'):
+    def __init__(self, dtype=torch.float, device='cpu', dim='auto'):
         self.dim = dim
         self.dtype = dtype
+        self.device = device
 
     def __call__(self, data):
-        return F.to_tensor(data, dtype=self.dtype, dim=self.dim)
+        return F.to_tensor(
+            data,
+            dtype=self.dtype,
+            device=self.device,
+            dim=self.dim
+        )
 
     def __repr__(self):
-        return f'{type(self).__name__}(dtype={self.dtype}, dim={self.dim})'
+        return (
+            f'{type(self).__name__}(dtype={self.dtype}, '
+            f'device={self.device}, dim={self.dim})'
+        )
 
 
 class ToNamedTensor(ToTensor):
@@ -134,14 +143,15 @@ class ToNamedTensor(ToTensor):
         transform has names. If 'last', excess names are truncated from the
         end; if 'first', they are truncated from the beginning.
     """
-    def __init__(self, dtype='torch.FloatTensor', dim='auto',
+    def __init__(self, dtype=torch.float, device='cpu', dim='auto',
                  names=None, truncate='last'):
         self.all_names = names
         self.truncate = truncate
-        super(ToNamedTensor, self).__init__(dtype, dim)
+        super(ToNamedTensor, self).__init__(
+            dtype=dtype, device=device, dim=dim)
 
     def _names(self, data):
-        check = torch.Tensor(data)
+        check = torch.tensor(data, dtype=self.dtype, device=self.device)
         if self.truncate == 'last':
             return self.all_names[:check.dim()]
         elif self.truncate == 'first':
@@ -149,10 +159,19 @@ class ToNamedTensor(ToTensor):
 
     def __call__(self, data):
         names = self._names(data)
-        return F.to_named_tensor(data, dtype=dtype, names=names)
+        return F.to_named_tensor(
+            data,
+            dtype=self.dtype,
+            device=self.device,
+            dim=self.dim,
+            names=names
+        )
 
     def __repr__(self):
-        return f'{type(self).__name__}(dtype={self.dtype}, dim={self.dim})'
+        return (
+            f'{type(self).__name__}(dtype={self.dtype}, '
+            f'device={self.device}, dim={self.dim})'
+        )
 
 
 class NaNFill(object):
@@ -314,7 +333,7 @@ class ConsolidateBlock(object):
 
 class ReadDataFrame(object):
     """
-    Load tabular data from the specified path. Defaults to TSV. Any additional
+    Load tabular data from a specified path. Defaults to TSV. Any additional
     parameters are forwarded as arguments to `pd.read_csv`.
     """
     def __init__(self, sep='\t', **kwargs):
@@ -330,7 +349,7 @@ class ReadDataFrame(object):
 
 class ReadNeuroImage(object):
     """
-    Load neuroimaging data from the specified path. Any additional parameters
+    Load neuroimaging data from a specified path. Any additional parameters
     are forwarded as arguments to `nibabel.load`.
     """
     def __init__(self, **kwargs):
@@ -358,17 +377,38 @@ class EncodeOneHot(object):
         Total number of levels of the categorical variable.
     dtype : torch datatype (default torch.FloatTensor)
         Output tensor datatype. Defaults to float for gradient support.
+        Note that this can be overriden by setting `conform_to_data=True`
+        when calling the transform.
+    device : device (default 'cpu')
+        Output tensor device. Note that this can be overriden by setting
+        `conform_to_data=True` when calling the transform.
     """
-    def __init__(self, n_levels, dtype='torch.FloatTensor'):
+    def __init__(self, n_levels, dtype=torch.float, device='cpu'):
         self.n_levels = n_levels
         self.dtype = dtype
-        self.patterns = torch.eye(self.n_levels)
+        self.device = device
+        self.patterns = torch.eye(
+            self.n_levels,
+            dtype=self.dtype,
+            device=self.device
+        )
 
-    def __call__(self, data):
-        return F.vector_encode(data, encoding=self.patterns, dtype=self.dtype)
+    def __call__(self, data, conform_to_data=True):
+        if conform_to_data:
+            return F.vector_encode(
+                data,
+                encoding=self.patterns.type(data.dtype).to(data.device),
+            )
+        return F.vector_encode(
+            data,
+            encoding=self.patterns,
+        )
 
     def __repr__(self):
-        return f'{type(self).__name__}(n_levels={self.n_levels})'
+        return (
+            f'{type(self).__name__}(n_levels={self.n_levels}, '
+            f'dtype={self.dtype}, device={self.device})'
+        )
 
 
 class ReadJSON(object):

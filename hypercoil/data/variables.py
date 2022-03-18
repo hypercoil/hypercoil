@@ -7,6 +7,7 @@ Variables
 Dataset variable subclasses.
 """
 import re
+import torch
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from .functional import get_col
@@ -200,9 +201,10 @@ class ContinuousVariable(DatasetVariable):
     df : DataFrame
         Does nothing. Allowed for uniformity with `CategoricalVariable`.
     """
-    def __init__(self, name, df=None, colname=None):
+    def __init__(self, name, df=None, colname=None,
+                 dtype=torch.float, device='cpu'):
         super(ContinuousVariable, self).__init__(name, colname)
-        self.transform = ToTensor()
+        self.transform = ToTensor(dtype=dtype, device=device)
 
     def assign(self, df):
         """
@@ -228,12 +230,12 @@ class NeuroImageBlockVariable(_BlockVariableFromDataFrame):
     a list block of DataPathVariables that include paths to files
     containing data and potentially metadata associated with each image.
     """
-    def __init__(self, name, colname=None):
+    def __init__(self, name, colname=None, dtype=torch.float, device='cpu'):
         super(NeuroImageBlockVariable, self).__init__(name, colname)
         self.transform = Compose([
             BlockTransform(Compose([
                 ReadNeuroImageX(),
-                ToTensorX(),
+                ToTensorX(dtype=dtype, device=device),
                 DumpX()
             ])),
             ConsolidateBlock()
@@ -247,7 +249,8 @@ class TableBlockVariable(_BlockVariableFromDataFrame):
     containing data and potentially metadata associated with each data
     table.
     """
-    def __init__(self, name, spec=None, colname=None):
+    def __init__(self, name, spec=None, colname=None,
+                 dtype=torch.float, device='cpu'):
         super(TableBlockVariable, self).__init__(name, colname)
         self.transform = Compose([
             BlockTransform(Compose([
@@ -257,14 +260,15 @@ class TableBlockVariable(_BlockVariableFromDataFrame):
             ])),
             UnzipTransformedBlock(),
             ApplyTransform(Compose([
-                BlockTransform(ToTensor(dim=2)),
+                BlockTransform(ToTensor(dim=2, dtype=dtype, device=device)),
                 ConsolidateBlock()
             ]))
         ])
 
 
 class MetaValueBlockVariable(_BlockVariableFromDataFrame):
-    def __init__(self, name, key, colname=None):
+    def __init__(self, name, key, colname=None,
+                 dtype=torch.float, device='cpu'):
         super(MetaValueBlockVariable, self).__init__(name, colname)
         self.key = key
         #self.transform = Compose([
@@ -274,7 +278,7 @@ class MetaValueBlockVariable(_BlockVariableFromDataFrame):
         self.transform = Compose([
             BlockTransform(Compose([
                 MetadataKeyX(self.key),
-                ToTensor(),
+                ToTensor(dtype=dtype, device=device),
             ])),
             ConsolidateBlock()
         ])

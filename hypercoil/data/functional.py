@@ -29,7 +29,7 @@ def get_col(df, label):
         return df[label]
 
 
-def to_tensor(data, dtype='torch.FloatTensor', dim='auto'):
+def to_tensor(data, dtype=torch.float, device='cpu', dim='auto'):
     """
     Change the input data into a tensor with the specified type and minimum
     dimension.
@@ -56,16 +56,24 @@ def to_tensor(data, dtype='torch.FloatTensor', dim='auto'):
         #TODO: transposing as a patch here. Move it somewhere reasonable.
         data = data.values.T
     try:
-        tensor = torch.Tensor(data).type(dtype)
+        tensor = torch.tensor(data, dtype=dtype, device=device)
     except TypeError:
-        tensor = torch.Tensor([data]).type(dtype)
+        tensor = torch.Tensor([data], dtype=dtype, device=device)
     if dim != 'auto':
-        while tensor.dim() < dim:
-            tensor = tensor.unsqueeze(-1)
+        current_dim = tensor.dim()
+        deficit = dim - current_dim
+        if deficit < 0:
+            raise ValueError(
+                f'Requested an output tensor of dimension {dim}, but '
+                f'cannot reduce tensor dimension below {current_dim}')
+        elif deficit > 0:
+            expansion = [...] + [None for _ in range(deficit)]
+            tensor = tensor[expansion]
     return tensor
 
 
-def to_named_tensor(data, dtype='torch.FloatTensor', dim='auto', names=None):
+def to_named_tensor(data, dtype=torch.float,
+                    device='cpu', dim='auto', names=None):
     """
     Change the input data into a named tensor with the specified type and
     minimum dimension.
@@ -90,7 +98,7 @@ def to_named_tensor(data, dtype='torch.FloatTensor', dim='auto', names=None):
     tensor : Tensor
         PyTorch Tensor containing the input data.
     """
-    out = to_tensor(data, dtype=dtype, dim=dim)
+    out = to_tensor(data, dtype=dtype, device=device, dim=dim)
     out.names = names
     return out
 
@@ -107,25 +115,36 @@ def nanfill(data, fill=None):
     fill : float, None, or Tensor/ndarray (default None)
         Value(s) used to replace NaN entries in the input tensor. If this is
         None, then this operation does nothing. If this is a tensor, it must
-        be broadcastable against the missing part of the input tensor.
+        be broadcastable against the missing part of the input tensor. If this
+        is the string 'mean', then every NaN entry is replaced with the mean
+        of non-NaN entries.
 
     Returns
     -------
-    data : Tensor
+    data : Tensor or np.ndarray
         Input tensor with missing or invalid values populated.
+    nanmask : Tensor or np.ndarray
+        Boolean tensor indicating the cells where NaN entries were previously
+        located (returned so that they can be restored later if desired).
     """
+    #TODO: enable interpolation from nearest neighbours along set axes
     nanmask = None
     if fill is not None:
-        if isinstance(data, np.ndarray):
-            nanmask = np.isnan(data)
-            if fill == 'mean':
-                fill = np.nanmean(data)
-            data[np.isnan(data)] = fill
-        elif isinstance(data, torch.Tensor):
+        if isinstance(data, torch.Tensor):
             nanmask = torch.isnan(data)
             if fill == 'mean':
                 fill = data.nanmean()
-            data[torch.isnan(data)] = fill
+            data = torch.nan_to_num(data, fill)
+        elif isinstance(data, np.ndarray):
+            nanmask = np.isnan(data)
+            if fill == 'mean':
+                fill = np.nanmean(data)
+            data = np.nan_to_num(data, fill)
+        else:
+            raise TypeError(
+                'nanfill: unrecognised input type. '
+                'Provide either a tensor or a numpy array as input.'
+            )
     return data, nanmask
 
 
@@ -212,16 +231,18 @@ def consolidate_block(block):
     return out
 
 
-def consolidate_to_tensor(block, dtype=torch.FloatTensor, dim='auto'):
+def consolidate_to_tensor(block, dtype=torch.float, device='cpu', dim='auto'):
     """
     Convenience function for ReferencedDataset because pydra doesn't always
     play well with tensors. Wraps `consolidate_block` and `to_tensor` while
     also handling subdictionaries if they exist.
     """
     if isinstance(block, dict):
-        return {k: consolidate_to_tensor(v, dtype=dtype, dim=dim)
-                for k, v in block.items()}
-    tt = partial(to_tensor, dtype=dtype, dim=dim)
+        return {
+            k: consolidate_to_tensor(v, dtype=dtype, device=device, dim=dim)
+            for k, v in block.items()
+        }
+    tt = partial(to_tensor, dtype=dtype, device=device, dim=dim)
     block = transform_block(block, tt)
     return consolidate_block(block)
 
@@ -260,7 +281,10 @@ def extend_to_max_size(tensor_list):
     `nanfill`.
     """
     sizes = [t.size() for t in tensor_list]
-    max_size = torch.amax(torch.Tensor(sizes), 0).int()
+    max_size = torch.amax(
+        torch.tensor(sizes, dtype=torch.long, device=tensor_list[0].device),
+        0
+    )
     return [extend_to_size(t, max_size) for t in tensor_list]
 
 
@@ -271,7 +295,11 @@ def extend_to_size(tensor, size):
     NaN to denote that they were missing from the input; they can be
     populated by chaining this with a call to `nanfill`.
     """
-    out = torch.empty(*size) * float('nan')
+    out = torch.empty(
+        *size,
+        dtype=tensor.dtype,
+        device=tensor.device
+    ) * float('nan')
     #TODO: revisit named tensors when they are stable
     #names = tensor.names
     #tensor = tensor.rename(None)
@@ -315,7 +343,7 @@ def read_neuro_image(path, **kwargs):
     return img.get_fdata()
 
 
-def vector_encode(data, encoding, dtype='torch.FloatTensor'):
+def vector_encode(data, encoding):
     """
     Encode a categorical variable as a vector.
 
@@ -331,11 +359,9 @@ def vector_encode(data, encoding, dtype='torch.FloatTensor'):
         represents a one-hot endoding. Note that because it can be expensive
         to store a large matrix, this is not a recommended way to create
         one-hot encodings for categorical variables with many levels.
-    dtype : torch datatype (default torch.FloatTensor)
-        Encoded tensor datatype.
     """
-    idx = torch.Tensor(data).type('torch.LongTensor')
-    return encoding[idx].type(dtype)
+    idx = torch.tensor(data, dtype=torch.long, device=data.device)
+    return encoding[idx]
 
 
 def change_extension(path, new_ext, mode='all'):
@@ -464,8 +490,16 @@ def get_metadata_variable(dataobj, key):
 
 def polynomial_detrend(tensor, order=0):
     """Apply a polynomial detrend of the specified order to the data."""
-    base = torch.linspace(0, 1, tensor.size(-1))
-    X = torch.zeros((tensor.size(-1), order + 1))
+    base = torch.linspace(
+        0, 1, tensor.size(-1),
+        dtype=tensor.dtype,
+        device=tensor.device
+    )
+    X = torch.zeros(
+        (tensor.size(-1), order + 1),
+        dtype=tensor.dtype,
+        device=tensor.device
+    )
     for o in range(order + 1):
         X[:, o] = base ** o
     betas = torch.linalg.pinv(X.T @ X) @ X.T @ tensor.transpose(-1, -2)

@@ -15,7 +15,7 @@ from .dataref import data_references, DataQuery
 from .transforms import (
     NIfTIHeader, CWBCIfTIHeader, Compose, ChangeExtension, ReadJSON
 )
-from hypercoil.data.variables import (
+from .variables import (
     VariableFactory,
     DataPathVariable
 )
