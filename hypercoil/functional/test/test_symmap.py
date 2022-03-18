@@ -16,7 +16,7 @@ from hypercoil.functional import (
 class TestSymmetricMap:
     @pytest.fixture(autouse=True)
     def setup_class(self):
-        self.tol = 5e-7
+        self.tol = 1e-5
         self.rtol = 1e-4
         self.approx = lambda out, ref: np.allclose(
             out, ref, atol=self.tol, rtol=self.rtol)
@@ -64,6 +64,6 @@ class TestSymmetricMap:
     def test_singular(self):
         out = symmap(self.ASt, torch.log).numpy()
         #assert np.all(np.logical_or(np.isnan(out), np.isinf(out)))
-        out = symmap(self.ASt, torch.log, psi=1e-5).numpy()
+        out = symmap(self.ASt, torch.log, psi=1e-3).numpy()
         assert np.all(np.logical_not(np.logical_or(
             np.isnan(out), np.isinf(out))))

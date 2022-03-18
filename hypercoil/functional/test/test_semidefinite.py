@@ -81,4 +81,4 @@ class TestSemidefinite:
         out = mean_geom_spd(self.AMt, recondition=1e-6).numpy()
         ref = _geometric_mean([i for i in self.AM])
         # Another fairly weak condition.
-        assert np.allclose(out, ref, atol=1e-2, rtol=1e-2)
+        assert(np.abs(out - ref).max() < .01)
