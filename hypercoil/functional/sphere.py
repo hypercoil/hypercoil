@@ -49,7 +49,7 @@ def sphere_to_normals(coor, r=1):
         Tensor containing 3-tuple coordinates indicating zero-centred x, y, and
         z values of each point at radius r.
     """
-    lat, long = coor.t(-2, -1)
+    lat, long = coor.transpose(-2, -1)
     coor = torch.empty(
         (coor.shape[0], 3), device=coor.device, dtype=coor.dtype
     )
@@ -79,7 +79,7 @@ def sphere_to_latlong(coor):
         Tensor containing 2-tuple coordinates indicating the latitude and
         longitude of each point.
     """
-    x, y, z = coor.t(-2, -1)
+    x, y, z = coor.transpose(-2, -1)
     R = torch.sqrt((coor[0] ** 2).sum())
     coor = torch.empty(
         (coor.shape[0], 2), device=coor.device, dtype=coor.dtype

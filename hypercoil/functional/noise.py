@@ -238,7 +238,7 @@ class UnstructuredNoiseSource(_AxialSampler, _IIDNoiseSource):
             Tensor sampled from the noise source.
         """
         dim = self.select_dim(dim)
-        return self.distr.sample(dim).squeeze(-1)
+        return self.distr.sample(dim)
 
 
 class DiagonalNoiseSource(_IIDSquareNoiseSource):
@@ -563,7 +563,7 @@ class BandDropoutSource(_IIDSquareDropoutSource):
             n = dim[-1]
             if n != self.n:
                 self._create_bandmask(n)
-            mask = self.distr.sample((*dim, 1)).squeeze(-1)
+            mask = self.distr.sample((*dim, 1))
             unnorm = mask @ mask.transpose(-1, -2) * self.bandmask
             return unnorm * self.normfact
         else:
