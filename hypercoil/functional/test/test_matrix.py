@@ -9,7 +9,15 @@ import torch
 import numpy as np
 from scipy.linalg import toeplitz as toeplitz_ref
 from hypercoil.functional import (
-    invert_spd, toeplitz, symmetric, spd
+    invert_spd,
+    toeplitz,
+    symmetric,
+    spd,
+    recondition_eigenspaces,
+    delete_diagonal,
+    sym2vec,
+    vec2sym,
+    squareform
 )
 
 
@@ -92,3 +100,43 @@ class TestMatrix:
         Rx[:self.R.shape[0], :] = self.R
         ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx.T, Rx.T)])
         assert self.approx(out, ref)
+
+    def test_recondition(self):
+        V = torch.ones((7, 3))
+        V.requires_grad = True
+        (V @ V.t()).svd()[0].sum().backward()
+        assert torch.all(torch.isnan(V.grad))
+        V.grad.zero_()
+
+        recondition_eigenspaces(
+            V @ V.t(), psi=1e-3, xi=1e-3
+        ).svd()[0].sum().backward()
+        assert torch.logical_not(torch.any(torch.isnan(V.grad)))
+
+    def test_sym2vec_correct(self):
+        from scipy.spatial.distance import squareform
+        K = symmetric(torch.rand(3, 4, 5, 5))
+        out = sym2vec(K)
+
+        ref = np.stack([
+            np.stack([
+                squareform(j.numpy() * (1 - np.eye(j.shape[0])))
+                for j in k
+            ]) for k in K
+        ])
+        assert np.allclose(out, ref)
+
+    def test_sym2vec_inversion(self):
+        K = symmetric(torch.rand(3, 4, 5, 5))
+        out = vec2sym(sym2vec(K, offset=0), offset=0)
+        assert torch.allclose(out, K)
+
+    def test_squareform_equivalence(self):
+        K = symmetric(torch.rand(3, 4, 5, 5))
+        out = squareform(K)
+        ref = sym2vec(K)
+        assert torch.allclose(out, ref)
+
+        out = squareform(out)
+        ref = vec2sym(ref)
+        assert torch.allclose(out, ref)

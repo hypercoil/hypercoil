@@ -217,7 +217,7 @@ class NullOptionMultiLogit(_Domain):
             return x.index_select(
                 self.axis,
                 torch.arange(
-                    0, x.size(self.axis) - 1
+                    0, x.size(self.axis) - 1,
                     dtype=x.dtype, device=x.device
                 )
             )
