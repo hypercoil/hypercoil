@@ -405,7 +405,12 @@ class SVM(torch.nn.Module):
             ker = X
         else:
             ker = self.K(self.X)
-        recond_factor = self.recondition * torch.linalg.matrix_norm(ker, 2)
+        try:
+            recond_factor = (
+                self.recondition * torch.linalg.matrix_norm(ker, 2)
+            )
+        except torch.linalg.LinAlgError:
+            recond_factor = self.recondition
         ker = recondition_eigenspaces(
             ker,
             psi=recond_factor,
