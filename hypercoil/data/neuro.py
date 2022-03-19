@@ -6,6 +6,7 @@ Neuroimaging
 ~~~~~~~~~~~~
 Neuroimaging dataset-specific datasets and data references.
 """
+import torch
 from .dataref import DataReference
 
 

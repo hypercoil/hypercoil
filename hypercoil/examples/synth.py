@@ -5,8 +5,9 @@
 Synthetic data
 ~~~~~~~~~~~~~~
 Creation process for a small synthetic test dataset.
-This code is embarrassingly bad and shouldn't be used outside of its original
-context.
+This code is intended as a one-off for helping with some unit tests. It's
+not intended to be generalisable, reusable, or applicable outside of its
+original context.
 """
 import json
 import numpy as np
