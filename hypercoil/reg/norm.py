@@ -41,11 +41,15 @@ class NormedRegularisation(ReducingRegularisation):
 
 
 class UnilateralNormedRegularisation(NormedRegularisation):
-    def __init__(self, nu, p=2, reg=None):
+    def __init__(self, nu, p=2, reg=None, axis=None, reduction=None):
+        reduction = reduction or torch.mean
         if reg is None:
             reg = lambda x: x
-        r = lambda x: torch.maximum(reg(x), torch.tensor(0))
+        r = lambda x: torch.maximum(
+            reg(x),
+            torch.tensor(0, dtype=x.dtype, device=x.device)
+        )
         super(UnilateralNormedRegularisation, self).__init__(
-            nu=nu, p=p, reg=r
+            nu=nu, p=p, reg=r, axis=axis, reduction=reduction
         )
         self.p = p

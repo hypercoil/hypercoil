@@ -13,7 +13,7 @@ from ..functional import pairedcorr
 from .base import ReducingRegularisation
 
 
-def auto_tol(batch_size, significance=0.1, tails=2):
+def auto_tol(batch_size, significance=0.1, tails=2, dtype=None, device=None):
     r"""
     Automatically set the tolerance for batch-dimension correlations based on
     a significance level.
@@ -35,7 +35,9 @@ def auto_tol(batch_size, significance=0.1, tails=2):
     import numpy as np
     from scipy.stats import t
     tsq = t.ppf(q=(1 - significance / tails), df=(batch_size - 2)) ** 2
-    return torch.tensor(np.sqrt(tsq / (batch_size - 2 + tsq)))
+    return torch.tensor(
+        np.sqrt(tsq / (batch_size - 2 + tsq)), dtype=dtype, device=device
+    )
 
 
 def batch_corr(X, N, tol=0, tol_sig=0.1):
@@ -71,10 +73,11 @@ def batch_corr(X, N, tol=0, tol_sig=0.1):
         N
     )
     if tol == 'auto':
-        tol = auto_tol(batch_size, significance=tol_sig)
+        tol = auto_tol(batch_size, significance=tol_sig,
+                       dtype=batchcorr.dtype, device=batchcorr.device)
     return torch.maximum(
         batchcorr.abs() - tol,
-        torch.tensor(0)
+        torch.tensor(0, dtype=batchcorr.dtype, device=batchcorr.device)
     )
 
 

@@ -11,14 +11,11 @@ from functools import partial
 from .base import ReducingRegularisation
 
 
-#TODO: make sure this is fine for half precision, etc.
-eps = 1e-8
-
-
 def entropy(X, axis=-1):
     """
     Compute the entropy of a categorical distribution.
     """
+    eps = torch.finfo(X.dtype).eps
     entropy = -X * torch.log(X + eps)
     return entropy.sum(axis)
 

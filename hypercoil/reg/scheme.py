@@ -52,7 +52,7 @@ class RegularisationScheme(Module):
         return x
 
     def forward(self, weight):
-        losses = torch.tensor(0., requires_grad=True)
+        losses = 0
         for r in self:
             losses = losses + r(weight)
         return losses

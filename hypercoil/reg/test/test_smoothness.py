@@ -20,8 +20,8 @@ class TestSmoothnessPenalty:
             [0.2, 0.3, 0.4, 0.5],
             [0.4, 0.5, 0.6, 0.7]
         ])
-        self.y0 = torch.tensor(0.56568542494)
-        self.y1 = torch.tensor(0.3)
+        self.y0 = torch.tensor(0.2828426957130432)
+        self.y1 = torch.tensor(0.17320507764816284)
 
     def test_smoothness_ax0(self):
         reg = SmoothnessPenalty(axis=0)
