@@ -19,7 +19,7 @@ def brain_globe(data, coor, shift=0, cmap='flag',
     if not isinstance(data, torch.Tensor):
         data = torch.tensor(data)
     if not isinstance(coor, torch.Tensor):
-        coor = torch.tensor(coor)
+        coor = torch.tensor(coor, dtype=data.dtype, device=data.device)
 
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111, projection=projection)
@@ -44,7 +44,7 @@ def brain_globe(data, coor, shift=0, cmap='flag',
     return ax
 
 
-def data_from_struc_tag(cifti, struc_tag):
+def data_from_struc_tag(cifti, struc_tag, dtype=None, device=None):
     if struc_tag is not None:
         slices = []
         brain_model_axis = cifti.header.get_axis(1)
@@ -58,7 +58,7 @@ def data_from_struc_tag(cifti, struc_tag):
         data = cifti.get_fdata()[:, slices]
     else:
         data = cifti.get_fdata()
-    return torch.tensor(data)
+    return torch.tensor(data, dtype=dtype, device=device)
 
 
 class _GlobeBrain:
@@ -115,14 +115,16 @@ class _SurfNoActionMixin:
 class _SurfFromFilesMixin:
     def _select_data_and_coor(self, data, coor,
                               coor_mask=None,
-                              struc_tag=None):
+                              struc_tag=None,
+                              dtype=None, device=None):
         data = nb.load(data)
         coor = nb.load(coor).darrays[0].data
         if coor_mask is not None:
             coor_mask = nb.load(coor_mask)
             coor_mask = coor_mask.darrays[0].data.astype(bool)
             coor = coor[coor_mask]
-        coor = sphere_to_latlong(torch.tensor(coor))
+        coor = sphere_to_latlong(
+            torch.tensor(coor, dtype=dtype, device=device))
         data = data_from_struc_tag(data, struc_tag)
         return data, coor
 
@@ -169,7 +171,7 @@ class _CMapNoActionMixin:
 
 
 class _CMapFromSurfMixin:
-    def _compute_linear_map(self, null=0):
+    def _compute_linear_map(self, null=0, dtype=None, device=None):
         labels = np.unique(self.data).astype(int)
         labels = np.delete(labels, labels==null)
         n_labels = labels.max() + 1
@@ -179,7 +181,7 @@ class _CMapFromSurfMixin:
             map[l, :] = (self.data == l)
         map /= map.sum(1, keepdims=True)
         map[np.isnan(map)] = 0
-        return torch.tensor(map)
+        return torch.tensor(map, dtype=dtype, device=device)
 
     def _compute_parcel_colours(self, linear_map, surf_cmap):
         parcel_colours = linear_map @ surf_cmap.T

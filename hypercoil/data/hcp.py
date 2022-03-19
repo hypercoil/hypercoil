@@ -6,7 +6,6 @@ HCP interfaces
 ~~~~~~~~~~~~~~~
 Interfaces for loading HCP-like neuroimaging data.
 """
-import torch
 import subprocess
 from ..formula import ModelSpec, FCConfoundModelSpec
 from .dataset import ReferencedDataset
@@ -154,7 +153,7 @@ def hcp_references(hcp_dir, additional_tables=None,
                    ignore=None, labels=('task',), outcomes=None,
                    model=None, tmask=None, observations=('subject',),
                    levels=('task', 'session', 'run'),
-                   dtype=torch.float, device='cpu'):
+                   dtype=None, device=None):
     """
     Obtain data references for a directory containing data processed with
     fMRIPrep.

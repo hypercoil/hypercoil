@@ -29,7 +29,7 @@ def get_col(df, label):
         return df[label]
 
 
-def to_tensor(data, dtype=torch.float, device='cpu', dim='auto'):
+def to_tensor(data, dtype=None, device=None, dim='auto'):
     """
     Change the input data into a tensor with the specified type and minimum
     dimension.
@@ -39,7 +39,7 @@ def to_tensor(data, dtype=torch.float, device='cpu', dim='auto'):
     data : object
         Object that can be cast to a Tensor. If this is a pandas DataFrame,
         only the values are cast to a Tensor.
-    dtype : torch datatype (default torch.FloatTensor)
+    dtype : torch datatype
         Output tensor datatype.
     dim : int or 'auto' (default 'auto')
         Minimum dimension of the output tensor. If this is 'auto', then no
@@ -72,8 +72,7 @@ def to_tensor(data, dtype=torch.float, device='cpu', dim='auto'):
     return tensor
 
 
-def to_named_tensor(data, dtype=torch.float,
-                    device='cpu', dim='auto', names=None):
+def to_named_tensor(data, dtype=None, device=None, dim='auto', names=None):
     """
     Change the input data into a named tensor with the specified type and
     minimum dimension.
@@ -83,7 +82,7 @@ def to_named_tensor(data, dtype=torch.float,
     data : object
         Object that can be cast to a Tensor. If this is a pandas DataFrame,
         only the values are cast to a Tensor.
-    dtype : torch datatype (default torch.FloatTensor)
+    dtype : torch datatype
         Output tensor datatype.
     dim : int or 'auto' (default 'auto')
         Minimum dimension of the output tensor. If this is 'auto', then no
@@ -231,7 +230,7 @@ def consolidate_block(block):
     return out
 
 
-def consolidate_to_tensor(block, dtype=torch.float, device='cpu', dim='auto'):
+def consolidate_to_tensor(block, dtype=None, device=None, dim='auto'):
     """
     Convenience function for ReferencedDataset because pydra doesn't always
     play well with tensors. Wraps `consolidate_block` and `to_tensor` while

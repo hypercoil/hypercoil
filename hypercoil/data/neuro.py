@@ -138,7 +138,7 @@ class fMRIDataReference(DataReference):
         return s
 
 
-def fc_reference_prep(model, tmask, dtype=torch.float, device='cpu'):
+def fc_reference_prep(model, tmask, dtype=None, device=None):
     """
     Helper function for creating DataReferences for functional connectivity
     analysis.

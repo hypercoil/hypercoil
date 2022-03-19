@@ -11,7 +11,6 @@ PyBIDS code stabilises.
 """
 ##TODO: use pybids wherever possible
 # import bids
-import torch
 from .dataref import data_references, DataQuery
 from .dataset import ReferencedDataset
 from .grabber import LightGrabber
@@ -194,7 +193,7 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
                         ignore=None, labels=('subject',), outcomes=None,
                         model=None, tmask=None, observations=('subject',),
                         levels=('session', 'run', 'task'),
-                        dtype=torch.float, device='cpu'):
+                        dtype=None, device=None):
     """
     Obtain data references for a directory containing data processed with
     fMRIPrep.

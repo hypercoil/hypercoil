@@ -202,7 +202,7 @@ class ContinuousVariable(DatasetVariable):
         Does nothing. Allowed for uniformity with `CategoricalVariable`.
     """
     def __init__(self, name, df=None, colname=None,
-                 dtype=torch.float, device='cpu'):
+                 dtype=None, device=None):
         super(ContinuousVariable, self).__init__(name, colname)
         self.transform = ToTensor(dtype=dtype, device=device)
 
@@ -230,7 +230,7 @@ class NeuroImageBlockVariable(_BlockVariableFromDataFrame):
     a list block of DataPathVariables that include paths to files
     containing data and potentially metadata associated with each image.
     """
-    def __init__(self, name, colname=None, dtype=torch.float, device='cpu'):
+    def __init__(self, name, colname=None, dtype=None, device=None):
         super(NeuroImageBlockVariable, self).__init__(name, colname)
         self.transform = Compose([
             BlockTransform(Compose([
@@ -250,7 +250,7 @@ class TableBlockVariable(_BlockVariableFromDataFrame):
     table.
     """
     def __init__(self, name, spec=None, colname=None,
-                 dtype=torch.float, device='cpu'):
+                 dtype=None, device=None):
         super(TableBlockVariable, self).__init__(name, colname)
         self.transform = Compose([
             BlockTransform(Compose([
@@ -267,8 +267,7 @@ class TableBlockVariable(_BlockVariableFromDataFrame):
 
 
 class MetaValueBlockVariable(_BlockVariableFromDataFrame):
-    def __init__(self, name, key, colname=None,
-                 dtype=torch.float, device='cpu'):
+    def __init__(self, name, key, colname=None, dtype=None, device=None):
         super(MetaValueBlockVariable, self).__init__(name, colname)
         self.key = key
         #self.transform = Compose([

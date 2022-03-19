@@ -103,7 +103,7 @@ class ToTensor(object):
         singleton dimension is iteratively added until the tensor dimension
         is greater than or equal to the specified argument.
     """
-    def __init__(self, dtype=torch.float, device='cpu', dim='auto'):
+    def __init__(self, dtype=None, device=None, dim='auto'):
         self.dim = dim
         self.dtype = dtype
         self.device = device
@@ -143,7 +143,7 @@ class ToNamedTensor(ToTensor):
         transform has names. If 'last', excess names are truncated from the
         end; if 'first', they are truncated from the beginning.
     """
-    def __init__(self, dtype=torch.float, device='cpu', dim='auto',
+    def __init__(self, dtype=None, device=None, dim='auto',
                  names=None, truncate='last'):
         self.all_names = names
         self.truncate = truncate
@@ -383,7 +383,7 @@ class EncodeOneHot(object):
         Output tensor device. Note that this can be overriden by setting
         `conform_to_data=True` when calling the transform.
     """
-    def __init__(self, n_levels, dtype=torch.float, device='cpu'):
+    def __init__(self, n_levels, dtype=None, device=None):
         self.n_levels = n_levels
         self.dtype = dtype
         self.device = device
