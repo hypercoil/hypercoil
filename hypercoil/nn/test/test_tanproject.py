@@ -62,9 +62,8 @@ class TestTanProject:
                 SPDLogEuclideanMean(),
                 SPDHarmonicMean()],
             recondition=1e-5,
-            device='cuda',
-            dtype=torch.half)
-        Y = tang(self.A.clone().cuda().half())
+            device='cuda')
+        Y = tang(self.A.clone().cuda())
         tang(Y, 'cone')
 
     @pytest.mark.cuda
@@ -76,8 +75,6 @@ class TestTanProject:
                 SPDEuclideanMean(),
                 SPDLogEuclideanMean(),
                 SPDHarmonicMean()],
-            recondition=1e-5,
-            device='cuda',
-            dtype=torch.half)
-        Y = btang(self.A.clone().cuda().half())
+            recondition=1e-5)
+        Y = btang(self.A.clone().cuda())
         btang(Y, 'cone')

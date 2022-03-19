@@ -30,8 +30,12 @@ class TestIIRFilter:
 
     def compare_spec_and_ref_cuda(self, spec, ref):
         ff = DTDF(spec, device='cuda', dtype=torch.half)
-        out = ff(torch.tensor(self.Z.clone().cuda().half())).detach()
-        assert np.allclose(ref, out.cpu(), atol=1e-6)
+        out = ff(torch.tensor(
+            self.Z,
+            device='cuda',
+            dtype=torch.half
+        )).detach()
+        assert np.allclose(ref, out.cpu(), atol=1e-2)
 
     def test_order2(self):
         ref = lfilter(self.bw[0], self.bw[1], self.Z)
