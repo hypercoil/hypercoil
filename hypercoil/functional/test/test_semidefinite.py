@@ -85,10 +85,10 @@ class TestSemidefinite:
         out = mean_geom_spd(self.AMt, recondition=1e-3).numpy()
         ref = _geometric_mean([i for i in self.AM])
         # Another fairly weak condition.
-        assert np.abs(out - ref).max() < .05
+        assert np.abs(out - ref).max() < .1
 
     @pytest.mark.cuda
     def test_cone_tangent_cuda(self):
         VtC = tangent_project_spd(self.AMtC, self.RtC, recondition=5e-4)
-        AM_rec = cone_project_spd(Vt, self.RtC, recondition=5e-4)
-        out = mean_geom_spd(self.AMtC, recondition=1e-6).numpy()
+        AM_rec = cone_project_spd(VtC, self.RtC, recondition=5e-4)
+        out = mean_geom_spd(self.AMtC, recondition=1e-6)

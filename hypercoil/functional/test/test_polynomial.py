@@ -37,5 +37,5 @@ class TestPolynomial:
     @pytest.mark.cuda
     def test_polyconv2d_cuda(self):
         out = polyconv2d(self.XC, known_filter().cuda())
-        ref = self.XC + 0.3 * self.XC ** 2 - 0.1 * self.X ** 3
+        ref = self.XC + 0.3 * self.XC ** 2 - 0.1 * self.XC ** 3
         assert self.approx(out, ref)

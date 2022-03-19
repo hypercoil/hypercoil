@@ -237,7 +237,7 @@ class TestMatrix:
             np.stack([
                 squareform(j.numpy() * (1 - np.eye(j.shape[0])))
                 for j in k
-            ]) for k in K
+            ]) for k in K.cpu()
         ])
         assert np.allclose(out.cpu(), ref)
 

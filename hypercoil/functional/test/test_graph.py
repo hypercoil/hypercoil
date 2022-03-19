@@ -68,7 +68,7 @@ class TestGraph:
         ref = np.stack(
             [modularity_ref(modularity_matrix_ref(x), self.comms)
              for x in self.X])
-        assert self.approx(out,cpu(), ref)
+        assert self.approx(out.cpu(), ref)
 
     @pytest.mark.cuda
     def test_nonassociative_block_cuda(self):
