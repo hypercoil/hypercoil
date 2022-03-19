@@ -6,7 +6,7 @@ Unit tests for centre of mass
 """
 import pytest
 import torch
-from hypercoil.functional.cmass import cmass
+from hypercoil.functional.cmass import cmass, cmass_coor
 
 
 class TestCentreOfMass:
@@ -24,6 +24,18 @@ class TestCentreOfMass:
         self.X_1 = torch.tensor([1.5, 1.5, 1, 2])
         self.Y = torch.rand(5, 3, 4, 4)
         self.Y = (self.Y > 0.5).float()
+
+        coor = torch.arange(4).view(1, 4)
+        self.Xcoor = torch.stack([
+            coor.tile(4, 1),
+            coor.view(4, 1).tile(1, 4)
+        ])
+        self.Ycoor = torch.stack([
+            torch.arange(5).view(-1, 1, 1, 1).broadcast_to(self.Y.shape),
+            torch.arange(3).view(1, -1, 1, 1).broadcast_to(self.Y.shape),
+            torch.arange(4).view(1, 1, -1, 1).broadcast_to(self.Y.shape),
+            torch.arange(4).view(1, 1, 1, -1).broadcast_to(self.Y.shape),
+        ])
 
     def test_cmass_negatives(self):
         out = cmass(self.X, [0])
@@ -54,3 +66,12 @@ class TestCentreOfMass:
         assert out.size() == torch.Size([5, 3, 4, 1])
         out = cmass(self.Y, [0, -3, -2])
         assert out.size() == torch.Size([4, 3])
+
+    def test_cmass_coor(self):
+        out = cmass_coor(self.X.view(1, -1), self.Xcoor.view(2, -1))
+        ref = cmass(self.X)
+        assert torch.allclose(out, ref)
+
+        out = cmass_coor(self.Y.view(1, -1), self.Ycoor.view(4, -1))
+        ref = cmass(self.Y)
+        assert torch.allclose(out.squeeze(), ref.squeeze())
