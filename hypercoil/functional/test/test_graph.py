@@ -17,6 +17,11 @@ from communities.utilities import (
 )
 
 
+#TODO: Missing unit tests:
+# - case with positive and negative weights in the adjacency matrix
+# - correctness of nonassociative block modularity
+
+
 class TestGraph:
     @pytest.fixture(autouse=True)
     def setup_class(self):
@@ -31,6 +36,11 @@ class TestGraph:
         self.Xt = torch.Tensor(self.X)
         self.Ct = torch.Tensor(self.C)
         self.Lt = torch.rand(4, 4)
+
+        if torch.cuda.is_available():
+            self.XtC = self.Xt.clone().cuda()
+            self.CtC = self.Ct.clone().cuda()
+            self.LtC = self.Lt.clone().cuda()
 
     def test_modularity_matrix(self):
         out = modularity_matrix(self.Xt, normalise=True)
@@ -49,3 +59,18 @@ class TestGraph:
     def test_nonassociative_block(self):
         out = relaxed_modularity(self.Xt, self.Ct,
                                  L=self.Lt, exclude_diag=True) / 2
+
+    @pytest.mark.cuda
+    def test_modularity_cuda(self):
+        out = relaxed_modularity(self.XtC, self.CtC,
+                                 exclude_diag=True,
+                                 directed=False)
+        ref = np.stack(
+            [modularity_ref(modularity_matrix_ref(x), self.comms)
+             for x in self.X])
+        assert self.approx(out,cpu(), ref)
+
+    @pytest.mark.cuda
+    def test_nonassociative_block_cuda(self):
+        out = relaxed_modularity(self.XtC, self.CtC,
+                                 L=self.LtC, exclude_diag=True) / 2

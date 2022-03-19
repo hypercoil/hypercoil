@@ -26,8 +26,16 @@ class TestPolynomial:
     def setup_class(self):
         self.X = torch.rand(7, 100)
         self.approx = torch.allclose
+        if torch.cuda.is_available():
+            self.XC = self.X.clone().cuda()
 
     def test_polyconv2d(self):
         out = polyconv2d(self.X, known_filter())
         ref = self.X + 0.3 * self.X ** 2 - 0.1 * self.X ** 3
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_polyconv2d_cuda(self):
+        out = polyconv2d(self.XC, known_filter().cuda())
+        ref = self.XC + 0.3 * self.XC ** 2 - 0.1 * self.X ** 3
         assert self.approx(out, ref)

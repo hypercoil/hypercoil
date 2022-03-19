@@ -15,6 +15,10 @@ from hypercoil.functional import (
 )
 
 
+#TODO: Unit tests still needed for:
+# - correctness of off-diagonal weighted covariance
+
+
 class TestCov:
 
     @pytest.fixture(autouse=True)

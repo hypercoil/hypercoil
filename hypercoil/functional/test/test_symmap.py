@@ -31,6 +31,10 @@ class TestSymmetricMap:
         self.AMt = torch.Tensor(self.AM)
         self.ASt = torch.Tensor(self.AS)
 
+        if torch.cuda.is_available():
+            self.AtC = self.At.clone().cuda()
+            self.AMtC = self.AMt.clone().cuda()
+
     def test_expm(self):
         out = symexp(self.At).numpy()
         ref = expm(self.A)
@@ -67,3 +71,17 @@ class TestSymmetricMap:
         out = symmap(self.ASt, torch.log, psi=1e-3).numpy()
         assert np.all(np.logical_not(np.logical_or(
             np.isnan(out), np.isinf(out))))
+
+    @pytest.mark.cuda
+    def test_map_cuda(self):
+        out = symmap(self.AtC, torch.sin).cpu().numpy()
+        ref = funm(self.A, np.sin)
+        assert self.approx(out, ref)
+        ref = sinm(self.A)
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_map_multidim_cuda(self):
+        out = symmap(self.AMtC, torch.exp).cpu().numpy()
+        ref = np.stack([expm(AMi) for AMi in self.AM])
+        assert self.approx(out, ref)
