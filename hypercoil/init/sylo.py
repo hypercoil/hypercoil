@@ -49,7 +49,8 @@ def sylo_init_(tensors, a=0, mode='fan_in', init='uniform',
                 tensor.normal_(0, std)
         return
 
-    bound = math.sqrt(3.0) * std  # Calculate uniform bounds from standard deviation
+    # Calculate uniform bounds from standard deviation
+    bound = math.sqrt(3.0) * std
     for tensor in tensors:
         with torch.no_grad():
             tensor.uniform_(-bound, bound)

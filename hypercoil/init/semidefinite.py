@@ -111,7 +111,8 @@ def tangency_init_(tensor, mean_specs, init_data, std=0):
     means = mean_block_spd(mean_specs, init_data)
     if std > 0:
         means = SPSDNoiseSource(std=std).inject(means)
-    tensor.copy_(means)
+    with torch.no_grad():
+        tensor.copy_(means)
 
 
 class TangencyInit(DomainInitialiser):

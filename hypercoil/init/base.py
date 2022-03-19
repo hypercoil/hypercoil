@@ -23,7 +23,7 @@ def from_distr_init_(tensor, distr):
         Pytorch distribution object from which to sample values used to
         populate the tensor.
     """
-    val = distr.sample(tensor.shape)
+    val = distr.sample(tensor.shape).type(tensor.dtype).to(tensor.device)
     tensor[:] = val
 
 
@@ -66,7 +66,11 @@ def identity_init_(tensor, scale=1):
     the future.
     """
     dim = tensor.size(-1)
-    tensor[:] = scale * torch.eye(dim)
+    tensor[:] = scale * torch.eye(
+        dim,
+        dtype=tensor.dtype,
+        device=tensor.device
+    )
 
 
 class DomainInitialiser(object):
@@ -108,11 +112,9 @@ class DomainInitialiser(object):
         self.domain = domain or Identity()
 
     def __call__(self, tensor, **params):
-        rg = tensor.requires_grad
-        tensor.requires_grad = False
-        self.init(tensor, **params)
-        tensor[:] = self.domain.preimage(tensor)
-        tensor.requires_grad = rg
+        with torch.no_grad():
+            self.init(tensor, **params)
+            tensor[:] = self.domain.preimage(tensor)
 
 
 class BaseInitialiser(DomainInitialiser):
@@ -135,10 +137,8 @@ class BaseInitialiser(DomainInitialiser):
         self.domain = Identity()
 
     def __call__(self, tensor, **params):
-        rg = tensor.requires_grad
-        tensor.requires_grad = False
-        self.init(tensor, **params)
-        tensor.requires_grad = rg
+        with torch.no_grad():
+            self.init(tensor, **params)
 
 
 class DistributionInitialiser(DomainInitialiser):
