@@ -281,6 +281,7 @@ class IIRNumerator(_Domain):
     # default limits based roughly on Kuznetsov init
     def __init__(self, handler=None, limits=(0, 1), peak=0.5,
                  btype='bandpass', order=1, feature_ax=False):
+        raise NotImplementedError
         super(IIRNumerator, self).__init__(
             handler=handler, bound=limits,
             loc=0, scale=1, limits=limits)
@@ -346,6 +347,7 @@ class IIRDenominator(_Domain):
     # default limits based roughly on Kuznetsov init
     def __init__(self, handler=None, limits=(0, 0.5), peak=0.5,
                  btype='bandpass', order=1, feature_ax=False):
+        raise NotImplementedError
         super(IIRDenominator, self).__init__(
             handler=handler, bound=limits,
             loc=0, scale=1, limits=limits)
