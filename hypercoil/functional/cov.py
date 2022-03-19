@@ -10,9 +10,6 @@ import torch
 from .matrix import invert_spd
 
 
-eps = 1e-8
-
-
 def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     """
     Empirical covariance of variables in a tensor batch.
@@ -331,7 +328,7 @@ def corrnorm(A):
     """
     d = torch.diagonal(A, dim1=-2, dim2=-1)
     fact = -torch.sqrt(d).unsqueeze(-1)
-    return (fact @ fact.transpose(-1, -2) + eps)
+    return (fact @ fact.transpose(-1, -2) + torch.finfo(fact.dtype).eps)
 
 
 def covariance(*pparams, **params):
