@@ -46,7 +46,15 @@ class TestIIRFilter:
         self.Z2 = torch.complex(torch.Tensor(21, 6, 50),
                                 torch.Tensor(21, 6, 50))
 
-    def test_iirfilter(self):
+        if torch.cuda.is_available():
+            self.ZC = self.Z.clone().cuda()
+            self.PC = self.P.clone().cuda()
+            self.VC = self.V.clone().cuda()
+            self.Z2C = self.Z2.clone().cuda()
+            self.P2C = self.P2.clone().cuda()
+            self.V2C = self.V2.clone().cuda()
+
+    def test_freqfilter(self):
         freqfilter_init_(self.Z, self.filter_specs)
         assert sum(
             [spec.n_filters for spec in self.filter_specs]
@@ -56,3 +64,16 @@ class TestIIRFilter:
         clamp_init_(self.P, self.V, self.clamped_specs)
         clamp_init_(self.P2, self.V2, [self.clamped_specs[0]])
         freqfilter_init_(self.Z2, self.clamped_specs)
+
+    @pytest.mark.cuda
+    def test_freqfilter_cuda(self):
+        freqfilter_init_(self.ZC, self.filter_specs)
+        assert sum(
+            [spec.n_filters for spec in self.filter_specs]
+            ) == self.ZC.size(-2)
+
+    @pytest.mark.cuda
+    def test_clamps_cuda(self):
+        clamp_init_(self.PC, self.VC, self.clamped_specs)
+        clamp_init_(self.P2C, self.V2C, [self.clamped_specs[0]])
+        freqfilter_init_(self.Z2C, self.clamped_specs)
