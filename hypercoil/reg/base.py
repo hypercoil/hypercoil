@@ -11,13 +11,17 @@ from torch.nn import Module
 
 class LossApply(Module):
     def __init__(self, loss, apply=None):
+        super(LossApply, self).__init__()
         if apply is None:
             apply = lambda x: x
         self.loss = loss
         self.apply = apply
 
-    def forward(self, input):
-        return self.loss(self.apply(input))
+    def __repr__(self):
+        return f'[ν = {self.loss.nu}]{type(self.loss).__name__}'
+
+    def forward(self, *args, **kwargs):
+        return self.loss(self.apply(*args, **kwargs))
 
 
 class ReducingRegularisation(Module):

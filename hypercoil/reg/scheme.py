@@ -11,9 +11,12 @@ from torch.nn import Module
 
 
 class RegularisationScheme(Module):
-    def __init__(self, reg=None):
+    def __init__(self, reg=None, apply=None):
         super(RegularisationScheme, self).__init__()
         self.reg = self._listify(reg) or []
+        if apply is None:
+            apply = lambda x: x
+        self.apply = apply
 
     def __add__(self, other):
         return RegularisationScheme(reg=(self.reg + other.reg))
@@ -51,8 +54,14 @@ class RegularisationScheme(Module):
             return list(x)
         return x
 
-    def forward(self, weight):
+    def forward(self, *args, verbose=False, **kwargs):
         losses = 0
-        for r in self:
-            losses = losses + r(weight)
+        if verbose:
+            for r in self:
+                loss = r(self.apply(*args, **kwargs))
+                print(f'- {r}: {loss}')
+                losses = losses + loss
+        else:
+            for r in self:
+                losses = losses + r(self.apply(*args, **kwargs))
         return losses
