@@ -26,6 +26,7 @@ class TestCovNN:
         import os
         os.environ['KMP_DUPLICATE_LIB_OK']='True'
         self.approx = lambda x, y: np.allclose(x.detach(), y, atol=1e-5)
+        self.approxh = lambda x, y: np.allclose(x.detach(), y, atol=1e-3)
 
         self.n = 100
         self.X = torch.rand(4, 13, self.n)
@@ -129,12 +130,11 @@ class TestCovNN:
             dtype=torch.half, device='cuda')
         out = cov(self.XC)
         ref = np.stack([np.corrcoef(x) for x in self.X])
-        assert self.approx(out.cpu(), ref)
+        assert self.approxh(out.cpu(), ref)
         cov = UnaryCovarianceUW(
             self.n, estimator=hypercoil.functional.pcorr,
-            out_channels=7, noise=self.dns,
-            dtype=torch.half, device='cuda') #, dropout=dds)
-        cov(self.XC)
+            out_channels=7, noise=self.dns, device='cuda')
+        cov(self.XC.clone().float())
 
     @pytest.mark.cuda
     def test_cov_utw_cuda(self):
@@ -143,15 +143,15 @@ class TestCovNN:
             dtype=torch.half, device='cuda')
         out = cov(self.XC)
         ref = np.stack([np.corrcoef(x) for x in self.X])
-        assert self.approx(out.cpu(), ref)
+        assert self.approxh(out.cpu(), ref)
         init = LaplaceInit(
             loc=(0, 0), excl_axis=[1], domain=Logit(4)
         )
         cov = UnaryCovarianceTW(
             self.n, estimator=hypercoil.functional.pcorr, max_lag=3,
             out_channels=7, noise=self.dns, dropout=self.bds, init=init,
-            dtype=torch.half, device='cuda')
-        cov(self.XC)
+            device='cuda')
+        cov(self.XC.clone().float())
         assert cov.prepreweight_c.size() == torch.Size([4, 7])
         assert cov.weight[5, 15, 17] == cov.weight[5, 94, 96]
         assert cov.postweight[3, 13, 17] == 0
@@ -163,7 +163,7 @@ class TestCovNN:
             dtype=torch.half, device='cuda')
         out = cov(self.XC)
         ref = np.stack([np.corrcoef(x) for x in self.X])
-        assert self.approx(out.cpu(), ref)
+        assert self.approxh(out.cpu(), ref)
 
     @pytest.mark.cuda
     def test_cov_uw_lag_cuda(self):
@@ -203,7 +203,7 @@ class TestCovNN:
         out = cov(self.XC, self.YC)
         ref = np.stack([np.corrcoef(x, y)[:13, -7:]
                         for x, y in zip(self.X, self.Y)])
-        assert self.approx(out.cpu(), ref)
+        assert self.approxh(out.cpu(), ref)
 
     @pytest.mark.cuda
     def test_cov_btw_cuda(self):
@@ -216,7 +216,7 @@ class TestCovNN:
         out = cov(self.XC, self.YC)
         ref = np.stack([np.corrcoef(x, y)[:13, -7:]
                         for x, y in zip(self.X, self.Y)])
-        assert self.approx(out.cpu(), ref)
+        assert self.approxh(out.cpu(), ref)
 
     @pytest.mark.cuda
     def test_cov_bw_cuda(self):
@@ -229,4 +229,4 @@ class TestCovNN:
         out = cov(self.XC, self.YC)
         ref = np.stack([np.corrcoef(x, y)[:13, -7:]
                         for x, y in zip(self.X, self.Y)])
-        assert self.approx(out.cpu(), ref)
+        assert self.approxh(out.cpu(), ref)
