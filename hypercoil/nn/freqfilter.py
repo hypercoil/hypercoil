@@ -86,20 +86,23 @@ class FrequencyDomainFilter(Module):
         functions. If this is None, then no clamp is applied.
     """
     def __init__(self, filter_specs, dim=None, time_dim=None,
-                 filter=product_filtfilt, domain=None):
+                 filter=product_filtfilt, domain=None,
+                 device=None, dtype=None):
         super(FrequencyDomainFilter, self).__init__()
+        factory_kwargs = {'device': device, 'dtype': dtype}
 
         self.filter_specs = filter_specs
         self.dim = self._set_dimension(dim, time_dim)
         self.channels = sum([spec.n_filters for spec in self.filter_specs])
         self.filter = filter
         self.domain = domain or AmplitudeAtanh(handler=Clip())
-        self.clamp_points, self.clamp_values = self._check_clamp()
 
         self.preweight = Parameter(torch.complex(
-            torch.Tensor(self.channels, self.dim),
-            torch.Tensor(self.channels, self.dim)
+            torch.empty(self.channels, self.dim, **factory_kwargs),
+            torch.empty(self.channels, self.dim, **factory_kwargs)
         ))
+        self.clamp_points, self.clamp_values = self._check_clamp(
+            **factory_kwargs)
 
         self.reset_parameters()
 
@@ -119,7 +122,7 @@ class FrequencyDomainFilter(Module):
                 dim = time_dim // 2 + 1
         return dim
 
-    def _check_clamp(self):
+    def _check_clamp(self, **factory_kwargs):
         clamps = list(chain.from_iterable(
             [[len(f.keys()) for f in spec.clamps]
              for spec in self.filter_specs]))
@@ -129,12 +132,16 @@ class FrequencyDomainFilter(Module):
             self.register_parameter('clamp_values', None)
             return None, None
         clamp_points = Parameter(
-            torch.Tensor(self.channels, self.dim).bool(),
+            torch.empty(
+                self.channels, self.dim,
+                dtype=torch.bool,
+                device=self.preweight.device
+            ),
             requires_grad=False)
         clamp_values = Parameter(torch.complex(
-            torch.Tensor(n_clamps),
-            torch.Tensor(n_clamps)),
-            requires_grad=False)
+            torch.empty(n_clamps, **factory_kwargs),
+            torch.empty(n_clamps, **factory_kwargs)
+        ), requires_grad=False)
         return clamp_points, clamp_values
 
     def _apply_clamps(self, weight):

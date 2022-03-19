@@ -83,8 +83,9 @@ class PolyConv2D(Module):
     """
     def __init__(self, degree=2, out_channels=1, memory=3, kernel_width=1,
                  padding=None, bias=False, include_const=False,
-                 future_sight=False, init=None):
+                 future_sight=False, init=None, dtype=None, device=None):
         super(PolyConv2D, self).__init__()
+        factory_kwargs = {'device': device, 'dtype': dtype}
 
         self.in_channels = degree + include_const
         self.out_channels = out_channels
@@ -100,14 +101,16 @@ class PolyConv2D(Module):
         else:
             self.init = init or LaplaceInit(loc=(0, 0, memory))
 
-        self.weight = Parameter(torch.Tensor(
+        self.weight = Parameter(torch.empty(
             self.out_channels,
             self.in_channels,
             self.kernel_width,
-            self.kernel_length))
+            self.kernel_length,
+            **factory_kwargs
+        ))
 
         if bias:
-            self.bias = Parameter(torch.Tensor(out_channels))
+            self.bias = Parameter(torch.empty(out_channels, **factory_kwargs))
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()
@@ -123,11 +126,9 @@ class PolyConv2D(Module):
             self.mask = None
         else:
             self.mask = Parameter(torch.ones_like(self.weight))
-            self.mask.requires_grad = False
-            self.weight.requires_grad = False
-            self.mask[:, :, :, (self.memory + 1):] = 0
-            self.weight[:] = self.weight * self.mask
-            self.weight.requires_grad = True
+            with torch.no_grad():
+                self.mask[:, :, :, (self.memory + 1):] = 0
+                self.weight[:] = self.weight * self.mask
 
     def __repr__(self):
         s = (

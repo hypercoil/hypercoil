@@ -19,7 +19,7 @@ from cvxpylayers.torch import CvxpyLayer
 def hinge_loss(Y_hat, Y):
     return torch.maximum(
         1 - Y * Y_hat,
-        torch.tensor([0])
+        torch.zeros_like(Y)
     ).sum()
 
 

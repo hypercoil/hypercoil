@@ -41,11 +41,13 @@ class LinearCombinationSelector(Linear):
     weight : tensor
         Tensor of shape :math:`(I, O)` `n_columns` x `model_dim`.
     """
-    def __init__(self, model_dim, n_columns):
+    def __init__(self, model_dim, n_columns, dtype=None, device=None):
+        factory_kwargs = {'device': device, 'dtype': dtype}
         super(LinearCombinationSelector, self).__init__(
             in_features=n_columns,
             out_features=model_dim,
-            bias=False
+            bias=False,
+            **factory_kwargs
         )
 
     def forward(self, x):
@@ -102,13 +104,15 @@ class EliminationSelector(Module):
     def __init__(self, n_columns, infimum=-1.5, supremum=2.5,
                  or_dim=1, and_dim=1, init=None):
         super(EliminationSelector, self).__init__()
+        factory_kwargs = {'device': device, 'dtype': dtype}
         self.n_columns = n_columns
         self.or_dim = or_dim
         self.and_dim = and_dim
-        self.preweight = Parameter(torch.Tensor(
+        self.preweight = Parameter(torch.empty(
             self.or_dim,
             self.and_dim,
-            self.n_columns
+            self.n_columns,
+            **factory_kwargs
         ))
         scale = (supremum - infimum) / 2
         loc = supremum - scale
@@ -128,7 +132,9 @@ class EliminationSelector(Module):
     @property
     def weight(self):
         w = self.domain.image(self.preweight)
-        return torch.maximum(w, torch.tensor(0))
+        return torch.maximum(w, torch.tensor(
+            0, dtype=self.preweight.dtype, device=self.preweight.device
+        ))
 
     @property
     def postweight(self):

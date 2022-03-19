@@ -95,7 +95,8 @@ class AtlasLinear(Module):
     """
     def __init__(self, atlas, kernel_sigma=None, noise_sigma=None,
                  mask_input=False, spatial_dropout=0, min_voxels=1,
-                 domain=None, reduce='mean'):
+                 domain=None, reduce='mean', dtype=None, device=None):
+        factory_kwargs = {'device': device, 'dtype': dtype}
         super(AtlasLinear, self).__init__()
 
         self.atlas = atlas
@@ -104,13 +105,16 @@ class AtlasLinear(Module):
         self.domain = domain or Identity()
         self.reduction = reduce
         self.mask_input = mask_input
-        self.mask = (torch.from_numpy(self.atlas.mask)
-                     if self.mask_input else None)
+        self.mask = (
+            torch.from_numpy(self.atlas.mask).to(device).type(torch.bool)
+            if self.mask_input else None
+        )
         # not great -- ensure n_voxels tabulated for all compartments
         if len(self.atlas.n_voxels) == 1: self.atlas.map()
         self.preweight = ParameterDict({
-            c : Parameter(torch.Tensor(self.atlas.n_labels[c],
-                                       self.atlas.n_voxels[c]))
+            c : Parameter(torch.empty(self.atlas.n_labels[c],
+                                      self.atlas.n_voxels[c]
+                                      **factory_kwargs))
             for c in self.atlas.compartments.keys()
             if self.atlas.n_voxels[c] > 0
         })
@@ -130,7 +134,7 @@ class AtlasLinear(Module):
     def _configure_spatial_dropout(self, dropout_rate, min_voxels):
         if dropout_rate > 0:
             self.dropout = UnstructuredDropoutSource(
-                distr=Bernoulli(torch.Tensor([1 - dropout_rate])),
+                distr=Bernoulli(1 - dropout_rate),
                 sample_axes=[-1]
             )
         else:

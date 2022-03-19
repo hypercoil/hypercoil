@@ -42,8 +42,10 @@ class Recombinator(nn.Module):
     __constants__ = ['in_channels', 'out_channels', 'weight', 'bias']
 
     def __init__(self, in_channels, out_channels,
-                 bias=True, positive_only=False, init=None):
+                 bias=True, positive_only=False, init=None,
+                 device=None, dtype=None):
         super(Recombinator, self).__init__()
+        factory_kwargs = {'device': device, 'dtype': dtype}
 
         if init is None:
             init = {'nonlinearity': 'linear'}
@@ -53,9 +55,11 @@ class Recombinator(nn.Module):
         self.positive_only = positive_only
         self.init = init
 
-        self.weight = Parameter(torch.Tensor(out_channels, in_channels))
+        self.weight = Parameter(torch.empty(
+            out_channels, in_channels, **factory_kwargs))
         if bias:
-            self.bias = Parameter(torch.Tensor(out_channels))
+            self.bias = Parameter(torch.empty(
+                out_channels, **factory_kwargs))
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()
@@ -67,10 +71,8 @@ class Recombinator(nn.Module):
             bound = 1 / math.sqrt(fan_in)
             init.uniform_(self.bias, -bound, bound)
         if self.positive_only:
-            rg = self.weight.requires_grad
-            self.weight.requires_grad = False
-            self.weight[:] = torch.abs(self.weight)
-            self.weight.requires_grad = rg
+            with torch.no_grad():
+                self.weight.abs_()
 
     def extra_repr(self):
         s = 'in_channels={}, out_channels={}'.format(
