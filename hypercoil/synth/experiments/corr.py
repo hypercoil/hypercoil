@@ -338,7 +338,7 @@ def unsupervised_state_detection_experiment(
                 )
                 maxim = statecorr.max()
                 measure = (
-                    statecorr.max(0)[0] -
+                    statecorr.amax(0) -
                     statecorr.median(0)[0]
                 ).mean().detach().item()
                 measures += [measure]

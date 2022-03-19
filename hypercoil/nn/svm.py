@@ -548,7 +548,7 @@ class SVM(torch.nn.Module):
         """
         wei = torch.abs((estimates.view(-1, 1) - estimates.view(1, -1)))
         wei = (wei).mean(0)
-        wei = wei - wei.min()
+        wei = wei - wei.amin()
         wei = torch.tanh(wei.median() / wei)
         return wei
 

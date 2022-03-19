@@ -112,25 +112,26 @@ class Normalise(_OutOfDomainHandler):
         # ctrl+f `mean` for the incorrect default signature that raises:
         # RuntimeError: Please look up dimensions by name, got: name = None.
         #
-        # It could hardly be handled worse.
+        # Update: This reference has been removed from the documentation,
+        # which suggests this conditional is likely here to stay.
         out = x.detach().clone()
         bound = torch.tensor(bound, dtype=x.dtype, device=x.device)
         if axis is None:
-            upper = out.max()
-            lower = out.min()
-            unew = torch.minimum(bound[-1], out.max())
-            lnew = torch.maximum(bound[0], out.min())
+            upper = out.amax()
+            lower = out.amin()
+            unew = torch.minimum(bound[-1], out.amax())
+            lnew = torch.maximum(bound[0], out.amin())
             out -= out.mean()
             out /= ((upper - lower) / (unew - lnew))
-            out += (lnew - out.min())
+            out += (lnew - out.amin())
         else:
-            upper = out.max(axis)
-            lower = out.min(axis)
-            unew = torch.minimum(bound[-1], out.max(axis))
-            lnew = torch.maximum(bound[0], out.min(axis))
+            upper = out.amax(axis)
+            lower = out.amin(axis)
+            unew = torch.minimum(bound[-1], out.amax(axis))
+            lnew = torch.maximum(bound[0], out.amin(axis))
             out -= out.mean(axis)
             out /= ((upper - lower) / (unew - lnew))
-            out += (lnew - out.min(axis))
+            out += (lnew - out.amin(axis))
         return out
 
 

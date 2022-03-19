@@ -92,7 +92,7 @@ def symmap(input, map, spd=True, psi=0,
     if truncate_eigenvalues:
         # Based on xmodar's implementation here:
         # https://github.com/pytorch/pytorch/issues/25481
-        above_cutoff = L > L.max() * L.size(-1) * torch.finfo(L.dtype).eps
+        above_cutoff = L > L.amax() * L.size(-1) * torch.finfo(L.dtype).eps
         L = L[..., above_cutoff]
         Q = Q[..., above_cutoff]
     Lmap = torch.diag_embed(map(L))
