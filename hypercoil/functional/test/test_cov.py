@@ -142,3 +142,20 @@ class TestCov:
             self.X - np.linalg.lstsq(Y_intercept.T, self.X.T, rcond=None)[0].T
             @ Y_intercept)
         assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_corr_cuda():
+        X = self.Xt.clone().to('cuda')
+        out = corr(X).numpy()
+        ref = np.corrcoef(self.X)
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_ccorr_cuda():
+        X, Y = self.Xt.clone().to('cuda'), self.Yt.clone().to('cuda')
+        Y_intercept = np.concatenate([self.Y, np.ones((1, 100))])
+        out = conditionalcorr(X, Y).numpy()
+        ref = np.corrcoef(
+            self.X - np.linalg.lstsq(Y_intercept.T, self.X.T, rcond=None)[0].T
+            @ Y_intercept)
+        assert self.approx(out, ref)
