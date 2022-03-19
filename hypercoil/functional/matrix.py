@@ -238,7 +238,7 @@ def delete_diagonal(A):
     return A * mask
 
 
-def toeplitz(c, r=None, dim=None, fill_value=0):
+def toeplitz(c, r=None, dim=None, fill_value=0, dtype=None, device=None):
     """
     Populate a block of tensors with Toeplitz banded structure.
 
@@ -291,30 +291,38 @@ def toeplitz(c, r=None, dim=None, fill_value=0):
     """
     if r is None:
         r = c.conj()
+    if dtype is None:
+        dtype = c.dtype
+    if device is None:
+        device = c.device
     clen, rlen = c.size(0), r.size(0)
     obj_shp = c.size()[1:]
     if dim is not None and dim is not (clen, rlen):
-        r_ = torch.zeros([dim[1], *obj_shp], dtype=c.dtype, device=c.device)
-        c_ = torch.zeros([dim[0], *obj_shp], dtype=c.dtype, device=c.device)
+        r_ = torch.zeros([dim[1], *obj_shp], dtype=dtype, device=device)
+        c_ = torch.zeros([dim[0], *obj_shp], dtype=dtype, device=device)
         if isinstance(fill_value, torch.Tensor) or fill_value != 0:
             r_ += fill_value
             c_ += fill_value
         r_[:rlen] = r
         c_[:clen] = c
         r, c = r_, c_
-    return _populate_toeplitz(c, r, obj_shp)
+    return _populate_toeplitz(c, r, obj_shp, dtype=dtype, device=device)
 
 
-def _populate_toeplitz(c, r, obj_shp):
+def _populate_toeplitz(c, r, obj_shp, dtype=None, device=None):
     """
     Populate a block of Toeplitz matrices without any preprocessing.
 
     Thanks to https://github.com/cornellius-gp/gpytorch/blob/master/gpytorch/utils/toeplitz.py
     for ideas toward a faster implementation.
     """
+    if dtype is None:
+        dtype = c.dtype
+    if device is None:
+        device = c.device
     out_shp = c.size(0), r.size(0)
     # return _strided_view_toeplitz(r, c, out_shp)
-    X = torch.empty([*out_shp, *obj_shp], dtype=c.dtype, device=c.device)
+    X = torch.empty([*out_shp, *obj_shp], dtype=dtype, device=device)
     for i, val in enumerate(c):
         m = min(i + out_shp[1], out_shp[0])
         for j in range(i, m):
