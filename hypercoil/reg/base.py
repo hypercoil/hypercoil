@@ -9,6 +9,17 @@ Base modules for regularisation classes.
 from torch.nn import Module
 
 
+class LossApply(Module):
+    def __init__(self, loss, apply=None):
+        if apply is None:
+            apply = lambda x: x
+        self.loss = loss
+        self.apply = apply
+
+    def forward(self, input):
+        return self.loss(self.apply(input))
+
+
 class ReducingRegularisation(Module):
     def __init__(self, nu, reduction, reg):
         super(ReducingRegularisation, self).__init__()
