@@ -5,6 +5,7 @@
 Initialisation
 """
 from .base import (
+    LossApply,
     ReducingRegularisation
 )
 from .batchcorr import (
