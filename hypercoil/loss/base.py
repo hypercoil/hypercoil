@@ -15,6 +15,15 @@ def identity(*args):
     return args
 
 
+class LossArgument:
+    """
+    Effectively this is currently nothing more than a prettified dict.
+    """
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            self.__setattr__(k, v)
+
+
 class Loss(Module):
     """
     Base class for hypercoil loss functions.

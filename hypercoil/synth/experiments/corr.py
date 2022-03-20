@@ -28,7 +28,8 @@ from hypercoil.loss import (
     SymmetricBimodalNorm,
     VectorDispersion,
     LossScheme,
-    LossApply
+    LossApply,
+    LossArgument
 )
 from hypercoil.synth.corr import (
     synthesise_state_transition,
@@ -180,14 +181,14 @@ def unsupervised_state_detection_experiment(
                 SmoothnessPenalty(nu=smoothness_nu),
                 Entropy(nu=entropy_nu, axis=0),
                 Equilibrium(nu=equilibrium_nu)
-            ], apply=lambda model_x_y: model_x_y[0].weight),
+            ], apply=lambda arg: arg.model.weight),
             LossApply(
                 SymmetricBimodalNorm(nu=symbimodal_nu, modes=(-1, 1)),
-                apply=lambda model_x_y: model_x_y[2]
+                apply=lambda arg: arg.cor
             ),
             LossApply(
                 VectorDispersion(nu=dist_nu),
-                apply=lambda model_x_y: model_x_y[2]
+                apply=lambda arg: arg.cor
             )
         ])
 
@@ -199,9 +200,10 @@ def unsupervised_state_detection_experiment(
             #TODO: using the contrast against time-averaged connectivity.
             # Is this really the better approach?
             cor = model(X) - corr(X)
+            arg = LossArgument(model=model, X=X, cor=cor)
             if epoch == 0:
-                loss(model, X, cor, verbose=True)
-            loss_epoch = loss(model, X, cor)
+                loss(arg, verbose=True)
+            loss_epoch = loss(arg)
 
             loss_epoch.backward()
             losses += [loss_epoch.detach().item()]
@@ -248,22 +250,22 @@ def unsupervised_state_detection_experiment(
                 SmoothnessPenalty(nu=smoothness_nu),
                 Entropy(nu=entropy_nu, axis=0),
                 Equilibrium(nu=equilibrium_nu)
-            ], apply=lambda i_g_x_y: i_g_x_y[0]),
+            ], apply=lambda arg: arg.individual),
             LossApply(
                 SymmetricBimodalNorm(nu=symbimodal_nu, modes=(-1, 1)),
-                apply=lambda i_g_x_y: i_g_x_y[3]
+                apply=lambda arg: arg.y
             ),
             LossApply(
                 VectorDispersion(nu=dist_nu),
-                apply=lambda i_g_x_y: i_g_x_y[3]
+                apply=lambda arg: arg.y
             ),
             LossApply(
                 VectorDispersion(nu=between_nu, name='ClusterBetween'),
-                apply=lambda i_g_x_y: vec2sym(i_g_x_y[1])
+                apply=lambda arg: vec2sym(arg.group)
             ),
             LossApply(
                 NormedLoss(nu=within_nu, p=1, name='ClusterWithin'),
-                apply=lambda i_g_x_y: sym2vec(i_g_x_y[3]) - i_g_x_y[1],
+                apply=lambda arg: sym2vec(arg.y) - arg.group,
             )
         ])
 
@@ -317,10 +319,11 @@ def unsupervised_state_detection_experiment(
             )
             correl = corr(X[batch_index], weight=individual_mnorm)
             cor = correl - subject_specific[batch_index]
-            loss_epoch = loss(
-                individual_mnorm,
-                group_model, X, cor
-            )
+            arg = LossArgument(
+                individual=individual_mnorm,
+                group=group_model,
+                x=X, y=cor)
+            loss_epoch = loss(arg)
 
             loss_epoch.backward()
             losses += [loss_epoch.detach().item()]
@@ -357,11 +360,7 @@ def unsupervised_state_detection_experiment(
 
                 print(f'[ Epoch {epoch} | Loss {loss_epoch} | '
                       f'Measure {measure} | Maximum {maxim} ]')
-                loss(
-                    individual_mnorm,
-                    group_model, X, cor,
-                    verbose=True
-                )
+                loss(arg, verbose=True)
 
                 recovered_states = corr(
                     X,

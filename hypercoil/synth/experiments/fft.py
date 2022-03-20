@@ -25,6 +25,7 @@ from hypercoil.nn import (
 from hypercoil.loss import (
     LossScheme,
     LossApply,
+    LossArgument,
     Entropy,
     NormedLoss,
     SmoothnessPenalty,
@@ -167,11 +168,11 @@ def frequency_band_identification_experiment(
                     SmoothnessPenalty(nu=smoothness_nu),
                     Entropy(nu=entropy_nu)
                 ]),
-                apply = lambda model_x_y: amplitude(model_x_y[0])
+                apply = lambda arg: amplitude(arg.model)
             ),
             LossApply(
                 loss=SymmetricBimodalNorm(nu=symbimodal_nu, modes=(-1, 1)),
-                apply = lambda model_x_y: model_x_y[2]
+                apply = lambda arg: arg.corr
             )
         ])
         for t in target:
@@ -197,10 +198,11 @@ def frequency_band_partition_experiment(
     losses = []
     for epoch in range(max_epoch):
         corr = model(X)[:-1]
+        arg = LossArgument(model=model, X=X, corr=corr)
         if epoch == 0:
             print('Statistics at train start:')
             loss(model, X, corr, verbose=True)
-        loss_epoch = loss(model, X, corr)
+        loss_epoch = loss(arg)
         loss_epoch.backward()
         losses += [loss_epoch.detach().item()]
         opt.step()
