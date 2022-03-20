@@ -6,6 +6,7 @@ Symmetric bimodal
 ~~~~~~~~~~~~~~~~~
 Symmetric bimodal regularisations using absolute value.
 """
+from torch import mean
 from functools import partial
 from .base import ReducingLoss
 from .norm import NormedLoss
@@ -66,7 +67,7 @@ class SymmetricBimodal(ReducingLoss):
         Identifying string for the instantiation of the loss object.
     """
     def __init__(self, nu=1, modes=(0, 1), reduction=None, name=None):
-        reduction = None or torch.mean
+        reduction = None or mean
         loss = partial(
             symmetric_bimodal_distance,
             modes=modes
