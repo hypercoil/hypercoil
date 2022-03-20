@@ -35,6 +35,38 @@ def second_moment(weight, data):
 
 
 class SecondMoment(ReducingLoss):
+    r"""
+    Compute the second moment of a dataset/linear mapping pair.
+
+    The second moment is defined as
+
+    :math:`\frac{1}{\mathbf{1}^\intercal A \mathbf{1}} \mathbf{1}^\intercal A \circ \left (T - \frac{T \circ A}{A\mathbf{1}} \right )^2 \mathbf{1}`
+
+    Given an input dataset :math:`T` and a linear mapping :math:`A`, the
+    second moment loss measures the extent to which :math:`A` tends to map
+    similar inputs to the same output.
+
+    Penalising this quantity can thus promote learning a linear mapping whose
+    rows load onto similar feature sets.
+
+    Parameters
+    ----------
+    nu : float (default 1)
+        Loss function weight multiplier.
+    reduction : callable (default `torch.mean`)
+        Map from a tensor of arbitrary dimension to a scalar. The output of
+        the second moment loss is passed into `reduction` to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
+
+    Notes
+    -----
+        This loss can have a very large memory footprint, because it requires
+        computing an intermediate tensor with dimensions equal to the number
+        of rows in the linear mapping, multiplied by the number of columns in
+        the linear mapping, multiplied by the number of columns in the
+        dataset.
+    """
     def __init__(self, nu=1, reduction=None, name=None):
         reduction = reduction or mean
         super(SecondMoment, self).__init__(

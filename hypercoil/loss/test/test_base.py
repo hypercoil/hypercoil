@@ -7,7 +7,7 @@ Unit tests for base loss modules and schemes
 import pytest
 import math
 import torch
-from hypercoil.reg import (
+from hypercoil.loss import (
     LossApply,
     NormedLoss,
     ReducingLoss,

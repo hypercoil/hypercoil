@@ -6,7 +6,7 @@ Unit tests for smoothness penalty
 """
 import pytest
 import torch
-from hypercoil.reg import (
+from hypercoil.loss import (
     SmoothnessPenalty
 )
 
