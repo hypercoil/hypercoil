@@ -50,5 +50,6 @@ from .smoothness import (
     SmoothnessPenalty
 )
 from .symbimodal import (
-    SymmetricBimodal
+    SymmetricBimodal,
+    SymmetricBimodalNorm
 )
