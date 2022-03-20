@@ -4,13 +4,13 @@
 """
 Batch-dimension correlation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Regularisations to penalise a correlation across the batch dimension.
+Loss functions to penalise a correlation across the batch dimension.
 One example is QC-FC.
 """
 import torch
 from functools import partial
 from ..functional import pairedcorr
-from .base import ReducingRegularisation
+from .base import ReducingLoss
 
 
 def auto_tol(batch_size, significance=0.1, tails=2, dtype=None, device=None):
@@ -81,18 +81,19 @@ def batch_corr(X, N, tol=0, tol_sig=0.1):
     )
 
 
-class BatchCorrelation(ReducingRegularisation):
-    def __init__(self, nu=1, reduction=None, tol=0, tol_sig=0.1):
+class BatchCorrelation(ReducingLoss):
+    def __init__(self, nu=1, reduction=None, tol=0, tol_sig=0.1, name=None):
         reduction = reduction or torch.mean
-        reg = partial(batch_corr, tol=tol, tol_sig=tol_sig)
+        loss = partial(batch_corr, tol=tol, tol_sig=tol_sig)
         super(BatchCorrelation, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=reg
+            loss=loss,
+            name=name
         )
 
     def forward(self, data, measure):
-        return self.nu * self.reduction(self.reg(data, measure))
+        return self.nu * self.reduction(self.loss(data, measure))
 
 
 def qcfc_loss(FC, QC, tol=0, tol_sig=0.1):

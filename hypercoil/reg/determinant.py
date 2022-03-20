@@ -4,11 +4,11 @@
 """
 Log determinant
 ~~~~~~~~~~~~~~~
-Regularisations using the determinant or log determinant.
+Loss functions using the determinant or log determinant.
 """
 import torch
 from functools import partial
-from .base import ReducingRegularisation
+from .base import ReducingLoss
 from ..functional import corr
 from ..functional.matrix import recondition_eigenspaces
 
@@ -64,12 +64,13 @@ def det_corr(X, psi=0.001, xi=0.0099, cor=corr):
     return -torch.linalg.det(Z)
 
 
-class LogDetCorr(ReducingRegularisation):
+class LogDetCorr(ReducingLoss):
     """
-    Compute the correlation matrix, and then regularise its negative log
+    Compute the correlation matrix, and then penalise its negative log
     determinant.
     """
-    def __init__(self, nu=1, psi=0.001, xi=0.001, cor=corr, reduction=None):
+    def __init__(self, nu=1, psi=0.001, xi=0.001,
+                 cor=corr, reduction=None, name=None):
         reduction = reduction or torch.mean
         self.psi = psi
         self.xi = xi
@@ -77,16 +78,18 @@ class LogDetCorr(ReducingRegularisation):
         super(LogDetCorr, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=logdetcorr
+            loss=logdetcorr,
+            name=name
         )
 
 
-class DetCorr(ReducingRegularisation):
+class DetCorr(ReducingLoss):
     """
-    Compute the correlation matrix, and then regularise its negative
+    Compute the correlation matrix, and then penalise its negative
     determinant.
     """
-    def __init__(self, nu=1, psi=0.001, xi=0.001, cor=corr, reduction=None):
+    def __init__(self, nu=1, psi=0.001, xi=0.001,
+                 cor=corr, reduction=None, name=None):
         reduction = reduction or torch.mean
         self.psi = psi
         self.xi = xi
@@ -94,34 +97,37 @@ class DetCorr(ReducingRegularisation):
         super(DetCorr, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=logdetcorr
+            loss=logdetcorr,
+            name=name
         )
 
 
-class LogDet(ReducingRegularisation):
+class LogDet(ReducingLoss):
     """
-    Regularise the negative log determinant, presumably of a positive definite
+    Penalise the negative log determinant, presumably of a positive definite
     matrix.
 
     Log determinant is a concave function, so finding a minimum for its
     negation should be straightforward.
     """
-    def __init__(self, nu=1, reduction=None):
+    def __init__(self, nu=1, reduction=None, name=None):
         reduction = reduction or torch.mean
         logdet = lambda X: -torch.logdet(X)
         super(LogDet, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=logdet
+            loss=logdet,
+            name=name
         )
 
 
-class Determinant(ReducingRegularisation):
-    def __init__(self, nu=1, reduction=None):
+class Determinant(ReducingLoss):
+    def __init__(self, nu=1, reduction=None, name=None):
         reduction = reduction or torch.mean
         det = lambda X: -torch.linalg.det(X)
         super(Determinant, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=det
+            loss=det,
+            name=name
         )

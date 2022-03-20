@@ -8,18 +8,19 @@ Penalise a weight according to the quality of community structure it induces.
 """
 import torch
 from torch.nn import Module
+from .base import Loss
 from ..functional.graph import relaxed_modularity, girvan_newman_null
 
 
-class ModularityRegularisation(Module):
-    def __init__(self, nu, reg=None, exclude_diag=True, gamma=1,
+class ModularityLoss(Loss):
+    def __init__(self, nu, affiliation_xfm=None, exclude_diag=True, gamma=1,
                  null=girvan_newman_null, normalise_modularity=True,
                  normalise_coaffiliation=True, directed=False, sign='+',
-                 **params):
-        super(ModularityRegularisation, self).__init__()
-        if reg is None:
-            reg = lambda x: x
-        self.reg = reg
+                 name=None, **params):
+        super(ModularityLoss, self).__init__()
+        if affiliation_xfm is None:
+            affiliation_xfm = lambda x: x
+        self.affiliation_xfm = affiliation_xfm
         self.nu = nu
         self.exclude_diag = exclude_diag
         self.gamma = gamma
@@ -28,13 +29,17 @@ class ModularityRegularisation(Module):
         self.normalise_coaffiliation = normalise_coaffiliation
         self.directed = directed
         self.sign = sign
+        self.name = name
         self.params = params
 
     def forward(self, A, C, C_o=None, L=None):
         if C_o is None:
             C_o = C
         return -self.nu * relaxed_modularity(
-            A=A, C=self.reg(C), C_o=self.reg(C_o), L=L,
+            A=A,
+            C=self.affiliation_xfm(C),
+            C_o=self.affiliation_xfm(C_o),
+            L=L,
             exclude_diag=self.exclude_diag,
             gamma=self.gamma,
             null=self.null,

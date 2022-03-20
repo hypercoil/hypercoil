@@ -4,11 +4,11 @@
 """
 Entropy
 ~~~~~~~
-Regularisations using the entropy of a distribution.
+Loss functions using the entropy of a distribution.
 """
 import torch
 from functools import partial
-from .base import ReducingRegularisation
+from .base import ReducingLoss
 
 
 def entropy(X, axis=-1):
@@ -29,23 +29,25 @@ def softmax_entropy(X, axis=-1):
     return entropy(probs, axis=axis)
 
 
-class Entropy(ReducingRegularisation):
-    def __init__(self, nu=1, axis=-1, reduction=None):
+class Entropy(ReducingLoss):
+    def __init__(self, nu=1, axis=-1, reduction=None, name=None):
         reduction = reduction or torch.mean
-        reg = partial(entropy, axis=axis)
+        loss = partial(entropy, axis=axis)
         super(Entropy, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=reg
+            loss=loss,
+            name=name
         )
 
 
-class SoftmaxEntropy(ReducingRegularisation):
-    def __init__(self, nu=1, axis=-1, reduction=None):
+class SoftmaxEntropy(ReducingLoss):
+    def __init__(self, nu=1, axis=-1, reduction=None, name=None):
         reduction = reduction or torch.mean
-        reg = partial(softmax_entropy, axis=axis)
+        loss = partial(softmax_entropy, axis=axis)
         super(SoftmaxEntropy, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=reg
+            loss=loss,
+            name=name
         )

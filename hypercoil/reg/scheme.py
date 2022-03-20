@@ -2,27 +2,28 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Regularisation scheme
-~~~~~~~~~~~~~~~~~~~~~
-Module for additively applying a set of several regularisations to a tensor.
+Loss scheme
+~~~~~~~~~~~
+Module for additively applying a set of several losses or
+regularisations to a set of inputs.
 """
 import torch
 from torch.nn import Module
 
 
-class RegularisationScheme(Module):
-    def __init__(self, reg=None, apply=None):
-        super(RegularisationScheme, self).__init__()
-        self.reg = self._listify(reg) or []
+class LossScheme(Module):
+    def __init__(self, loss=None, apply=None):
+        super(LossScheme, self).__init__()
+        self.loss = self._listify(loss) or []
         if apply is None:
             apply = lambda x: x
         self.apply = apply
 
     def __add__(self, other):
-        return RegularisationScheme(reg=(self.reg + other.reg))
+        return LossScheme(loss=(self.loss + other.loss))
 
     def __iadd__(self, other):
-        self.reg += other
+        self.loss += other
         return self
 
     def __iter__(self):
@@ -30,22 +31,22 @@ class RegularisationScheme(Module):
         return self
 
     def __len__(self):
-        return len(self.reg)
+        return len(self.loss)
 
     def __next__(self):
-        if self.n < len(self.reg):
+        if self.n < len(self.loss):
             self.n += 1
-            return self.reg[self.n - 1]
+            return self.loss[self.n - 1]
         else:
             raise StopIteration
 
     def __repr__(self):
-        s = [f'\n    {r}' for r in self.reg]
+        s = [f'\n    {r}' for r in self.loss]
         s = ','.join(s)
-        return f'RegularisationScheme({s}\n)'
+        return f'LossScheme({s}\n)'
 
     def __getitem__(self, key):
-        return self.reg[key]
+        return self.loss[key]
 
     def _listify(self, x):
         if x is None:
@@ -57,11 +58,11 @@ class RegularisationScheme(Module):
     def forward(self, *args, verbose=False, **kwargs):
         losses = 0
         if verbose:
-            for r in self:
-                loss = r(self.apply(*args, **kwargs))
-                print(f'- {r}: {loss}')
+            for f in self:
+                loss = f(self.apply(*args, **kwargs))
+                print(f'- {f}: {loss}')
                 losses = losses + loss
         else:
-            for r in self:
-                losses = losses + r(self.apply(*args, **kwargs))
+            for f in self:
+                losses = losses + f(self.apply(*args, **kwargs))
         return losses

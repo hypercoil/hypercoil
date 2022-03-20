@@ -9,9 +9,9 @@ import math
 import torch
 from hypercoil.reg import (
     LossApply,
-    NormedRegularisation,
-    ReducingRegularisation,
-    RegularisationScheme
+    NormedLoss,
+    ReducingLoss,
+    LossScheme
 )
 
 
@@ -29,12 +29,12 @@ class TestLossBase:
     def test(self):
         # The outer `apply` switches the order of the inputs, and then the
         # first input is passed to L2 and the second to L1.
-        scheme = RegularisationScheme([
+        scheme = LossScheme([
             LossApply(
-                NormedRegularisation(nu=1),
+                NormedLoss(nu=1),
                 apply=lambda xy: xy[0]),
             LossApply(
-                NormedRegularisation(nu=1, p=1),
+                NormedLoss(nu=1, p=1),
                 apply=lambda xy: xy[1])],
             apply=lambda x, y: (y, x))
 

@@ -8,7 +8,7 @@ Regularise the second moment, e.g. to favour regions whose time series are
 homogeneous across space.
 """
 from torch import mean
-from .base import ReducingRegularisation
+from .base import ReducingLoss
 from functools import partial
 
 
@@ -34,14 +34,12 @@ def second_moment(weight, data):
     return sigma
 
 
-class SecondMoment(ReducingRegularisation):
-    def __init__(self, nu=1, reduction=None):
+class SecondMoment(ReducingLoss):
+    def __init__(self, nu=1, reduction=None, name=None):
         reduction = reduction or mean
         super(SecondMoment, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=second_moment
+            loss=second_moment,
+            name=name
         )
-
-    def forward(self, weight, data):
-        return self.nu * self.reduction(self.reg(weight, data))

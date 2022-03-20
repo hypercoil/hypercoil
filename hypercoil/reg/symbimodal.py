@@ -7,7 +7,7 @@ Symmetric bimodal
 Symmetric bimodal regularisations using absolute value.
 """
 from functools import partial
-from .norm import NormedRegularisation
+from .norm import NormedLoss
 
 
 def symmetric_bimodal_distance(weight, modes=(0, 1)):
@@ -16,13 +16,11 @@ def symmetric_bimodal_distance(weight, modes=(0, 1)):
     return ((weight - mean).abs() - step).abs()
 
 
-class SymmetricBimodal(NormedRegularisation):
-    def __init__(self, nu=1, modes=(0, 1), norm=2):
-        reg = partial(
+class SymmetricBimodal(NormedLoss):
+    def __init__(self, nu=1, modes=(0, 1), norm=2, name=None):
+        loss = partial(
             symmetric_bimodal_distance,
             modes=modes
         )
-        super(SymmetricBimodal, self).__init__(nu=nu, p=norm, reg=reg)
-
-    def extra_repr(self):
-        return f'nu={self.nu}, norm=L{self.p}'
+        super(SymmetricBimodal, self).__init__(
+            nu=nu, p=norm, loss=loss, name=name)

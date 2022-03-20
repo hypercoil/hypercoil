@@ -6,7 +6,7 @@ Initialisation
 """
 from .base import (
     LossApply,
-    ReducingRegularisation
+    ReducingLoss
 )
 from .batchcorr import (
     BatchCorrelation,
@@ -34,14 +34,14 @@ from .equilibrium import (
     SoftmaxEquilibrium
 )
 from .modularity import (
-    ModularityRegularisation
+    ModularityLoss
 )
 from .norm import (
-    NormedRegularisation,
-    UnilateralNormedRegularisation
+    NormedLoss,
+    UnilateralNormedLoss
 )
 from .scheme import (
-    RegularisationScheme
+    LossScheme
 )
 from .secondmoment import (
     SecondMoment

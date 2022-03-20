@@ -4,11 +4,11 @@
 """
 Equilibrium
 ~~~~~~~~~~~
-Regularisations to favour equal weight across one dimension.
+Loss functions to favour equal weight across one dimension.
 """
 import torch
 from functools import partial
-from .base import ReducingRegularisation
+from .base import ReducingLoss
 
 
 def equilibrium(X, axis=-1):
@@ -20,23 +20,26 @@ def softmax_equilibrium(X, axis=-1, prob_axis=-2):
     return equilibrium(probs, axis=axis)
 
 
-class Equilibrium(ReducingRegularisation):
-    def __init__(self, nu=1, axis=-1, reduction=None):
+class Equilibrium(ReducingLoss):
+    def __init__(self, nu=1, axis=-1, reduction=None, name=None):
         reduction = reduction or torch.mean
-        reg = partial(equilibrium, axis=axis)
+        loss = partial(equilibrium, axis=axis)
         super(Equilibrium, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=reg
+            loss=loss,
+            name=name
         )
 
 
-class SoftmaxEquilibrium(ReducingRegularisation):
-    def __init__(self, nu=1, axis=-1, prob_axis=-2, reduction=None):
+class SoftmaxEquilibrium(ReducingLoss):
+    def __init__(self, nu=1, axis=-1, prob_axis=-2,
+                 reduction=None, name=None):
         reduction = reduction or torch.mean
-        reg = partial(softmax_equilibrium, axis=axis, prob_axis=prob_axis)
+        loss = partial(softmax_equilibrium, axis=axis, prob_axis=prob_axis)
         super(SoftmaxEquilibrium, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=reg
+            loss=loss,
+            name=name
         )

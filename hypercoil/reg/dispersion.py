@@ -4,10 +4,10 @@
 """
 Vector dispersion
 ~~~~~~~~~~~~~~~~~
-Regularisations using mutual separation among a set of vectors.
+Loss functions using mutual separation among a set of vectors.
 """
 import torch
-from .base import ReducingRegularisation
+from .base import ReducingLoss
 from ..functional import sym2vec
 
 
@@ -15,13 +15,14 @@ def dist(vectors, p=1):
     return torch.cdist(vectors, vectors, p=p)
 
 
-class VectorDispersion(ReducingRegularisation):
-    def __init__(self, nu=1, metric=None, reduction=None):
+class VectorDispersion(ReducingLoss):
+    def __init__(self, nu=1, metric=None, reduction=None, name=None):
         metric = metric or dist
         reduction = reduction or torch.mean
-        reg = lambda x: -sym2vec(metric(x))
+        loss = lambda x: -sym2vec(metric(x))
         super(VectorDispersion, self).__init__(
             nu=nu,
             reduction=reduction,
-            reg=reg
+            loss=loss,
+            name=name
         )

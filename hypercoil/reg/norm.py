@@ -11,7 +11,7 @@ import torch
 from torch.linalg import vector_norm as pnorm
 from torch.nn import Module
 from functools import partial
-from .base import ReducingRegularisation
+from .base import ReducingLoss
 
 
 def norm_reduction(X, p=2, axis=-1, reduction=None):
@@ -20,36 +20,36 @@ def norm_reduction(X, p=2, axis=-1, reduction=None):
     return reduction(norm)
 
 
-class NormedRegularisation(ReducingRegularisation):
-    def __init__(self, nu, p=2, reg=None, axis=None, reduction=None):
-        reduction = reduction or torch.mean
+class NormedLoss(ReducingLoss):
+    def __init__(self, nu, p=2, loss=None, axis=None,
+                 reduction=None, name=None):
         reduction = partial(
             norm_reduction,
             p=p,
             axis=axis,
             reduction=reduction
         )
-        if reg is None:
-            reg = lambda x: x
-        super(NormedRegularisation, self).__init__(
-            nu=nu, reduction=reduction, reg=reg
+        if loss is None:
+            loss = lambda x: x
+        super(NormedLoss, self).__init__(
+            nu=nu, reduction=reduction, loss=loss, name=name
         )
         self.p = p
 
     def extra_repr(self):
-        return f'norm=L{self.p}'
+        return [f'norm=L{self.p}']
 
 
-class UnilateralNormedRegularisation(NormedRegularisation):
-    def __init__(self, nu, p=2, reg=None, axis=None, reduction=None):
-        reduction = reduction or torch.mean
-        if reg is None:
-            reg = lambda x: x
-        r = lambda x: torch.maximum(
-            reg(x),
+class UnilateralNormedLoss(NormedLoss):
+    def __init__(self, nu, p=2, loss=None, axis=None,
+                 reduction=None, name=None):
+        if loss is None:
+            loss = lambda x: x
+        f = lambda x: torch.maximum(
+            loss(x),
             torch.tensor(0, dtype=x.dtype, device=x.device)
         )
-        super(UnilateralNormedRegularisation, self).__init__(
-            nu=nu, p=p, reg=r, axis=axis, reduction=reduction
+        super(UnilateralNormedLoss, self).__init__(
+            nu=nu, p=p, loss=f, axis=axis,
+            reduction=reduction, name=name
         )
-        self.p = p

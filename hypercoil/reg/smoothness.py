@@ -8,20 +8,19 @@ Penalise backwards differences to favour smoothness.
 """
 import torch
 from functools import partial
-from .norm import NormedRegularisation
+from .norm import NormedLoss
 
 
-class SmoothnessPenalty(NormedRegularisation):
-    def __init__(self, nu=1, axis=-1, prepend=None, append=None, norm=2):
-        reg = partial(
+class SmoothnessPenalty(NormedLoss):
+    def __init__(self, nu=1, axis=-1, prepend=None,
+                 append=None, norm=2, name=None):
+        loss = partial(
             torch.diff, dim=axis, prepend=prepend, append=append
         )
         super(SmoothnessPenalty, self).__init__(
             nu=nu,
             p=norm,
-            reg=reg,
-            axis=axis
+            loss=loss,
+            axis=axis,
+            name=name
         )
-
-    def extra_repr(self):
-        return f'nu={self.nu}, norm=L{self.p}'
