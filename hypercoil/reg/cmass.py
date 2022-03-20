@@ -73,7 +73,7 @@ class Compactness(ReducingLoss):
         radius.
     reduction : callable (default None)
         Map from a tensor of arbitrary dimension to a scalar. The output of
-        `loss` is passed into `reduction` to return a scalar.
+        the compactness loss is passed into `reduction` to return a scalar.
     name : str or None (default None)
         Identifying string for the instantiation of the loss object.
 

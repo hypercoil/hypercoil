@@ -68,6 +68,24 @@ class LogDetCorr(ReducingLoss):
     """
     Compute the correlation matrix, and then penalise its negative log
     determinant.
+
+    Parameters
+    ----------
+    nu : float (default 1)
+        Loss function weight multiplier.
+    psi : float (default 0.001)
+        Reconditioning parameter for ensuring nonzero eigenvalues.
+    xi : float (default 0.001)
+        Reconditioning parameter for ensuring nondegenerate eigenvalues.
+    cor : callable (default `corr`)
+        Correlation or covariance measure. By default, the Pearson correlation
+        is used.
+    reduction : callable (default None)
+        Map from a tensor of arbitrary dimension to a scalar. The vector of
+        log-determinants computed for each correlation matrix is passed into
+        `reduction` to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
     """
     def __init__(self, nu=1, psi=0.001, xi=0.001,
                  cor=corr, reduction=None, name=None):
@@ -87,6 +105,24 @@ class DetCorr(ReducingLoss):
     """
     Compute the correlation matrix, and then penalise its negative
     determinant.
+
+    Parameters
+    ----------
+    nu : float (default 1)
+        Loss function weight multiplier.
+    psi : float (default 0.001)
+        Reconditioning parameter for ensuring nonzero eigenvalues.
+    xi : float (default 0.001)
+        Reconditioning parameter for ensuring nondegenerate eigenvalues.
+    cor : callable (default `corr`)
+        Correlation or covariance measure. By default, the Pearson correlation
+        is used.
+    reduction : callable (default None)
+        Map from a tensor of arbitrary dimension to a scalar. The vector of
+        determinants computed for each correlation matrix is passed into
+        `reduction` to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
     """
     def __init__(self, nu=1, psi=0.001, xi=0.001,
                  cor=corr, reduction=None, name=None):
@@ -109,6 +145,17 @@ class LogDet(ReducingLoss):
 
     Log determinant is a concave function, so finding a minimum for its
     negation should be straightforward.
+
+    Parameters
+    ----------
+    nu : float (default 1)
+        Loss function weight multiplier.
+    reduction : callable (default None)
+        Map from a tensor of arbitrary dimension to a scalar. The vector of
+        log-determinants computed for each input matrix is passed into
+        `reduction` to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
     """
     def __init__(self, nu=1, reduction=None, name=None):
         reduction = reduction or torch.mean
@@ -122,6 +169,21 @@ class LogDet(ReducingLoss):
 
 
 class Determinant(ReducingLoss):
+    """
+    Penalise the negative determinant, presumably of a positive definite
+    matrix.
+
+    Parameters
+    ----------
+    nu : float (default 1)
+        Loss function weight multiplier.
+    reduction : callable (default None)
+        Map from a tensor of arbitrary dimension to a scalar. The vector of
+        determinants computed for each input matrix is passed into `reduction`
+        to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
+    """
     def __init__(self, nu=1, reduction=None, name=None):
         reduction = reduction or torch.mean
         det = lambda X: -torch.linalg.det(X)
