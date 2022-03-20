@@ -7,7 +7,8 @@ Initialisation
 from .base import (
     LossApply,
     ReducingLoss,
-    LossArgument
+    LossArgument,
+    UnpackingLossArgument
 )
 from .batchcorr import (
     BatchCorrelation,

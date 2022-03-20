@@ -9,7 +9,7 @@ regularisations to a set of inputs.
 """
 import torch
 from torch.nn import Module
-from .base import LossApply
+from .base import LossApply, UnpackingLossArgument
 
 
 def identity(*args):
@@ -64,21 +64,30 @@ class LossScheme(Module):
 
     def forward(self, *args, verbose=False, **kwargs):
         losses = 0
+        applied = self.apply(*args, **kwargs)
         if verbose:
             for f in self:
                 if isinstance(f, LossScheme):
-                    loss = f(self.apply(*args, **kwargs), verbose=True)
+                    if isinstance(applied, UnpackingLossArgument):
+                        loss = f(**applied, verbose=True)
+                    else:
+                        loss = f(applied, verbose=True)
                 elif (isinstance(f, LossApply) and
                     isinstance(f.loss, LossScheme)):
-                    loss = f.loss(
-                        f.apply(self.apply(*args, **kwargs)),
-                        verbose=True
-                    )
+                    if isinstance(applied, UnpackingLossArgument):
+                        loss = f.loss(
+                            f.apply(**applied), verbose=True)
+                    else:
+                        loss = f.loss(
+                            f.apply(applied), verbose=True)
                 else:
-                    loss = f(self.apply(*args, **kwargs))
+                    loss = f(applied)
                     print(f'- {f}: {loss}')
                 losses = losses + loss
         else:
             for f in self:
-                losses = losses + f(self.apply(*args, **kwargs))
+                if isinstance(applied, UnpackingLossArgument):
+                    losses = losses + f(**applied)
+                else:
+                    losses = losses + f(applied)
         return losses

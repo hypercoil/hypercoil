@@ -7,6 +7,7 @@ Base losses
 Base modules for loss functions.
 """
 from torch.nn import Module
+from collections.abc import Mapping
 
 
 def identity(*args):
@@ -15,13 +16,36 @@ def identity(*args):
     return args
 
 
-class LossArgument:
+class LossArgument(Mapping):
     """
-    Effectively this is currently nothing more than a prettified dict.
+    Effectively this is currently little more than a prettified dict.
     """
     def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            self.__setattr__(k, v)
+        super().__init__()
+        self.__dict__.update(kwargs)
+
+    def __setitem__(self, k, v):
+        self.__setattr__(k, v)
+
+    def __getitem__(self, k):
+        return self.__dict__[k]
+
+    def __delitem__(self, k):
+        del self.__dict__[k]
+
+    def __len__(self):
+        return len(self.__dict__)
+
+    def __iter__(self):
+        return iter(self.__dict__)
+
+
+class UnpackingLossArgument(LossArgument):
+    """
+    LossArgument variant that is automatically unpacked when it is the output
+    of an `apply` call.
+    """
+    pass
 
 
 class Loss(Module):
@@ -66,6 +90,9 @@ class LossApply(Module):
         return self.loss.__repr__()
 
     def forward(self, *args, **kwargs):
+        applied = self.apply(*args, **kwargs)
+        if isinstance(applied, UnpackingLossArgument):
+            return self.loss(**applied)
         return self.loss(self.apply(*args, **kwargs))
 
 
