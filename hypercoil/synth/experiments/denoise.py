@@ -26,7 +26,8 @@ from hypercoil.loss import (
 from hypercoil.synth.denoise import (
     synthesise_artefact,
     plot_all,
-    plot_select
+    plot_select,
+    plot_norm_reduction
 )
 from hypercoil.synth.mix import (
     synthesise_mixture
@@ -179,6 +180,8 @@ def model_selection_experiment(
                     cor=True,
                     save=f'{save}-{epoch:06}.png'
                 )
+                plot_norm_reduction(
+                    model.weight, save=f'{save}-norm{epoch:06}.png')
             elif modeltype != 'combination':
                 plot_select(elim, save=f'{save}-weight{epoch:06}.png')
             plt.close('all')
