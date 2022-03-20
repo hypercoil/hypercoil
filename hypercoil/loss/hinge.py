@@ -18,12 +18,12 @@ def hinge_loss(Y_hat, Y):
 
 
 class HingeLoss(ReducingLoss):
-	def __init__(self, nu=1, reduction=None, name=None):
-		if reduction is None:
-			reduction = torch.sum
-		super(HingeLoss, self).__init__(
-			nu=nu,
-			reduction=reduction,
-			loss=hinge_loss,
-			name=name
-		)
+    def __init__(self, nu=1, reduction=None, name=None):
+        if reduction is None:
+            reduction = torch.sum
+        super(HingeLoss, self).__init__(
+            nu=nu,
+            reduction=reduction,
+            loss=hinge_loss,
+            name=name
+        )
