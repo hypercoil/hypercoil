@@ -75,6 +75,7 @@ class SoftmaxEntropy(ReducingLoss):
     a softmax function that first projects the input onto the probability
     simplex. Thus, the input to this loss should contain logits rather than
     probabilities. Use `Entropy` instead if your inputs will already contain
+    probabilities.
 
     Parameters
     ----------
