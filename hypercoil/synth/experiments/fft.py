@@ -22,12 +22,13 @@ from hypercoil.nn import (
     FrequencyDomainFilter,
     UnaryCovarianceUW
 )
-from hypercoil.reg import (
-    RegularisationScheme,
+from hypercoil.loss import (
+    LossScheme,
+    LossApply,
     Entropy,
-    NormedRegularisation,
+    NormedLoss,
     SmoothnessPenalty,
-    SymmetricBimodal
+    SymmetricBimodalNorm
 )
 from hypercoil.synth.filter import (
     synthesise_across_bands,
@@ -46,21 +47,13 @@ DEFAULT_BANDS = (
 N_BANDS = len(DEFAULT_BANDS)
 
 
-def amplitude(model, X=None, Y=None):
+def amplitude(model):
     """
     Accessory functions for use by regularisers, so that they can operate
     specifically on the amplitude of the filter's response curve.
     """
     ampl, phase = complex_decompose(model[0].weight)
     return ampl
-
-
-def correlations(model, X, Y):
-    """
-    Accessory functions for use by regularisers, so that they can operate
-    specifically on the model output correlation matrices.
-    """
-    return Y
 
 
 def frequency_band_identification_experiment(
@@ -137,33 +130,56 @@ def frequency_band_identification_experiment(
 
     # SGD tends to get stuck in worse minima here
     opt = torch.optim.Adam(model.parameters(), lr=lr)
-    loss = torch.nn.MSELoss()
     if supervised:
-        reg_ampl = RegularisationScheme([
+        loss = torch.nn.MSELoss()
+        reg = LossScheme([
             SmoothnessPenalty(nu=smoothness_nu),
-            SymmetricBimodal(nu=symbimodal_nu),
-            NormedRegularisation(nu=l2_nu)
-        ])
+            SymmetricBimodalNorm(nu=symbimodal_nu),
+            NormedLoss(nu=l2_nu)
+        ], apply=lambda model: amplitude(model))
         target.initialise_spectrum(
             model[0].dim, domain=Identity())
         target = target.spectrum.T
+
+        #TODO: investigate further --
+        # Phase reg doesn't seem to work . . .
+        # We get phase randomisation where the amplitude is close to zero
+        # and placing a too strict penalty on phase for some reason messes
+        # up the amplitude structure
+
+        overfit_and_plot_progress(
+            out_fig=save, model=model, optim=opt, reg=reg, loss=loss,
+            max_epoch=max_epoch, X=X, Y=Y, target=target, seed=seed,
+            log_interval=log_interval, plot=amplitude
+        )
+
+        ampl, _ = complex_decompose(model[0].weight)
+        target = torch.Tensor(target).squeeze()
+        solution = ampl.squeeze()
+        score = loss(target, solution)
+        # This is the score if every guess were exactly 0.1 from the target.
+        # (already far better than random chance)
+        assert(score < max_tol_score)
     else:
-        reg_ampl = RegularisationScheme([
-            SmoothnessPenalty(nu=smoothness_nu),
-            Entropy(nu=entropy_nu)
+        loss = LossScheme([
+            LossApply(
+                loss=LossScheme([
+                    SmoothnessPenalty(nu=smoothness_nu),
+                    Entropy(nu=entropy_nu)
+                ]),
+                apply = lambda model_x_y: amplitude(model_x_y[0])
+            ),
+            LossApply(
+                loss=SymmetricBimodalNorm(nu=symbimodal_nu, modes=(-1, 1)),
+                apply = lambda model_x_y: model_x_y[2]
+            )
         ])
-        reg_corr = SymmetricBimodal(nu=symbimodal_nu, modes=(-1, 1))
-        reg = [
-            (reg_ampl, amplitude),
-            (reg_corr, correlations)
-        ]
         for t in target:
             t.initialise_spectrum(model[0].dim, domain=Identity())
         target = [t.spectrum.T for t in target]
         frequency_band_partition_experiment(
             model=model,
             opt=opt,
-            reg=reg,
             loss=loss,
             max_epoch=max_epoch,
             X=X,
@@ -172,37 +188,19 @@ def frequency_band_identification_experiment(
             save=save
         )
         return
-    #TODO: investigate further --
-    # Phase reg doesn't seem to work . . .
-    # We get phase randomisation where the amplitude is close to zero
-    # and placing a too strict penalty on phase for some reason messes
-    # up the amplitude structure
-
-    overfit_and_plot_progress(
-        out_fig=save, model=model, optim=opt, reg=reg_ampl, loss=loss,
-        max_epoch=max_epoch, X=X, Y=Y, target=target, seed=seed,
-        log_interval=log_interval, penalise=amplitude, plot=amplitude
-    )
-
-    ampl, _ = complex_decompose(model[0].weight)
-    target = torch.Tensor(target).squeeze()
-    solution = ampl.squeeze()
-    score = loss(target, solution)
-    # This is the score if every guess were exactly 0.1 from the target.
-    # (already far better than random chance)
-    assert(score < max_tol_score)
 
 
 def frequency_band_partition_experiment(
-    model, opt, reg, loss, max_epoch, X, target, log_interval, save
+    model, opt, loss, max_epoch, X, target, log_interval, save
 ):
+
     losses = []
     for epoch in range(max_epoch):
         corr = model(X)[:-1]
-        #print(corr.shape)
-        loss_epoch = 0
-        for r, penalise in reg:
-            loss_epoch += r(penalise(model, X, corr))
+        if epoch == 0:
+            print('Statistics at train start:')
+            loss(model, X, corr, verbose=True)
+        loss_epoch = loss(model, X, corr)
         loss_epoch.backward()
         losses += [loss_epoch.detach().item()]
         opt.step()
@@ -215,16 +213,6 @@ def frequency_band_partition_experiment(
                 save=f'{save}-{epoch:08}.png'
             )
             close('all')
-
-        """
-        if epoch == 0:
-            print('Statistics at train start:')
-            print(f'- Compactness: {reg[0](mnorm)}')
-            print(f'- Entropy: {reg[1](mnorm)}')
-            print(f'- Equilibrium: {reg[2](mnorm)}')
-            print(f'- Second Moment: {reg2m(mnorm, X)}')
-            print(f'- Log det: {regdet(ts_parc)}')
-        """
 
 
 def main():

@@ -12,14 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# TODO
-# This scheme is bad, since it doesn't allow different regularisations to
-# be applied to different parts of the model. So far, we haven't needed this,
-# but it's likely that at some point we will.
-def default_penalise(model):
-    return model.weight
-
-
 def default_plot(model):
     return model.weight
 
@@ -27,7 +19,7 @@ def default_plot(model):
 def overfit_and_plot_progress(
         out_fig, model, optim, reg, loss, max_epoch, X, Y, target,
         log_interval=25, seed=0, value_min=0.1, value_max=0.55,
-        penalise=default_penalise, plot=default_plot
+        plot=default_plot
     ):
     plt.figure(figsize=(9, 18))
     plt.subplot(3, 1, 2)
@@ -35,15 +27,14 @@ def overfit_and_plot_progress(
     incr = (value_max - color) / max_epoch
 
     print('Statistics at train start:')
-    for i in range(len(reg)):
-        print(f'- {reg[i]}: {reg[i](penalise(model)).detach().item()}')
+    reg(model, verbose=True)
 
     # Not sure that we actually need this here...
     torch.manual_seed(seed)
     losses = [float('inf') for _ in range(max_epoch)]
     for e in range(max_epoch):
         Y_hat = model(X).squeeze()
-        l = loss(Y, Y_hat) + reg(penalise(model))
+        l = loss(Y, Y_hat) + reg(model)
         l.backward()
         optim.step()
         model.zero_grad()
