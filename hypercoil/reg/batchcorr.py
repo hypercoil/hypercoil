@@ -82,6 +82,25 @@ def batch_corr(X, N, tol=0, tol_sig=0.1):
 
 
 class BatchCorrelation(ReducingLoss):
+    """
+    Correlation over the batch dimension.
+
+    Parameters
+    ----------
+    nu : float (default 1)
+        Loss function weight multiplier.
+    reduction : callable (default `torch.mean`)
+        Map from the tensor of batch-wise correlations to a scalar.
+    tol : nonnegative float or `'auto'` (default 0)
+        Tolerance for correlations. Only correlation values above `tol` are
+        counted. If this is set to `'auto'`, a tolerance is computed for the
+        batch size given the significance level in `tol_sig`.
+    tol_sig : float in (0, 1)
+        Significance level for correlation tolerance. Used only if `tol` is
+        set to `'auto'`.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
+    """
     def __init__(self, nu=1, reduction=None, tol=0, tol_sig=0.1, name=None):
         reduction = reduction or torch.mean
         loss = partial(batch_corr, tol=tol, tol_sig=tol_sig)
@@ -93,12 +112,88 @@ class BatchCorrelation(ReducingLoss):
         )
 
     def forward(self, data, measure):
+        """
+        Correlation over the batch dimension.
+
+        Parameters
+        ----------
+        data : tensor
+            Tensor block containing measures to be correlated with those in
+            `measure`.
+        measure : tensor
+            Vector of measures (one per batch element) with which the measures
+            in `data` are to be correlated.
+
+        Returns
+        -------
+        tensor
+            Absolute correlation of each vector in `data` with `measure`,
+            after thresholding according to the loss object's `tol` attribute.
+            Note that, if you want the original correlations back, you will
+            have to add `tol` to any nonzero correlations.
+        """
         return self.nu * self.reduction(self.loss(data, measure))
 
 
 def qcfc_loss(FC, QC, tol=0, tol_sig=0.1):
+    """
+    Edgewise QC-FC correlation.
+
+    Note that this is a thin wrapper around `batch_corr`.
+
+    Parameters
+    ----------
+    FC : tensor
+        Tensor block containing functional connectivity measures (e.g., edge
+        weights) to be correlated with those in `QC`. This could, for
+        instance, be a block of connectivity matrices.
+    QC : tensor
+        Vector of QC measures with which the measures in `FC` are to be
+        correlated. This could, for instance, be a vector whose entries
+        measure the relative in-scanner motion of each scan in `FC`.
+    tol : nonnegative float or `'auto'` (default 0)
+        Tolerance for correlations. Only correlation values above `tol` are
+        counted. If this is set to `'auto'`, a tolerance is computed for the
+        batch size given the significance level in `tol_sig`.
+    tol_sig : float in (0, 1)
+        Significance level for correlation tolerance. Used only if `tol` is
+        set to `'auto'`.
+
+    Returns
+    -------
+    tensor
+        Absolute correlation of each vector in `FC` with `QC`, after
+        thresholding at `tol`. Note that, if you want the original
+        correlations back, you will have to add `tol` to any nonzero
+        correlations.
+    """
     return batch_corr(X=FC, N=QC, tol=tol, tol_sig=tol_sig)
 
 
 class QCFC(BatchCorrelation):
-    pass
+    def forward(self, FC, QC):
+        """
+        Edgewise QC-FC correlation.
+
+        Note that this is a thin wrapper around `batch_corr`.
+
+        Parameters
+        ----------
+        FC : tensor
+            Tensor block containing functional connectivity measures (e.g.,
+            edge weights) to be correlated with those in `QC`. This could, for
+            instance, be a block of connectivity matrices.
+        QC : tensor
+            Vector of QC measures with which the measures in `FC` are to be
+            correlated. This could, for instance, be a vector whose entries
+            measure the relative in-scanner motion of each scan in `FC`.
+
+        Returns
+        -------
+        tensor
+            Absolute correlation of each vector in `FC` with `QC`, after
+            thresholding according to the loss object's `tol` attribute.
+            Note that, if you want the original correlations back, you will
+            have to add `tol` to any nonzero correlations.
+        """
+        return self.nu * self.reduction(self.loss(data=FC, measure=QC))

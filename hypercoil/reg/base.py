@@ -4,7 +4,7 @@
 """
 Base losses
 ~~~~~~~~~~~
-Base modules for loss classes.
+Base modules for loss functions.
 """
 from torch.nn import Module
 
@@ -57,7 +57,7 @@ class LossApply(Module):
 class ReducingLoss(Loss):
     """
     Callable loss function wrapper that composes an objective, which may have
-    a standard elementwise or slicewise definition, with a reduction operation
+    only an elementwise or slicewise definition, with a reduction operation
     that maps its output to a scalar.
 
     Example reductions include the mean and sum, as well as tensor norms.
