@@ -71,7 +71,7 @@ class Compactness(ReducingLoss):
         system must be three-dimensional, and each coordinate should then
         correspond to a point on the surface of the sphere of the specified
         radius.
-    reduction : callable (default None)
+    reduction : callable (default `torch.mean`)
         Map from a tensor of arbitrary dimension to a scalar. The output of
         the compactness loss is passed into `reduction` to return a scalar.
     name : str or None (default None)

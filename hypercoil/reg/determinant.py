@@ -80,7 +80,7 @@ class LogDetCorr(ReducingLoss):
     cor : callable (default `corr`)
         Correlation or covariance measure. By default, the Pearson correlation
         is used.
-    reduction : callable (default None)
+    reduction : callable (default `torch.mean`)
         Map from a tensor of arbitrary dimension to a scalar. The vector of
         log-determinants computed for each correlation matrix is passed into
         `reduction` to return a scalar.
@@ -117,7 +117,7 @@ class DetCorr(ReducingLoss):
     cor : callable (default `corr`)
         Correlation or covariance measure. By default, the Pearson correlation
         is used.
-    reduction : callable (default None)
+    reduction : callable (default `torch.mean`)
         Map from a tensor of arbitrary dimension to a scalar. The vector of
         determinants computed for each correlation matrix is passed into
         `reduction` to return a scalar.
@@ -150,7 +150,7 @@ class LogDet(ReducingLoss):
     ----------
     nu : float (default 1)
         Loss function weight multiplier.
-    reduction : callable (default None)
+    reduction : callable (default `torch.mean`)
         Map from a tensor of arbitrary dimension to a scalar. The vector of
         log-determinants computed for each input matrix is passed into
         `reduction` to return a scalar.
@@ -177,7 +177,7 @@ class Determinant(ReducingLoss):
     ----------
     nu : float (default 1)
         Loss function weight multiplier.
-    reduction : callable (default None)
+    reduction : callable (default `torch.mean`)
         Map from a tensor of arbitrary dimension to a scalar. The vector of
         determinants computed for each input matrix is passed into `reduction`
         to return a scalar.
