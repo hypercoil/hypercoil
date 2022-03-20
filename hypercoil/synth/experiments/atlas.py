@@ -20,13 +20,17 @@ from hypercoil.synth.atlas import (
     embed_data_in_atlas,
     get_model_matrices
 )
-from hypercoil.reg import (
+from hypercoil.functional import sym2vec
+from hypercoil.loss import (
     Compactness,
     LogDetCorr,
     Entropy,
     Equilibrium,
     SecondMoment,
-    RegularisationScheme
+    LossScheme,
+    LossApply,
+    LossArgument,
+    UnpackingLossArgument
 )
 from hypercoil.functional import corr
 from hypercoil.functional.sphere import euclidean_conv
@@ -113,7 +117,6 @@ def atlas_experiment(
 
     Y = torch.FloatTensor(np.corrcoef(ts_reg))
 
-    uniq_idx = torch.triu_indices(*Y.shape, 1)
     ax_x = torch.arange(image_dim).view(1, -1).tile(image_dim, 1)
     ax_y = torch.arange(image_dim).view(-1, 1).tile(1, image_dim)
     coor = torch.stack((
@@ -136,13 +139,27 @@ def atlas_experiment(
 
     opt = torch.optim.Adam(params=[model], lr=lr)
     loss = torch.nn.MSELoss()
-    reg = RegularisationScheme([
-        Compactness(nu=compactness_nu, floor=compactness_floor, coor=coor),
-        Entropy(nu=entropy_nu, axis=-2),
-        Equilibrium(nu=equilibrium_nu),
+
+    reg = LossScheme([
+        LossScheme([
+            Compactness(nu=compactness_nu,
+                        floor=compactness_floor,
+                        coor=coor),
+            Entropy(nu=entropy_nu, axis=-2),
+            Equilibrium(nu=equilibrium_nu),
+        ], apply=lambda arg: arg.model),
+        LossApply(
+            SecondMoment(nu=secondmoment_nu),
+            apply=lambda arg: UnpackingLossArgument(
+                weight=arg.model,
+                data=arg.x
+            )
+        ),
+        LossApply(
+            LogDetCorr(nu=logdet_nu),
+            apply=lambda arg: arg.y
+        )
     ])
-    reg2m = SecondMoment(nu=secondmoment_nu)
-    regdet = LogDetCorr(nu=logdet_nu)
 
 
     losses = []
@@ -152,17 +169,14 @@ def atlas_experiment(
         mnorm = torch.softmax(model, 0)
         ts_parc = mnorm @ X
         corrmat = corr(ts_parc)
+        arg = LossArgument(model=mnorm, x=X, y=ts_parc)
         if epoch == 0:
             print('Statistics at train start:')
-            print(f'- Compactness: {reg[0](mnorm)}')
-            print(f'- Entropy: {reg[1](mnorm)}')
-            print(f'- Equilibrium: {reg[2](mnorm)}')
-            print(f'- Second Moment: {reg2m(mnorm, X)}')
-            print(f'- Log det: {regdet(ts_parc)}')
+            reg(arg, verbose=True)
         loss_epoch = 0
         if supervised:
-            loss_epoch = loss(corrmat[uniq_idx], Y[uniq_idx])
-        loss_epoch = loss_epoch + reg(mnorm) + reg2m(mnorm, X) + regdet(ts_parc)
+            loss_epoch = loss(sym2vec(corr(ts_parc)), sym2vec(Y))
+        loss_epoch = loss_epoch + reg(arg)
         loss_epoch.backward()
         losses += [loss_epoch.detach().item()]
         opt.step()
