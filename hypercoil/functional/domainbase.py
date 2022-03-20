@@ -6,6 +6,7 @@ Basic domains
 ~~~~~~~~~~~~~
 Functional image and preimage mappers and supporting utilities.
 """
+import math
 import torch
 from .activation import complex_decompose, complex_recompose
 
@@ -234,7 +235,7 @@ class _Domain(torch.nn.Module):
         s = []
         if self.scale != 1:
             s += [f'scale={self.scale}']
-        if not torch.all(torch.isinf(self.bound)):
+        if not all([math.isinf(i) for i in self.bound]):
             s += [f'bound=({self.bound[0]}, {self.bound[1]})']
             s += [f'handler={self.handler.__repr__()}']
         return ', '.join(s)
