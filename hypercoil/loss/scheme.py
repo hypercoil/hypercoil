@@ -9,6 +9,13 @@ regularisations to a set of inputs.
 """
 import torch
 from torch.nn import Module
+from .base import LossApply
+
+
+def identity(*args):
+    if len(args) == 1:
+        return args[0]
+    return args
 
 
 class LossScheme(Module):
@@ -16,7 +23,7 @@ class LossScheme(Module):
         super(LossScheme, self).__init__()
         self.loss = self._listify(loss) or []
         if apply is None:
-            apply = lambda x: x
+            apply = identity
         self.apply = apply
 
     def __add__(self, other):
@@ -59,8 +66,17 @@ class LossScheme(Module):
         losses = 0
         if verbose:
             for f in self:
-                loss = f(self.apply(*args, **kwargs))
-                print(f'- {f}: {loss}')
+                if isinstance(f, LossScheme):
+                    loss = f(self.apply(*args, **kwargs), verbose=True)
+                elif (isinstance(f, LossApply) and
+                    isinstance(f.loss, LossScheme)):
+                    loss = f.loss(
+                        f.apply(self.apply(*args, **kwargs)),
+                        verbose=True
+                    )
+                else:
+                    loss = f(self.apply(*args, **kwargs))
+                    print(f'- {f}: {loss}')
                 losses = losses + loss
         else:
             for f in self:

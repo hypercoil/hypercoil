@@ -9,6 +9,12 @@ Base modules for loss functions.
 from torch.nn import Module
 
 
+def identity(*args):
+    if len(args) == 1:
+        return args[0]
+    return args
+
+
 class Loss(Module):
     """
     Base class for hypercoil loss functions.
@@ -43,7 +49,7 @@ class LossApply(Module):
     def __init__(self, loss, apply=None):
         super(LossApply, self).__init__()
         if apply is None:
-            apply = lambda x: x
+            apply = identity
         self.loss = loss
         self.apply = apply
 
