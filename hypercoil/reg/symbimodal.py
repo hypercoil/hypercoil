@@ -18,9 +18,9 @@ def symmetric_bimodal_distance(weight, modes=(0, 1)):
 
 class SymmetricBimodal(NormedLoss):
     def __init__(self, nu=1, modes=(0, 1), norm=2, name=None):
-        loss = partial(
+        precompose = partial(
             symmetric_bimodal_distance,
             modes=modes
         )
         super(SymmetricBimodal, self).__init__(
-            nu=nu, p=norm, loss=loss, name=name)
+            nu=nu, p=norm, precompose=precompose, name=name)

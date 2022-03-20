@@ -15,13 +15,41 @@ from .base import ReducingLoss
 
 
 def norm_reduction(X, p=2, axis=-1, reduction=None):
+    """
+    Compute a specified norm along an axis or set of axes, and then map the
+    tensor of norms to a scalar using a reduction map.
+    """
     reduction = reduction or torch.mean
     norm = pnorm(X, ord=p, dim=axis)
     return reduction(norm)
 
 
 class NormedLoss(ReducingLoss):
-    def __init__(self, nu, p=2, loss=None, axis=None,
+    """
+    Generalised module for computing losses based on the norm of a tensor.
+
+    Parameters
+    ----------
+    nu : float
+        Loss function weight multiplier.
+    p : float (default 2)
+        Norm order. p=1 corresponds to the Manhattan L1 norm, p=2 corresponds
+        to the Euclidean L2 norm, etc.
+    precompose : callable or None (default None)
+        Pre-transformation of the input tensor, on whose output the norm is
+        computed.
+    axis : int, iterable(int), or None (default None)
+        Axes defining the slice of the input tensor over which the norm is
+        computed. If this is None, then the overall tensor norm is computed.
+    reduction : callable (default `torch.mean`)
+        Map from a tensor of arbitrary dimension to a scalar. The output of
+        the norm operation over the specified axes produces a tensor whose
+        extent over remaining axes is unreduced. This output tensor is then
+        passed into `reduction` to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
+    """
+    def __init__(self, nu, p=2, precompose=None, axis=None,
                  reduction=None, name=None):
         reduction = partial(
             norm_reduction,
@@ -29,10 +57,10 @@ class NormedLoss(ReducingLoss):
             axis=axis,
             reduction=reduction
         )
-        if loss is None:
-            loss = lambda x: x
+        if precompose is None:
+            precompose = lambda x: x
         super(NormedLoss, self).__init__(
-            nu=nu, reduction=reduction, loss=loss, name=name
+            nu=nu, reduction=reduction, loss=precompose, name=name
         )
         self.p = p
 
@@ -41,15 +69,43 @@ class NormedLoss(ReducingLoss):
 
 
 class UnilateralNormedLoss(NormedLoss):
-    def __init__(self, nu, p=2, loss=None, axis=None,
+    """
+    Unilateral version of `NormedLoss`.
+
+    Any nonpositive weights are not considered in norm computation. To exclude
+    weights in a set other than nonpositive numbers from the computation, pass
+    a map from that set into the nonpositive numbers to `precompose`.
+
+    Parameters
+    ----------
+    nu : float
+        Loss function weight multiplier.
+    p : float (default 2)
+        Norm order. p=1 corresponds to the Manhattan L1 norm, p=2 corresponds
+        to the Euclidean L2 norm, etc.
+    precompose : callable or None (default None)
+        Pre-transformation of the input tensor, on whose output the unilateral
+        norm is computed.
+    axis : int, iterable(int), or None (default None)
+        Axes defining the slice of the input tensor over which the norm is
+        computed. If this is None, then the overall tensor norm is computed.
+    reduction : callable (default `torch.mean`)
+        Map from a tensor of arbitrary dimension to a scalar. The output of
+        the norm operation over the specified axes produces a tensor whose
+        extent over remaining axes is unreduced. This output tensor is then
+        passed into `reduction` to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
+    """
+    def __init__(self, nu, p=2, precompose=None, axis=None,
                  reduction=None, name=None):
-        if loss is None:
-            loss = lambda x: x
+        if precompose is None:
+            precompose = lambda x: x
         f = lambda x: torch.maximum(
-            loss(x),
+            precompose(x),
             torch.tensor(0, dtype=x.dtype, device=x.device)
         )
         super(UnilateralNormedLoss, self).__init__(
-            nu=nu, p=p, loss=f, axis=axis,
+            nu=nu, p=p, precompose=f, axis=axis,
             reduction=reduction, name=name
         )

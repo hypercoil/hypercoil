@@ -14,13 +14,13 @@ from .norm import NormedLoss
 class SmoothnessPenalty(NormedLoss):
     def __init__(self, nu=1, axis=-1, prepend=None,
                  append=None, norm=2, name=None):
-        loss = partial(
+        precompose = partial(
             torch.diff, dim=axis, prepend=prepend, append=append
         )
         super(SmoothnessPenalty, self).__init__(
             nu=nu,
             p=norm,
-            loss=loss,
+            precompose=precompose,
             axis=axis,
             name=name
         )
