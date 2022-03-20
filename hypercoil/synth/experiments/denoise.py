@@ -19,11 +19,9 @@ from hypercoil.nn.select import (
     LinearCombinationSelector,
     EliminationSelector
 )
-from hypercoil.reg.batchcorr import (
-    QCFC
-)
-from hypercoil.reg.norm import (
-    NormedRegularisation
+from hypercoil.loss import (
+    QCFC,
+    NormedLoss
 )
 from hypercoil.synth.denoise import (
     synthesise_artefact,
@@ -126,7 +124,7 @@ def model_selection_experiment(
     if batch_size is None:
         batch_size = subject_dim
     loss = QCFC(tol=tol, tol_sig=tol_sig)
-    reg = NormedRegularisation(nu=l1_nu, p=1, axis=-1)
+    reg = NormedLoss(nu=l1_nu, p=1, axis=-1)
     opt = torch.optim.Adam(params=model.parameters(), lr=lr)
 
 

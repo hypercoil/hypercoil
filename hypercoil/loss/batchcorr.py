@@ -196,4 +196,4 @@ class QCFC(BatchCorrelation):
             Note that, if you want the original correlations back, you will
             have to add `tol` to any nonzero correlations.
         """
-        return self.nu * self.reduction(self.loss(data=FC, measure=QC))
+        return self.nu * self.reduction(self.loss(X=FC, N=QC))
