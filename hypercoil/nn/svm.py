@@ -16,13 +16,6 @@ from ..functional.matrix import recondition_eigenspaces
 from cvxpylayers.torch import CvxpyLayer
 
 
-def hinge_loss(Y_hat, Y):
-    return torch.maximum(
-        1 - Y * Y_hat,
-        torch.zeros_like(Y)
-    ).sum()
-
-
 def labels_binary(labels, dtype=torch.float):
     l = labels.unique()[0]
     return [2 * (labels == l).type(dtype) - 1]

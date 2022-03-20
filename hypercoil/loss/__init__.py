@@ -35,6 +35,9 @@ from .equilibrium import (
     Equilibrium,
     SoftmaxEquilibrium
 )
+from .hinge import (
+    HingeLoss
+)
 from .modularity import (
     ModularityLoss
 )
