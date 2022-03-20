@@ -45,7 +45,7 @@ class VectorDispersion(ReducingLoss):
     def __init__(self, nu=1, metric=None, reduction=None, name=None):
         metric = metric or dist
         reduction = reduction or torch.mean
-        loss = lambda x: -sym2vec(metric(x))
+        loss = lambda x: -metric(sym2vec(x))
         super(VectorDispersion, self).__init__(
             nu=nu,
             reduction=reduction,
