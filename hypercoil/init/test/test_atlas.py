@@ -5,16 +5,20 @@
 Unit tests for atlas map initialisation
 """
 import pytest
+import os
 import torch
 import numpy as np
 import nibabel as nb
 import templateflow.api as tflow
+import hypercoil
 from nilearn.input_data import NiftiLabelsMasker
 from hypercoil.nn.atlas import AtlasLinear
 from hypercoil.init.atlas import (
-    MultifileAtlas,
-    MultivolumeAtlas,
-    DiscreteAtlas,
+    CortexSubcortexCIfTIAtlas,
+    DiscreteVolumetricAtlas,
+    MultiVolumetricAtlas,
+    MultifileVolumetricAtlas,
+    _MemeAtlas,
     AtlasInit
 )
 from hypercoil.functional.noise import UnstructuredDropoutSource
@@ -22,62 +26,118 @@ from hypercoil.functional.noise import UnstructuredDropoutSource
 
 class TestAtlasInit:
 
-    @pytest.fixture(autouse=True)
-    def setup_class(self):
-        path = tflow.get(
-            'MNI152NLin6Asym',
-            resolution=2,
-            atlas='Schaefer2018',
-            desc='100Parcels7Networks')
-        self.atlas_discrete = DiscreteAtlas(path, mask='auto')
-        self.tsr_discrete = torch.nn.ParameterDict({
-            'all' : torch.nn.Parameter(torch.empty((
-                self.atlas_discrete.n_labels['_all_compartments'],
-                self.atlas_discrete.n_voxels
-            )))
-        })
-        self.nil = NiftiLabelsMasker(labels_img=str(path),
-                                     resampling_target=None)
-        self.aff = nb.load(path).affine
-        paths = tflow.get(
-            'OASIS30ANTs',
-            resolution=1,
-            suffix='probseg')
-        self.atlas_continuous = MultifileAtlas(paths, mask='auto')
-        self.tsr_continuous = torch.nn.ParameterDict({
-            'all' : torch.nn.Parameter(torch.empty((
-                self.atlas_continuous.n_labels['_all_compartments'],
-                self.atlas_continuous.n_voxels
-            )))
-        })
-        self.inp = np.linspace(
-            0, 1000, 91 * 109 * 91 * 50).reshape(
-            50, 109, 91, 91).swapaxes(0, -1)
-        self.inp2 = torch.rand(
-            2, 1, 1, 2, *self.atlas_discrete.mask.shape, 10)
-        self.inpT = torch.Tensor(self.inp)
-        #self.lin = AtlasLinear(self.atlas_discrete)
-
     def test_discrete_atlas(self):
-        init = AtlasInit(
-            self.atlas_discrete,
-            normalise=True
+        atlas = DiscreteVolumetricAtlas(
+            ref_pointer=tflow.get(
+                template='MNI152NLin2009cAsym',
+                resolution=2,
+                desc='100Parcels7Networks',
+                suffix='dseg')
         )
-        init(self.tsr_discrete)
-        map = self.tsr_discrete['all']
-        assert torch.allclose(map.sum(1), torch.Tensor([1]))
-        assert map[:, 1].argmax() == 38
+        assert atlas.mask.shape[0] == np.prod(atlas.ref.shape)
+        assert atlas.mask.sum() == 139951
+        assert atlas.compartments['all'].sum() == 139951
+        assert len(atlas.decoder['all']) == 100
+        assert np.all(atlas.maps['all'].sum(1).numpy() ==
+            np.histogram(atlas.cached_ref_data, bins=100, range=(1, 100))[0])
+        x, y, z = 84, 62, 13
+        assert np.all(
+            atlas.coors[97 * 115 * x + 97 * y + z].numpy() / 2 == [x, y, z])
 
-    def test_continuous_atlas(self):
-        init = AtlasInit(
-            self.atlas_continuous,
-            normalise=True
+    def test_multivolume_atlas(self):
+        atlas = MultiVolumetricAtlas(
+            ref_pointer=tflow.get(
+                template='MNI152NLin2009cAsym',
+                atlas='DiFuMo',
+                resolution=2,
+                desc='64dimensions')
         )
-        init(self.tsr_continuous)
-        map = self.tsr_continuous['all']
-        assert torch.allclose(map.sum(1), torch.Tensor([1]))
-        assert map[:, 1].argmax() == 4
+        assert atlas.mask.shape[0] == np.prod(atlas.ref.shape[:-1])
+        assert atlas.mask.sum() == 131238
+        assert atlas.compartments['all'].sum() == 131238
+        assert len(atlas.decoder['all']) == 64
+        assert np.all(
+            [atlas.maps['all'][i].max() == atlas.cached_ref_data[..., i].max()
+             for i in range(64)])
+        x, y, z = 84, 62, 13
+        assert np.all(
+            atlas.coors[123 * 104 * x + 104 * y + z].numpy() / 2 == [x, y, z])
 
+
+    def test_multifile_atlas(self):
+        atlas = MultifileVolumetricAtlas(
+            ref_pointer=[tflow.get(
+                template='MNI152NLin2009cAsym',
+                suffix='probseg',
+                label=l,
+                resolution=2)
+            for l in ('CSF', 'GM', 'WM')]
+        )
+        assert atlas.mask.shape[0] == np.prod(atlas.ref.shape[:-1])
+        assert atlas.mask.sum() == 281973
+        assert atlas.compartments['all'].sum() == 281973
+        assert len(atlas.decoder['all']) == 3
+        assert np.all(atlas.maps['all'].sum(1).numpy() ==
+            atlas.cached_ref_data.reshape(-1, 3).sum(0))
+        x, y, z = 84, 62, 13
+        assert np.all(
+            atlas.coors[97 * 115 * x + 97 * y + z].numpy() / 2 == [x, y, z])
+
+    def test_cifti_atlas(self):
+        atlas = CortexSubcortexCIfTIAtlas(
+            ref_pointer='/Users/rastkociric/Downloads/gordon.nii',
+            mask_L=tflow.get(
+                template='fsLR',
+                hemi='L',
+                desc='nomedialwall',
+                density='32k'),
+            mask_R=tflow.get(
+                template='fsLR',
+                hemi='R',
+                desc='nomedialwall',
+                density='32k')
+        )
+        assert atlas.mask.sum() == atlas.ref.shape[-1]
+        assert atlas.compartments['cortex_L'].sum() == 29696
+        assert atlas.compartments['cortex_R'].sum() == 59412 - 29696
+        assert len(atlas.decoder['cortex_L']) == 161
+        assert len(atlas.decoder['cortex_R']) == 172
+        assert len(atlas.decoder['subcortex']) == 0
+        assert atlas.maps['cortex_L'].shape == (161, 29696)
+        assert atlas.maps['cortex_R'].shape == (172, 29716)
+        assert atlas.maps['subcortex'].shape == (0,)
+        assert np.all(
+            atlas.maps['cortex_L'].sum(1).numpy() == np.histogram(
+                atlas.cached_ref_data[:, atlas.compartments['cortex_L']],
+                bins=360, range=(1, 360)
+            )[0][atlas.decoder['cortex_L'] - 1]
+        )
+        assert np.all(
+            atlas.maps['cortex_R'].sum(1).numpy() == np.histogram(
+                atlas.cached_ref_data[:, atlas.compartments['cortex_R']],
+                bins=360, range=(1, 360)
+            )[0][atlas.decoder['cortex_R'] - 1]
+        )
+        # On a sphere of radius 100
+        assert torch.all(
+            torch.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
+
+    def test_compartments_atlas(self):
+        atlas = _MemeAtlas()
+        assert atlas.mask.shape[0] == np.prod(atlas.ref.shape)
+        assert atlas.mask.sum() == 155650
+        assert torch.stack(
+            (atlas.compartments['eye'], atlas.compartments['face'])
+        ).sum(0).bool().sum() == 155650
+        assert torch.all(atlas.decoder['eye'] == atlas.decoder['_all'])
+        assert atlas.maps['face'].shape == (0,)
+        assert np.all(atlas.maps['eye'].sum(-1).numpy() == [1, 5, 1])
+        x, y, z = 84, 62, 13
+        assert np.all(
+            atlas.coors[97 * 115 * x + 97 * y + z].numpy() / 2 == [x, y, z])
+
+    #TODO: reimplement the below tests. add cuda tests.
+    """
     def test_atlas_nn_extradims(self):
         out = self.lin(self.inp2)
         assert out.size() == torch.Size([2, 1, 1, 2,
@@ -108,3 +168,4 @@ class TestAtlasInit:
             self.lin.postweight==0, dim=-2).float().mean()
         assert (empirical - self.lin.dropout.distr.mean).abs() < 0.05
         self.lin.dropout = None
+    """
