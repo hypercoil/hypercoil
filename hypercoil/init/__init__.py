@@ -5,10 +5,10 @@
 Initialisation
 """
 from .atlas import (
-    DiscreteAtlas,
-    MultivolumeAtlas,
-    MultifileAtlas,
-    SurfaceAtlas
+    DiscreteVolumetricAtlas,
+    MultiVolumetricAtlas,
+    MultifileVolumetricAtlas,
+    CortexSubcortexCIfTIAtlas
 )
 from .freqfilter import (
     FreqFilterSpec
