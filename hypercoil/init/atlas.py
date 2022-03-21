@@ -9,7 +9,9 @@ Tools for initialising parameters corresponding to brain atlases.
 import torch
 import numpy as np
 import nibabel as nb
+import templateflow.api as tflow
 from functools import partial
+from pathlib import PosixPath
 from scipy.ndimage import gaussian_filter
 from .base import DomainInitialiser
 from ..functional import UnstructuredNoiseSource
@@ -17,49 +19,365 @@ from ..functional.domain import Identity
 from ..functional.sphere import spherical_conv, euclidean_conv
 
 
-#TODO: restore doc strings when github stops being absolute garbage
+#TODO: restore doc strings
+
+
+def _to_mask(path):
+    return nb.load(path).get_fdata().round().astype(bool)
+
+
+def _is_path(obj):
+    return isinstance(obj, str) or isinstance(obj, PosixPath)
+
+
+class _ObjectReferenceMixin:
+    """
+    For when a NIfTI image object is already provided as the `ref_pointer`
+    argument.
+    """
+    def _load_reference(self, ref_pointer):
+        self.cached_ref_data = ref_pointer.get_fdata()
+        return ref_pointer
 
 
 class _SingleReferenceMixin:
-    def _load_reference(self, path):
-        ref = nb.load(path)
-        self.imshape = ref.get_fdata().shape[:3]
+    def _load_reference(self, ref_pointer):
+        ref = nb.load(ref_pointer)
+        self.cached_ref_data = ref.get_fdata()
         return ref
 
 
 class _MultiReferenceMixin:
-    def _load_reference(self, paths):
-        ref = [nb.load(path) for path in paths]
-        self.imshape = ref[0].get_fdata().shape[:3]
+    def _load_reference(self, ref_pointer):
+        ref = [nb.load(path) for path in ref_pointer]
+        self.cached_ref_data = np.stack([r.get_fdata() for r in ref], -1)
         ref = nb.Nifti1Image(
-            dataobj=np.stack([r.get_fdata() for r in ref], -1),
+            dataobj=np.copy(self.cached_ref_data),
             affine=ref[0].affine,
             header=ref[0].header
         )
         return ref
 
 
-class _TelescopeCfgMixin:
-    def _configure_maps(self, X, labels, space_dims):
-        n_labels = len(labels)
-        maps = np.zeros((n_labels, *space_dims))
+class _CIfTIReferenceMixin:
+    @property
+    def axes(self):
+        """
+        Thanks to Chris Markiewicz for tutorials that shaped this
+        implementation.
+        """
+        return [
+            self.ref.header.get_axis(i)
+            for i in range(self.ref.ndim)
+        ]
+
+    @property
+    def model_axis(self):
+        return [a for a in self.axes
+                if isinstance(a, nb.cifti2.cifti2_axes.BrainModelAxis)][0]
+
+
+class MaskLeaf:
+    """
+    Leaf node for mask logic operations.
+    """
+    def __init__(self, mask):
+        self.mask = mask
+
+    def __call__(self):
+        return _to_mask(self.mask)
+
+
+class MaskNegation:
+    """
+    Negation node for mask logic operations.
+    """
+    def __init__(self, child):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+
+    def __call__(self):
+        return ~self.child()
+
+
+class MaskUnion:
+    """
+    Union node for mask logic operations.
+    """
+    def __init__(self, *children):
+        self.children = [
+            child if not _is_path(child) else MaskLeaf(child)
+            for child in children
+        ]
+
+    def __call__(self):
+        child = self.children[0]
+        mask = child()
+        for child in self.children[1:]:
+            mask = mask + child()
+        return mask
+
+
+class MaskIntersection:
+    """
+    Intersection node for mask logic operations.
+    """
+    def __init__(self, *children):
+        self.children = [
+            child if not _is_path(child) else MaskLeaf(child)
+            for child in children
+        ]
+
+    def __call__(self):
+        child = self.children[0]
+        mask = child()
+        for child in self.children[1:]:
+            mask = mask * child()
+        return mask
+
+
+class _MaskFileMixin:
+    def _create_mask(self, source, device=None):
+        init = _to_mask(source)
+        self.mask = torch.tensor(init.ravel(), device=device)
+
+
+class _MaskLogicMixin:
+    def _create_mask(self, source, device=None):
+        init = source()
+        self.mask = torch.tensor(init.ravel(), device=device)
+
+
+class _CortexSubcortexMaskCIfTIMixin:
+    def _create_mask(self, source, device=None):
+        init = []
+        for k, v in source.items():
+            try:
+                init += [
+                    nb.load(v).darrays[0].data.round().astype(bool)
+                ]
+            except Exception:
+                init += [
+                    np.ones(self.model_axis.volume_mask.sum()).astype(bool)
+                ]
+        self.mask = torch.tensor(np.concatenate(init), device=device)
+
+
+class _MaskFromNullMixin:
+    def _create_mask(self, source, device=None):
+        if self.ref.ndim <= 3:
+            init = (self.cached_ref_data.round() != source)
+            self.mask = torch.tensor(init.ravel(), device=device)
+        else:
+            init = (self.cached_ref_data.sum(-1) > source)
+            self.mask = torch.tensor(init.ravel(), device=device)
+
+
+class _SingleCompartmentMixin:
+    def _compartment_names_dict(self, **kwargs):
+        return {}
+
+    def _create_compartments(self, names_dict=None, ref=None):
+        ref = ref or self.ref
+
+        if ref.ndim == 2: # surface, time by vox greyordinates
+            self.compartments = {
+                'all': self.mask
+            }
+        else: # volume, x by y by z by t
+            self.compartments = {
+                'all' : self.mask
+            }
+
+
+class _MultiCompartmentMixin:
+    def _compartment_names_dict(self, **kwargs):
+        return kwargs
+
+    def _create_compartments(self, names_dict=None, ref=None):
+        ref = ref or self.ref
+        dtype = self.mask.dtype # should be torch.bool
+        device = self.mask.device
+
+        self.compartments = {}
+        for name, vol in names_dict.items():
+            if isinstance(name, str):
+                self.compartments[name] = torch.tensor(
+                    _to_mask(vol), dtype=dtype, device=device
+                ).ravel()
+            else:
+                init = _to_mask(vol)
+                for name, data in zip(name, init):
+                    self.compartments[name] = torch.tensor(
+                        data, dtype=dtype, device=device
+                    ).ravel()
+
+
+class _CortexSubcortexCompartmentCIfTIMixin:
+    def _compartment_names_dict(self, **kwargs):
+        return kwargs
+
+    def _create_compartments(self, names_dict, ref=None):
+        ref = ref or self.ref
+        self.compartments = {
+            'cortex_L' : torch.zeros(
+                self.ref.shape[-1],
+                dtype=torch.bool,
+                device=self.mask.device),
+            'cortex_R' : torch.zeros(
+                self.ref.shape[-1],
+                dtype=torch.bool,
+                device=self.mask.device),
+            'subcortex': torch.zeros(
+                self.ref.shape[-1],
+                dtype=torch.bool,
+                device=self.mask.device),
+        }
+        model_axis = self.model_axis
+        for struc, slc, _ in (model_axis.iter_structures()):
+            if struc == names_dict['cortex_L']:
+                self.compartments['cortex_L'][(slc,)] = True
+            elif struc == names_dict['cortex_R']:
+                self.compartments['cortex_R'][(slc,)] = True
+        try:
+            vol_mask = np.where(model_axis.volume_mask)[0]
+            vol_min, vol_max = vol_mask.min(), vol_mask.max() + 1
+            self.compartments['subcortex'][(slice(vol_min, vol_max),)] = True
+        except ValueError:
+            pass
+
+
+class _DiscreteLabelMixin:
+    def _configure_decoders(self, null_label=0):
+        self.decoder = {}
+        for c, mask in self.compartments.items():
+            mask = mask.reshape(self.ref.shape)
+            labels_in_compartment = np.unique(self.cached_ref_data[mask])
+            labels_in_compartment = labels_in_compartment[
+                labels_in_compartment != null_label]
+            self.decoder[c] = torch.tensor(
+                labels_in_compartment, dtype=torch.long, device=mask.device)
+
+        try:
+            mask = self.mask.reshape(self.ref.shape)
+        except RuntimeError:
+            # The reference is already masked. In this case, we're using a
+            # CIfTI.
+            assert self.mask.sum() == self.ref.shape[-1]
+            mask = True
+        unique_labels = np.unique(self.cached_ref_data[mask])
+        unique_labels = unique_labels[unique_labels != null_label]
+        self.decoder['_all'] = torch.tensor(
+            unique_labels, dtype=torch.long, device=self.mask.device)
+
+    def _populate_map_from_ref(self, map, labels, mask):
         for i, l in enumerate(labels):
-            maps[i] = (X == l)
-        return maps.squeeze()
+            try:
+                map[i] = (self.cached_ref_data.ravel()[mask] == l.item())
+            except IndexError:
+                # Again the reference is already masked. In this case, we
+                # assume we're using a CIfTI.
+                assert self.mask.sum() == len(self.cached_ref_data.ravel())
+                map[i] = (self.cached_ref_data.ravel() == l.item())
+        return map
 
-    def _configure_labels(self, data, null):
-        labels = set(np.unique(data)) - set([null])
-        labels = list(labels)
-        labels.sort()
-        return labels
+
+class _ContinuousLabelMixin:
+    def _configure_decoders(self, null_label=None):
+        self.decoder = {}
+        for c, mask in self.compartments.items():
+            mask = mask.reshape(self.ref.shape[:-1])
+            #TODO
+            # This is a relatively slow step and is repeated work.
+            # Can we minimise the extent to which we load the ref data
+            # from disk? We should temporarily cache it in memory during
+            # the atlas init and then lose it when init is complete.
+            # Let's take care of this after the atlas init is fully
+            # operational.
+            labels_in_compartment = np.where(
+                self.cached_ref_data[mask].sum(0))[0]
+            labels_in_compartment = labels_in_compartment[
+                labels_in_compartment != null_label]
+            self.decoder[c] = torch.tensor(
+                labels_in_compartment, dtype=torch.long, device=mask.device)
+
+        mask = self.mask.reshape(self.ref.shape[:-1])
+        unique_labels = np.where(self.cached_ref_data[mask].sum(0))[0]
+        self.decoder['_all'] = torch.tensor(
+            unique_labels, dtype=torch.long, device=self.mask.device)
+
+    def _populate_map_from_ref(self, map, labels, mask):
+        ref_data = np.moveaxis(
+            self.cached_ref_data,
+            (0, 1, 2, 3),
+            (1, 2, 3, 0)
+        ).squeeze()
+        for i, l in enumerate(labels):
+            map[i] = ref_data[l].ravel()[mask]
+        return map
 
 
-class _AxisRollCfgMixin:
-    def _configure_maps(self, X, labels, space_dims):
-        return np.moveaxis(X, (0, 1, 2, 3), (1, 2, 3, 0)).squeeze()
+class _VolumetricMeshMixin:
+    def _init_coors(self, source=None, names_dict=None,
+                    dtype=None, device=None):
+        axes = None
+        shape = self.ref.shape[:3]
+        scale = self.ref.header.get_zooms()[:3]
+        for i, ax in enumerate(shape[::-1]):
+            extra_dims = [...] + [None] * i
+            ax = np.arange(ax) * scale[i] #[extra_dims]
+            if axes is not None:
+                out_shape_new = (1, *ax.shape, *axes.shape[1:])
+                out_shape_old = (i, *ax.shape, *axes.shape[1:])
+                axes = np.concatenate([
+                    np.broadcast_to(ax[tuple(extra_dims)], out_shape_new),
+                    np.broadcast_to(np.expand_dims(axes, 1), out_shape_old)
+                ], axis=0)
+            else:
+                axes = np.expand_dims(ax, 0)
+        self.coors = torch.tensor(
+            axes.reshape(i + 1, -1).T,
+            dtype=dtype,
+            device=device
+        )
+        self.topology = {c: 'euclidean' for c in self.compartments.keys()}
 
-    def _configure_labels(self, data, null=None):
-        return list(range(data.shape[-1]))
+
+class _VertexCoordinatesCIfTIMixin:
+    def _init_coors(self, source=None, names_dict=None,
+                    dtype=None, device=None):
+        model_axis = self.model_axis
+        coor = np.empty(model_axis.voxel.shape)
+        vox = model_axis.volume_mask
+        coor[vox] = model_axis.voxel[vox]
+
+        names2surf = {
+            v: (self.surf[k], source[k])
+            for k, v in names_dict.items()
+        }
+        for name, (surf, mask) in names2surf.items():
+            if surf is None:
+                continue
+            surf = nb.load(surf).darrays[0].data
+            if mask is not None:
+                mask = nb.load(mask)
+                mask = mask.darrays[0].data.astype(bool)
+                surf = surf[mask]
+            coor[model_axis.name == name] = surf
+        self.coors = torch.tensor(
+            coor,
+            dtype=dtype,
+            device=device
+        )
+        self.topology = {}
+        euc_mask = torch.BoolTensor(self.model_axis.volume_mask)
+        for c, mask in self.compartments.items():
+            if (mask * euc_mask).sum() == 0:
+                self.topology[c] = 'spherical'
+            else:
+                self.topology[c] = 'euclidean'
 
 
 class _EvenlySampledConvMixin:
@@ -80,443 +398,228 @@ class _SpatialConvMixin:
     def _configure_sigma(self, sigma):
         return sigma
 
-    def _convolve(self, sigma, map):
-        if sigma is not None:
-            coors = torch.tensor(self.coors)
-            map = torch.tensor(map)
-            for compartment, slc in self.compartments.items():
-                if compartment =='subcortex':
-                    map[:, slc] = euclidean_conv(
-                        data=map[:, slc].T, coor=coors[slc],
-                        scale=sigma, max_bin=self.max_bin,
-                        truncate=self.truncate
-                    ).T
-                else:
-                    map[:, slc] = spherical_conv(
-                        data=map[:, slc].T, coor=coors[slc],
-                        scale=(self.spherical_scale * sigma), r=100,
-                        max_bin=self.max_bin, truncate=self.truncate
-                    ).T
+    def _convolve(self, map, compartment, sigma, max_bin=10000,
+                  spherical_scale=1, truncate=None):
+        compartment_mask = self.compartments[compartment]
+        if self.topology[compartment] == 'euclidean':
+            map = euclidean_conv(
+                data=map.T, coor=coors[compartment_mask],
+                scale=sigma, max_bin=max_bin,
+                truncate=truncate
+            ).T
+        elif self.topology[compartment] == 'spherical':
+            map = spherical_conv(
+                data=map.T, coor=coors[compartment_mask],
+                scale=(spherical_scale * sigma), r=100,
+                max_bin=max_bin, truncate=truncate
+            ).T
         return map
 
 
-class Atlas:
-    """
-    Atlas object for linear mapping from voxels to labels.
+class BaseAtlas:
+    def __init__(self, ref_pointer, mask_source, dtype=None, device=None,
+                 **kwargs):
+        self.ref_pointer = ref_pointer
+        self.ref = self._load_reference(ref_pointer)
 
-    Base class inherited by discrete and continuous atlas containers.
+        self._create_mask(mask_source, device=device)
+        names_dict = self._compartment_names_dict(**kwargs)
+        self._create_compartments(names_dict)
 
-    Parameters
-    ----------
-    path : str or pathlib.Path
-        Path to a NIfTI file containing the atlas.
-    label_dict : dict or None (default None)
-        Dictionary mapping labels or volumes in the image to parcel or region
-        names or identifiers.
+        self._configure_decoders()
+        self._configure_compartment_maps(dtype=dtype, device=device)
+        self._init_coors(source=mask_source, names_dict=names_dict,
+                         dtype=dtype, device=device)
 
-    Attributes
-    ----------
-    ref : nb.Nifti1Image
-        NIfTI image object container for the atlas data.
-    image : np.ndarray
-        Atlas volume(s).
-    mask : np.ndarray
-        Mask indicating the voxels to include in the mapping.
-    labels : set
-        Unique labels in the atlas.
-    n_labels : int
-        Total number of labels, parcels, regions, or volumes in the atlas.
-    n_voxels : int
-        Total number of voxels to include in the atlas.
-    """
-    def __init__(self, path, name=None, mask=None,
-                 label_dict=None, thresh=0, null=0):
-        self.path = path
-        self.ref = self._load_reference(path)
-        self.name = name or 'atlas'
-        self.label_dict = label_dict
-        self._compartment_masks()
-        self._configure_all_labels(null)
-        map = self._configure_maps(
-            self.ref.get_fdata(),
-            self.labels['_all_compartments'],
-            self.imshape)
-        self.mask = self._configure_mask(mask, thresh, map)
-        self.n_voxels = {'_all_compartments' : self.mask.sum()}
-
-    def map(self, sigma=None, noise=None, normalise=True, compartments=None):
-        """
-        Obtain a matrix representation of the linear mapping from mask voxels
-        to atlas labels.
-
-        Parameters
-        ----------
-        sigma : float or None (default None)
-            If this is a float, then a Gaussian smoothing kernel with the
-            specified width is applied to each label after it is extracted.
-        noise : UnstructuredNoiseSource object or None (default None)
-            If this is a noise source, then noise sampled from the source is
-            added to the label.
-        normalise : bool (default True)
-            Indicates whether the result should be normalised such that each
-            label time series is a weighted mean over voxel time series.
-        compartments : str, list, or None (default None)
-            Return only maps from select compartments, if the atlas has
-            multiple compartments. If this is None, then return all maps.
-
-        Returns
-        -------
-        map : Tensor
-            A matrix representation of the linear mapping from mask voxels to
-            atlas labels.
-
-        The order of operations is:
-        1. Label extraction
-        2. Gaussian spatial filtering
-        3. Casting to Tensor
-        4. IID noise injection
-        5. Normalisation
-        """
-        maps = {}
+    def __call__(self, compartments=None, normalise=False, sigma=None,
+                 noise=None, max_bin=10000, spherical_scale=1, truncate=None):
+        ret = {}
         if compartments is None:
-            compartments = list(self.compartments.keys())
-        if isinstance(compartments, str):
-            compartments = [compartments]
-        for compartment in compartments:
-            map = self._map(compartment=compartment, sigma=sigma,
-                            noise=noise, normalise=normalise)
-            if map is not None:
-                maps[compartment] = map
-        return maps
-
-    def _map(self, compartment, sigma=None, noise=None, normalise=True):
-        slc = self.compartments[compartment]
-        data = self.ref.get_fdata().squeeze()[slc]
-        labels = self.labels[compartment]
-        voxel_dim = [s.stop - s.start for s in slc]
-        self.n_voxels[compartment] = np.prod(voxel_dim)
-
-        map = self._configure_maps(data, labels, voxel_dim)
-        sigma = self._configure_sigma(sigma)
-        map = self._convolve(sigma, map)
-        map = self._to_tensor(self._unfold(map, compartment))
-        if noise is not None:
-            map = noise(map)
-        if normalise:
-            return self._normalise_maps(map)
-        return map
-
-    def _set_dims(self, mask):
-        self.mask = mask
-
-    def _configure_mask(self, mask, thresh, map):
-        if isinstance(mask, np.ndarray):
-            pass
-        elif mask == 'auto':
-            mask = (map.sum(0) > thresh)
-        elif mask is None:
-            mask = np.ones(self.imshape)
-        return mask.squeeze().astype(bool)
-
-    def _compartment_masks(self):
-        if self.ref.ndim == 2: # surface, time by vox greyordinates
-            self.compartments = {
-                'all': (slice(0, self.ref.shape[1]),)
-            }
-        else: # volume, x by y by z by t
-            self.compartments = {
-                'all' : (
-                    slice(0, self.ref.shape[0]),
-                    slice(0, self.ref.shape[1]),
-                    slice(0, self.ref.shape[2])
+            compartments = ['_all']
+        for c in compartments:
+            c_map = self.maps[c]
+            if sigma is not None:
+                sigma = self._configure_sigma(sigma)
+                c_map = self._convolve(
+                    map=c_map, compartment=c, sigma=sigma, max_bin=max_bin,
+                    spherical_scale=spherical_scale, truncate=truncate
                 )
-            }
+            if noise is not None:
+                c_map = noise(c_map)
+            if normalise:
+                c_map = c_map / c_map.sum(1, keepdim=True)
+            ret[c] = c_map
+        return ret
 
-    def _configure_all_labels(self, null):
-        self.labels = {'_all_compartments': []}
-        self.n_labels = {'_all_compartments': 0}
-        for c, slc in self.compartments.items():
-            #TODO: this is not going to work as expected when the reference is
-            # derived from a list of files
-            data = self.ref.get_fdata().squeeze()[slc]
-            self.labels[c] = self._configure_labels(data, null)
-            self.n_labels[c] = len(self.labels[c])
-            self.labels['_all_compartments'] += self.labels[c]
-            self.n_labels['_all_compartments'] += self.n_labels[c]
-
-    def _normalise_maps(self, map):
-        return map / map.sum(1, keepdim=True)
-
-    def _to_tensor(self, map):
-        return torch.tensor(map)
-
-    def _unfold(self, map, compartment):
-        mask = self.mask[self.compartments[compartment]]
-        if map[:, mask].size == 0:
-            return map[:, mask]
-        return map[:, mask].reshape(self.n_labels[compartment], -1)
-
-    def _fold(self, map, compartment):
-        folded_map = np.zeros((self.n_labels[compartment], *self.imshape))
-        folded_map[:, self.mask] = map
-        return folded_map
-
-
-class _AtlasWithCoordinates(Atlas):
-    def __init__(self, path, surf_L=None, surf_R=None, name=None,
-                 label_dict=None, mask_L=None, mask_R=None, null=0,
-                 cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
-                 cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
-                 max_bin=10000, truncate=None, spherical_scale=1.):
-        self.surf = {
-            'L': surf_L,
-            'R': surf_R
-        }
-        self.masks = {
-            'L': mask_L,
-            'R': mask_R
-        }
-        self.cortex = {
-            'L': cortex_L,
-            'R': cortex_R
-        }
-        super(_AtlasWithCoordinates, self).__init__(
-            path, name=name, label_dict=label_dict, mask=None, null=null
-        )
-        self.max_bin = max_bin
-        self.truncate = truncate
-        self.spherical_scale = spherical_scale
-        self._init_coors()
-
-    def dump_coors(self, compartments=None):
-        if compartments is None:
-            return self.coors
-        compartments = np.r_[
-            tuple([self.compartments[c] for c in compartments])
-        ]
-        return self.coors[compartments]
-
-    def _init_coors(self):
-        _, model_axis = self._cifti_model_axes()
-        cortex = {
-            'L': self.compartments['cortex_L'],
-            'R': self.compartments['cortex_R'],
-        }
-        sub = self.compartments['subcortex']
-        self.coors = np.zeros((self.n_voxels['_all_compartments'], 3))
-        self.coors[sub] = model_axis.voxel[sub]
-        for hemi in ('L', 'R'):
-            if self.surf[hemi] is None:
+    def _configure_compartment_maps(self, dtype=None, device=None):
+        self.maps = {}
+        for c, mask in self.compartments.items():
+            labels = self.decoder[c]
+            dim_out = len(labels)
+            if dim_out == 0:
+                self.maps[c] = torch.tensor([], dtype=dtype, device=device)
                 continue
-            coor = nb.load(self.surf[hemi])
-            if self.masks[hemi] is not None:
-                mask = nb.load(self.masks[hemi])
-                mask = mask.darrays[0].data.astype(bool)
-                coor = coor.darrays[0].data[mask]
-            else:
-                coor = coor.darrays[0].data
-            self.coors[cortex[hemi]] = coor
+            dim_in = mask.sum()
+            map = np.empty((dim_out, dim_in), dtype=dtype)
+            self.maps[c] = torch.tensor(
+                self._populate_map_from_ref(map, labels, mask),
+                dtype=dtype, device=device
+            )
 
-    def _compartment_masks(self):
-        self.compartments = {
-            'cortex_L' : (slice(0, 0),),
-            'cortex_R' : (slice(0, 0),),
-            'subcortex': (slice(0, 0),),
-        }
-        _, model_axis = self._cifti_model_axes()
-        for struc, slc, _ in (model_axis.iter_structures()):
-            if slc.stop is None:
-                slc = slice(slc.start, model_axis.size, slc.step)
-            if struc == self.cortex['L']:
-                self.compartments['cortex_L'] = (slc,)
-            elif struc == self.cortex['R']:
-                self.compartments['cortex_R'] = (slc,)
-        try:
-            vol_mask = np.where(model_axis.volume_mask)[0]
-            vol_min, vol_max = vol_mask.min(), vol_mask.max() + 1
-            self.compartments['subcortex'] = (slice(vol_min, vol_max),)
-        except ValueError:
-            pass
-
-    def _cifti_model_axes(self):
-        """
-        Thanks to Chris Markiewicz for tutorials that shaped this
-        implementation.
-        """
-        return [
-            self.ref.header.get_axis(i)
-            for i in range(self.ref.ndim)
-        ]
+        mask = self.mask
+        labels = self.decoder['_all']
+        dim_out = len(labels)
+        dim_in = self.mask.sum()
+        map = np.empty((dim_out, dim_in), dtype=dtype)
+        self.maps['_all'] = torch.tensor(
+            self._populate_map_from_ref(map, labels, mask),
+            dtype=dtype, device=device
+        )
 
 
-class DiscreteAtlas(
-    Atlas,
+class DiscreteVolumetricAtlas(
+    BaseAtlas,
     _SingleReferenceMixin,
-    _TelescopeCfgMixin,
-    _EvenlySampledConvMixin
-):
-    """
-    Discrete atlas container object. Use for atlases stored in single-volume
-    images with non-overlapping, discrete-valued parcels.
-
-    Parameters
-    ----------
-    path : str or pathlib.Path
-        Path to a NIfTI file containing the atlas.
-    label_dict : dict or None (default None)
-        Dictionary mapping labels in the image to parcel or region names or
-        identifiers.
-    mask : np.ndarray or 'auto' or None (default None)
-        Mask indicating the voxels to include in the mapping. If this is
-        'auto', then a mask is automatically formed from voxels with non-null
-        values (before smoothing).
-    null : float (default 0)
-        Value in the image indicating that the voxel belongs to no label. To
-        assign every voxel a label, specify a number not in the image.
-
-    Attributes
-    ----------
-    ref : nb.Nifti1Image
-        NIfTI image object container for the atlas data.
-    image : np.ndarray
-        Atlas volume.
-    labels : set
-        Unique labels in the atlas.
-    n_labels : int
-        Total number of labels, parcels, or regions in the atlas.
-    n_voxels : int
-        Total number of voxels to include in the atlas.
-    """
-
-
-class MultivolumeAtlas(
-    Atlas,
-    _SingleReferenceMixin,
-    _AxisRollCfgMixin,
-    _EvenlySampledConvMixin
-):
-    """
-    Continuous atlas container object. Use for atlases whose labels overlap and
-    must therefore be stored across multiple image volumes -- for instance,
-    probabilistic segmentations or ICA results.
-
-    Parameters
-    ----------
-    path : str or pathlib.Path
-        Path to a NIfTI file containing the atlas.
-    label_dict : dict or None (default None)
-        Dictionary mapping labels or volumes in the image to parcel or region
-        names or identifiers.
-    mask : np.ndarray or 'auto' or None (default None)
-        Mask indicating the voxels to include in the mapping. If this is
-        'auto', then a mask is automatically formed from voxels with non-null
-        values (before smoothing).
-    thresh : float (default 0)
-        Threshold for auto-masking.
-
-    Attributes
-    ----------
-    ref : nb.Nifti1Image
-        NIfTI image object container for the atlas data.
-    image : np.ndarray
-        Atlas volume.
-    mask : np.ndarray
-        Mask indicating the voxels to include in the mapping.
-    labels : set
-        Unique labels in the atlas.
-    n_labels : int
-        Total number of labels, parcels, regions, or volumes in the atlas.
-    n_voxels : int
-        Total number of voxels to include in the atlas.
-    """
-
-
-class MultifileAtlas(
-    Atlas,
-    _MultiReferenceMixin,
-    _AxisRollCfgMixin,
-    _EvenlySampledConvMixin
-):
-    """
-    Continuous atlas container object. Use for atlases whose labels overlap and
-    must therefore be stored across multiple image files -- for instance,
-    probabilistic segmentations or ICA results.
-
-    Parameters
-    ----------
-    path : list(str) or list(pathlib.Path)
-        List of paths to NIfTI files containing the atlas. Each entry in the
-        list will be interpreted as a separate atlas label.
-    label_dict : dict or None (default None)
-        Dictionary mapping labels or volumes in the image to parcel or region
-        names or identifiers.
-    mask : np.ndarray or 'auto' or None (default None)
-        Mask indicating the voxels to include in the mapping. If this is
-        'auto', then a mask is automatically formed from voxels with non-null
-        values (before smoothing).
-    thresh : float (default 0)
-        Threshold for auto-masking.
-
-    Attributes
-    ----------
-    ref : nb.Nifti1Image
-        NIfTI image object container for the atlas data.
-    image : np.ndarray
-        Atlas volume.
-    mask : np.ndarray
-        Mask indicating the voxels to include in the mapping.
-    labels : set
-        Unique labels in the atlas.
-    n_labels : int
-        Total number of labels, parcels, regions, or volumes in the atlas.
-    n_voxels : int
-        Total number of voxels to include in the atlas.
-    """
-
-
-class SurfaceAtlas(
-    _AtlasWithCoordinates,
-    _SingleReferenceMixin,
-    _TelescopeCfgMixin,
+    _MaskFromNullMixin,
+    _SingleCompartmentMixin,
+    _DiscreteLabelMixin,
+    _VolumetricMeshMixin,
     _SpatialConvMixin
 ):
-    """
-    CIfTI surface-based atlas container object.
-
-    Parameters
-    ----------
-    path : str or pathlib.Path
-        Path to a CIfTI file containing the atlas.
-    surf_L and surf_R : str or pathlib.Path
-        Paths to GIfTI files containing coordinates of the cortical surfaces of
-        the left and right hemispheres. Only spherical coordinates are
-        currently supported.
-    label_dict : dict or None (default None)
-        Dictionary mapping labels or volumes in the image to parcel or region
-        names or identifiers.
-    mask_L and mask_R : str or pathlib.Path (default None)
-        GIfTI files containing masks that are immediately to be applied to
-        `surf_L` and `surf_R`. These can be used to exclude coordinates not
-        annotated by the CIfTI parcellation -- for instance, the medial wall.
-    cortex_L and cortex_R : str
-        Names of brain model axis objects corresponding to cortex. Default to
-        'CIFTI_STRUCTURE_CORTEX_LEFT' and 'CIFTI_STRUCTURE_CORTEX_RIGHT'.
-    max_bin : int (default 10000)
-        Spatial convolution parameter. Maximum number of voxels considered per
-        convolution. If you run out of memory, try decreasing this.
-    truncate : float (default None)
-        Spatial convolution parameter. Maximum kernel radius for convolution:
-        all data outside of this distance from a given point will not be
-        convolved into that point.
-    spherical_scale : float (default 1)
-        Spatial convolution parameter. Allows setting different sigmas for the
-        convolutions on volumetric and spherical data. The sigma for volumetric
-        data will be as provided to the `map` function, and the sigma for
-        spherical data will be the provided sigma multiplied by the scaling
-        factor `spherical_scale`.
-    """
+    def __init__(self, ref_pointer, dtype=None, device=None,):
+        super().__init__(ref_pointer=ref_pointer,
+                         mask_source=0,
+                         dtype=dtype,
+                         device=device)
 
 
+class MultiVolumetricAtlas(
+    BaseAtlas,
+    _SingleReferenceMixin,
+    _MaskFromNullMixin,
+    _SingleCompartmentMixin,
+    _ContinuousLabelMixin,
+    _VolumetricMeshMixin,
+    _SpatialConvMixin
+):
+    def __init__(self, ref_pointer, dtype=None, device=None,):
+        super().__init__(ref_pointer=ref_pointer,
+                         mask_source=0,
+                         dtype=dtype,
+                         device=device)
+
+
+class MultifileVolumetricAtlas(
+    BaseAtlas,
+    _MultiReferenceMixin,
+    _MaskFromNullMixin,
+    _SingleCompartmentMixin,
+    _ContinuousLabelMixin,
+    _VolumetricMeshMixin,
+    _SpatialConvMixin
+):
+    def __init__(self, ref_pointer, dtype=None, device=None,):
+        super().__init__(ref_pointer=ref_pointer,
+                         mask_source=0,
+                         dtype=dtype,
+                         device=device)
+
+
+class CortexSubcortexCIfTIAtlas(
+    BaseAtlas,
+    _CIfTIReferenceMixin,
+    _SingleReferenceMixin,
+    _CortexSubcortexMaskCIfTIMixin,
+    _CortexSubcortexCompartmentCIfTIMixin,
+    _DiscreteLabelMixin,
+    _VertexCoordinatesCIfTIMixin,
+    _SpatialConvMixin
+):
+    def __init__(self, ref_pointer,
+                 mask_L=None, mask_R=None, surf_L=None, surf_R=None,
+                 cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
+                 cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
+                 dtype=None, device=None):
+        default_mask_query_args = {
+            'template' : 'fsLR',
+            'density' : '32k',
+            'desc' : 'nomedialwall',
+            'suffix' : 'dparc'
+        }
+        default_surf_query_args = {
+            'template' : 'fsLR',
+            'density' : '32k',
+            'suffix' : 'sphere',
+            'space' : None
+        }
+        if mask_L is None:
+            mask_L = tflow.get(hemi='L', **default_mask_query_args)
+        if mask_R is None:
+            mask_R = tflow.get(hemi='R', **default_mask_query_args)
+        if surf_L is None:
+            surf_L = tflow.get(hemi='L', **default_surf_query_args)
+        if surf_R is None:
+            surf_R = tflow.get(hemi='R', **default_surf_query_args)
+        self.surf = {
+            'cortex_L' : surf_L,
+            'cortex_R' : surf_R
+        }
+        mask_source = {
+            'cortex_L' : mask_L,
+            'cortex_R' : mask_R,
+            'subcortex' : None
+        }
+        super().__init__(ref_pointer=ref_pointer,
+                         mask_source=mask_source,
+                         dtype=dtype,
+                         device=device,
+                         cortex_L=cortex_L,
+                         cortex_R=cortex_R)
+
+
+class _MemeAtlas(
+    BaseAtlas,
+    _SingleReferenceMixin,
+    _MaskLogicMixin,
+    _MultiCompartmentMixin,
+    _DiscreteLabelMixin,
+    _VolumetricMeshMixin,
+    _SpatialConvMixin
+):
+    def __init__(self):
+        ref_pointer = tflow.get(
+            template='MNI152NLin2009cAsym',
+            resolution=2,
+            desc='100Parcels17Networks'
+        )
+        eye = tflow.get(
+            template='MNI152NLin2009cAsym',
+            resolution=2, desc='eye', suffix='mask')
+        face = tflow.get(
+            template='MNI152NLin2009cAsym',
+            resolution=2, desc='face', suffix='mask')
+        brain = tflow.get(
+            template='MNI152NLin2009cAsym',
+            resolution=2, desc='brain', suffix='mask')
+        mask_source = MaskIntersection(
+            MaskUnion(eye, face),
+            MaskNegation(brain)
+        )
+        compartments_dict = {
+            'eye': eye,
+            'face': face
+        }
+        super().__init__(ref_pointer=ref_pointer,
+                         mask_source=mask_source,
+                         **compartments_dict)
+
+
+#TODO: atlas without a reference for anything except coors
+class DistributionBaseAtlas():
+    pass
+
+
+#TODO: Fix the below. Also, spatial convolution.
 def atlas_init_(tensor, compartment, atlas, kernel_sigma=None,
                 noise_sigma=None, normalise=False):
     """
@@ -547,16 +650,14 @@ def atlas_init_(tensor, compartment, atlas, kernel_sigma=None,
         deviation is added to the label.
     """
     if noise_sigma is not None:
-        distr = torch.distributions.normal.Normal(
-            torch.Tensor([0]), torch.Tensor([noise_sigma])
-        )
+        distr = torch.distributions.normal.Normal(0, noise_sigma)
         noise = UnstructuredNoiseSource(distr=distr)
     else:
         noise = None
-    val = atlas._map(compartment=compartment,
-                     sigma=kernel_sigma,
-                     noise=noise,
-                     normalise=normalise)
+    val = atlas(compartment=compartment,
+                sigma=kernel_sigma,
+                noise=noise,
+                normalise=normalise)
     tensor.copy_(val)
 
 
