@@ -11,6 +11,7 @@ from . import ReducingLoss
 
 
 def hinge_loss(Y_hat, Y):
+    """SVM hinge loss."""
     return torch.maximum(
         1 - Y * Y_hat,
         torch.zeros_like(Y)

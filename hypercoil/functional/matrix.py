@@ -189,7 +189,7 @@ def expand_outer(L, R=None, symmetry=None):
     output = L @ R.transpose(-2, -1)
     #TODO: Unit tests are not hitting this conditional...
     if symmetry == 'cross' or symmetry == 'skew':
-        return symmetric(output, skew=symmetry)
+        return symmetric(output, skew=(symmetry == 'skew'))
     return output
 
 

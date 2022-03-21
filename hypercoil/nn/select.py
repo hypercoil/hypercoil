@@ -102,7 +102,7 @@ class EliminationSelector(Module):
         randomly sampled from Uniform(0, 1).
     """
     def __init__(self, n_columns, infimum=-1.5, supremum=2.5,
-                 or_dim=1, and_dim=1, init=None):
+                 or_dim=1, and_dim=1, init=None, dtype=None, device=None):
         super(EliminationSelector, self).__init__()
         factory_kwargs = {'device': device, 'dtype': dtype}
         self.n_columns = n_columns
