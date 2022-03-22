@@ -62,7 +62,10 @@ class _MultiReferenceMixin:
 
 class _PhantomReferenceMixin:
     def _load_reference(self, ref_pointer):
-        ref = nb.load(ref_pointer)
+        try:
+            ref = nb.load(ref_pointer)
+        except TypeError:
+            ref = nb.Nifti1Image(**ref_pointer(nifti=True))
         try: # Volumetric NIfTI
             affine = ref.affine
             header = ref.header
@@ -107,8 +110,17 @@ class MaskLeaf:
     def __init__(self, mask):
         self.mask = mask
 
-    def __call__(self):
-        return _to_mask(self.mask)
+    def __call__(self, nifti=False):
+        if not nifti:
+            mask = _to_mask(self.mask)
+            return mask
+        else:
+            img = nb.load(self.mask)
+            mask = img.get_fdata().round().astype(bool)
+            return {
+                'affine': img.affine,
+                'header': img.header,
+                'dataobj': mask}
 
 
 class MaskThreshold:
@@ -119,8 +131,16 @@ class MaskThreshold:
         else:
             self.child = child
 
-    def __call__(self):
-        return (self.child >= self.threshold)
+    def __call__(self, nifti=False):
+        if not nifti:
+            return (self.child() >= self.threshold)
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': (img['dataobj'] >= self.threshold)
+            }
 
 
 class MaskUThreshold:
@@ -131,8 +151,16 @@ class MaskUThreshold:
         else:
             self.child = child
 
-    def __call__(self):
-        return (self.child <= self.threshold)
+    def __call__(self, nifti=False):
+        if not nifti:
+            return (self.child() <= self.threshold)
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': (img['dataobj'] <= self.threshold)
+            }
 
 
 class MaskNegation:
@@ -145,8 +173,16 @@ class MaskNegation:
         else:
             self.child = child
 
-    def __call__(self):
-        return ~self.child()
+    def __call__(self, nifti=False):
+        if not nifti:
+            return ~self.child()
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': ~img['dataobj']
+            }
 
 
 class MaskUnion:
@@ -159,12 +195,25 @@ class MaskUnion:
             for child in children
         ]
 
-    def __call__(self):
+    def __call__(self, nifti=False):
         child = self.children[0]
-        mask = child()
-        for child in self.children[1:]:
-            mask = mask + child()
-        return mask
+        if not nifti:
+            mask = child()
+            for child in self.children[1:]:
+                mask = mask + child()
+            return mask
+        else:
+            img = child(nifti=True)
+            dataobj = img['dataobj']
+            for child in self.children[1:]:
+                cur = child(nifti=True)
+                mask = cur['dataobj']
+                dataobj = dataobj + mask
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': dataobj
+            }
 
 
 class MaskIntersection:
@@ -177,12 +226,25 @@ class MaskIntersection:
             for child in children
         ]
 
-    def __call__(self):
+    def __call__(self, nifti=False):
         child = self.children[0]
-        mask = child()
-        for child in self.children[1:]:
-            mask = mask * child()
-        return mask
+        if not nifti:
+            mask = child()
+            for child in self.children[1:]:
+                mask = mask * child()
+            return mask
+        else:
+            img = child(nifti=True)
+            dataobj = img['dataobj']
+            for child in self.children[1:]:
+                cur = child(nifti=True)
+                mask = cur['dataobj']
+                dataobj = dataobj * mask
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': dataobj
+            }
 
 
 class _MaskLogicMixin:
@@ -301,7 +363,6 @@ class _CortexSubcortexCompartmentCIfTIMixin:
             self._mask_hack(mask, 'subcortex', slc)
         except ValueError:
             pass
-        print(self.compartments)
 
     def _mask_hack(self, src_mask, struc, slc):
         compartment_mask = src_mask.clone()
@@ -396,7 +457,6 @@ class _DirichletLabelMixin:
         self.decoder = {}
         n_labels = 0
         for c, i in self.compartment_labels.items():
-            print(c, i, n_labels, i)
             if i == 0:
                 self.decoder[c] = torch.tensor(
                     [], dtype=torch.long, device=self.mask.device)
