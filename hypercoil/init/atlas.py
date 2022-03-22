@@ -111,6 +111,30 @@ class MaskLeaf:
         return _to_mask(self.mask)
 
 
+class MaskThreshold:
+    def __init__(self, child, threshold):
+        self.threshold = threshold
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+
+    def __call__(self):
+        return (self.child >= self.threshold)
+
+
+class MaskUThreshold:
+    def __init__(self, child, threshold):
+        self.threshold = threshold
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+
+    def __call__(self):
+        return (self.child <= self.threshold)
+
+
 class MaskNegation:
     """
     Negation node for mask logic operations.
@@ -161,14 +185,10 @@ class MaskIntersection:
         return mask
 
 
-class _MaskFileMixin:
-    def _create_mask(self, source, device=None):
-        init = _to_mask(source)
-        self.mask = torch.tensor(init.ravel(), device=device)
-
-
 class _MaskLogicMixin:
     def _create_mask(self, source, device=None):
+        if _is_path(source):
+            source = MaskLeaf(source)
         init = source()
         self.mask = torch.tensor(init.ravel(), device=device)
 
@@ -733,7 +753,7 @@ class DirichletInitBaseAtlas(
 
 class DirichletInitVolumetricAtlas(
     DirichletInitBaseAtlas,
-    _MaskFileMixin,
+    _MaskLogicMixin,
     _SingleCompartmentMixin,
     _VolumetricMeshMixin,
     _SpatialConvMixin
