@@ -246,37 +246,64 @@ class _CortexSubcortexCompartmentCIfTIMixin:
         ref = ref or self.ref
         self.compartments = {
             'cortex_L' : torch.zeros(
-                self.ref.shape[-1],
+                self.mask.shape,
                 dtype=torch.bool,
                 device=self.mask.device),
             'cortex_R' : torch.zeros(
-                self.ref.shape[-1],
+                self.mask.shape,
                 dtype=torch.bool,
                 device=self.mask.device),
             'subcortex': torch.zeros(
-                self.ref.shape[-1],
+                self.mask.shape,
                 dtype=torch.bool,
                 device=self.mask.device),
         }
+        # This could not be more stupid. All thanks to the amazing design
+        # choice that indexing returns a copy in numpy/torch.
+        if self.mask.shape == self.ref.shape[-1]:
+            mask = torch.ones(
+                self.mask.shape,
+                dtype=torch.bool,
+                device=self.mask.device
+            )
+        else:
+            mask = self.mask
         model_axis = self.model_axis
         for struc, slc, _ in (model_axis.iter_structures()):
             if struc == names_dict['cortex_L']:
-                self.compartments['cortex_L'][(slc,)] = True
+                self._mask_hack(mask, 'cortex_L', slc)
             elif struc == names_dict['cortex_R']:
-                self.compartments['cortex_R'][(slc,)] = True
+                self._mask_hack(mask, 'cortex_R', slc)
         try:
             vol_mask = np.where(model_axis.volume_mask)[0]
             vol_min, vol_max = vol_mask.min(), vol_mask.max() + 1
-            self.compartments['subcortex'][(slice(vol_min, vol_max),)] = True
+            slc = slice(vol_min, vol_max)
+            self._mask_hack(mask, 'subcortex', slc)
         except ValueError:
             pass
+        print(self.compartments)
+
+    def _mask_hack(self, src_mask, struc, slc):
+        compartment_mask = src_mask.clone()
+        inner_compartment_mask = torch.zeros(
+            compartment_mask.sum(),
+            dtype=torch.bool,
+            device=compartment_mask.device
+        )
+        inner_compartment_mask[(slc,)] = True
+        compartment_mask[compartment_mask.clone()] = (
+            inner_compartment_mask)
+        self.compartments[struc][compartment_mask] = True
 
 
 class _DiscreteLabelMixin:
     def _configure_decoders(self, null_label=0):
         self.decoder = {}
         for c, mask in self.compartments.items():
-            mask = mask.reshape(self.ref.shape)
+            try:
+                mask = mask.reshape(self.ref.shape)
+            except RuntimeError:
+                mask = mask[self.mask].reshape(self.ref.shape)
             labels_in_compartment = np.unique(self.cached_ref_data[mask])
             labels_in_compartment = labels_in_compartment[
                 labels_in_compartment != null_label]
@@ -305,7 +332,7 @@ class _DiscreteLabelMixin:
                 # assume we're using a CIfTI.
                 assert self.mask.sum() == len(self.cached_ref_data.ravel())
                 map[i] = torch.tensor(
-                    self.cached_ref_data.ravel() == l.item())
+                    self.cached_ref_data.ravel()[mask[self.mask]] == l.item())
         return map
 
 
@@ -421,6 +448,8 @@ class _VertexCoordinatesCIfTIMixin:
         self.topology = {}
         euc_mask = torch.BoolTensor(self.model_axis.volume_mask)
         for c, mask in self.compartments.items():
+            if mask.shape != euc_mask.shape:
+                mask = mask[self.mask]
             if (mask * euc_mask).sum() == 0:
                 self.topology[c] = 'spherical'
             else:
