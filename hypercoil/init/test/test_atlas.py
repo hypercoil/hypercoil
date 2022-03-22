@@ -18,6 +18,8 @@ from hypercoil.init.atlas import (
     DiscreteVolumetricAtlas,
     MultiVolumetricAtlas,
     MultifileVolumetricAtlas,
+    DirichletInitVolumetricAtlas,
+    DirichletInitSurfaceAtlas,
     _MemeAtlas,
     AtlasInit
 )
@@ -77,7 +79,7 @@ class TestAtlasInit:
         assert atlas.mask.sum() == 281973
         assert atlas.compartments['all'].sum() == 281973
         assert len(atlas.decoder['all']) == 3
-        assert np.all(atlas.maps['all'].sum(1).numpy() ==
+        assert np.allclose(atlas.maps['all'].sum(1).numpy(),
             atlas.cached_ref_data.reshape(-1, 3).sum(0))
         x, y, z = 84, 62, 13
         assert np.all(
@@ -135,6 +137,62 @@ class TestAtlasInit:
         x, y, z = 84, 62, 13
         assert np.all(
             atlas.coors[97 * 115 * x + 97 * y + z].numpy() / 2 == [x, y, z])
+
+    def test_volumetric_dirichlet_atlas(self):
+        atlas = DirichletInitVolumetricAtlas(
+            mask_source=tflow.get(
+                template='MNI152NLin2009cAsym',
+                resolution=2,
+                desc='brain',
+                suffix='mask'
+            ),
+            compartment_labels={'all': 50}
+        )
+        assert atlas.mask.sum() == 235840
+        assert atlas.decoder['all'].tolist() == list(range(50))
+        assert atlas.maps['all'].shape == (50, 235840)
+        assert np.allclose(
+            torch.softmax(atlas.maps['all'], axis=-2).sum(-2), 1)
+        x, y, z = 84, 62, 13
+        assert np.all(
+            atlas.coors[97 * 115 * x + 97 * y + z].numpy() / 2 == [x, y, z])
+
+    def test_surface_dirichlet_atlas(self):
+        atlas = DirichletInitSurfaceAtlas(
+            cifti_template='/Users/rastkociric/Downloads/gordon.nii',
+            mask_L=tflow.get(
+                template='fsLR',
+                hemi='L',
+                desc='nomedialwall',
+                density='32k'),
+            mask_R=tflow.get(
+                template='fsLR',
+                hemi='R',
+                desc='nomedialwall',
+                density='32k'),
+            compartment_labels={
+                'cortex_L': 20,
+                'cortex_R': 20,
+                'subcortex': 20
+            }
+        )
+        assert atlas.mask.sum() == 91282
+        assert atlas.decoder['subcortex'].tolist() == list(range(40, 60))
+        assert atlas.maps['cortex_L'].shape == (20, 29696)
+        assert atlas.maps['cortex_R'].shape == (20, 29716)
+        assert atlas.maps['subcortex'].shape == (20, 31870)
+        assert atlas.topology['cortex_L'] == 'spherical'
+        assert atlas.topology['cortex_R'] == 'spherical'
+        assert atlas.topology['subcortex'] == 'euclidean'
+        assert np.allclose(
+            torch.softmax(atlas.maps['cortex_L'], axis=-2).sum(-2), 1)
+        assert np.allclose(
+            torch.softmax(atlas.maps['cortex_R'], axis=-2).sum(-2), 1)
+        assert np.allclose(
+            torch.softmax(atlas.maps['subcortex'], axis=-2).sum(-2), 1)
+        # On a sphere of radius 100
+        assert torch.all(
+            torch.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
 
     #TODO: reimplement the below tests. add cuda tests.
     """
