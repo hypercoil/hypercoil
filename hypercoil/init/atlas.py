@@ -63,12 +63,15 @@ class _MultiReferenceMixin:
 class _PhantomReferenceMixin:
     def _load_reference(self, ref_pointer):
         ref = nb.load(ref_pointer)
-        affine = ref.affine
-        header = ref.header
-        dataobj = _PhantomDataobj(ref)
-        self.ref = nb.Nifti1Image(
-            header=header, affine=affine, dataobj=dataobj
-        )
+        try: # Volumetric NIfTI
+            affine = ref.affine
+            header = ref.header
+            dataobj = _PhantomDataobj(ref)
+            self.ref = nb.Nifti1Image(
+                header=header, affine=affine, dataobj=dataobj
+            )
+        except AttributeError: # No affine: Surface/CIfTI
+            self.ref = nb.load(ref_pointer)
         self.cached_ref_data = None
         return self.ref
 
@@ -346,8 +349,14 @@ class _DirichletLabelMixin:
         self.decoder = {}
         n_labels = 0
         for c, i in self.compartment_labels.items():
+            print(c, i, n_labels, i)
+            if i == 0:
+                self.decoder[c] = torch.tensor(
+                    [], dtype=torch.long, device=self.mask.device)
+                continue
             self.decoder[c] = torch.arange(
-                n_labels, i, dtype=torch.long, device=self.mask.device)
+                n_labels, n_labels + i,
+                dtype=torch.long, device=self.mask.device)
             n_labels += i
         self.decoder['_all'] = torch.arange(
             0, n_labels, dtype=torch.long, device=self.mask.device)
@@ -651,14 +660,13 @@ class _MemeAtlas(
 class DirichletInitBaseAtlas(
     BaseAtlas,
     _PhantomReferenceMixin,
-    _MaskFileMixin,
-    _SingleCompartmentMixin,
     _DirichletLabelMixin,
-    _VolumetricMeshMixin,
-    _SpatialConvMixin
 ):
     def __init__(self, mask_source, compartment_labels, conc=100.,
-                 init=None, dtype=None, device=None):
+                 template_image=None, init=None, dtype=None, device=None,
+                 **kwargs):
+        if template_image is None:
+            template_image = mask_source
         if isinstance(compartment_labels, int):
             compartment_labels = {'all', compartment_labels}
         self.compartment_labels = compartment_labels
@@ -673,10 +681,11 @@ class DirichletInitBaseAtlas(
             }
             self.init = init
         self._global_compartment_init()
-        super().__init__(ref_pointer=mask_source,
+        super().__init__(ref_pointer=template_image,
                          mask_source=mask_source,
                          dtype=dtype,
-                         device=device)
+                         device=device,
+                         **kwargs)
 
     def _global_compartment_init(self):
         if self.init.get('_all'):
@@ -686,7 +695,74 @@ class DirichletInitBaseAtlas(
             return
         concentrations = [d.concentration for d in self.init.values()]
         concentrations = torch.cat(concentrations)
-        self.init['_all'] = DirichletInit(concentrations)
+        self.init['_all'] = DirichletInit(
+            n_classes=len(concentrations),
+            concentration=concentrations,
+            axis=-2
+        )
+
+
+class DirichletInitVolumetricAtlas(
+    DirichletInitBaseAtlas,
+    _MaskFileMixin,
+    _SingleCompartmentMixin,
+    _VolumetricMeshMixin,
+    _SpatialConvMixin
+):
+    pass
+
+
+class DirichletInitSurfaceAtlas(
+    DirichletInitBaseAtlas,
+    _CIfTIReferenceMixin,
+    _CortexSubcortexMaskCIfTIMixin,
+    _CortexSubcortexCompartmentCIfTIMixin,
+    _VertexCoordinatesCIfTIMixin,
+    _SpatialConvMixin
+):
+    def __init__(self, cifti_template, compartment_labels,
+                 conc=100., init=None, dtype=None, device=None,
+                 mask_L=None, mask_R=None, surf_L=None, surf_R=None,
+                 cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
+                 cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT'):
+        default_mask_query_args = {
+            'template' : 'fsLR',
+            'density' : '32k',
+            'desc' : 'nomedialwall',
+            'suffix' : 'dparc'
+        }
+        default_surf_query_args = {
+            'template' : 'fsLR',
+            'density' : '32k',
+            'suffix' : 'sphere',
+            'space' : None
+        }
+        if mask_L is None:
+            mask_L = tflow.get(hemi='L', **default_mask_query_args)
+        if mask_R is None:
+            mask_R = tflow.get(hemi='R', **default_mask_query_args)
+        if surf_L is None:
+            surf_L = tflow.get(hemi='L', **default_surf_query_args)
+        if surf_R is None:
+            surf_R = tflow.get(hemi='R', **default_surf_query_args)
+        self.surf = {
+            'cortex_L' : surf_L,
+            'cortex_R' : surf_R
+        }
+        mask_source = {
+            'cortex_L' : mask_L,
+            'cortex_R' : mask_R,
+            'subcortex' : None
+        }
+        super().__init__(template_image=cifti_template,
+                         mask_source=mask_source,
+                         compartment_labels=compartment_labels,
+                         conc=conc,
+                         init=init,
+                         dtype=dtype,
+                         device=device,
+                         cortex_L=cortex_L,
+                         cortex_R=cortex_R)
 
 
 #TODO: Fix the below. Also, spatial convolution.
