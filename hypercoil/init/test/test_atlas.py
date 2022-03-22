@@ -102,21 +102,24 @@ class TestAtlasInit:
         assert atlas.mask.sum() == atlas.ref.shape[-1]
         assert atlas.compartments['cortex_L'].sum() == 29696
         assert atlas.compartments['cortex_R'].sum() == 59412 - 29696
+        assert atlas.compartments['cortex_L'].shape == atlas.mask.shape
         assert len(atlas.decoder['cortex_L']) == 161
         assert len(atlas.decoder['cortex_R']) == 172
         assert len(atlas.decoder['subcortex']) == 0
         assert atlas.maps['cortex_L'].shape == (161, 29696)
         assert atlas.maps['cortex_R'].shape == (172, 29716)
         assert atlas.maps['subcortex'].shape == (0,)
+        compartment_index = atlas.compartments['cortex_L'][atlas.mask]
         assert np.all(
             atlas.maps['cortex_L'].sum(1).numpy() == np.histogram(
-                atlas.cached_ref_data[:, atlas.compartments['cortex_L']],
+                atlas.cached_ref_data[:, compartment_index],
                 bins=360, range=(1, 360)
             )[0][atlas.decoder['cortex_L'] - 1]
         )
+        compartment_index = atlas.compartments['cortex_R'][atlas.mask]
         assert np.all(
             atlas.maps['cortex_R'].sum(1).numpy() == np.histogram(
-                atlas.cached_ref_data[:, atlas.compartments['cortex_R']],
+                atlas.cached_ref_data[:, compartment_index],
                 bins=360, range=(1, 360)
             )[0][atlas.decoder['cortex_R'] - 1]
         )
