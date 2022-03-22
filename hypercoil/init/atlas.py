@@ -14,6 +14,7 @@ from functools import partial
 from pathlib import PosixPath
 from scipy.ndimage import gaussian_filter
 from .base import DomainInitialiser
+from .dirichlet import DirichletInit
 from ..functional import UnstructuredNoiseSource
 from ..functional.domain import Identity
 from ..functional.sphere import spherical_conv, euclidean_conv
@@ -57,6 +58,25 @@ class _MultiReferenceMixin:
             header=ref[0].header
         )
         return ref
+
+
+class _PhantomReferenceMixin:
+    def _load_reference(self, ref_pointer):
+        ref = nb.load(ref_pointer)
+        affine = ref.affine
+        header = ref.header
+        dataobj = _PhantomDataobj(ref)
+        self.ref = nb.Nifti1Image(
+            header=header, affine=affine, dataobj=dataobj
+        )
+        self.cached_ref_data = None
+        return self.ref
+
+
+class _PhantomDataobj:
+    def __init__(self, base):
+        self.shape = base.shape
+        self.ndim = base.ndim
 
 
 class _CIfTIReferenceMixin:
@@ -272,15 +292,17 @@ class _DiscreteLabelMixin:
         self.decoder['_all'] = torch.tensor(
             unique_labels, dtype=torch.long, device=self.mask.device)
 
-    def _populate_map_from_ref(self, map, labels, mask):
+    def _populate_map_from_ref(self, map, labels, mask, compartment=None):
         for i, l in enumerate(labels):
             try:
-                map[i] = (self.cached_ref_data.ravel()[mask] == l.item())
+                map[i] = torch.tensor(
+                    self.cached_ref_data.ravel()[mask] == l.item())
             except IndexError:
                 # Again the reference is already masked. In this case, we
                 # assume we're using a CIfTI.
                 assert self.mask.sum() == len(self.cached_ref_data.ravel())
-                map[i] = (self.cached_ref_data.ravel() == l.item())
+                map[i] = torch.tensor(
+                    self.cached_ref_data.ravel() == l.item())
         return map
 
 
@@ -308,14 +330,30 @@ class _ContinuousLabelMixin:
         self.decoder['_all'] = torch.tensor(
             unique_labels, dtype=torch.long, device=self.mask.device)
 
-    def _populate_map_from_ref(self, map, labels, mask):
+    def _populate_map_from_ref(self, map, labels, mask, compartment=None):
         ref_data = np.moveaxis(
             self.cached_ref_data,
             (0, 1, 2, 3),
             (1, 2, 3, 0)
         ).squeeze()
         for i, l in enumerate(labels):
-            map[i] = ref_data[l].ravel()[mask]
+            map[i] = torch.tensor(ref_data[l].ravel()[mask])
+        return map
+
+
+class _DirichletLabelMixin:
+    def _configure_decoders(self, null_label=None):
+        self.decoder = {}
+        n_labels = 0
+        for c, i in self.compartment_labels.items():
+            self.decoder[c] = torch.arange(
+                n_labels, i, dtype=torch.long, device=self.mask.device)
+            n_labels += i
+        self.decoder['_all'] = torch.arange(
+            0, n_labels, dtype=torch.long, device=self.mask.device)
+
+    def _populate_map_from_ref(self, map, labels, mask, compartment=None):
+        self.init[compartment](map)
         return map
 
 
@@ -460,21 +498,16 @@ class BaseAtlas:
                 self.maps[c] = torch.tensor([], dtype=dtype, device=device)
                 continue
             dim_in = mask.sum()
-            map = np.empty((dim_out, dim_in), dtype=dtype)
-            self.maps[c] = torch.tensor(
-                self._populate_map_from_ref(map, labels, mask),
-                dtype=dtype, device=device
-            )
+            map = torch.empty((dim_out, dim_in), dtype=dtype, device=device)
+            self.maps[c] = self._populate_map_from_ref(map, labels, mask, c)
 
         mask = self.mask
         labels = self.decoder['_all']
         dim_out = len(labels)
         dim_in = self.mask.sum()
-        map = np.empty((dim_out, dim_in), dtype=dtype)
-        self.maps['_all'] = torch.tensor(
-            self._populate_map_from_ref(map, labels, mask),
-            dtype=dtype, device=device
-        )
+        map = torch.empty((dim_out, dim_in), dtype=dtype, device=device)
+        self.maps['_all'] = self._populate_map_from_ref(
+            map, labels, mask, '_all')
 
 
 class DiscreteVolumetricAtlas(
@@ -615,8 +648,45 @@ class _MemeAtlas(
 
 
 #TODO: atlas without a reference for anything except coors
-class DistributionBaseAtlas():
-    pass
+class DirichletInitBaseAtlas(
+    BaseAtlas,
+    _PhantomReferenceMixin,
+    _MaskFileMixin,
+    _SingleCompartmentMixin,
+    _DirichletLabelMixin,
+    _VolumetricMeshMixin,
+    _SpatialConvMixin
+):
+    def __init__(self, mask_source, compartment_labels, conc=100.,
+                 init=None, dtype=None, device=None):
+        if isinstance(compartment_labels, int):
+            compartment_labels = {'all', compartment_labels}
+        self.compartment_labels = compartment_labels
+        if init is None:
+            init = {
+                c : DirichletInit(
+                    n_classes=i,
+                    concentration=torch.tensor([conc for _ in range (i)]),
+                    axis=-2
+                )
+                for c, i in compartment_labels.items()
+            }
+            self.init = init
+        self._global_compartment_init()
+        super().__init__(ref_pointer=mask_source,
+                         mask_source=mask_source,
+                         dtype=dtype,
+                         device=device)
+
+    def _global_compartment_init(self):
+        if self.init.get('_all'):
+            return
+        if self.init.get('all'):
+            self.init['_all'] = self.init['all']
+            return
+        concentrations = [d.concentration for d in self.init.values()]
+        concentrations = torch.cat(concentrations)
+        self.init['_all'] = DirichletInit(concentrations)
 
 
 #TODO: Fix the below. Also, spatial convolution.
