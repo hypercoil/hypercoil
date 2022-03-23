@@ -267,7 +267,7 @@ def _euc_dist(X, Y=None):
     X = X.unsqueeze(-2)
     Y = Y.unsqueeze(-3)
     X, Y = torch.broadcast_tensors(X, Y)
-    return torch.sqrt(((X- Y) ** 2).sum(-1))
+    return torch.sqrt(((X - Y) ** 2).sum(-1))
 
 
 def euclidean_conv(data, coor, scale=1, max_bin=10000, truncate=None):
