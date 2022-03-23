@@ -34,9 +34,6 @@ from .dirichlet import DirichletInit
 from ..functional import UnstructuredNoiseSource
 
 
-#TODO: restore doc strings
-
-
 class BaseAtlas(ABC):
     """
     Atlas object encoding linear mappings from voxels to labels.
@@ -809,9 +806,9 @@ class _MemeAtlas(
                          **compartments_dict)
 
 
-#TODO: Fix the below. Also, spatial convolution.
-def atlas_init_(tensor, compartment, atlas, kernel_sigma=None,
-                noise_sigma=None, normalise=False):
+def atlas_init_(tensor, compartment, atlas, normalise=False,
+                max_bin=10000, spherical_scale=1, truncate=None,
+                kernel_sigma=None, noise_sigma=None):
     """
     Voxel-to-label mapping initialisation.
 
@@ -844,23 +841,34 @@ def atlas_init_(tensor, compartment, atlas, kernel_sigma=None,
         noise = UnstructuredNoiseSource(distr=distr)
     else:
         noise = None
-    val = atlas(compartment=compartment,
+    val = atlas(compartments=compartment,
+                normalise=normalise,
                 sigma=kernel_sigma,
                 noise=noise,
-                normalise=normalise)
-    tensor.copy_(val)
+                max_bin=max_bin,
+                spherical_scale=spherical_scale,
+                truncate=truncate)
+    tensor.copy_(val[compartment[0]])
 
 
 class AtlasInit(DomainInitialiser):
-    def __init__(self, atlas, kernel_sigma=None, noise_sigma=None,
-                 normalise=False, domain=None):
-        init = partial(atlas_init_, atlas=atlas, kernel_sigma=kernel_sigma,
-                       noise_sigma=noise_sigma, normalise=normalise)
+    def __init__(self, atlas, normalise=False, max_bin=10000,
+                 spherical_scale=1, truncate=None, kernel_sigma=None,
+                 noise_sigma=None, domain=None):
+        init = partial(atlas_init_, atlas=atlas, normalise=normalise,
+                       max_bin=max_bin, spherical_scale=spherical_scale,
+                       kernel_sigma=kernel_sigma, noise_sigma=noise_sigma,
+                       truncate=truncate)
+        if domain is None:
+            try:
+                domain = atlas.init['all'].domain
+            except AttributeError:
+                pass
         super(AtlasInit, self).__init__(init=init, domain=domain)
 
     def __call__(self, tensor):
         for k, v in tensor.items():
-            super(AtlasInit, self).__call__(v, compartment=k)
+            super(AtlasInit, self).__call__(v, compartment=[k])
 
 
 def _cifti_atlas_common_args(

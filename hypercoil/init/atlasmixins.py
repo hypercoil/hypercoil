@@ -430,13 +430,6 @@ class _ContinuousLabelMixin:
         self.decoder = {}
         for c, mask in self.compartments.items():
             mask = mask.reshape(self.ref.shape[:-1])
-            #TODO
-            # This is a relatively slow step and is repeated work.
-            # Can we minimise the extent to which we load the ref data
-            # from disk? We should temporarily cache it in memory during
-            # the atlas init and then lose it when init is complete.
-            # Let's take care of this after the atlas init is fully
-            # operational.
             labels_in_compartment = np.where(
                 self.cached_ref_data[mask].sum(0))[0]
             labels_in_compartment = labels_in_compartment[
