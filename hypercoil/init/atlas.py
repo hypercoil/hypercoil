@@ -37,6 +37,41 @@ from ..functional import UnstructuredNoiseSource
 #TODO: restore doc strings
 
 
+def _cifti_atlas_common_args(
+    mask_L=None, mask_R=None, surf_L=None, surf_R=None
+):
+    default_mask_query_args = {
+        'template' : 'fsLR',
+        'density' : '32k',
+        'desc' : 'nomedialwall',
+        'suffix' : 'dparc'
+    }
+    default_surf_query_args = {
+        'template' : 'fsLR',
+        'density' : '32k',
+        'suffix' : 'sphere',
+        'space' : None
+    }
+    if mask_L is None:
+        mask_L = tflow.get(hemi='L', **default_mask_query_args)
+    if mask_R is None:
+        mask_R = tflow.get(hemi='R', **default_mask_query_args)
+    if surf_L is None:
+        surf_L = tflow.get(hemi='L', **default_surf_query_args)
+    if surf_R is None:
+        surf_R = tflow.get(hemi='R', **default_surf_query_args)
+    surf = {
+        'cortex_L' : surf_L,
+        'cortex_R' : surf_R
+    }
+    mask_source = {
+        'cortex_L' : mask_L,
+        'cortex_R' : mask_R,
+        'subcortex' : None
+    }
+    return surf, mask_source
+
+
 class BaseAtlas(ABC):
     def __init__(self, ref_pointer, mask_source, dtype=None, device=None,
                  clear_cache=True, **kwargs):
@@ -75,7 +110,7 @@ class BaseAtlas(ABC):
         pass
 
     @abstractmethod
-    def _configure_compartment_maps(self, dtype=None, device=None):
+    def _populate_map_from_ref(self, map, labels, mask, compartment=None):
         pass
 
     @abstractmethod
@@ -240,35 +275,12 @@ class CortexSubcortexCIfTIAtlas(
                  cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
                  cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
                  clear_cache=True, dtype=None, device=None):
-        default_mask_query_args = {
-            'template' : 'fsLR',
-            'density' : '32k',
-            'desc' : 'nomedialwall',
-            'suffix' : 'dparc'
-        }
-        default_surf_query_args = {
-            'template' : 'fsLR',
-            'density' : '32k',
-            'suffix' : 'sphere',
-            'space' : None
-        }
-        if mask_L is None:
-            mask_L = tflow.get(hemi='L', **default_mask_query_args)
-        if mask_R is None:
-            mask_R = tflow.get(hemi='R', **default_mask_query_args)
-        if surf_L is None:
-            surf_L = tflow.get(hemi='L', **default_surf_query_args)
-        if surf_R is None:
-            surf_R = tflow.get(hemi='R', **default_surf_query_args)
-        self.surf = {
-            'cortex_L' : surf_L,
-            'cortex_R' : surf_R
-        }
-        mask_source = {
-            'cortex_L' : mask_L,
-            'cortex_R' : mask_R,
-            'subcortex' : None
-        }
+        self.surf, mask_source = _cifti_atlas_common_args(
+            mask_L=mask_L,
+            mask_R=mask_R,
+            surf_L=surf_L,
+            surf_R=surf_R
+        )
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=mask_source,
                          clear_cache=clear_cache,
@@ -301,35 +313,12 @@ class DirichletInitSurfaceAtlas(
                  mask_L=None, mask_R=None, surf_L=None, surf_R=None,
                  cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
                  cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT'):
-        default_mask_query_args = {
-            'template' : 'fsLR',
-            'density' : '32k',
-            'desc' : 'nomedialwall',
-            'suffix' : 'dparc'
-        }
-        default_surf_query_args = {
-            'template' : 'fsLR',
-            'density' : '32k',
-            'suffix' : 'sphere',
-            'space' : None
-        }
-        if mask_L is None:
-            mask_L = tflow.get(hemi='L', **default_mask_query_args)
-        if mask_R is None:
-            mask_R = tflow.get(hemi='R', **default_mask_query_args)
-        if surf_L is None:
-            surf_L = tflow.get(hemi='L', **default_surf_query_args)
-        if surf_R is None:
-            surf_R = tflow.get(hemi='R', **default_surf_query_args)
-        self.surf = {
-            'cortex_L' : surf_L,
-            'cortex_R' : surf_R
-        }
-        mask_source = {
-            'cortex_L' : mask_L,
-            'cortex_R' : mask_R,
-            'subcortex' : None
-        }
+        self.surf, mask_source = _cifti_atlas_common_args(
+            mask_L=mask_L,
+            mask_R=mask_R,
+            surf_L=surf_L,
+            surf_R=surf_R
+        )
         super().__init__(template_image=cifti_template,
                          mask_source=mask_source,
                          compartment_labels=compartment_labels,
