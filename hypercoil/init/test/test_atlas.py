@@ -67,7 +67,7 @@ class TestAtlasInit:
 
         lin = AtlasLinear(atlas, mask_input=True)
         out = lin(inpT.reshape(-1, 20))
-        assert np.allclose(out['all'].detach().numpy(), ref.T)
+        assert np.allclose(out.detach().numpy(), ref.T)
 
     def test_multivolume_atlas(self):
         atlas = MultiVolumetricAtlas(
@@ -154,6 +154,24 @@ class TestAtlasInit:
         assert torch.all(
             torch.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
 
+        inp = torch.rand([1, 2, 91282, 3])
+        lin = AtlasLinear(atlas)
+        out = lin.select_compartment('cortex_L', inp)
+        assert out.shape == (1, 2, 29696, 3)
+
+        out = lin(inp)
+        assert out.shape == (1, 2, 333, 3)
+
+        lin.decode = True
+        out2 = lin(inp)
+        assert out2.shape == (1, 2, 333, 3)
+        reorder = torch.cat((
+            lin.atlas.decoder['cortex_L'],
+            lin.atlas.decoder['cortex_R']
+        ))
+        assert not torch.allclose(out, out2)
+        assert torch.allclose(out2[..., (reorder - 1), :], out)
+
         """
         Let's keep this on CUDA only. It's extremely slow.
         from hypercoil.functional.cov import pairedcorr
@@ -232,7 +250,7 @@ class TestAtlasInit:
         assert out.shape == (1, 2, 66795, 3)
 
         out = lin(out)
-        assert out['all'].shape == (1, 2, 50, 3)
+        assert out.shape == (1, 2, 50, 3)
 
         lin.dropout = UnstructuredDropoutSource(
             distr=torch.distributions.Bernoulli(
@@ -249,8 +267,8 @@ class TestAtlasInit:
         # reductions.
         lin.reduction = 'zscore'
         out = lin(torch.rand(66795, 3))
-        assert np.allclose(out['all'].mean(-1).detach(), 0, atol=1e-4)
-        assert np.allclose(out['all'].std(-1).detach(), 1, atol=1e-4)
+        assert np.allclose(out.mean(-1).detach(), 0, atol=1e-4)
+        assert np.allclose(out.std(-1).detach(), 1, atol=1e-4)
         lin.reduction = 'mean'
 
     def test_surface_dirichlet_atlas(self):
