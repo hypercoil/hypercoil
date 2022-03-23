@@ -21,7 +21,8 @@ from hypercoil.init.atlas import (
     DirichletInitVolumetricAtlas,
     DirichletInitSurfaceAtlas,
     _MemeAtlas,
-    AtlasInit
+    AtlasInit,
+    MaskThreshold
 )
 from hypercoil.functional.noise import UnstructuredDropoutSource
 
@@ -143,17 +144,20 @@ class TestAtlasInit:
 
     def test_volumetric_dirichlet_atlas(self):
         atlas = DirichletInitVolumetricAtlas(
-            mask_source=tflow.get(
-                template='MNI152NLin2009cAsym',
-                resolution=2,
-                desc='brain',
-                suffix='mask'
+            mask_source=MaskThreshold(
+                tflow.get(
+                    template='MNI152NLin2009cAsym',
+                    resolution=2,
+                    label='GM',
+                    suffix='probseg'
+                ),
+                threshold=0.2
             ),
             compartment_labels={'all': 50}
         )
-        assert atlas.mask.sum() == 235840
+        assert atlas.mask.sum() == 126006
         assert atlas.decoder['all'].tolist() == list(range(50))
-        assert atlas.maps['all'].shape == (50, 235840)
+        assert atlas.maps['all'].shape == (50, 126006)
         assert np.allclose(
             torch.softmax(atlas.maps['all'], axis=-2).sum(-2), 1)
         x, y, z = 84, 62, 13
