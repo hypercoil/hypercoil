@@ -103,6 +103,22 @@ class _CIfTIReferenceMixin:
                 if isinstance(a, nb.cifti2.cifti2_axes.BrainModelAxis)][0]
 
 
+class FloatLeaf:
+    def __init__(self, img):
+        self.img = img
+
+    def __call__(self, nifti=False):
+        if not nifti:
+            return nb.load(self.img).get_fdata()
+        else:
+            img = nb.load(self.img)
+            return {
+                'affine': img.affine,
+                'header': img.header,
+                'dataobj': img.get_fdata()
+            }
+
+
 class MaskLeaf:
     """
     Leaf node for mask logic operations.
@@ -120,14 +136,15 @@ class MaskLeaf:
             return {
                 'affine': img.affine,
                 'header': img.header,
-                'dataobj': mask}
+                'dataobj': mask
+            }
 
 
 class MaskThreshold:
     def __init__(self, child, threshold):
         self.threshold = threshold
         if _is_path(child):
-            self.child = MaskLeaf(child)
+            self.child = FloatLeaf(child)
         else:
             self.child = child
 
@@ -147,7 +164,7 @@ class MaskUThreshold:
     def __init__(self, child, threshold):
         self.threshold = threshold
         if _is_path(child):
-            self.child = MaskLeaf(child)
+            self.child = FloatLeaf(child)
         else:
             self.child = child
 
