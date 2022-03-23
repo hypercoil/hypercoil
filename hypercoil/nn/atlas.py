@@ -99,6 +99,7 @@ class AtlasLinear(Module):
         mask_input=False,
         normalise=True,
         compartments=True,
+        concatenate=True,
         decode=False,
         kernel_sigma=None,
         noise_sigma=None,
@@ -119,6 +120,8 @@ class AtlasLinear(Module):
         self.mask = self.atlas.mask
         self.mask_input = mask_input
         self.reduction = reduction
+        self.concatenate = concatenate
+        self.decode = decode
         self.init = AtlasInit(
             self.atlas,
             normalise=False,
@@ -195,21 +198,57 @@ class AtlasLinear(Module):
             return 100 * (out - mean) / mean
         return out
 
-    def apply_mask(self, input):
-        shape = input.size()
-        mask = self.mask
+    def _conform_mask_to_input(self, mask, input):
         while mask.dim() < input.dim() - 1:
             mask = mask.unsqueeze(0)
-        input = input[mask.expand(shape[:-1])]
+        return mask.expand(input.shape[:-1])
+
+
+    def apply_mask(self, input):
+        shape = input.size()
+        mask = self._conform_mask_to_input(mask=self.mask, input=input)
+        input = input[mask]
         input = input.view(*shape[:-2], -1 , shape[-1])
         return input
+
+    def select_compartment(self, compartment, input):
+        shape = input.size()
+        mask = self.atlas.compartments[compartment]
+        mask = mask[self.mask]
+        mask = self._conform_mask_to_input(mask=mask, input=input)
+        input = input[mask].view(*shape[:-2], -1 , shape[-1])
+        return input
+
+    def concatenate_and_decode(self, input):
+        if self.decode:
+            k = list(self.weight.keys())[0]
+            shape = (
+                *input[k].shape[:-2],
+                len(self.atlas.decoder['_all']),
+                input[k].shape[-1]
+            )
+            out = torch.empty(
+                *shape,
+                dtype=input[k].dtype,
+                device=input[k].device
+            )
+            for compartment, tensor in input.items():
+                out[..., (self.atlas.decoder[compartment] - 1), :] = tensor
+        #TODO: Let's use an OrderedDict to be safe.
+        elif self.concatenate:
+            out = torch.cat([v for v in input.values()], -2)
+        return out
 
     def forward(self, input):
         if self.mask_input:
             input = self.apply_mask(input)
         out = {}
         for k, v in self.postweight.items():
-            out[k] = self.reduce(input, v)
+            if v.shape == (0,):
+                continue
+            compartment = self.select_compartment(k, input)
+            out[k] = self.reduce(compartment, v)
+        out = self.concatenate_and_decode(out)
         return out
 
     def __repr__(self):
