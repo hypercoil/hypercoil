@@ -21,20 +21,19 @@ class AtlasLinear(Module):
 
     Dimension
     ---------
-    - Input: :math:`(N, *, X, Y, Z, T)` or :math:`(N, *, V, T)`
+    - Input: :math:`(N, *, V, T)`
       N denotes batch size, `*` denotes any number of intervening dimensions,
-      X, Y, and Z denote 3 spatial dimensions, V denotes total number of
-      voxels, T denotes number of time points or observations.
+      V denotes total number of voxels or spatial locations, T denotes number
+      of time points or observations.
     - Output: :math:`(N, *, L, T)`
       L denotes number of labels in the provided atlas.
 
     Parameters
     ----------
     atlas : Atlas object
-        A neuroimaging atlas, implemented as a `DiscreteAtlas` or
-        `ContinuousAtlas` object (`hypercoil.init.DiscreteAtlas` and
-        `hypercoil.init.ContinuousAtlas`). This initialises the atlas labels
-        from which representative time series are extracted.
+        A neuroimaging atlas, implemented as an instance of a subclass of
+        `BaseAtlas`. This initialises the atlas labels from which
+        representative time series are extracted.
     kernel_sigma : float
         If this is a float, then a Gaussian smoothing kernel with the
         specified width is applied to each label at initialisation.
@@ -42,15 +41,16 @@ class AtlasLinear(Module):
         If this is a float, then Gaussian noise with the specified standard
         deviation is added to the label at initialisation.
     mask_input : bool
-        Indicates that each input is a 4D image that must be masked before
-        time series extraction. If True, then the boolean tensor stored in the
-        `mask` field of the `atlas` input is used to subset and "unfold" each
-        4D image into a 2D space by time matrix.
+        Indicates that each input contains non-atlas locations and should be
+        masked before time series extraction. If True, then the boolean tensor
+        stored in the `mask` field of the `atlas` input is used to subset each
+        input.
     spatial_dropout : float in [0, 1) (default 0)
         Probability of dropout for each voxel. If this is nonzero, then during
         training each voxel's weight has some probability of being set to zero,
         thus discounting the voxel from the time series estimate. In theory,
-        this can promote learning a weight that is robust to any single voxel.
+        this can perhaps promote learning a weight that is robust to the
+        influence of any single voxel.
     min_voxels : positive int (default 1)
         Minimum number of voxels that each region must contain after dropout.
         If a random dropout results in fewer remaining voxels, then another
@@ -61,20 +61,22 @@ class AtlasLinear(Module):
         the domain of the atlas weights. An `Identity` object yields the raw
         atlas weights, while an `Atanh` object constrains weights to (-a, a),
         and a `Logit` object constrains weights to (0, a) by transforming the
-        raw weights through a tanh or sigmoid function, respectively. Using an
-        appropriate domain can ensure that weights are nonnegative and that
-        they do not grow explosively.
+        raw weights through a tanh or sigmoid function, respectively. A
+        `MultiLogit` domain mapper lends the atlas an intuitive interpretation
+        as a probabilistic parcellation. Using an appropriate domain can
+        ensure that weights are nonnegative and that they do not grow
+        explosively.
     reduce : 'mean', 'absmean', 'zscore', 'psc', or 'sum' (default 'mean')
         Strategy for reducing across voxels and generating a representative
         time series for each label.
-        * `sum`: Sum over voxel time series.
-        * `mean`: Compute the mean over voxel time series.
-        * `absmean`: Compute the mean over voxel time series, treating any
-          negative voxel weights as though they were positive.
+        * `sum`: Weighted sum over voxel time series.
+        * `mean`: Compute the weighted mean over voxel time series.
+        * `absmean`: Compute the weighted mean over voxel time series,
+          treating any negative voxel weights as though they were positive.
         * `zscore`: Transform the sum of time series such that its temporal
           mean is 0 and its temporal standard deviation is 1.
         * `psc`: Transform the time series such that its value indicates the
-          percent signal change from the mean.
+          percent signal change from the mean. (untested)
 
     Attributes
     ----------
@@ -86,13 +88,16 @@ class AtlasLinear(Module):
         Representation of the atlas as a linear map from voxels to labels,
         applied independently to each time point in each input image.
     postweight : Tensor :math:`(L, V)`
-        Atlas map after application of spatial dropout. Spatial dropout has
-        a chance of randomly removing each voxel from consideration when
-        extracting each time series. Spatial dropout is applied only during
-        training. Identical to `weight` if there is no spatial dropout.
-    mask : Tensor :math:`(X, Y, Z)`
+        Atlas map after application of spatial dropout or noise. Spatial
+        dropout has a chance of randomly removing each voxel from
+        consideration when extracting each time series. Spatial dropout
+        is applied only during training. Identical to `weight` if there is no
+        spatial dropout.
+    mask : Tensor :math:`(V)`
         Boolean-valued tensor indicating the voxels that should be included as
         inputs to the atlas transformation.
+    coors : Tensor :math:`(V, D)`
+        Spatial coordinates of each location in the atlas
     """
     def __init__(
         self,
