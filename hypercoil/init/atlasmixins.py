@@ -255,7 +255,7 @@ class _CIfTIReferenceMixin:
                 if isinstance(a, nb.cifti2.cifti2_axes.BrainModelAxis)][0]
 
 
-class _MaskLogicMixin:
+class _LogicMaskMixin:
     def _create_mask(self, source, device=None):
         if _is_path(source):
             source = MaskLeaf(source)
@@ -263,7 +263,7 @@ class _MaskLogicMixin:
         self.mask = torch.tensor(init.ravel(), device=device)
 
 
-class _CortexSubcortexMaskCIfTIMixin:
+class _CortexSubcortexCIfTIMaskMixin:
     def _create_mask(self, source, device=None):
         init = []
         for k, v in source.items():
@@ -278,7 +278,7 @@ class _CortexSubcortexMaskCIfTIMixin:
         self.mask = torch.tensor(np.concatenate(init), device=device)
 
 
-class _MaskFromNullMixin:
+class _FromNullMaskMixin:
     def _create_mask(self, source, device=None):
         if self.ref.ndim <= 3:
             init = (self.cached_ref_data.round() != source)
@@ -328,7 +328,7 @@ class _MultiCompartmentMixin:
                     ).ravel()
 
 
-class _CortexSubcortexCompartmentCIfTIMixin:
+class _CortexSubcortexCIfTICompartmentMixin:
     def _compartment_names_dict(self, **kwargs):
         return kwargs
 
@@ -507,7 +507,7 @@ class _VolumetricMeshMixin:
         self.topology = {c: 'euclidean' for c in self.compartments.keys()}
 
 
-class _VertexCoordinatesCIfTIMixin:
+class _VertexCIfTIMeshMixin:
     def _init_coors(self, source=None, names_dict=None,
                     dtype=None, device=None):
         model_axis = self.model_axis

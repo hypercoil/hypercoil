@@ -22,6 +22,8 @@ from hypercoil.init.atlas import (
     DirichletInitSurfaceAtlas,
     _MemeAtlas,
     AtlasInit,
+)
+from hypercoil.init.atlasmixins import (
     MaskThreshold,
     MaskNegation,
     MaskIntersection
@@ -104,7 +106,8 @@ class TestAtlasInit:
                 hemi='R',
                 desc='nomedialwall',
                 density='32k'),
-            clear_cache=False
+            clear_cache=False,
+            dtype=torch.float
         )
         assert atlas.mask.sum() == atlas.ref.shape[-1]
         assert atlas.compartments['cortex_L'].sum() == 29696
@@ -133,6 +136,23 @@ class TestAtlasInit:
         # On a sphere of radius 100
         assert torch.all(
             torch.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
+
+        """
+        Let's keep this on CUDA only. It's extremely slow.
+        from hypercoil.functional.cov import pairedcorr
+        maps = atlas(
+            compartments=['cortex_L'],
+            normalise=True,
+            sigma=3,
+            truncate=20,
+            max_bin=1000
+        )
+        assert np.allclose(maps['cortex_L'].sum(-1), 1)
+        assert pairedcorr(
+            maps['cortex_L'][0].view(1, -1),
+            atlas.maps['cortex_L'][0].view(1, -1)
+        ) > 0.9
+        """
 
     def test_compartments_atlas(self):
         atlas = _MemeAtlas()
@@ -179,7 +199,7 @@ class TestAtlasInit:
                     threshold=0.2
                 ))
             ),
-            compartment_labels={'all': 50}
+            n_labels=50
         )
         assert atlas.mask.sum() == 66795
         assert atlas.decoder['all'].tolist() == list(range(50))
