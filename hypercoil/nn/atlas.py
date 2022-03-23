@@ -93,39 +93,57 @@ class AtlasLinear(Module):
         Boolean-valued tensor indicating the voxels that should be included as
         inputs to the atlas transformation.
     """
-    def __init__(self, atlas, kernel_sigma=None, noise_sigma=None,
-                 mask_input=False, spatial_dropout=0, min_voxels=1,
-                 domain=None, reduce='mean', dtype=None, device=None):
+    def __init__(
+        self,
+        atlas,
+        mask_input=False,
+        normalise=True,
+        compartments=True,
+        decode=False,
+        kernel_sigma=None,
+        noise_sigma=None,
+        max_bin=10000,
+        spherical_scale=1,
+        truncate=None,
+        domain=None,
+        spatial_dropout=0,
+        min_voxels=1,
+        reduction='mean',
+        dtype=None,
+        device=None
+    ):
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(AtlasLinear, self).__init__()
 
         self.atlas = atlas
-        self.kernel_sigma = kernel_sigma
-        self.noise_sigma = noise_sigma
-        self.domain = domain or Identity()
-        self.reduction = reduce
+        self.mask = self.atlas.mask
         self.mask_input = mask_input
-        self.mask = (
-            torch.from_numpy(self.atlas.mask).to(device).type(torch.bool)
-            if self.mask_input else None
-        )
-        # not great -- ensure n_voxels tabulated for all compartments
-        if len(self.atlas.n_voxels) == 1: self.atlas.map()
-        self.preweight = ParameterDict({
-            c : Parameter(torch.empty(self.atlas.n_labels[c],
-                                      self.atlas.n_voxels[c]
-                                      **factory_kwargs))
-            for c in self.atlas.compartments.keys()
-            if self.atlas.n_voxels[c] > 0
-        })
-        self._configure_spatial_dropout(spatial_dropout, min_voxels)
+        self.reduction = reduction
         self.init = AtlasInit(
-            atlas=self.atlas,
-            kernel_sigma=self.kernel_sigma,
-            noise_sigma=self.noise_sigma,
-            domain=self.domain,
-            normalise=False
+            self.atlas,
+            normalise=False,
+            max_bin=max_bin,
+            spherical_scale=spherical_scale,
+            kernel_sigma=kernel_sigma,
+            noise_sigma=noise_sigma,
+            truncate=truncate,
+            domain=domain
         )
+        self.domain = self.init.domain
+
+        if compartments:
+            self.preweight = ParameterDict({
+                c : Parameter(torch.empty_like(self.atlas.maps[c],
+                                               **factory_kwargs))
+                for c in atlas.compartments.keys()
+            })
+        else:
+            self.preweight = ParameterDict({
+                '_all' : Parameter(torch.empty_like(self.atlas.maps['_all'],
+                                                    **factory_kwargs))
+            })
+        self.coors = self.atlas.coors
+        self._configure_spatial_dropout(spatial_dropout, min_voxels)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -160,19 +178,6 @@ class AtlasLinear(Module):
             return weight
         return self.weight
 
-    def conform_and_reduce(self, input, weight):
-        index = [slice(None, None, None) for _ in input.size()]
-        out = {}
-        for k, v in weight.items():
-            # TODO: fix the completely broken code here
-            # -2 is expected to be space/voxel axis at this point
-            # This is only going to work for greyordinates.
-            index[-2:-1] = self.atlas.compartments[k]
-            idx = tuple(index)
-            conformed = input[idx]
-            out[k] = self.reduce(conformed, v)
-        return out
-
     def reduce(self, input, weight):
         out = weight @ input
         if self.reduction == 'mean':
@@ -193,18 +198,19 @@ class AtlasLinear(Module):
     def apply_mask(self, input):
         shape = input.size()
         mask = self.mask
-        extra_dims = 0
         while mask.dim() < input.dim() - 1:
             mask = mask.unsqueeze(0)
-            extra_dims += 1
         input = input[mask.expand(shape[:-1])]
-        input = input.view(*shape[:extra_dims], -1 , shape[-1])
+        input = input.view(*shape[:-2], -1 , shape[-1])
         return input
 
     def forward(self, input):
         if self.mask_input:
             input = self.apply_mask(input)
-        return self.conform_and_reduce(input, self.postweight)
+        out = {}
+        for k, v in self.postweight.items():
+            out[k] = self.reduce(input, v)
+        return out
 
     def __repr__(self):
         s = f'{type(self).__name__}(atlas={self.atlas}, '
