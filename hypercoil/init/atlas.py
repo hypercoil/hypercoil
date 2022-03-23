@@ -10,6 +10,7 @@ import torch
 import templateflow.api as tflow
 from functools import partial
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from .atlasmixins import (
     _ObjectReferenceMixin,
     _SingleReferenceMixin,
@@ -202,7 +203,7 @@ class BaseAtlas(ABC):
             Maximum distance at which data points are convolved together
             during smoothing.
         """
-        ret = {}
+        ret = OrderedDict()
         if compartments is False:
             compartments = ['_all']
         elif isinstance(compartments, str):
@@ -225,7 +226,7 @@ class BaseAtlas(ABC):
         return ret
 
     def _configure_compartment_maps(self, dtype=None, device=None):
-        self.maps = {}
+        self.maps = OrderedDict()
         for c, mask in self.compartments.items():
             labels = self.decoder[c]
             dim_out = len(labels)
@@ -287,14 +288,14 @@ class DirichletInitBaseAtlas(
             compartment_labels = {'all', compartment_labels}
         self.compartment_labels = compartment_labels
         if init is None:
-            init = {
-                c : DirichletInit(
+            init = OrderedDict((
+                c, DirichletInit(
                     n_classes=i,
                     concentration=torch.tensor([conc for _ in range (i)]),
                     axis=-2
-                )
+                ))
                 for c, i in compartment_labels.items()
-            }
+            )
         self.init = init
         self._global_compartment_init()
         super().__init__(ref_pointer=template_image,

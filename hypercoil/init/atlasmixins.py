@@ -9,6 +9,7 @@ Mixins for designing atlas classes.
 import torch
 import numpy as np
 import nibabel as nb
+from collections import OrderedDict
 from pathlib import PosixPath
 from scipy.ndimage import gaussian_filter
 from ..functional.sphere import spherical_conv, euclidean_conv
@@ -314,7 +315,7 @@ class _MultiCompartmentMixin:
         dtype = self.mask.dtype # should be torch.bool
         device = self.mask.device
 
-        self.compartments = {}
+        self.compartments = OrderedDict()
         for name, vol in names_dict.items():
             if isinstance(name, str):
                 self.compartments[name] = torch.tensor(
@@ -334,20 +335,20 @@ class _CortexSubcortexCIfTICompartmentMixin:
 
     def _create_compartments(self, names_dict, ref=None):
         ref = ref or self.ref
-        self.compartments = {
-            'cortex_L' : torch.zeros(
+        self.compartments = OrderedDict([
+            ('cortex_L', torch.zeros(
                 self.mask.shape,
                 dtype=torch.bool,
-                device=self.mask.device),
-            'cortex_R' : torch.zeros(
+                device=self.mask.device)),
+            ('cortex_R', torch.zeros(
                 self.mask.shape,
                 dtype=torch.bool,
-                device=self.mask.device),
-            'subcortex': torch.zeros(
+                device=self.mask.device)),
+            ('subcortex', torch.zeros(
                 self.mask.shape,
                 dtype=torch.bool,
-                device=self.mask.device),
-        }
+                device=self.mask.device)),
+        ])
         # This could not be more stupid. All thanks to the amazing design
         # choice that indexing returns a copy in numpy/torch.
         if self.mask.shape == self.ref.shape[-1]:
@@ -387,7 +388,7 @@ class _CortexSubcortexCIfTICompartmentMixin:
 
 class _DiscreteLabelMixin:
     def _configure_decoders(self, null_label=0):
-        self.decoder = {}
+        self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
             try:
                 mask = mask.reshape(self.ref.shape)
@@ -427,7 +428,7 @@ class _DiscreteLabelMixin:
 
 class _ContinuousLabelMixin:
     def _configure_decoders(self, null_label=None):
-        self.decoder = {}
+        self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
             mask = mask.reshape(self.ref.shape[:-1])
             labels_in_compartment = np.where(
@@ -455,7 +456,7 @@ class _ContinuousLabelMixin:
 
 class _DirichletLabelMixin:
     def _configure_decoders(self, null_label=None):
-        self.decoder = {}
+        self.decoder = OrderedDict()
         n_labels = 0
         for c, i in self.compartment_labels.items():
             if i == 0:
@@ -497,7 +498,8 @@ class _VolumetricMeshMixin:
             dtype=dtype,
             device=device
         )
-        self.topology = {c: 'euclidean' for c in self.compartments.keys()}
+        self.topology = OrderedDict(
+            (c, 'euclidean') for c in self.compartments.keys())
 
 
 class _VertexCIfTIMeshMixin:
@@ -526,7 +528,7 @@ class _VertexCIfTIMeshMixin:
             dtype=dtype,
             device=device
         )
-        self.topology = {}
+        self.topology = OrderedDict()
         euc_mask = torch.BoolTensor(self.model_axis.volume_mask)
         for c, mask in self.compartments.items():
             if mask.shape != euc_mask.shape:
