@@ -591,7 +591,7 @@ class _SpatialConvMixin:
 
 class BaseAtlas:
     def __init__(self, ref_pointer, mask_source, dtype=None, device=None,
-                 **kwargs):
+                 clear_cache=True, **kwargs):
         self.ref_pointer = ref_pointer
         self.ref = self._load_reference(ref_pointer)
 
@@ -603,6 +603,8 @@ class BaseAtlas:
         self._configure_compartment_maps(dtype=dtype, device=device)
         self._init_coors(source=mask_source, names_dict=names_dict,
                          dtype=dtype, device=device)
+        if clear_cache:
+            del self.cached_ref_data
 
     def __call__(self, compartments=None, normalise=False, sigma=None,
                  noise=None, max_bin=10000, spherical_scale=1, truncate=None):
@@ -654,9 +656,11 @@ class DiscreteVolumetricAtlas(
     _VolumetricMeshMixin,
     _SpatialConvMixin
 ):
-    def __init__(self, ref_pointer, dtype=None, device=None,):
+    def __init__(self, ref_pointer, clear_cache=True,
+                 dtype=None, device=None,):
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=0,
+                         clear_cache=clear_cache,
                          dtype=dtype,
                          device=device)
 
@@ -670,9 +674,11 @@ class MultiVolumetricAtlas(
     _VolumetricMeshMixin,
     _SpatialConvMixin
 ):
-    def __init__(self, ref_pointer, dtype=None, device=None,):
+    def __init__(self, ref_pointer, clear_cache=True,
+                 dtype=None, device=None,):
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=0,
+                         clear_cache=clear_cache,
                          dtype=dtype,
                          device=device)
 
@@ -686,9 +692,11 @@ class MultifileVolumetricAtlas(
     _VolumetricMeshMixin,
     _SpatialConvMixin
 ):
-    def __init__(self, ref_pointer, dtype=None, device=None,):
+    def __init__(self, ref_pointer, clear_cache=True,
+                 dtype=None, device=None,):
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=0,
+                         clear_cache=clear_cache,
                          dtype=dtype,
                          device=device)
 
@@ -707,7 +715,7 @@ class CortexSubcortexCIfTIAtlas(
                  mask_L=None, mask_R=None, surf_L=None, surf_R=None,
                  cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
                  cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
-                 dtype=None, device=None):
+                 clear_cache=True, dtype=None, device=None):
         default_mask_query_args = {
             'template' : 'fsLR',
             'density' : '32k',
@@ -739,6 +747,7 @@ class CortexSubcortexCIfTIAtlas(
         }
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=mask_source,
+                         clear_cache=clear_cache,
                          dtype=dtype,
                          device=device,
                          cortex_L=cortex_L,

@@ -37,7 +37,8 @@ class TestAtlasInit:
                 template='MNI152NLin2009cAsym',
                 resolution=2,
                 desc='100Parcels7Networks',
-                suffix='dseg')
+                suffix='dseg'),
+            clear_cache=False
         )
         assert atlas.mask.shape[0] == np.prod(atlas.ref.shape)
         assert atlas.mask.sum() == 139951
@@ -55,7 +56,8 @@ class TestAtlasInit:
                 template='MNI152NLin2009cAsym',
                 atlas='DiFuMo',
                 resolution=2,
-                desc='64dimensions')
+                desc='64dimensions'),
+            clear_cache=False
         )
         assert atlas.mask.shape[0] == np.prod(atlas.ref.shape[:-1])
         assert atlas.mask.sum() == 131238
@@ -76,7 +78,8 @@ class TestAtlasInit:
                 suffix='probseg',
                 label=l,
                 resolution=2)
-            for l in ('CSF', 'GM', 'WM')]
+            for l in ('CSF', 'GM', 'WM')],
+            clear_cache=False
         )
         assert atlas.mask.shape[0] == np.prod(atlas.ref.shape[:-1])
         assert atlas.mask.sum() == 281973
@@ -100,7 +103,8 @@ class TestAtlasInit:
                 template='fsLR',
                 hemi='R',
                 desc='nomedialwall',
-                density='32k')
+                density='32k'),
+            clear_cache=False
         )
         assert atlas.mask.sum() == atlas.ref.shape[-1]
         assert atlas.compartments['cortex_L'].sum() == 29696
