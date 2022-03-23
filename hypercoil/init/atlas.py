@@ -111,7 +111,9 @@ class BaseAtlas(ABC):
         this is purged when construction is complete.
     """
     def __init__(self, ref_pointer, mask_source, dtype=None, device=None,
-                 clear_cache=True, **kwargs):
+                 clear_cache=True, name=None, **kwargs):
+        if name is None: name = ''
+        self.name = name
         self.ref_pointer = ref_pointer
         self.ref = self._load_reference(ref_pointer)
 
@@ -154,6 +156,9 @@ class BaseAtlas(ABC):
     def _init_coors(self, source=None, names_dict=None,
                     dtype=None, device=None):
         pass
+
+    def __repr__(self):
+        return f'{type(self).__name__}({self.name})'
 
     def __call__(self, compartments=True, normalise=False, sigma=None,
                  noise=None, max_bin=10000, spherical_scale=1, truncate=None):
@@ -275,7 +280,7 @@ class DirichletInitBaseAtlas(
     """
     def __init__(self, mask_source, compartment_labels, conc=100.,
                  template_image=None, init=None, dtype=None, device=None,
-                 **kwargs):
+                 name=None, **kwargs):
         if template_image is None:
             template_image = mask_source
         if isinstance(compartment_labels, int):
@@ -294,6 +299,7 @@ class DirichletInitBaseAtlas(
         self._global_compartment_init()
         super().__init__(ref_pointer=template_image,
                          mask_source=mask_source,
+                         name=name,
                          dtype=dtype,
                          device=device,
                          **kwargs)
@@ -364,11 +370,12 @@ class DiscreteVolumetricAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
-    def __init__(self, ref_pointer, clear_cache=True,
+    def __init__(self, ref_pointer, clear_cache=True, name=None,
                  dtype=None, device=None,):
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=0,
                          clear_cache=clear_cache,
+                         name=name,
                          dtype=dtype,
                          device=device)
 
@@ -425,11 +432,12 @@ class MultiVolumetricAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
-    def __init__(self, ref_pointer, clear_cache=True,
+    def __init__(self, ref_pointer, clear_cache=True, name=None,
                  dtype=None, device=None,):
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=0,
                          clear_cache=clear_cache,
+                         name=name,
                          dtype=dtype,
                          device=device)
 
@@ -487,11 +495,12 @@ class MultifileVolumetricAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
-    def __init__(self, ref_pointer, clear_cache=True,
+    def __init__(self, ref_pointer, clear_cache=True, name=None,
                  dtype=None, device=None,):
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=0,
                          clear_cache=clear_cache,
+                         name=name,
                          dtype=dtype,
                          device=device)
 
@@ -574,7 +583,7 @@ class CortexSubcortexCIfTIAtlas(
                  mask_L=None, mask_R=None, surf_L=None, surf_R=None,
                  cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
                  cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
-                 clear_cache=True, dtype=None, device=None):
+                 clear_cache=True, name=None, dtype=None, device=None):
         self.surf, mask_source = _cifti_atlas_common_args(
             mask_L=mask_L,
             mask_R=mask_R,
@@ -584,6 +593,7 @@ class CortexSubcortexCIfTIAtlas(
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=mask_source,
                          clear_cache=clear_cache,
+                         name=name,
                          dtype=dtype,
                          device=device,
                          cortex_L=cortex_L,
@@ -648,13 +658,14 @@ class DirichletInitVolumetricAtlas(
         Nothing here. The field exists for consistency with other atlas
         classes.
     """
-    def __init__(self, mask_source, n_labels, conc=100.,
+    def __init__(self, mask_source, n_labels, conc=100., name=None,
                  init=None, dtype=None, device=None, **kwargs):
         if init is not None: init = {'all': init}
         super().__init__(mask_source=mask_source,
                          compartment_labels={'all': n_labels},
                          conc=conc,
                          init=init,
+                         name=name,
                          dtype=dtype,
                          device=device)
 
@@ -742,7 +753,7 @@ class DirichletInitSurfaceAtlas(
         this is purged when construction is complete.
     """
     def __init__(self, cifti_template, compartment_labels,
-                 conc=100., init=None, dtype=None, device=None,
+                 conc=100., init=None, name=None, dtype=None, device=None,
                  mask_L=None, mask_R=None, surf_L=None, surf_R=None,
                  cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
                  cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT'):
@@ -757,6 +768,7 @@ class DirichletInitSurfaceAtlas(
                          compartment_labels=compartment_labels,
                          conc=conc,
                          init=init,
+                         name=name,
                          dtype=dtype,
                          device=device,
                          cortex_L=cortex_L,
@@ -803,6 +815,7 @@ class _MemeAtlas(
         }
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=mask_source,
+                         name='Meme',
                          **compartments_dict)
 
 
