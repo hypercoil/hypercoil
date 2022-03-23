@@ -188,7 +188,7 @@ def unsupervised_state_detection_experiment(
             ),
             LossApply(
                 VectorDispersion(nu=dist_nu),
-                apply=lambda arg: arg.cor
+                apply=lambda arg: sym2vec(arg.cor)
             )
         ])
 
@@ -257,11 +257,11 @@ def unsupervised_state_detection_experiment(
             ),
             LossApply(
                 VectorDispersion(nu=dist_nu),
-                apply=lambda arg: arg.y
+                apply=lambda arg: sym2vec(arg.y)
             ),
             LossApply(
                 VectorDispersion(nu=between_nu, name='ClusterBetween'),
-                apply=lambda arg: vec2sym(arg.group)
+                apply=lambda arg: arg.group
             ),
             LossApply(
                 NormedLoss(nu=within_nu, p=1, name='ClusterWithin'),
