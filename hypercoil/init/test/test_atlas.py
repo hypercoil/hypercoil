@@ -34,12 +34,14 @@ from hypercoil.functional.noise import UnstructuredDropoutSource
 class TestAtlasInit:
 
     def test_discrete_atlas(self):
+        ref_pointer = tflow.get(
+            template='MNI152NLin2009cAsym',
+            resolution=2,
+            desc='100Parcels7Networks',
+            suffix='dseg'
+        )
         atlas = DiscreteVolumetricAtlas(
-            ref_pointer=tflow.get(
-                template='MNI152NLin2009cAsym',
-                resolution=2,
-                desc='100Parcels7Networks',
-                suffix='dseg'),
+            ref_pointer=ref_pointer,
             clear_cache=False
         )
         assert atlas.mask.shape[0] == np.prod(atlas.ref.shape)
@@ -51,6 +53,21 @@ class TestAtlasInit:
         x, y, z = 84, 62, 13
         assert np.all(
             atlas.coors[97 * 115 * x + 97 * y + z].numpy() / 2 == [x, y, z])
+
+        img = nb.load(ref_pointer)
+        aff = img.affine
+        inp = inp = np.linspace(
+            0, 1000, np.prod(img.shape) * 20).reshape(
+            20, img.shape[1], img.shape[2], img.shape[0]).swapaxes(0, -1)
+        inpT = torch.tensor(inp, dtype=torch.float)
+
+        nil = NiftiLabelsMasker(labels_img=str(ref_pointer),
+                                resampling_target=None)
+        ref = nil.fit_transform(nb.Nifti1Image(inp, affine=aff))
+
+        lin = AtlasLinear(atlas, mask_input=True)
+        out = lin(inpT.reshape(-1, 20))
+        assert np.allclose(out['all'].detach().numpy(), ref.T)
 
     def test_multivolume_atlas(self):
         atlas = MultiVolumetricAtlas(
@@ -210,6 +227,32 @@ class TestAtlasInit:
         assert np.all(
             atlas.coors[97 * 115 * x + 97 * y + z].numpy() / 2 == [x, y, z])
 
+        lin = AtlasLinear(atlas)
+        out = lin.apply_mask(torch.empty([1, 2, 1082035, 3]))
+        assert out.shape == (1, 2, 66795, 3)
+
+        out = lin(out)
+        assert out['all'].shape == (1, 2, 50, 3)
+
+        lin.dropout = UnstructuredDropoutSource(
+            distr=torch.distributions.Bernoulli(
+                torch.Tensor([0.2])),
+            sample_axes=[-1]
+        )
+        empirical = 1 - torch.all(
+            (lin.postweight['all'] == 0), dim=-2).float().mean()
+        assert (empirical - lin.dropout.distr.mean).abs() < 0.05
+        lin.dropout = None
+
+        #TODO
+        # Currently we're only testing z-scoring. Add tests for other
+        # reductions.
+        lin.reduction = 'zscore'
+        out = lin(torch.rand(66795, 3))
+        assert np.allclose(out['all'].mean(-1).detach(), 0, atol=1e-4)
+        assert np.allclose(out['all'].std(-1).detach(), 1, atol=1e-4)
+        lin.reduction = 'mean'
+
     def test_surface_dirichlet_atlas(self):
         atlas = DirichletInitSurfaceAtlas(
             cifti_template='/Users/rastkociric/Downloads/gordon.nii',
@@ -247,36 +290,4 @@ class TestAtlasInit:
         assert torch.all(
             torch.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
 
-    #TODO: reimplement the below tests. add cuda tests.
-    """
-    def test_atlas_nn_extradims(self):
-        out = self.lin(self.inp2)
-        assert out.size() == torch.Size([2, 1, 1, 2,
-                                         self.atlas_discrete.n_labels, 10])
-
-    def test_atlas_nn_regression(self):
-        out = self.lin(self.inpT)
-        ref = self.nil.fit_transform(nb.Nifti1Image(self.inp, affine=self.aff))
-        assert np.allclose(out.detach().numpy(), ref.T)
-
-    def test_atlas_nn_reductions(self):
-        #TODO
-        # Currently we're only testing z-scoring. Add tests for other
-        # reductions.
-        self.lin.reduction = 'zscore'
-        out = self.lin(self.inpT)
-        assert np.allclose(out.mean(-1).detach(), 0, atol=1e-5)
-        assert np.allclose(out.std(-1).detach(), 1, atol=1e-5)
-        self.lin.reduction = 'mean'
-
-    def test_atlas_nn_dropout(self):
-        self.lin.dropout = UnstructuredDropoutSource(
-            distr=torch.distributions.Bernoulli(
-                torch.Tensor([0.2])),
-            sample_axes=[-1]
-        )
-        empirical = 1 - torch.all(
-            self.lin.postweight==0, dim=-2).float().mean()
-        assert (empirical - self.lin.dropout.distr.mean).abs() < 0.05
-        self.lin.dropout = None
-    """
+    #TODO: add cuda tests.
