@@ -114,7 +114,7 @@ def cmass_coor(X, coor, radius=None):
     denom = X.sum(-1)
     if radius is not None:
         cmass_euc = num / denom
-        return radius * cmass_euc / torch.linalg.norm(cmass_euc, 2, -3)
+        return radius * cmass_euc / torch.linalg.norm(cmass_euc, 2, -2)
     return num / denom
 
 
