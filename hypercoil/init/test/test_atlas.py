@@ -89,7 +89,6 @@ class TestAtlasInit:
         assert np.all(
             atlas.coors[123 * 104 * x + 104 * y + z].numpy() / 2 == [x, y, z])
 
-
     def test_multifile_atlas(self):
         atlas = MultifileVolumetricAtlas(
             ref_pointer=[tflow.get(
@@ -387,3 +386,27 @@ class TestAtlasInit:
             maps['cortex_L'][0].view(1, -1),
             atlas.maps['cortex_L'][0].view(1, -1)
         ) > 0.9
+
+    @pytest.mark.cuda
+    def test_multifile_atlas_cuda(self):
+        atlas = MultifileVolumetricAtlas(
+            ref_pointer=[tflow.get(
+                template='MNI152NLin2009cAsym',
+                suffix='probseg',
+                label=l,
+                resolution=2)
+            for l in ('CSF', 'GM', 'WM')],
+            clear_cache=False,
+            dtype=torch.float,
+            device='cuda'
+        )
+        assert atlas.mask.shape[0] == np.prod(atlas.ref.shape[:-1])
+        assert atlas.mask.sum() == 281973
+        assert atlas.compartments['all'].sum() == 281973
+        assert len(atlas.decoder['all']) == 3
+        assert np.allclose(atlas.maps['all'].sum(1).cpu().numpy(),
+            atlas.cached_ref_data.reshape(-1, 3).sum(0))
+        x, y, z = 84, 62, 13
+        assert np.all(
+            atlas.coors[97 * 115 * x + 97 * y + z].cpu().numpy() / 2 ==
+            [x, y, z])
