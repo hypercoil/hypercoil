@@ -308,4 +308,82 @@ class TestAtlasInit:
         assert torch.all(
             torch.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
 
-    #TODO: add cuda tests.
+    @pytest.mark.cuda
+    def test_cifti_atlas_cuda(self):
+        atlas = CortexSubcortexCIfTIAtlas(
+            ref_pointer='/Users/rastkociric/Downloads/gordon.nii',
+            mask_L=tflow.get(
+                template='fsLR',
+                hemi='L',
+                desc='nomedialwall',
+                density='32k'),
+            mask_R=tflow.get(
+                template='fsLR',
+                hemi='R',
+                desc='nomedialwall',
+                density='32k'),
+            clear_cache=False,
+            dtype=torch.float,
+            device='cuda'
+        )
+        assert atlas.mask.sum() == atlas.ref.shape[-1]
+        assert atlas.compartments['cortex_L'].sum() == 29696
+        assert atlas.compartments['cortex_R'].sum() == 59412 - 29696
+        assert atlas.compartments['cortex_L'].shape == atlas.mask.shape
+        assert len(atlas.decoder['cortex_L']) == 161
+        assert len(atlas.decoder['cortex_R']) == 172
+        assert len(atlas.decoder['subcortex']) == 0
+        assert atlas.maps['cortex_L'].shape == (161, 29696)
+        assert atlas.maps['cortex_R'].shape == (172, 29716)
+        assert atlas.maps['subcortex'].shape == (0,)
+        compartment_index = atlas.compartments['cortex_L'][atlas.mask]
+        assert np.all(
+            atlas.maps['cortex_L'].sum(1).cpu().numpy() == np.histogram(
+                atlas.cached_ref_data[:, compartment_index],
+                bins=360, range=(1, 360)
+            )[0][atlas.decoder['cortex_L'] - 1]
+        )
+        compartment_index = atlas.compartments['cortex_R'][atlas.mask]
+        assert np.all(
+            atlas.maps['cortex_R'].sum(1).cpu().numpy() == np.histogram(
+                atlas.cached_ref_data[:, compartment_index],
+                bins=360, range=(1, 360)
+            )[0][atlas.decoder['cortex_R'] - 1]
+        )
+        # On a sphere of radius 100
+        assert torch.all(
+            torch.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
+
+        inp = torch.rand([1, 2, 91282, 3])
+        lin = AtlasLinear(atlas, device='cuda')
+        out = lin.select_compartment('cortex_L', inp)
+        assert out.shape == (1, 2, 29696, 3)
+
+        out = lin(inp)
+        assert out.shape == (1, 2, 333, 3)
+
+        lin.decode = True
+        out2 = lin(inp)
+        assert out2.shape == (1, 2, 333, 3)
+        reorder = torch.cat((
+            lin.atlas.decoder['cortex_L'],
+            lin.atlas.decoder['cortex_R']
+        ))
+        assert not torch.allclose(out, out2)
+        assert torch.allclose(out2[..., (reorder - 1), :], out)
+
+        #Let's keep this on CUDA only. It's extremely slow.
+        from hypercoil.functional.cov import pairedcorr
+        maps = atlas(
+            compartments=['cortex_L'],
+            normalise=True,
+            sigma=3,
+            truncate=20,
+            max_bin=1000
+        )
+        assert maps.device == torch.device('cuda')
+        assert np.allclose(maps['cortex_L'].sum(-1).cpu(), 1)
+        assert pairedcorr(
+            maps['cortex_L'][0].view(1, -1),
+            atlas.maps['cortex_L'][0].view(1, -1)
+        ) > 0.9
