@@ -38,49 +38,6 @@ POLES = torch.tensor([
 ])
 
 
-class _SurfBrain:
-    def __init__(self, data, lh=None, rh=None, coor_mask=None, cmap='magma',
-                 layout='grid', dpi=200, size=(500, 400), zoom=None,
-                 views=None, mirror_views=False, flip=False, brightness=1,
-                 background=(1, 1, 1), label_text=None, parcels=False,
-                 color_range=None, as_outline=False, zero_transparent=True,
-                 cbar=None, cbar_label=None, struc_tag=None):
-        if parcels:
-            data = data.astype('long')
-            color_range = (1, len(cmap.colors))
-        self.data = self._mask_data(data)
-        self.cmap = self._select_cmap(cmap, struc_tag)
-
-    def _select_cmap(self, cmap, struc_tag=None):
-        return cmap
-
-    def __call__(self):
-        p = surfplot.Plot(
-            surf_lh=self.lh,
-            surf_rh=self.rh,
-            layout=self.layout,
-            views=self.views,
-            mirror_views=self.mirror_views,
-            size=self.size,
-            zoom=self.zoom,
-            background=self.background,
-            flip=self.flip,
-            brightness=self.brightness
-        )
-        p.add_layer(
-            self.data,
-            cmap=self.cmap,
-            color_range=self.color_range,
-            as_outline=self.as_outline,
-            zero_transparent=self.zero_transparent,
-            cbar=self.cbar,
-            cbar_label=self.cbar_label
-        )
-        fig = p.build()
-        fig.set_dpi(dpi)
-        fig.show()
-
-
 VIEWS = {
     'dorsal' : {
         'views' : 'dorsal',
