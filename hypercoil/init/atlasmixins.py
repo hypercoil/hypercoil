@@ -15,6 +15,9 @@ from scipy.ndimage import gaussian_filter
 from ..functional.sphere import spherical_conv, euclidean_conv
 
 
+#TODO: Consider caching the ref as a tensor for possible speedup/efficiency
+
+
 def _to_mask(path):
     return nb.load(path).get_fdata().round().astype(bool)
 
@@ -391,9 +394,9 @@ class _DiscreteLabelMixin:
         self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
             try:
-                mask = mask.reshape(self.ref.shape)
+                mask = mask.reshape(self.ref.shape).cpu()
             except RuntimeError:
-                mask = mask[self.mask].reshape(self.ref.shape)
+                mask = mask[self.mask].reshape(self.ref.shape).cpu()
             labels_in_compartment = np.unique(self.cached_ref_data[mask])
             labels_in_compartment = labels_in_compartment[
                 labels_in_compartment != null_label]
@@ -401,7 +404,7 @@ class _DiscreteLabelMixin:
                 labels_in_compartment, dtype=torch.long, device=mask.device)
 
         try:
-            mask = self.mask.reshape(self.ref.shape)
+            mask = self.mask.reshape(self.ref.shape).cpu()
         except RuntimeError:
             # The reference is already masked. In this case, we're using a
             # CIfTI.
@@ -416,13 +419,14 @@ class _DiscreteLabelMixin:
         for i, l in enumerate(labels):
             try:
                 map[i] = torch.tensor(
-                    self.cached_ref_data.ravel()[mask] == l.item())
+                    self.cached_ref_data.ravel()[mask.cpu()] == l.item())
             except IndexError:
                 # Again the reference is already masked. In this case, we
                 # assume we're using a CIfTI.
                 assert self.mask.sum() == len(self.cached_ref_data.ravel())
                 map[i] = torch.tensor(
-                    self.cached_ref_data.ravel()[mask[self.mask]] == l.item())
+                    self.cached_ref_data.ravel()[mask[self.mask].cpu()] ==
+                    l.item())
         return map
 
 
@@ -430,7 +434,7 @@ class _ContinuousLabelMixin:
     def _configure_decoders(self, null_label=None):
         self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
-            mask = mask.reshape(self.ref.shape[:-1])
+            mask = mask.reshape(self.ref.shape[:-1]).cpu()
             labels_in_compartment = np.where(
                 self.cached_ref_data[mask].sum(0))[0]
             labels_in_compartment = labels_in_compartment[
@@ -438,7 +442,7 @@ class _ContinuousLabelMixin:
             self.decoder[c] = torch.tensor(
                 labels_in_compartment, dtype=torch.long, device=mask.device)
 
-        mask = self.mask.reshape(self.ref.shape[:-1])
+        mask = self.mask.reshape(self.ref.shape[:-1]).cpu()
         unique_labels = np.where(self.cached_ref_data[mask].sum(0))[0]
         self.decoder['_all'] = torch.tensor(
             unique_labels, dtype=torch.long, device=self.mask.device)
@@ -450,7 +454,7 @@ class _ContinuousLabelMixin:
             (1, 2, 3, 0)
         ).squeeze()
         for i, l in enumerate(labels):
-            map[i] = torch.tensor(ref_data[l].ravel()[mask])
+            map[i] = torch.tensor(ref_data[l.cpu()].ravel()[mask.cpu()])
         return map
 
 
@@ -529,7 +533,10 @@ class _VertexCIfTIMeshMixin:
             device=device
         )
         self.topology = OrderedDict()
-        euc_mask = torch.BoolTensor(self.model_axis.volume_mask)
+        euc_mask = torch.tensor(
+            self.model_axis.volume_mask,
+            dtype=torch.bool, device=device
+        )
         for c, mask in self.compartments.items():
             if mask.shape != euc_mask.shape:
                 mask = mask[self.mask]
