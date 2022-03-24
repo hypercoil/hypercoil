@@ -163,8 +163,12 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
     def plot_nodemaps(self, figs, max_per_batch=21, scale=(2, 2),
                       nodes_per_row=3, start_batch=0, stop_batch=None,
                       save=None):
-        n_figs = len(figs)
+        # This ridiculous-looking hack is necessary to ensure the first
+        # figure is saved with the correct proportions.
+        plt.figure()
+        plt.close('all')
 
+        n_figs = len(figs)
         n_batches = int(np.ceil(n_figs / max_per_batch))
 
         figs_plotted = 0
@@ -175,7 +179,6 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
         stop_batch = min(stop_batch, n_batches)
 
         while batch_index < stop_batch:
-            print(batch_index)
             start_fig = batch_index * max_per_batch
             figs_remaining = n_figs - start_fig
             figs_per_batch = min(max_per_batch, figs_remaining)
@@ -194,7 +197,6 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
             )
             batch_figs = figs[start_fig:stop_fig]
             for index, (name, f) in enumerate(batch_figs):
-                print(index)
                 i = index // nodes_per_row
                 j = index % nodes_per_row
                 f._check_offscreen()
@@ -206,6 +208,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
 
             fig.show()
             if save:
+                plt.tight_layout()
                 plt.savefig(f'{save}_batch-{batch_index}.png',
                             dpi=300,
                             bbox_inches='tight')
@@ -214,7 +217,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
             batch_index += 1
 
     def __call__(self, cmap='Blues', color_range=(0, 1),
-                 max_per_batch=21, save=None):
+                 max_per_batch=21, stop_batch=None, save=None):
         figs = [None for _ in range(self.atlas.decoder['_all'].max() + 1)]
         for compartment in ('cortex_L', 'cortex_R'):
             map = self.module.weight[compartment]
@@ -259,12 +262,9 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
         
         n_figs = len(figs)
         batches_per_run = 5
-        total_batches = int(np.ceil(n_figs / max_per_batch))
-        batches_done = 0
-        while batches_done < total_batches:
-            start_batch = batches_done
-            stop_batch = start_batch + batches_per_run
-            self.plot_nodemaps(figs=figs, save=save,
-                               start_batch=start_batch,
-                               stop_batch=stop_batch)
-            batches_done += batches_per_run
+        if stop_batch is None:
+            total_batches = int(np.ceil(n_figs / max_per_batch))
+        else:
+            total_batches = stop_batch
+        self.plot_nodemaps(figs=figs, save=save,
+                           stop_batch=total_batches)
