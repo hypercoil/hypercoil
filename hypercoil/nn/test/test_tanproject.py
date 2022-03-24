@@ -51,3 +51,30 @@ class TestTanProject:
         Y = btang(self.A)
         btang(Y, 'cone')
         btang(self.Z, 'cone')
+
+    @pytest.mark.cuda
+    def test_tangent_cone_cuda_forward(self):
+        tang = TangentProject(
+            self.A, mean_specs=[
+                SPDGeometricMean(psi=0.1),
+                SPDEuclideanMean(),
+                SPDEuclideanMean(),
+                SPDLogEuclideanMean(),
+                SPDHarmonicMean()],
+            recondition=1e-5,
+            device='cuda')
+        Y = tang(self.A.clone().cuda())
+        tang(Y, 'cone')
+
+    @pytest.mark.cuda
+    def test_batch_tangent_cone_cuda_forward(self):
+        btang = BatchTangentProject(
+            mean_specs=[
+                SPDGeometricMean(psi=0.1),
+                SPDEuclideanMean(),
+                SPDEuclideanMean(),
+                SPDLogEuclideanMean(),
+                SPDHarmonicMean()],
+            recondition=1e-5)
+        Y = btang(self.A.clone().cuda())
+        btang(Y, 'cone')

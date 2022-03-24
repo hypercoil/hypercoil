@@ -12,9 +12,13 @@ import numpy as np
 from functools import partial
 from matplotlib.pyplot import close
 from hypercoil.functional import delete_diagonal
-from hypercoil.reg import (
-    UnilateralNormedRegularisation,
-    ModularityRegularisation
+from hypercoil.loss import (
+    UnilateralNormedLoss,
+    ModularityLoss,
+    LossScheme,
+    LossApply,
+    LossArgument,
+    UnpackingLossArgument
 )
 from hypercoil.synth.sylo import (
     synthesise_lowrank_block,
@@ -54,21 +58,35 @@ def shallow_autoencoder_experiment(
         mix_bias=False
     )
 
-    loss = torch.nn.MSELoss()
     opt = torch.optim.Adam(sy_low.parameters(), lr=lr)
     losses = []
 
     mod_softmax = partial(torch.softmax, dim=-1)
-    reg_recomb = UnilateralNormedRegularisation(
-        nu=recombinator_nonnegative_l2_nu
-    )
-    reg_sylo = ModularityRegularisation(
-        nu=modularity_nu,
-        reg=mod_softmax
-    )
-    reg_sylo2 = UnilateralNormedRegularisation(
-        nu=nonnegative_l2_nu
-    )
+
+    loss = LossScheme([
+        LossApply(
+            UnilateralNormedLoss(nu=recombinator_nonnegative_l2_nu),
+            apply=lambda arg: -arg.recomb.weight
+        ),
+        LossApply(
+            ModularityLoss(nu=modularity_nu, affiliation_xfm=mod_softmax),
+            apply=lambda arg: UnpackingLossArgument(
+                A=target,
+                C=arg.sylo.weight_L.squeeze().t(),
+                L=(torch.eye(n_filters) * arg.recomb.weight)
+            )),
+        LossApply(
+            UnilateralNormedLoss(nu=nonnegative_l2_nu),
+            apply=lambda arg: -arg.sylo.weight_L
+        ),
+        LossApply(
+            torch.nn.MSELoss(),
+            apply=lambda arg: UnpackingLossArgument(
+                input=arg.input,
+                target=arg.target
+            )
+        )
+    ])
 
     saves = [0, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30, 50, 75, 100, 150]
     saves += list(range(200, 1000, 100))
@@ -79,13 +97,15 @@ def shallow_autoencoder_experiment(
     for e in range(max_epoch):
         opt.zero_grad()
         reconn = sy_low(conn)
-        loss_epoch = (
-            loss(reconn, target) +
-            reg_recomb(-sy_low.net[-1].weight) +
-            reg_sylo(target, sy_low.net[0].weight_L.squeeze().t(),
-                     L=torch.eye(n_filters) * sy_low.net[-1].weight) +
-            reg_sylo2(sy_low.net[0].weight_L)
+        arg = LossArgument(
+            input=reconn,
+            target=target,
+            sylo=sy_low.net[0],
+            recomb=sy_low.net[-1],
         )
+        if e == 0:
+            loss(arg, verbose=True)
+        loss_epoch = loss(arg)
         loss_epoch.backward()
         opt.step()
         loss_last = loss_epoch.detach().numpy()

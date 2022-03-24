@@ -10,9 +10,6 @@ import torch
 from .matrix import invert_spd
 
 
-eps = 1e-8
-
-
 def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     """
     Empirical covariance of variables in a tensor batch.
@@ -86,7 +83,7 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     else:
         sigma = X0 @ weight @ X0.transpose(-1, -2) / fact
     if l2 > 0:
-        sigma += l2 * torch.eye(X.size(-2))
+        sigma += l2 * torch.eye(X.size(-2), dtype=X.dtype, device=X.device)
     return sigma
 
 
@@ -123,7 +120,9 @@ def partialcov(X, **params):
     followed by negation of off-diagonal entries.
     """
     omega = precision(X, **params)
-    omega = omega * (2 * torch.eye(omega.size(-1)) - 1)
+    omega = omega * (
+        2 * torch.eye(omega.size(-1), dtype=X.dtype, device=X.device) - 1
+    )
     return omega
 
 
@@ -329,7 +328,7 @@ def corrnorm(A):
     """
     d = torch.diagonal(A, dim1=-2, dim2=-1)
     fact = -torch.sqrt(d).unsqueeze(-1)
-    return (fact @ fact.transpose(-1, -2) + eps)
+    return (fact @ fact.transpose(-1, -2) + torch.finfo(fact.dtype).eps)
 
 
 def covariance(*pparams, **params):

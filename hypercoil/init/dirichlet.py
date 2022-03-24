@@ -40,7 +40,7 @@ def dirichlet_init_(tensor, distr, axis=-1):
     """
     dim = list(tensor.size())
     del(dim[axis])
-    val = distr.sample(dim)
+    val = distr.sample(dim).type(tensor.dtype).to(tensor.device)
     val = torch.movedim(val, -1, axis)
     tensor.copy_(val)
 

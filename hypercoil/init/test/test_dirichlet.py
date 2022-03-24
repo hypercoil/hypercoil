@@ -18,6 +18,9 @@ class TestDirichletInit:
         self.X.requires_grad = True
         self.conc = torch.Tensor([0.5] * 3)
 
+        if torch.cuda.is_available():
+            self.XC = self.X.clone().cuda()
+
     def test_dirichlet_init_softmax(self):
         init = DirichletInit(n_classes=3, concentration=self.conc, axis=-3)
         init(self.X)
@@ -33,3 +36,12 @@ class TestDirichletInit:
         )
         init(self.X)
         assert torch.allclose(self.X.sum(-3), torch.tensor(1.0))
+
+    @pytest.mark.cuda
+    def test_dirichlet_init_softmax_cuda(self):
+        init = DirichletInit(n_classes=3, concentration=self.conc, axis=-3)
+        init(self.XC)
+        assert torch.allclose(
+            init.domain.image(self.XC).sum(-3),
+            torch.tensor(1.0, device='cuda')
+        )

@@ -20,14 +20,16 @@ from hypercoil.init.base import (
     DistributionInitialiser
 )
 from hypercoil.nn.cov import UnaryCovariance
-from hypercoil.reg import (
+from hypercoil.loss import (
     Entropy,
     Equilibrium,
-    NormedRegularisation,
+    NormedLoss,
     SmoothnessPenalty,
-    SymmetricBimodal,
+    SymmetricBimodalNorm,
     VectorDispersion,
-    RegularisationScheme
+    LossScheme,
+    LossApply,
+    LossArgument
 )
 from hypercoil.synth.corr import (
     synthesise_state_transition,
@@ -80,10 +82,10 @@ def state_detection_experiment(
     #opt = torch.optim.SGD(model.parameters(), lr=1, momentum=0.2)
 
     loss = torch.nn.MSELoss()
-    reg = RegularisationScheme([
-        SymmetricBimodal(nu=0.005, modes=(0., 1.)),
+    reg = LossScheme([
+        SymmetricBimodalNorm(nu=0.005, modes=(0., 1.)),
         SmoothnessPenalty(nu=0.05)
-    ])
+    ], apply=lambda x: x.weight)
 
 
     X = torch.Tensor(X)
@@ -172,17 +174,23 @@ def unsupervised_state_detection_experiment(
         )
         opt = torch.optim.Adam(model.parameters(), lr=lr)
 
-        reg_time = RegularisationScheme([
-            SmoothnessPenalty(nu=smoothness_nu),
-            Entropy(nu=entropy_nu, axis=0),
-            Equilibrium(nu=equilibrium_nu)
+        #model_x_y : tuple of
+        # (model, x, correlation)
+        loss = LossScheme([
+            LossScheme([
+                SmoothnessPenalty(nu=smoothness_nu),
+                Entropy(nu=entropy_nu, axis=0),
+                Equilibrium(nu=equilibrium_nu)
+            ], apply=lambda arg: arg.model.weight),
+            LossApply(
+                SymmetricBimodalNorm(nu=symbimodal_nu, modes=(-1, 1)),
+                apply=lambda arg: arg.cor
+            ),
+            LossApply(
+                VectorDispersion(nu=dist_nu),
+                apply=lambda arg: sym2vec(arg.cor)
+            )
         ])
-        reg_corr = SymmetricBimodal(nu=symbimodal_nu, modes=(-1, 1))
-
-        reg = (
-            (reg_time, lambda model, X, Y: model.weight),
-            (reg_corr, lambda model, X, Y: Y)
-        )
 
         X = torch.tensor(observed_ts)
 
@@ -192,13 +200,10 @@ def unsupervised_state_detection_experiment(
             #TODO: using the contrast against time-averaged connectivity.
             # Is this really the better approach?
             cor = model(X) - corr(X)
-            loss_epoch = 0
-            for r, penalise in reg:
-                loss_epoch += r(penalise(model, X, cor))
-
-            #TODO: let's write a regulariser.
-            corvex = sym2vec(cor)
-            loss_epoch -= dist_nu * torch.cdist(corvex, corvex, p=1).mean()
+            arg = LossArgument(model=model, X=X, cor=cor)
+            if epoch == 0:
+                loss(arg, verbose=True)
+            loss_epoch = loss(arg)
 
             loss_epoch.backward()
             losses += [loss_epoch.detach().item()]
@@ -236,20 +241,33 @@ def unsupervised_state_detection_experiment(
         # code.
         transitions = np.where(np.diff(srcmat[0]) != 0)[0]
 
-        reg_time = RegularisationScheme([
-            SmoothnessPenalty(nu=smoothness_nu),
-            Entropy(nu=entropy_nu, axis=0),
-            Equilibrium(nu=equilibrium_nu)
+        #i_g_x_y : tuple of
+        # (individual model, group model, x, correlation)
+        # Unfortunately Python is . . . not great with functional
+        # programming.
+        loss = LossScheme([
+            LossScheme([
+                SmoothnessPenalty(nu=smoothness_nu),
+                Entropy(nu=entropy_nu, axis=0),
+                Equilibrium(nu=equilibrium_nu)
+            ], apply=lambda arg: arg.individual),
+            LossApply(
+                SymmetricBimodalNorm(nu=symbimodal_nu, modes=(-1, 1)),
+                apply=lambda arg: arg.y
+            ),
+            LossApply(
+                VectorDispersion(nu=dist_nu),
+                apply=lambda arg: sym2vec(arg.y)
+            ),
+            LossApply(
+                VectorDispersion(nu=between_nu, name='ClusterBetween'),
+                apply=lambda arg: arg.group
+            ),
+            LossApply(
+                NormedLoss(nu=within_nu, p=1, name='ClusterWithin'),
+                apply=lambda arg: sym2vec(arg.y) - arg.group,
+            )
         ])
-        reg_corr = SymmetricBimodal(nu=symbimodal_nu, modes=(-1, 1))
-
-        reg = (
-            (reg_time, lambda model, X, Y: model),
-            (reg_corr, lambda model, X, Y: Y.mean(0))
-        )
-
-        nr = NormedRegularisation(nu=within_nu, p=1)
-        disp = VectorDispersion(nu=between_nu)
 
         X = torch.FloatTensor(observed_ts).unsqueeze(-3)
         best_states = corr(
@@ -301,14 +319,11 @@ def unsupervised_state_detection_experiment(
             )
             correl = corr(X[batch_index], weight=individual_mnorm)
             cor = correl - subject_specific[batch_index]
-            loss_epoch = 0
-            for r, penalise in reg:
-                loss_epoch += r(penalise(individual_mnorm, X, correl))
-
-            corvex = sym2vec(cor)
-            loss_epoch -= dist_nu * torch.cdist(corvex, corvex, p=1).mean()
-            loss_epoch += nr(sym2vec(cor) - group_model)
-            loss_epoch += disp(group_model)
+            arg = LossArgument(
+                individual=individual_mnorm,
+                group=group_model,
+                x=X, y=cor)
+            loss_epoch = loss(arg)
 
             loss_epoch.backward()
             losses += [loss_epoch.detach().item()]
@@ -338,19 +353,14 @@ def unsupervised_state_detection_experiment(
                 )
                 maxim = statecorr.max()
                 measure = (
-                    statecorr.max(0)[0] -
+                    statecorr.amax(0) -
                     statecorr.median(0)[0]
                 ).mean().detach().item()
                 measures += [measure]
 
-                print(f'[ Epoch {epoch} | Loss {loss_epoch} | Measure {measure} | Maximum {maxim} ]')
-                print(f'- {reg[0][0][0]}: {reg[0][0][0](individual_mnorm)}')
-                print(f'- {reg[0][0][1]}: {reg[0][0][1](individual_mnorm)}')
-                print(f'- {reg[0][0][2]}: {reg[0][0][2](individual_mnorm)}')
-                print(f'- {reg[1][0]}: {reg[1][0](cor)}')
-                print(f'- [ν = {dist_nu}]Indiv. Dispersion: {-dist_nu * torch.cdist(corvex, corvex, p=1).mean()}')
-                print(f'- {nr}: {nr(sym2vec(cor) - group_model)}')
-                print(f'- {disp}: {disp(group_model)}')
+                print(f'[ Epoch {epoch} | Loss {loss_epoch} | '
+                      f'Measure {measure} | Maximum {maxim} ]')
+                loss(arg, verbose=True)
 
                 recovered_states = corr(
                     X,

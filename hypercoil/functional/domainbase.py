@@ -6,6 +6,7 @@ Basic domains
 ~~~~~~~~~~~~~
 Functional image and preimage mappers and supporting utilities.
 """
+import math
 import torch
 from .activation import complex_decompose, complex_recompose
 
@@ -64,7 +65,7 @@ class Clip(_OutOfDomainHandler):
             Copy of the input tensor with out-of-domain entries clipped.
         """
         out = x.detach().clone()
-        bound = torch.Tensor(bound)
+        bound = torch.tensor(bound, dtype=x.dtype, device=x.device)
         out[out > bound[-1]] = bound[-1]
         out[out < bound[0]] = bound[0]
         return out
@@ -112,25 +113,26 @@ class Normalise(_OutOfDomainHandler):
         # ctrl+f `mean` for the incorrect default signature that raises:
         # RuntimeError: Please look up dimensions by name, got: name = None.
         #
-        # It could hardly be handled worse.
+        # Update: This reference has been removed from the documentation,
+        # which suggests this conditional is likely here to stay.
         out = x.detach().clone()
-        bound = torch.Tensor(bound)
+        bound = torch.tensor(bound, dtype=x.dtype, device=x.device)
         if axis is None:
-            upper = out.max()
-            lower = out.min()
-            unew = torch.minimum(bound[-1], out.max())
-            lnew = torch.maximum(bound[0], out.min())
+            upper = out.amax()
+            lower = out.amin()
+            unew = torch.minimum(bound[-1], out.amax())
+            lnew = torch.maximum(bound[0], out.amin())
             out -= out.mean()
             out /= ((upper - lower) / (unew - lnew))
-            out += (lnew - out.min())
+            out += (lnew - out.amin())
         else:
-            upper = out.max(axis)
-            lower = out.min(axis)
-            unew = torch.minimum(bound[-1], out.max(axis))
-            lnew = torch.maximum(bound[0], out.min(axis))
+            upper = out.amax(axis)
+            lower = out.amin(axis)
+            unew = torch.minimum(bound[-1], out.amax(axis))
+            lnew = torch.maximum(bound[0], out.amin(axis))
             out -= out.mean(axis)
             out /= ((upper - lower) / (unew - lnew))
-            out += (lnew - out.min(axis))
+            out += (lnew - out.amin(axis))
         return out
 
 
@@ -166,8 +168,8 @@ class _Domain(torch.nn.Module):
         self.handler = handler or Clip()
         bound = bound or [-float('inf'), float('inf')]
         limits = limits or [-float('inf'), float('inf')]
-        self.bound = torch.Tensor(bound)
-        self.limits = torch.Tensor(limits)
+        self.bound = bound
+        self.limits = limits
         self.loc = loc
         self.scale = scale
         self.signature = {}
@@ -177,9 +179,11 @@ class _Domain(torch.nn.Module):
         Map a tensor to its preimage under the transformation. Any values
         outside the transformation's range are first handled.
         """
-        x = self.handler.apply(x, self.bound)
+        bound = torch.tensor(self.bound, dtype=x.dtype, device=x.device)
+        limits = torch.tensor(self.limits, dtype=x.dtype, device=x.device)
+        x = self.handler.apply(x, bound)
         i = self.preimage_map((x - self.loc) / self.scale)
-        i = self.handler.apply(i, self.limits)
+        i = self.handler.apply(i, limits)
         return i
 
     def image(self, x):
@@ -231,7 +235,7 @@ class _Domain(torch.nn.Module):
         s = []
         if self.scale != 1:
             s += [f'scale={self.scale}']
-        if not torch.all(torch.isinf(self.bound)):
+        if not all([math.isinf(i) for i in self.bound]):
             s += [f'bound=({self.bound[0]}, {self.bound[1]})']
             s += [f'handler={self.handler.__repr__()}']
         return ', '.join(s)

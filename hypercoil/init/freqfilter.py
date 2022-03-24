@@ -14,7 +14,12 @@ from ..functional.activation import complex_recompose
 
 class FreqFilterSpec(object):
     """
-    Specification for an IIR or ideal filter.
+    Specification for an approximate frequency response curve for various
+    filter classes.
+
+    Note that this provides only an emulation for IIR filters. For a true
+    differentiable IIR filter, use the IIRFilter layer (when it's
+    operational).
 
     Dimension
     ---------
@@ -125,8 +130,9 @@ class FreqFilterSpec(object):
 
     def initialise_spectrum(self, worN, domain=None):
         """
-        Initialises a frequency spectrum or transfer function for the specified
-        filter with `worN` frequency bins between 0 and Nyquist, inclusive.
+        Initialises a frequency spectrum or transfer function approximation
+        for the specified filter with `worN` frequency bins between 0 and
+        Nyquist, inclusive.
 
         Parameters
         ----------
@@ -235,11 +241,14 @@ class FreqFilterSpec(object):
 
 def freqfilter_init_(tensor, filter_specs, domain=None):
     """
-    IIR filter-like transfer function initialisation.
+    Filter transfer function initialisation.
 
-    Initialise a tensor such that its values follow the transfer function of
-    an IIR or ideal filter. For IIR filters, the transfer function is computed
-    as a frequency response curve in scipy.
+    Initialise a tensor such that its values follow or approximate the
+    transfer function of a specified filter. For IIR filters, the transfer
+    function is only an emulation. An IIR filter cannot be represented
+    as a frequency product in this manner. For a true differentiable IIR
+    filter, use the IIRFilter layer. The emulation here is computed as a
+    frequency response curve in scipy.
 
     Dimension
     ---------
@@ -272,14 +281,12 @@ def freqfilter_init_(tensor, filter_specs, domain=None):
     -------
     None. The input tensor is initialised in-place.
     """
-    rg = tensor.requires_grad
-    tensor.requires_grad = False
-    worN = tensor.size(-1)
-    for fspec in filter_specs:
-        fspec.initialise_spectrum(worN, domain)
-    spectra = torch.cat([fspec.spectrum for fspec in filter_specs])
-    tensor[:] = spectra
-    tensor.requires_grad = rg
+    with torch.no_grad():
+        worN = tensor.size(-1)
+        for fspec in filter_specs:
+            fspec.initialise_spectrum(worN, domain)
+        spectra = torch.cat([fspec.spectrum for fspec in filter_specs])
+        tensor[:] = spectra.type(tensor.dtype).to(tensor.device)
 
 
 def clamp_init_(points_tensor, values_tensor, filter_specs):
@@ -337,6 +344,10 @@ def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
     """
     Butterworth filter's transfer function obtained via import from scipy.
 
+    Note that this is only an emulation. An IIR filter cannot be represented
+    as a frequency product in this manner. For a true differentiable IIR
+    filter, use the IIRFilter layer.
+
     Dimension
     ---------
     - N : :math:`(F)`
@@ -383,6 +394,10 @@ def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
 def chebyshev1_spectrum(N, Wn, worN, rp, btype='bandpass', fs=None):
     """
     Chebyshev I filter's transfer function obtained via import from scipy.
+
+    Note that this is only an emulation. An IIR filter cannot be represented
+    as a frequency product in this manner. For a true differentiable IIR
+    filter, use the IIRFilter layer.
 
     Dimension
     ---------
@@ -436,6 +451,10 @@ def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
     """
     Chebyshev II filter's transfer function obtained via import from scipy.
 
+    Note that this is only an emulation. An IIR filter cannot be represented
+    as a frequency product in this manner. For a true differentiable IIR
+    filter, use the IIRFilter layer.
+
     Dimension
     ---------
     - N : :math:`(F)`
@@ -487,6 +506,10 @@ def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
 def elliptic_spectrum(N, Wn, worN, rp, rs, btype='bandpass', fs=None):
     """
     Elliptic filter's transfer function obtained via import from scipy.
+
+    Note that this is only an emulation. An IIR filter cannot be represented
+    as a frequency product in this manner. For a true differentiable IIR
+    filter, use the IIRFilter layer.
 
     Dimension
     ---------
@@ -542,6 +565,10 @@ def elliptic_spectrum(N, Wn, worN, rp, rs, btype='bandpass', fs=None):
 def bessel_spectrum(N, Wn, worN, norm='phase', btype='bandpass', fs=None):
     """
     Bessel-Thompson filter's transfer function obtained via import from scipy.
+
+    Note that this is only an emulation. An IIR filter cannot be represented
+    as a frequency product in this manner. For a true differentiable IIR
+    filter, use the IIRFilter layer.
 
     Dimension
     ---------
@@ -658,6 +685,10 @@ def filter_spectrum(filter, N, Wn, worN, btype='bandpass', fs=None,
                     filter_params=None, spectrum_params=None):
     """
     Transfer function for an IIR filter, obtained via import from scipy.
+
+    Note that this is only an emulation. An IIR filter cannot be represented
+    as a frequency product in this manner. For a true differentiable IIR
+    filter, use the IIRFilter layer.
 
     Dimension
     ---------

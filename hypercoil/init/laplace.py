@@ -62,12 +62,16 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
     domain = domain or Identity()
     loc = loc or [(x - 1) / 2 for x in tensor.size()]
     width = width or [1 for _ in range(tensor.dim())]
-    width = torch.Tensor(width)
+    width = torch.tensor(width, dtype=tensor.dtype, device=tensor.device)
     dim = len(loc)
     excl_axis = excl_axis or []
     axes = []
     for ax, l, w in zip(tensor.size()[-dim:], loc, width[-dim:]):
-        new_ax = torch.arange(-l, -l + ax)
+        new_ax = torch.arange(
+            -l, -l + ax,
+            dtype=tensor.dtype,
+            device=tensor.device
+        )
         new_ax = torch.exp(-torch.abs(new_ax) / w)
         axes += [new_ax]
     shape = [-1]
@@ -83,9 +87,9 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
         val /= val.sum()
     val = domain.preimage(val)
     if var != 0:
-        val = val + torch.randn(tensor.size()) * var
-    val.type(tensor.dtype)
-    tensor.copy_(val)
+        val = val + torch.randn_like(tensor) * var
+    with torch.no_grad():
+        tensor.copy_(val)
 
 
 class LaplaceInit(BaseInitialiser):

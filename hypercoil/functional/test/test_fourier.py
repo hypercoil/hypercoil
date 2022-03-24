@@ -13,6 +13,11 @@ from hypercoil.functional import (
 )
 
 
+#TODO: Unit tests missing for:
+# - zero-phase filter
+# - verify that our zero-phase filter is really zero-phase
+
+
 class TestFourier:
 
     @pytest.fixture(autouse=True)
@@ -23,6 +28,9 @@ class TestFourier:
         self.N = 100
         self.X = np.random.rand(7, self.N)
         self.Xt = torch.Tensor(self.X)
+
+        if torch.cuda.is_available():
+            self.XtC = self.Xt.clone().cuda()
 
     def scipy_product_filter(self, X, weight):
         return irfft(weight * rfft(X))
@@ -47,4 +55,12 @@ class TestFourier:
         wt = self.uniform_attenuator()
         out = product_filter(self.Xt, wt).numpy()
         ref = 0.5 * self.X
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_bandpass_cuda(self):
+        wt = self.bandpass_filter()
+        w = wt.numpy()
+        out = product_filter(self.XtC, wt.cuda()).cpu().numpy()
+        ref = self.scipy_product_filter(self.X, w)
         assert self.approx(out, ref)

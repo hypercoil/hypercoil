@@ -54,9 +54,13 @@ def toeplitz_init_(tensor, c, r=None, fill_value=0, domain=None):
     """
     domain = domain or Identity()
     dim = tensor.size()[-2:]
-    val = toeplitz(c=c, r=r, dim=dim, fill_value=fill_value)
+    val = toeplitz(
+        c=c, r=r, dim=dim,
+        fill_value=fill_value,
+        dtype=tensor.dtype,
+        device=tensor.device
+    )
     val = domain.preimage(val)
-    val.type(tensor.dtype)
     tensor.copy_(val)
 
 

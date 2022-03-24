@@ -11,6 +11,10 @@ import torch
 from abc import ABC, abstractmethod
 
 
+#TODO: If we ever end up revisiting this, there are a lot of really
+# bad practices here.
+
+
 thresh_condition = {
     '==': lambda v, t: v == t,
     '>=': lambda v, t: v >= t,

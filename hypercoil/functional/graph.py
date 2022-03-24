@@ -185,7 +185,7 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True, normalise=False):
     else:
         C = C_i @ L @ C_o.transpose(-1, -2)
     if exclude_diag:
-        C[torch.eye(C.size(-1), dtype=torch.bool)] = 0
+        C[torch.eye(C.size(-1), dtype=torch.bool, device=C.device)] = 0
     return C
 
 
@@ -258,6 +258,10 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
         matrix degree. This may not be necessary for many use cases -- for
         instance, where the arg max of a function of the modularity matrix is
         desired.
+    normalise_coaffiliation : bool (default True)
+        Indicates that all weights in the community assignment matrix block
+        should be renormalised to max out at 1. Note that this is unnecessary
+        if the affiliations have already been passed through a softmax.
     directed : bool (default False)
         Indicates that the input adjacency matrices should be considered as a
         directed graph.

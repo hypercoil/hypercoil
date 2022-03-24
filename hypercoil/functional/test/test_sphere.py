@@ -48,6 +48,12 @@ class TestSpherical:
         self.coor_sph_rand = torch.rand(self.n, 3)
         self.coor_sph_rand /= torch.norm(self.coor_sph_rand, dim=0, p=2)
 
+        if torch.cuda.is_available():
+            self.dataC = self.data.clone().cuda()
+            self.coor_eucC = self.coor_euc.clone().cuda()
+            self.coor_sphC = self.coor_sph.clone().cuda()
+            self.coor_sph_randC = self.coor_sph_rand.clone().cuda()
+
     def test_gauss_kernel(self):
         scale = 0.5
         n = torch.distributions.normal.Normal(loc=0, scale=scale)
@@ -126,5 +132,62 @@ class TestSpherical:
         out = (out[:, :self.n] == 0).float()
         assert torch.allclose(
             out + self.truncated,
+            torch.ones((self.n, self.n))
+        )
+
+    @pytest.mark.cuda
+    def test_spherical_geodesic_cuda(self):
+        normals = sphere_to_normals(self.coor_sphC)
+        out = spherical_geodesic(normals)
+        ref = haversine_distances(self.coor_sph)
+        assert torch.allclose(out.cpu(), torch.FloatTensor(ref), atol=1e-6)
+        latlong = sphere_to_latlong(self.coor_sph_rand)
+        out = spherical_geodesic(self.coor_sph_randC)
+        ref = haversine_distances(latlong)
+        assert torch.allclose(out.cpu(), torch.FloatTensor(ref), atol=1e-6)
+
+    @pytest.mark.cuda
+    def test_spatial_convolution_cuda(self):
+        scale = 0.5
+        out = euclidean_conv(
+            data=self.dataC,
+            coor=self.coor_eucC,
+            scale=scale
+        )
+        ref = gaussian_filter1d(
+            input=self.data,
+            sigma=scale * (self.n - 1),
+            axis=0,
+            mode='constant',
+            truncate=16,
+        )
+        assert torch.allclose(out.cpu(), torch.Tensor(ref), atol=1e-4)
+
+    @pytest.mark.cuda
+    def test_spherical_convolution_cuda(self):
+        """
+        WARNING: Correctness is not tested.
+        """
+        scale = 3
+        out = spherical_conv(
+            data=self.dataC,
+            coor=sphere_to_normals(self.coor_sphC),
+            scale=scale
+        )
+        out = spherical_conv(
+            data=self.dataC,
+            coor=self.coor_sph_randC,
+            scale=scale
+        )
+        # truncation test
+        out = spherical_conv(
+            data=self.dataC,
+            coor=sphere_to_normals(self.coor_sphC),
+            scale=scale,
+            truncate=(torch.pi / 2)
+        )
+        out = (out[:, :self.n] == 0).float()
+        assert torch.allclose(
+            out.cpu() + self.truncated,
             torch.ones((self.n, self.n))
         )

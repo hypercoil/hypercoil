@@ -11,7 +11,6 @@ import torch
 from matplotlib.pyplot import close
 from hypercoil.nn.svm import (
     SVM,
-    hinge_loss,
     LinearKernel,
     GaussianKernel,
     PolynomialKernel
@@ -23,6 +22,7 @@ from hypercoil.synth.svm import (
     plot_prediction,
     plot_training
 )
+from hypercoil.loss import HingeLoss
 
 
 def separation_experiment(
@@ -91,14 +91,15 @@ def separation_experiment(
     opt = torch.optim.Adam(params=[param], lr=lr)
 
     losses = []
+    loss = HingeLoss()
 
     for epoch in range(max_epoch):
 
         X = orient_data(x, mu=mu, ori=ori)
         X = torch.cat(X)
         Y_hat = model(X, Y)
-        loss = hinge_loss(Y_hat, model.Y)
-        losses += [loss.detach().item()]
+        loss_epoch = loss(Y_hat, model.Y)
+        losses += [loss_epoch.detach().item()]
         if learnable_parameter == 'mu':
             coor0s += [param[0].clone().detach().numpy()]
             coor1s += [param[0].clone().detach().numpy()]
@@ -107,7 +108,7 @@ def separation_experiment(
             dets += [det.detach().item()]
             frob = torch.linalg.matrix_norm(param)
             frobs += [frob.detach().item()]
-        loss.backward()
+        loss_epoch.backward()
         opt.step()
         param.grad.zero_()
         opt.param_groups[0]['lr'] *= lr_decay
@@ -118,7 +119,7 @@ def separation_experiment(
                 plot_confusion=(not multiclass),
                 legend=False
             )
-            print(f'[ Epoch {epoch} | Loss {loss} ]')
+            print(f'[ Epoch {epoch} | Loss {loss_epoch} ]')
             close('all')
     if learnable_parameter == 'mu':
         plot_training(

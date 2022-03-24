@@ -31,3 +31,8 @@ class TestPolyConv:
         out = poly(self.X).size()
         ref = torch.Size([4, 3, 13, 100])
         assert out == ref
+
+    @pytest.mark.cuda
+    def test_cuda_forward(self):
+        poly = PolyConv2D(7, 3, device='cuda', dtype=torch.half)
+        out = poly(self.X.clone().cuda().half())

@@ -6,8 +6,9 @@ Unit tests for symmetric bimodal penalty
 """
 import pytest
 import torch
-from hypercoil.reg import (
-    SymmetricBimodal
+from hypercoil.loss import (
+    SymmetricBimodal,
+    SymmetricBimodalNorm
 )
 
 
@@ -27,11 +28,11 @@ class TestSymmetricBimodal:
         self.y2 = torch.tensor(0.65)
 
     def test_symbm_l2(self):
-        reg = SymmetricBimodal()
+        reg = SymmetricBimodalNorm()
         y_hat = reg(self.X1)
         assert(torch.isclose(self.y1, y_hat))
 
     def test_symbm_l1(self):
-        reg = SymmetricBimodal(norm=1, modes=(0.95, 0.05))
+        reg = SymmetricBimodalNorm(norm=1, modes=(0.95, 0.05))
         y_hat = reg(self.X2)
         assert(torch.isclose(self.y2, y_hat))

@@ -49,7 +49,11 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
     val = torch.zeros_like(tensor)
     val[(...,) + loc] += scale
     val = domain.preimage(val)
-    val += torch.randn(tensor.size()) * var
+    val += torch.randn(
+        tensor.size(),
+        dtype=tensor.dtype,
+        device=tensor.device
+    ) * var
     val.type(tensor.dtype)
     tensor.copy_(val)
 

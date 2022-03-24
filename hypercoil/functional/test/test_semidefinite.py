@@ -50,6 +50,10 @@ class TestSemidefinite:
         self.At = torch.Tensor(self.A)
         self.AMt = torch.Tensor(self.AM)
         self.Rt = torch.Tensor(self.R)
+        if torch.cuda.is_available():
+            self.AtC = self.At.clone().cuda()
+            self.AMtC = self.AMt.clone().cuda()
+            self.RtC = self.Rt.clone().cuda()
 
     def test_tangent_project(self):
         out = tangent_project_spd(self.At, self.Rt).numpy()
@@ -78,7 +82,13 @@ class TestSemidefinite:
         assert np.allclose(self.AM, AM_rec, atol=1e-2, rtol=1e-2)
 
     def test_geometric_mean(self):
-        out = mean_geom_spd(self.AMt, recondition=1e-6).numpy()
+        out = mean_geom_spd(self.AMt, recondition=1e-3).numpy()
         ref = _geometric_mean([i for i in self.AM])
         # Another fairly weak condition.
-        assert np.allclose(out, ref, atol=1e-2, rtol=1e-2)
+        assert np.abs(out - ref).max() < .1
+
+    @pytest.mark.cuda
+    def test_cone_tangent_cuda(self):
+        VtC = tangent_project_spd(self.AMtC, self.RtC, recondition=5e-4)
+        AM_rec = cone_project_spd(VtC, self.RtC, recondition=5e-4)
+        out = mean_geom_spd(self.AMtC, recondition=1e-6)

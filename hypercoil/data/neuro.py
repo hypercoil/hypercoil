@@ -6,6 +6,7 @@ Neuroimaging
 ~~~~~~~~~~~~
 Neuroimaging dataset-specific datasets and data references.
 """
+import torch
 from .dataref import DataReference
 
 
@@ -137,7 +138,28 @@ class fMRIDataReference(DataReference):
         return s
 
 
-def fc_reference_prep(model, tmask):
+def fc_reference_prep(model, tmask, dtype=None, device=None):
+    """
+    Helper function for creating DataReferences for functional connectivity
+    analysis.
+
+    Parameters
+    ----------
+    model : str or ModelSpec
+        Specification for extracting a selection of columns from the complete
+        confound matrix.
+    tmask : str or ModelSpec
+        Specification for extracting a temporal mask from the complete
+        confound matrix.
+    dtype : torch datatype
+        Datatype of sampled DataReferences at creation. Note that, if you are
+        using a `WebDataset` for training (strongly recommended), this will
+        not constrain the data type used at training.
+    device : str (default 'cpu')
+        Device on which DataReferences are to be sampled at creation. Note
+        that, if you are using a `WebDataset` for training (strongly
+        recommended), this will not constrain the device used at training.
+    """
     from ..formula import ModelSpec, FCConfoundModelSpec
     from .variables import (
         VariableFactoryFactory,
@@ -154,12 +176,16 @@ def fc_reference_prep(model, tmask):
     if isinstance(tmask, str):
         tmask = [FCConfoundModelSpec(tmask)]
     image_and_trep = {
-        'images': VariableFactoryFactory(NeuroImageBlockVariable),
+        'images': VariableFactoryFactory(NeuroImageBlockVariable,
+                                         dtype=dtype, device=device),
         't_r': VariableFactoryFactory(MetaValueBlockVariable,
-                                      key='RepetitionTime')
+                                      key='RepetitionTime',
+                                      dtype=dtype, device=device)
     }
     model_and_tmask = {
-        'confounds': VariableFactoryFactory(TableBlockVariable, spec=model),
-        'tmask': VariableFactoryFactory(TableBlockVariable, spec=tmask)
+        'confounds': VariableFactoryFactory(TableBlockVariable, spec=model,
+                                            dtype=dtype, device=device),
+        'tmask': VariableFactoryFactory(TableBlockVariable, spec=tmask,
+                                        dtype=torch.bool, device=device)
     }
     return image_and_trep, model_and_tmask

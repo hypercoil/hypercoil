@@ -123,7 +123,7 @@ def crosshair_dot_gen(A, B, axes=(-2, -1)):
     A generalised version of the crosshair dot product where the crosshair can
     be extended over any number of dimensions. As it suffers poor performance
     relative to the 2-D implementation and as its use cases are likely narrow,
-    its correctness is not tested.
+    its correctness has not been tested.
     """
     prod = A * B
     repeats = len(axes) - 1

@@ -5,7 +5,10 @@
 Initialisation
 """
 from .base import (
-    ReducingRegularisation
+    LossApply,
+    ReducingLoss,
+    LossArgument,
+    UnpackingLossArgument
 )
 from .batchcorr import (
     BatchCorrelation,
@@ -32,15 +35,18 @@ from .equilibrium import (
     Equilibrium,
     SoftmaxEquilibrium
 )
+from .hinge import (
+    HingeLoss
+)
 from .modularity import (
-    ModularityRegularisation
+    ModularityLoss
 )
 from .norm import (
-    NormedRegularisation,
-    UnilateralNormedRegularisation
+    NormedLoss,
+    UnilateralNormedLoss
 )
 from .scheme import (
-    RegularisationScheme
+    LossScheme
 )
 from .secondmoment import (
     SecondMoment
@@ -49,5 +55,6 @@ from .smoothness import (
     SmoothnessPenalty
 )
 from .symbimodal import (
-    SymmetricBimodal
+    SymmetricBimodal,
+    SymmetricBimodalNorm
 )

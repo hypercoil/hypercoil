@@ -192,7 +192,8 @@ class fMRIPrepDataset(ReferencedDataset):
 def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
                         ignore=None, labels=('subject',), outcomes=None,
                         model=None, tmask=None, observations=('subject',),
-                        levels=('session', 'run', 'task')):
+                        levels=('session', 'run', 'task'),
+                        dtype=None, device=None):
     """
     Obtain data references for a directory containing data processed with
     fMRIPrep.
@@ -241,6 +242,14 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         List of data identifiers whose levels are packaged as sublevels of the
         same data reference. This permits easier augmentation of data via
         pooling across sublevels.
+    dtype : torch datatype
+        Datatype of sampled DataReferences at creation. Note that, if you are
+        using a `WebDataset` for training (strongly recommended), this will
+        not constrain the data type used at training.
+    device : str (default 'cpu')
+        Device on which DataReferences are to be sampled at creation. Note
+        that, if you are using a `WebDataset` for training (strongly
+        recommended), this will not constrain the device used at training.
 
     Returns
     -------
@@ -248,7 +257,12 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         List of data reference objects created from files found in the input
         directory.
     """
-    image_and_trep, model_and_tmask = fc_reference_prep(model, tmask)
+    image_and_trep, model_and_tmask = fc_reference_prep(
+        model,
+        tmask,
+        dtype=dtype,
+        device=device
+    )
     images = DataQuery(
         name='images',
         pattern='func/**/*preproc*.nii.gz',

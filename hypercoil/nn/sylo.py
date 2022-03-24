@@ -83,8 +83,9 @@ class Sylo(nn.Module):
 
     def __init__(self, in_channels, out_channels, dim, rank=1, bias=True,
                  symmetry=True, similarity=crosshair_similarity,
-                 delete_diagonal=False, init=None):
+                 delete_diagonal=False, init=None, device=None, dtype=None):
         super(Sylo, self).__init__()
+        factory_kwargs = {'device': device, 'dtype': dtype}
 
         if isinstance(dim, int):
             H, W = dim, dim
@@ -106,16 +107,18 @@ class Sylo(nn.Module):
         self.delete_diagonal = delete_diagonal
         self.init = init
 
-        self.weight_L = Parameter(
-            torch.Tensor(out_channels, in_channels, H, rank))
+        self.weight_L = Parameter(torch.empty(
+            out_channels, in_channels, H, rank, **factory_kwargs
+        ))
         if symmetry is True:
             self.weight_R = self.weight_L
         else:
-            self.weight_R = Parameter(
-                torch.Tensor(out_channels, in_channels, W, rank))
+            self.weight_R = Parameter(torch.empty(
+                out_channels, in_channels, W, rank, **factory_kwargs
+            ))
 
         if bias:
-            self.bias = Parameter(torch.Tensor(out_channels))
+            self.bias = Parameter(torch.empty(out_channels, **factory_kwargs))
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()

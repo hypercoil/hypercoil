@@ -16,7 +16,7 @@ from hypercoil.functional import (
 class TestSymmetricMap:
     @pytest.fixture(autouse=True)
     def setup_class(self):
-        self.tol = 5e-7
+        self.tol = 1e-5
         self.rtol = 1e-4
         self.approx = lambda out, ref: np.allclose(
             out, ref, atol=self.tol, rtol=self.rtol)
@@ -30,6 +30,10 @@ class TestSymmetricMap:
         self.At = torch.Tensor(self.A)
         self.AMt = torch.Tensor(self.AM)
         self.ASt = torch.Tensor(self.AS)
+
+        if torch.cuda.is_available():
+            self.AtC = self.At.clone().cuda()
+            self.AMtC = self.AMt.clone().cuda()
 
     def test_expm(self):
         out = symexp(self.At).numpy()
@@ -64,6 +68,20 @@ class TestSymmetricMap:
     def test_singular(self):
         out = symmap(self.ASt, torch.log).numpy()
         #assert np.all(np.logical_or(np.isnan(out), np.isinf(out)))
-        out = symmap(self.ASt, torch.log, psi=1e-5).numpy()
+        out = symmap(self.ASt, torch.log, psi=1e-3).numpy()
         assert np.all(np.logical_not(np.logical_or(
             np.isnan(out), np.isinf(out))))
+
+    @pytest.mark.cuda
+    def test_map_cuda(self):
+        out = symmap(self.AtC, torch.sin).cpu().numpy()
+        ref = funm(self.A, np.sin)
+        assert self.approx(out, ref)
+        ref = sinm(self.A)
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_map_multidim_cuda(self):
+        out = symmap(self.AMtC, torch.exp).cpu().numpy()
+        ref = np.stack([expm(AMi) for AMi in self.AM])
+        assert self.approx(out, ref)

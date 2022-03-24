@@ -2,10 +2,9 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-~~~~~~~~THE  REAL~~~~~~~~
 IIR filter initialisation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-Tools for initialising parameters to emulate an IIR filter.
+Tools for initialising parameters for an IIR filter layer.
 """
 import torch
 from scipy import signal

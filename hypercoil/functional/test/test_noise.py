@@ -15,6 +15,12 @@ from hypercoil.functional import (
 )
 
 
+#TODO: There are many missing tests for noise and dropout sources.
+# We should have at minimum an injection test for each source
+# on CPU and CUDA that also verifies each source works given an input
+# of a reasonable but nontrivial shape.
+
+
 def lr_std_mean(dim=100, rank=None, var=0.05, iter=1000):
     lrns = LowRankNoiseSource(rank=rank, var=var)
     return torch.Tensor(
@@ -61,6 +67,14 @@ class TestNoise:
     def test_scalar_iid_noise(self):
         sz = torch.Size([3, 8, 1, 21, 1])
         inp = torch.rand(sz)
+        sins = UnstructuredNoiseSource()
+        out = sins(inp)
+        assert out.size() == sz
+
+    @pytest.mark.cuda
+    def test_scalar_iid_noise_cuda(self):
+        sz = torch.Size([3, 8, 1, 21, 1])
+        inp = torch.rand(sz, device='cuda')
         sins = UnstructuredNoiseSource()
         out = sins(inp)
         assert out.size() == sz

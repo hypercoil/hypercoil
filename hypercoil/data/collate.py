@@ -14,7 +14,7 @@ additional arguments.
 
 import torch
 import re
-import collections.abc as container_abcs
+import collections
 from torch._six import string_classes
 from .functional import extend_to_max_size
 
@@ -29,7 +29,11 @@ gen_collate_err_msg_format = (
     "dicts or lists; found {}")
 
 
-def gen_collate(batch, concat=torch.stack, concat_axis=0):
+def gen_collate(
+    batch,
+    concat=torch.stack,
+    concat_axis=0
+):
     """
     Basically stolen/adapted from torch/utils/data/_utils/collate.py
     """
@@ -42,7 +46,7 @@ def gen_collate(batch, concat=torch.stack, concat_axis=0):
             # shared memory tensor to avoid an extra copy
             numel = sum([x.numel() for x in batch])
             storage = elem.storage()._new_shared(numel)
-            out = elem.new(storage)
+            out = elem.new(storage).resize_(len(batch), *list(elem.size()))
         return concat(batch, concat_axis, out=out)
     elif elem_type.__module__ == 'numpy' and elem_type.__name__ != 'str_' \
             and elem_type.__name__ != 'string_':
@@ -62,28 +66,56 @@ def gen_collate(batch, concat=torch.stack, concat_axis=0):
         return torch.tensor(batch)
     elif isinstance(elem, string_classes):
         return batch
-    elif isinstance(elem, container_abcs.Mapping):
-        return {key: gen_collate([d[key] for d in batch],
+    elif isinstance(elem, collections.abc.Mapping):
+        try:
+            return elem_type({
+                key: gen_collate([d[key] for d in batch],
                                  concat=concat,
                                  concat_axis=concat_axis)
-                for key in elem}
+                for key in elem
+            })
+        except TypeError:
+            # The mapping type may not support `__init__(iterable)`.
+            return {key: gen_collate([d[key] for d in batch],
+                                     concat=concat,
+                                     concat_axis=concat_axis)
+                    for key in elem}
     elif isinstance(elem, tuple) and hasattr(elem, '_fields'):  # namedtuple
         return elem_type(*(gen_collate(samples,
                                        concat=concat,
                                        concat_axis=concat_axis)
                            for samples in zip(*batch)))
-    elif isinstance(elem, container_abcs.Sequence):
+    elif isinstance(elem, collections.abc.Sequence):
         # check to make sure that the elements in batch have consistent size
         it = iter(batch)
         elem_size = len(next(it))
         if not all(len(elem) == elem_size for elem in it):
             raise RuntimeError(
                 'each element in list of batch should be of equal size')
-        transposed = zip(*batch)
-        return [gen_collate(samples,
-                            concat=concat,
-                            concat_axis=concat_axis)
-                for samples in transposed]
+        # It may be accessed twice, so we use a list.
+        transposed = list(zip(*batch))
+
+        if isinstance(elem, tuple):
+            # Backwards compatibility.
+            return [gen_collate(samples,
+                                concat=concat,
+                                concat_axis=concat_axis)
+                    for samples in transposed]
+        else:
+            try:
+                return elem_type([
+                    gen_collate(samples,
+                                concat=concat,
+                                concat_axis=concat_axis)
+                    for samples in transposed
+                ])
+            except TypeError:
+                # The sequence type may not support `__init__(iterable)`
+                # (e.g., `range`).
+                return [gen_collate(samples,
+                                    concat=concat,
+                                    concat_axis=concat_axis)
+                        for samples in transposed]
 
     raise TypeError(gen_collate_err_msg_format.format(elem_type))
 

@@ -16,13 +16,6 @@ from ..functional.matrix import recondition_eigenspaces
 from cvxpylayers.torch import CvxpyLayer
 
 
-def hinge_loss(Y_hat, Y):
-    return torch.maximum(
-        1 - Y * Y_hat,
-        torch.tensor([0])
-    ).sum()
-
-
 def labels_binary(labels, dtype=torch.float):
     l = labels.unique()[0]
     return [2 * (labels == l).type(dtype) - 1]
@@ -548,7 +541,7 @@ class SVM(torch.nn.Module):
         """
         wei = torch.abs((estimates.view(-1, 1) - estimates.view(1, -1)))
         wei = (wei).mean(0)
-        wei = wei - wei.min()
+        wei = wei - wei.amin()
         wei = torch.tanh(wei.median() / wei)
         return wei
 

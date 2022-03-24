@@ -10,7 +10,7 @@ import torch
 
 
 def laplace(input, loc=0, width=1):
-    """
+    r"""
     Double exponential activation function.
 
     The double exponential activation function is applied elementwise as
@@ -46,7 +46,7 @@ def laplace(input, loc=0, width=1):
 
 
 def expbarrier(input, barrier=1):
-    """
+    r"""
     Exponential barrier activation function.
 
     The exponential barrier activation function is applied elementwise as
@@ -80,7 +80,7 @@ def expbarrier(input, barrier=1):
 
 
 def amplitude_laplace(input, loc=0, width=1):
-    """
+    r"""
     Double exponential activation function applied to the amplitude only.
 
     The amplitude (absolute value) of the input is transformed according to
@@ -122,7 +122,7 @@ def amplitude_laplace(input, loc=0, width=1):
 
 
 def amplitude_expbarrier(input, barrier=1):
-    """
+    r"""
     Exponential barrier activation function applied to the amplitude only.
 
     The amplitude (absolute value) of the input is transformed according to
@@ -153,14 +153,13 @@ def amplitude_expbarrier(input, barrier=1):
     out : Tensor
         Transformed input tensor.
     """
-    ampl = torch.abs(input)
-    phase = torch.angle(input)
+    ampl, phase = complex_decompose(input)
     xfm = barrier * torch.sqrt(1 - torch.exp(-ampl / barrier ** 2))
     return xfm * torch.exp(phase * 1j)
 
 
 def amplitude_tanh(input):
-    """
+    r"""
     Hyperbolic tangent activation function applied to the amplitude only.
 
     The amplitude (absolute value) of the input is transformed according to
@@ -192,7 +191,7 @@ def amplitude_tanh(input):
 
 
 def amplitude_atanh(input):
-    """
+    r"""
     Inverse hyperbolic tangent (hyperbolic arctangent) activation function
     applied to the amplitude only.
 

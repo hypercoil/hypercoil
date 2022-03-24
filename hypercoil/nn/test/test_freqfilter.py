@@ -75,3 +75,11 @@ class TestFreqFilter:
                                      domain=Identity())
         out = filt(self.Z1)
         assert (out - self.Z1).max() < 1e-5
+
+    @pytest.mark.cuda
+    def test_cuda_forward(self):
+        filt = FrequencyDomainFilter(
+            self.filter_specs, dim=50,
+            device='cuda', dtype=torch.double)
+        out = filt(self.Z4.clone().cuda().double())
+        assert out.size() == torch.Size([1, 13, 7, 99])

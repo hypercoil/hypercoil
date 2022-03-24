@@ -20,15 +20,22 @@ from numpy.random import uniform
 
 
 class DTDFCell(Module):
-    def __init__(self, init_spec):
+    def __init__(self, init_spec, dtype=None, device=None):
+
+        factory_kwargs = {'device': device, 'dtype': dtype}
+
         super(DTDFCell, self).__init__()
         self.N = init_spec.N
         self.multiplier = 1
         if init_spec.btype in ('bandpass', 'bandstop'):
             self.multiplier = 2
-        self.b = Parameter(torch.zeros(self.multiplier * self.N + 1))
-        self.a = Parameter(torch.zeros(self.multiplier * self.N))
-        self.init_params(init_spec)
+        self.b = Parameter(
+            torch.zeros(self.multiplier * self.N + 1, **factory_kwargs)
+        )
+        self.a = Parameter(
+            torch.zeros(self.multiplier * self.N, **factory_kwargs)
+        )
+        self.init_params(init_spec, **factory_kwargs)
 
     def forward(self, input, v):
         output = input * self.b[0] + v[..., 0].unsqueeze(-1)
@@ -37,24 +44,21 @@ class DTDFCell(Module):
         v_new[..., :-1] = v_new[..., :-1] + v[..., 1:]
         return output.squeeze(-1), v_new
 
-    def init_states(self, size):
-        v = torch.zeros(*size, self.multiplier * self.N).to(
-            next(self.parameters()).device)
+    def init_states(self, size, **factory_kwargs):
+        v = torch.zeros(
+            *size, self.multiplier * self.N,
+            **factory_kwargs
+        ).to(next(self.parameters()).device)
         return v
 
-    def init_params(self, spec):
+    def init_params(self, spec, **factory_kwargs):
         spec.initialise_coefs()
-        coefs = torch.tensor(np.array(spec.coefs))
+        coefs = torch.tensor(np.array(spec.coefs), **factory_kwargs)
         b = coefs[..., 0, :]
         a = coefs[..., 1, :][..., 1:]
-        rg = self.b.requires_grad
-        self.b.requires_grad = False
-        self.b[:] = b
-        self.b.requires_grad = rg
-        rg = self.a.requires_grad
-        self.a.requires_grad = False
-        self.a[:] = a
-        self.a.requires_grad = rg
+        with torch.no_grad():
+            self.b[:] = b
+            self.a[:] = a
 
 
 class Spec(object):
@@ -64,9 +68,11 @@ class Spec(object):
 
 
 class DTDF(Module):
-    def __init__(self, spec):
+    def __init__(self, spec, device=None, dtype=None):
         super(DTDF, self).__init__()
-        self.cell = DTDFCell(init_spec=spec)
+        factory_kwargs = {'device': device, 'dtype': dtype}
+        self.factory_kwargs = factory_kwargs
+        self.cell = DTDFCell(init_spec=spec, **factory_kwargs)
 
     def forward(self, input, initial_states=None, feature_ax=False):
         if not feature_ax:
@@ -77,11 +83,17 @@ class DTDF(Module):
         sequence_length = input.shape[-2]
 
         if initial_states is None:
-            states = self.cell.init_states(input.shape[:-2])
+            states = self.cell.init_states(
+                input.shape[:-2],
+                **self.factory_kwargs
+            )
         else:
             states = initial_states
 
-        out_sequence = torch.zeros(input.shape[:-1]).to(input.device)
+        out_sequence = torch.zeros(
+            input.shape[:-1],
+            **self.factory_kwargs
+        ).to(input.device)
         for s_idx in range(sequence_length):
             out_sequence[..., s_idx], states = self.cell(
                 input[..., s_idx, :],

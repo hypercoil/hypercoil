@@ -124,7 +124,8 @@ def cone_project_spd(input, reference, recondition=0):
     # inverse of `tangent_project_spd`.
     if recondition > 0:
         cone = 1 / (1 - recondition) * (
-            cone - recondition * torch.eye(input.size(-1)))
+            cone - recondition *
+            torch.eye(input.size(-1), dtype=input.dtype, device=input.device))
     return spd(cone)
 
 

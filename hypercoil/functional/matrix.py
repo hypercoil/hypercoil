@@ -46,10 +46,10 @@ def invert_spd(A, force_invert_singular=True):
         # more sense than trying again with a reconditioned matrix?
         if force_invert_singular:
             return torch.pinverse(A)
-            return symmetric(invert_spd(
-                recondition_eigenspaces(A, psi=1e-4, xi=1e-5),
-                force_invert_singular=False
-            ))
+            #return symmetric(invert_spd(
+            #    recondition_eigenspaces(A, psi=1e-4, xi=1e-5),
+            #    force_invert_singular=False
+            #))
         raise
 
 
@@ -132,8 +132,14 @@ def spd(X, eps=1e-6, method='eig'):
     if method == 'eig':
         L = torch.linalg.eigvalsh(symmetric(X))
         lmin = L.amin(axis=-1) - eps
-        lmin = torch.minimum(lmin, torch.zeros(1)).squeeze()
-        return symmetric(X - lmin[..., None, None] * torch.eye(X.size(-1)))
+        lmin = torch.minimum(
+            lmin,
+            torch.zeros(1, dtype=L.dtype, device=L.device)
+        ).squeeze()
+        return symmetric(
+            X - lmin[..., None, None] *
+            torch.eye(X.size(-1), dtype=X.dtype, device=X.device)
+        )
     elif method == 'svd':
         Q, L, _ = torch.svd(symmetric(X))
         return symmetric(Q @ torch.diag_embed(L) @ Q.transpose(-1, -2))
@@ -183,7 +189,7 @@ def expand_outer(L, R=None, symmetry=None):
     output = L @ R.transpose(-2, -1)
     #TODO: Unit tests are not hitting this conditional...
     if symmetry == 'cross' or symmetry == 'skew':
-        return symmetric(output, skew=symmetry)
+        return symmetric(output, skew=(symmetry == 'skew'))
     return output
 
 
@@ -232,7 +238,7 @@ def delete_diagonal(A):
     return A * mask
 
 
-def toeplitz(c, r=None, dim=None, fill_value=0):
+def toeplitz(c, r=None, dim=None, fill_value=0, dtype=None, device=None):
     """
     Populate a block of tensors with Toeplitz banded structure.
 
@@ -285,30 +291,38 @@ def toeplitz(c, r=None, dim=None, fill_value=0):
     """
     if r is None:
         r = c.conj()
+    if dtype is None:
+        dtype = c.dtype
+    if device is None:
+        device = c.device
     clen, rlen = c.size(0), r.size(0)
     obj_shp = c.size()[1:]
     if dim is not None and dim is not (clen, rlen):
-        r_ = torch.zeros([dim[1], *obj_shp], dtype=c.dtype, device=c.device)
-        c_ = torch.zeros([dim[0], *obj_shp], dtype=c.dtype, device=c.device)
+        r_ = torch.zeros([dim[1], *obj_shp], dtype=dtype, device=device)
+        c_ = torch.zeros([dim[0], *obj_shp], dtype=dtype, device=device)
         if isinstance(fill_value, torch.Tensor) or fill_value != 0:
             r_ += fill_value
             c_ += fill_value
         r_[:rlen] = r
         c_[:clen] = c
         r, c = r_, c_
-    return _populate_toeplitz(c, r, obj_shp)
+    return _populate_toeplitz(c, r, obj_shp, dtype=dtype, device=device)
 
 
-def _populate_toeplitz(c, r, obj_shp):
+def _populate_toeplitz(c, r, obj_shp, dtype=None, device=None):
     """
     Populate a block of Toeplitz matrices without any preprocessing.
 
     Thanks to https://github.com/cornellius-gp/gpytorch/blob/master/gpytorch/utils/toeplitz.py
     for ideas toward a faster implementation.
     """
+    if dtype is None:
+        dtype = c.dtype
+    if device is None:
+        device = c.device
     out_shp = c.size(0), r.size(0)
     # return _strided_view_toeplitz(r, c, out_shp)
-    X = torch.empty([*out_shp, *obj_shp], dtype=c.dtype, device=c.device)
+    X = torch.empty([*out_shp, *obj_shp], dtype=dtype, device=device)
     for i, val in enumerate(c):
         m = min(i + out_shp[1], out_shp[0])
         for j in range(i, m):
@@ -400,11 +414,13 @@ def vec2sym(vec, offset=1):
     cn2 = vec.shape[-1]
     side = int(0.5 * (math.sqrt(8 * cn2 + 1) + 1)) + (offset - 1)
     idx = torch.triu_indices(side, side, offset)
-    sym = torch.zeros((*shape, side, side)).type(vec.dtype)
+    sym = torch.zeros(
+        (*shape, side, side), dtype=vec.dtype, device=vec.device
+    )
     sym[..., idx[0], idx[1]] = vec
     sym = sym + sym.transpose(-1, -2)
     if offset == 0:
-        mask = torch.eye(side).bool()
+        mask = torch.eye(side, device=sym.device, dtype=torch.bool)
         sym[..., mask] = sym[..., mask] / 2
     return sym
 

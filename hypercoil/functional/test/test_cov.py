@@ -15,6 +15,10 @@ from hypercoil.functional import (
 )
 
 
+#TODO: Unit tests still needed for:
+# - correctness of off-diagonal weighted covariance
+
+
 class TestCov:
 
     @pytest.fixture(autouse=True)
@@ -31,6 +35,7 @@ class TestCov:
         self.wM = np.random.rand(3, 100)
         self.W = np.random.rand(100, 100)
         self.Y = np.random.rand(3, 100)
+
         self.xt = torch.Tensor(self.x)
         self.Xt = torch.Tensor(self.X)
         self.XMt = torch.Tensor(self.XM)
@@ -39,6 +44,16 @@ class TestCov:
         self.Wt = torch.Tensor(self.W)
         self.WMt = torch.diag_embed(self.wMt)
         self.Yt = torch.Tensor(self.Y)
+
+        if torch.cuda.is_available():
+            self.xtC = self.xt.clone().cuda()
+            self.XtC = self.Xt.clone().cuda()
+            self.XMtC = self.XMt.clone().cuda()
+            self.wtC = self.wt.clone().cuda()
+            self.wMtC = self.wMt.clone().cuda()
+            self.WtC = self.Wt.clone().cuda()
+            self.WMtC = self.WMt.clone().cuda()
+            self.YtC = self.Yt.clone().cuda()
 
     def covpattern(self, **args):
         out = self.ofunc(self.Xt, **args).numpy()
@@ -138,6 +153,104 @@ class TestCov:
         """
         Y_intercept = np.concatenate([self.Y, np.ones((1, 100))])
         out = conditionalcorr(self.Xt, self.Yt).numpy()
+        ref = np.corrcoef(
+            self.X - np.linalg.lstsq(Y_intercept.T, self.X.T, rcond=None)[0].T
+            @ Y_intercept)
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_cov_var_cuda(self):
+        out = self.ofunc(self.xtC).cpu().numpy()
+        ref = self.rfunc(self.x)
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_cov_weighted_cuda(self):
+        out = self.ofunc(
+            self.XtC,
+            weight=self.wtC
+        ).cpu().numpy()
+        ref = self.rfunc(self.X, aweights=self.w)
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_cov_multiweighted_1d_cuda(self):
+        out = self.ofunc(
+            self.XtC,
+            weight=self.wMtC
+        ).cpu()
+        ref = np.stack([
+            self.rfunc(self.X, aweights=self.wM[i, :])
+            for i in range(self.wM.shape[0])
+        ])
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_cov_Weighted_cuda(self):
+        out = self.ofunc(
+            self.XtC,
+            weight=self.WtC
+        )
+
+    @pytest.mark.cuda
+    def test_cov_multidim_cuda(self):
+        out = self.ofunc(
+            self.XMtC,
+            weight=self.wtC
+        ).cpu().numpy()
+        ref = np.stack([
+            self.rfunc(self.XM[i, :, :].squeeze(), aweights=self.w)
+            for i in range(self.XM.shape[0])
+        ])
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_paired_cuda(self):
+        out = pairedcov(
+            self.XtC,
+            self.YtC
+        ).cpu().numpy()
+        ref = np.cov(np.concatenate([self.X ,self.Y], -2))[:7, -3:]
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_corr_cuda(self):
+        out = corr(self.XtC).cpu().numpy()
+        ref = np.corrcoef(self.X)
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_pairedcorr_cuda(self):
+        out = pairedcorr(self.XtC, self.YtC).cpu().numpy()
+        ref = corr(torch.cat([self.XtC, self.YtC]))[:7, 7:].cpu().numpy()
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_pcorr_cuda(self):
+        out = partialcorr(self.XtC).cpu().numpy()
+        ref = pd.DataFrame(self.X.T).pcorr().values
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_ccov_cuda(self):
+        """
+        Verify equivalence of the Schur complement approach and fit-based
+        confound regression.
+        """
+        out = conditionalcov(self.XtC, self.YtC).cpu().numpy()
+        ref = torch.pinverse(
+            precision(torch.cat([self.Xt ,self.Yt], -2))[:7, :7]).numpy()
+        assert self.approx(out, ref)
+        Y_intercept = np.concatenate([self.Y, np.ones((1, 100))])
+        ref = np.cov(
+            self.X - np.linalg.lstsq(Y_intercept.T, self.X.T, rcond=None)[0].T
+            @ Y_intercept)
+        assert self.approx(out, ref)
+
+    @pytest.mark.cuda
+    def test_ccorr_cuda(self):
+        Y_intercept = np.concatenate([self.Y, np.ones((1, 100))])
+        out = conditionalcorr(self.XtC, self.YtC).cpu().numpy()
         ref = np.corrcoef(
             self.X - np.linalg.lstsq(Y_intercept.T, self.X.T, rcond=None)[0].T
             @ Y_intercept)

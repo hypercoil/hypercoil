@@ -109,18 +109,22 @@ class TangentProject(_TangentProject):
     dest : ``'tangent'`` or ``'cone'``
         Target space/manifold of the projection operation.
     """
-    def __init__(self, init_data, mean_specs=None, recondition=0, std=0):
+    def __init__(self, init_data, mean_specs=None,
+                 recondition=0, std=0, dtype=None, device=None):
         super(TangentProject, self).__init__(mean_specs, recondition)
+        factory_kwargs = {'device': device, 'dtype': dtype}
         if self.out_channels > 1:
-            self.weight = Parameter(torch.Tensor(
+            self.weight = Parameter(torch.empty(
                 *init_data.size()[1:-2],
                 self.out_channels,
                 init_data.size(-2),
                 init_data.size(-1),
+                **factory_kwargs
             ))
         else:
-            self.weight = Parameter(torch.Tensor(
-                *init_data.size()[1:]
+            self.weight = Parameter(torch.empty(
+                *init_data.size()[1:],
+                **factory_kwargs
             ))
         self.init = TangencyInit(
             self.mean_specs, init_data, std=std
@@ -209,7 +213,7 @@ class BatchTangentProject(_TangentProject):
         tangent subspace.
 
         If no `dest` parameter is provided, then the destination manifold will
-        be set to
+        be set to the module's internal default destination attribute.
         """
         dest = dest or self.dest
         if dest != 'cone':

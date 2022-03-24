@@ -186,37 +186,43 @@ class _WeightedCov(_Cov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, init=None):
+                 noise=None, dropout=None, init=None,
+                 dtype=None, device=None):
         super(_WeightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             out_channels=out_channels
         )
+        factory_kwargs = {'device': device, 'dtype': dtype}
         if self.max_lag == 0:
             self.init = init or ConstantInitialiser(1, domain=Identity())
-            self.preweight = Parameter(torch.Tensor(
-                self.out_channels, 1, self.dim
+            self.preweight = Parameter(torch.empty(
+                self.out_channels, 1, self.dim, **factory_kwargs
             ))
         else:
-            vals = laplace(torch.arange(self.max_lag + 1))
+            vals = laplace(torch.arange(self.max_lag + 1, **factory_kwargs))
             self.init = init or ToeplitzInit(
                 c=vals,
                 fill_value=0,
                 domain=Identity()
             )
-            self.preweight = Parameter(torch.Tensor(
-                self.out_channels, self.dim, self.dim
+            self.preweight = Parameter(torch.empty(
+                self.out_channels, self.dim, self.dim, **factory_kwargs
             ))
             if self.max_lag is not None:
-                self.mask = Parameter(torch.Tensor(
-                    self.dim, self.dim
+                self.mask = Parameter(torch.empty(
+                    self.dim, self.dim, **factory_kwargs
                 ).bool(), requires_grad=False)
         self.reset_parameters()
 
     def reset_parameters(self):
         self.init(self.preweight)
         if self.max_lag is not None and self.max_lag != 0:
-            mask_vals = torch.Tensor([1 for _ in range(self.max_lag + 1)])
+            mask_vals = torch.tensor(
+                [1 for _ in range(self.max_lag + 1)],
+                dtype=self.preweight.dtype,
+                device=self.preweight.device
+            )
             mask_init = ToeplitzInit(c=mask_vals, fill_value=0)
             mask_init(self.mask)
 
@@ -237,30 +243,36 @@ class _ToeplitzWeightedCov(_Cov):
     # forward pass...
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, init=None):
+                 noise=None, dropout=None, init=None,
+                 device=None, dtype=None):
         super(_ToeplitzWeightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             out_channels=out_channels
         )
+        factory_kwargs = {'device': device, 'dtype': dtype}
         if self.max_lag is not None:
-            self.mask = Parameter(torch.Tensor(
-                self.dim, self.dim
+            self.mask = Parameter(torch.empty(
+                self.dim, self.dim, **factory_kwargs
             ).bool(), requires_grad=False)
         self.init = init or LaplaceInit(
             loc=(0, 0), excl_axis=[1], domain=Identity()
         )
-        self.prepreweight_c = Parameter(torch.Tensor(
-            self.max_lag + 1, self.out_channels
+        self.prepreweight_c = Parameter(torch.empty(
+            self.max_lag + 1, self.out_channels, **factory_kwargs
         ))
-        self.prepreweight_r = Parameter(torch.Tensor(
-            self.max_lag + 1, self.out_channels
+        self.prepreweight_r = Parameter(torch.empty(
+            self.max_lag + 1, self.out_channels, **factory_kwargs
         ))
         self.reset_parameters()
 
     def reset_parameters(self):
         if self.max_lag is not None:
-            mask_vals = torch.Tensor([1 for _ in range(self.max_lag + 1)])
+            mask_vals = torch.tensor(
+                [1 for _ in range(self.max_lag + 1)],
+                dtype=self.prepreweight_c.dtype,
+                device=self.prepreweight_c.device
+            )
             mask_init = ToeplitzInit(c=mask_vals, fill_value=0)
         self.init(self.prepreweight_c)
         self.init(self.prepreweight_r)
@@ -272,7 +284,12 @@ class _ToeplitzWeightedCov(_Cov):
             c=self.prepreweight_c,
             r=self.prepreweight_r,
             dim=(self.dim, self.dim),
-            fill_value=self.init.domain.preimage(torch.tensor(0.)).item()
+            fill_value=self.init.domain.preimage(
+                torch.tensor(
+                    0.,
+                    dtype=self.prepreweight_c.dtype,
+                    device=self.prepreweight_c.device)
+            ).item()
         )
 
     @property
@@ -293,15 +310,20 @@ class _UnweightedCov(_Cov):
     """
     def __init__(self, dim, estimator, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None):
+                 noise=None, dropout=None, device=None, dtype=None):
         super(_UnweightedCov, self).__init__(
             dim=dim, estimator=estimator, max_lag=0, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
             out_channels=out_channels
         )
+        factory_kwargs = {'device': device, 'dtype': dtype}
         self.init = BaseInitialiser(init=identity_init_)
         self.preweight = Parameter(
-            torch.Tensor(self.out_channels, self.dim, self.dim),
+            torch.empty(
+                self.out_channels,
+                self.dim, self.dim,
+                **factory_kwargs
+            ),
             requires_grad=False
         )
         self.reset_parameters()
@@ -418,11 +440,12 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, init=None):
+                 noise=None, dropout=None, init=None,
+                 dtype=None, device=None):
         super(UnaryCovariance, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            init=init, out_channels=out_channels
+            init=init, out_channels=out_channels, dtype=dtype, device=device
         )
 
 
@@ -532,11 +555,12 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, init=None):
+                 noise=None, dropout=None, init=None,
+                 dtype=None, device=None):
         super(UnaryCovarianceTW, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            init=init, out_channels=out_channels
+            init=init, out_channels=out_channels, dtype=dtype, device=device
         )
 
 
@@ -627,11 +651,11 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
     """
     def __init__(self, dim, estimator, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None):
+                 noise=None, dropout=None, dtype=None, device=None):
         super(UnaryCovarianceUW, self).__init__(
             dim=dim, estimator=estimator, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            out_channels=out_channels
+            out_channels=out_channels, dtype=dtype, device=device
         )
 
 
@@ -756,11 +780,12 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, init=None):
+                 noise=None, dropout=None, init=None,
+                 dtype=None, device=None):
         super(BinaryCovariance, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            init=init, out_channels=out_channels
+            init=init, out_channels=out_channels, dtype=dtype, device=device
         )
 
 
@@ -883,11 +908,12 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
     """
     def __init__(self, dim, estimator, max_lag=0, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None, init=None):
+                 noise=None, dropout=None, init=None,
+                 dtype=None, device=None):
         super(BinaryCovarianceTW, self).__init__(
             dim=dim, estimator=estimator, max_lag=max_lag, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            init=init, out_channels=out_channels
+            init=init, out_channels=out_channels, dtype=dtype, device=device
         )
 
 
@@ -992,9 +1018,9 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
     """
     def __init__(self, dim, estimator, out_channels=1,
                  rowvar=True, bias=False, ddof=None, l2=0,
-                 noise=None, dropout=None):
+                 noise=None, dropout=None, dtype=None, device=None):
         super(BinaryCovarianceUW, self).__init__(
             dim=dim, estimator=estimator, rowvar=rowvar,
             bias=bias, ddof=ddof, l2=l2, noise=noise, dropout=dropout,
-            out_channels=out_channels
+            out_channels=out_channels, dtype=dtype, device=device
         )

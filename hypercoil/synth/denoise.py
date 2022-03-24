@@ -108,3 +108,25 @@ def plot_select(select, save=None):
     plt.yticks([])
     if save:
         plt.savefig(save, bbox_inches='tight')
+
+
+def plot_norm_reduction(w, save=None):
+    W = w.t().detach().numpy()
+    n_confounds = w.shape[-1]
+    I = np.eye(n_confounds)
+    theta, _, _, _ = np.linalg.lstsq(W, I)
+    residual = (I - (W @ theta))
+
+    plt.figure(figsize=(6, 6))
+    plt.bar(
+        np.arange(20),
+        (
+            np.linalg.norm(I, axis=1) -
+            np.linalg.norm(residual, axis=1)
+        ),
+        color='black'
+    )
+    plt.title('Norm Reduction')
+    plt.xticks([])
+    if save:
+        plt.savefig(save, bbox_inches='tight')
