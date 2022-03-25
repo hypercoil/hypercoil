@@ -60,6 +60,10 @@ class BaseAtlas(ABC):
         Implemented by a `~LabelMixin` class.
     `_init_coors`
         Implemented by a `~MeshMixin` class.
+    `_configure_sigma`
+        Implemented by a `~ConvMixin` class.
+    `_convolve`
+        Implemented by a `~ConvMixin` class.
 
     Abstractly, atlas creation proceeds through the following steps:
     - Loading a reference that contains the atlas data;
@@ -202,6 +206,12 @@ class BaseAtlas(ABC):
         truncate : float
             Maximum distance at which data points are convolved together
             during smoothing.
+
+        Returns
+        -------
+        dict(tensor)
+            Dictionary of transformed maps for each specified atlas
+            compartment.
         """
         ret = OrderedDict()
         if compartments is False:

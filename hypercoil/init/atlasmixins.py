@@ -23,11 +23,21 @@ def _is_path(obj):
     return isinstance(obj, str) or isinstance(obj, PosixPath)
 
 
+#TODO: We need morphological mask logic nodes (dilation, erosion, etc.).
 class FloatLeaf:
+    """
+    Leaf node for floating-point data in mask logic operations. Used with
+    thresholding operations.
+    """
     def __init__(self, img):
         self.img = img
 
     def __call__(self, nifti=False):
+        """
+        Load the specified image as a floating point-valued array. If `nifti`
+        is set to True (default False), then the call returns values for all
+        fields required to initialise a `nibabel` NIfTI image object.
+        """
         if not nifti:
             return nb.load(self.img).get_fdata()
         else:
@@ -47,6 +57,11 @@ class MaskLeaf:
         self.mask = mask
 
     def __call__(self, nifti=False):
+        """
+        Load the specified image as a Boolean-valued array. If `nifti` is set
+        to True (default False), then the call returns values for all fields
+        required to initialise a `nibabel` NIfTI image object.
+        """
         if not nifti:
             mask = _to_mask(self.mask)
             return mask
@@ -61,6 +76,12 @@ class MaskLeaf:
 
 
 class MaskThreshold:
+    """
+    Create a mask by thresholding and binarising a continuous-valued image.
+    `MaskThreshold` zeros all values less than the specified threshold and
+    then uses surviving (larger) values as a Boolean mask. To zero larger
+    values, use `MaskUThreshold`.
+    """
     def __init__(self, child, threshold):
         self.threshold = threshold
         if _is_path(child):
@@ -69,6 +90,11 @@ class MaskThreshold:
             self.child = child
 
     def __call__(self, nifti=False):
+        """
+        Apply the threshold operation. If `nifti` is set to True (default
+        False), then the call returns values for all fields required to
+        initialise a `nibabel` NIfTI image object.
+        """
         if not nifti:
             return (self.child() >= self.threshold)
         else:
@@ -81,6 +107,12 @@ class MaskThreshold:
 
 
 class MaskUThreshold:
+    """
+    Create a mask by thresholding and binarising a continuous-valued image.
+    `MaskUThreshold` zeros all values greater than the specified threshold and
+    then uses surviving (smaller) values as a Boolean mask. To zero smaller
+    values, use `MaskThreshold`.
+    """
     def __init__(self, child, threshold):
         self.threshold = threshold
         if _is_path(child):
@@ -89,6 +121,11 @@ class MaskUThreshold:
             self.child = child
 
     def __call__(self, nifti=False):
+        """
+        Apply the upper threshold operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
         if not nifti:
             return (self.child() <= self.threshold)
         else:
@@ -102,7 +139,8 @@ class MaskUThreshold:
 
 class MaskNegation:
     """
-    Negation node for mask logic operations.
+    Negation node for mask logic operations. Returns the negation of the mask
+    output by child operations.
     """
     def __init__(self, child):
         if _is_path(child):
@@ -111,6 +149,12 @@ class MaskNegation:
             self.child = child
 
     def __call__(self, nifti=False):
+        """
+        Apply the negation operation, recursively calling the operations trees
+        of all child nodes. If `nifti` is set to True (default False), then
+        the call returns values for all fields required to initialise a
+        `nibabel` NIfTI image object.
+        """
         if not nifti:
             return ~self.child()
         else:
@@ -124,7 +168,8 @@ class MaskNegation:
 
 class MaskUnion:
     """
-    Union node for mask logic operations.
+    Union node for mask logic operations. Returns the union of all masks
+    output by child operations.
     """
     def __init__(self, *children):
         self.children = [
@@ -133,6 +178,12 @@ class MaskUnion:
         ]
 
     def __call__(self, nifti=False):
+        """
+        Apply the union operation, recursively calling the operations trees
+        of all child nodes. If `nifti` is set to True (default False), then
+        the call returns values for all fields required to initialise a
+        `nibabel` NIfTI image object.
+        """
         child = self.children[0]
         if not nifti:
             mask = child()
@@ -155,7 +206,8 @@ class MaskUnion:
 
 class MaskIntersection:
     """
-    Intersection node for mask logic operations.
+    Intersection node for mask logic operations. Returns the intersection of
+    all masks output by child operations.
     """
     def __init__(self, *children):
         self.children = [
@@ -164,6 +216,12 @@ class MaskIntersection:
         ]
 
     def __call__(self, nifti=False):
+        """
+        Apply the intersection operation, recursively calling the operations
+        trees of all child nodes. If `nifti` is set to True (default False),
+        then the call returns values for all fields required to initialise a
+        `nibabel` NIfTI image object.
+        """
         child = self.children[0]
         if not nifti:
             mask = child()
@@ -186,7 +244,9 @@ class MaskIntersection:
 
 class _ObjectReferenceMixin:
     """
-    For when a NIfTI image object is already provided as the `ref_pointer`
+    Use to load a reference into an atlas class.
+
+    For use when a NIfTI image object is already provided as the `ref_pointer`
     argument.
     """
     def _load_reference(self, ref_pointer):
@@ -195,6 +255,12 @@ class _ObjectReferenceMixin:
 
 
 class _SingleReferenceMixin:
+    """
+    Use to load a reference into an atlas class.
+
+    For use when the `ref_pointer` object references a single path to an image
+    on disk.
+    """
     def _load_reference(self, ref_pointer):
         ref = nb.load(ref_pointer)
         self.cached_ref_data = ref.get_fdata()
@@ -202,6 +268,12 @@ class _SingleReferenceMixin:
 
 
 class _MultiReferenceMixin:
+    """
+    Use to load a reference into an atlas class.
+
+    For use when the `ref_pointer` object is an iterable of paths to images on
+    disk.
+    """
     def _load_reference(self, ref_pointer):
         ref = [nb.load(path) for path in ref_pointer]
         self.cached_ref_data = np.stack([r.get_fdata() for r in ref], -1)
@@ -214,6 +286,14 @@ class _MultiReferenceMixin:
 
 
 class _PhantomReferenceMixin:
+    """
+    Use to load a reference into an atlas class.
+
+    For use when the data content of the reference is unimportant, for
+    instance when instances of the atlas class are to be initialised from a
+    distribution rather than from an existing reference. The reference is
+    still used for inferring dimensions of the atlas and input images.
+    """
     def _load_reference(self, ref_pointer):
         try:
             ref = nb.load(ref_pointer)
@@ -233,12 +313,23 @@ class _PhantomReferenceMixin:
 
 
 class _PhantomDataobj:
+    """
+    For tricking `nibabel` into instantiating `Nifti1Image` objects without
+    any real data. Used to reduce data overhead when initialising atlases from
+    distributions.
+    """
     def __init__(self, base):
         self.shape = base.shape
         self.ndim = base.ndim
 
 
 class _CIfTIReferenceMixin:
+    """
+    Use if an atlas uses a CIfTI as its reference. This class implements the
+    additional methods `axes` and `model_axis`, which facilitate access to
+    CIfTI model axes. Note that this is *not* a substitute for a reference
+    loader mixin like `_ObjectReferenceMixin` or `_SingleReferenceMixin`.
+    """
     @property
     def axes(self):
         """
@@ -257,6 +348,15 @@ class _CIfTIReferenceMixin:
 
 
 class _LogicMaskMixin:
+    """
+    Use to create an overall mask that specifies atlas inclusion status of
+    spatial locations.
+
+    For use when the mask source is either a path on the file system
+    containing Boolean-valued data or a nested logical expression tree
+    (comprising operation nodes such as `MaskIntersection` or
+    `MaskThreshold` with filesystem paths as leaf nodes).
+    """
     def _create_mask(self, source, device=None):
         if _is_path(source):
             source = MaskLeaf(source)
@@ -265,6 +365,14 @@ class _LogicMaskMixin:
 
 
 class _CortexSubcortexCIfTIMaskMixin:
+    """
+    Use to create an overall mask that specifies atlas inclusion status of
+    spatial locations.
+
+    For use when creating a CIfTI atlas with separate cortical and subcortical
+    compartments, and when the provided mask source indicates medial wall
+    regions of the cortical surface marked for exclusion from the atlas.
+    """
     def _create_mask(self, source, device=None):
         init = []
         for k, v in source.items():
@@ -280,6 +388,18 @@ class _CortexSubcortexCIfTIMaskMixin:
 
 
 class _FromNullMaskMixin:
+    """
+    Use to create an overall mask that specifies atlas inclusion status of
+    spatial locations.
+
+    For use when automatically creating a mask by excluding all background-
+    or null-valued (typically 0-valued) spatial locations from the reference.
+    For single-volume references (typically discrete-valued), this mixin
+    creates a mask that includes all locations not labelled as background.
+    For multi-volume references (often continuous-valued), this mixin
+    creates a mask that includes all locations that are greater than or equal
+    to the provided source parameter after taking the sum across volumes.
+    """
     def _create_mask(self, source, device=None):
         if self.ref.ndim <= 3:
             init = (self.cached_ref_data.round() != source)
@@ -306,6 +426,7 @@ class _SingleCompartmentMixin:
             }
 
 
+#TODO: Intersect compartment mask with overall mask before saving.
 class _MultiCompartmentMixin:
     def _compartment_names_dict(self, **kwargs):
         return kwargs
