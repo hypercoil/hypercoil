@@ -13,7 +13,7 @@ from ..functional.cov import corrnorm
 
 
 class SPDNoise(Module):
-    """
+    r"""
     Symmetric positive definite noise injection that preserves positive
     semidefiniteness.
 

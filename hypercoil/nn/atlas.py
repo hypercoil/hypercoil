@@ -16,7 +16,7 @@ from ..init.atlas import AtlasInit
 
 
 class AtlasLinear(Module):
-    """
+    r"""
     Time series extraction from an atlas via a linear map.
 
     Dimension

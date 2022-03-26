@@ -14,7 +14,7 @@ from ..functional.sphere import spherical_geodesic
 
 
 def cmass(X, axes=None, na_rm=False):
-    """
+    r"""
     Differentiably compute a weight's centre of mass. This can be used to
     regularise the weight so that its centre of mass is close to a provided
     coordinate.
@@ -83,7 +83,7 @@ def cmass_reference_displacement(weight, refs, axes=None, na_rm=False):
 
 
 def cmass_coor(X, coor, radius=None):
-    """
+    r"""
     Differentiably compute a weight's centre of mass.
 
     :Dimension: **Input :** :math:`(*, W, L)`

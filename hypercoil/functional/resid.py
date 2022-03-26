@@ -8,7 +8,7 @@ import torch
 
 
 def residualise(Y, X, driver='gelsd', rowvar=True):
-    """
+    r"""
     Residualise a tensor block via ordinary linear least squares.
 
     :Dimension: **Input Y :** :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`

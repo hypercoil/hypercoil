@@ -15,7 +15,7 @@ from ..init.freqfilter import freqfilter_init_, clamp_init_
 
 
 class FrequencyDomainFilter(Module):
-    """
+    r"""
     Filtering or convolution via transfer function multiplication in the
     frequency domain.
 

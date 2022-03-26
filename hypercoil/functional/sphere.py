@@ -28,7 +28,7 @@ def kernel_gaussian(x, scale=1):
 
 
 def sphere_to_normals(coor, r=1):
-    """
+    r"""
     Convert spherical coordinates from latitude/longitude format to normal
     vector format. Note this only works for 2-spheres as of now.
 
@@ -60,7 +60,7 @@ def sphere_to_normals(coor, r=1):
 
 
 def sphere_to_latlong(coor):
-    """
+    r"""
     Convert spherical coordinates from normal vector format to latitude/
     longitude format. Note this only works for 2-spheres as of now.
 
@@ -90,7 +90,7 @@ def sphere_to_latlong(coor):
 
 
 def spherical_geodesic(X, Y=None, r=1):
-    """
+    r"""
     Geodesic great-circle distance between two sets of spherical coordinates
     formatted as normal vectors.
 
@@ -137,7 +137,7 @@ def spherical_geodesic(X, Y=None, r=1):
 
 def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
                  max_bin=10000, truncate=None):
-    """
+    r"""
     Convolve data on a manifold with an isotropic kernel.
 
     This is implemented in pretty much the dumbest possible way, but it works.
@@ -209,7 +209,7 @@ def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
 
 
 def spherical_conv(data, coor, scale=1, r=1, max_bin=10000, truncate=None):
-    """
+    r"""
     Convolve data on a 2-sphere with a Gaussian kernel.
 
     This is implemented in pretty much the dumbest possible way, but it works.

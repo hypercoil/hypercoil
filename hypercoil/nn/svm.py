@@ -132,7 +132,7 @@ class SVM(torch.nn.Module):
         n_classes=None,
         sample_weight=None
     ):
-        """
+        r"""
         Initialise a kernelised support vector machine as a fully
         differentiable convex optimisation layer.
 

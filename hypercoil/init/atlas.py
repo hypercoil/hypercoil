@@ -833,7 +833,7 @@ class _MemeAtlas(
 def atlas_init_(tensor, compartment, atlas, normalise=False,
                 max_bin=10000, spherical_scale=1, truncate=None,
                 kernel_sigma=None, noise_sigma=None):
-    """
+    r"""
     Voxel-to-label mapping initialisation.
 
     Initialise a tensor such that its entries characterise a matrix that maps
