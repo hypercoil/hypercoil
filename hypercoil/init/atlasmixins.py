@@ -410,6 +410,13 @@ class _FromNullMaskMixin:
 
 
 class _SingleCompartmentMixin:
+    """
+    Use to isolate spatial subcompartments of the overall atlas such that each
+    has separate label sets.
+
+    For use when no isolation is desired, and the entire atlased region is a
+    single compartment.
+    """
     def _compartment_names_dict(self, **kwargs):
         return {}
 
@@ -427,7 +434,18 @@ class _SingleCompartmentMixin:
 
 
 #TODO: Intersect compartment mask with overall mask before saving.
+#TODO: (low-priority) We need to either make sure these work with CIfTI, or we
+# need to make CIfTI-compatible compartment masking other than
+# cortex/subcortex.
 class _MultiCompartmentMixin:
+    """
+    Use to isolate spatial subcompartments of the overall atlas such that each
+    has separate label sets.
+
+    For use when isolation into multiple compartments is desired. With this
+    mixin, each extra keyword argument passed to the atlas constructor is
+    interpreted as a name-mask path pair defining an atlas compartment.
+    """
     def _compartment_names_dict(self, **kwargs):
         return kwargs
 
@@ -451,6 +469,13 @@ class _MultiCompartmentMixin:
 
 
 class _CortexSubcortexCIfTICompartmentMixin:
+    """
+    Use to isolate spatial subcompartments of the overall atlas such that each
+    has separate label sets.
+
+    For use when creating a CIfTI-based atlas with separate subcompartments
+    for the left and right cortical hemispheres and for subcortical locations.
+    """
     def _compartment_names_dict(self, **kwargs):
         return kwargs
 
@@ -508,6 +533,13 @@ class _CortexSubcortexCIfTICompartmentMixin:
 
 
 class _DiscreteLabelMixin:
+    """
+    Use to decode label sets present in an atlas and to create a linear map
+    representation of the atlas.
+
+    For use when the label sets are encoded as discrete values in a single
+    reference volume or surface.
+    """
     def _configure_decoders(self, null_label=0):
         self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
@@ -548,6 +580,16 @@ class _DiscreteLabelMixin:
 
 
 class _ContinuousLabelMixin:
+    """
+    Use to decode label sets present in an atlas and to create a linear map
+    representation of the atlas.
+
+    For use when the label sets are encoded across multiple volumes. This is
+    necessary for continuous-valued atlases or atlases with overlapping
+    labels, but is also a valid encoding scheme for discrete-valued atlases.
+    If the reference uses a single volume or surface, use `DiscreteLabelMixin`
+    instead.
+    """
     def _configure_decoders(self, null_label=None):
         self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
@@ -576,6 +618,20 @@ class _ContinuousLabelMixin:
 
 
 class _DirichletLabelMixin:
+    """
+    Use to decode label sets present in an atlas and to create a linear map
+    representation of the atlas.
+
+    For use when the linear map is to be initialised from a Dirichlet
+    distribution rather than a reference. This requires the prior existence of
+    a dictionary attribute called `compartment_labels` for the Atlas object,
+    whose key-value pairs associate to each atlas compartment an integer
+    number of labels. It additionally requires a second key-value mapping
+    `init`, whose entries associate to each atlas compartment the Dirichlet
+    distribution from which that compartment's parcel assignment probability
+    distributions are to be sampled. These mappings can be instantiated in the
+    atlas class's constructor method, potentially from user arguments.
+    """
     def _configure_decoders(self, null_label=None):
         self.decoder = OrderedDict()
         n_labels = 0
@@ -597,6 +653,13 @@ class _DirichletLabelMixin:
 
 
 class _VolumetricMeshMixin:
+    """
+    Used to establish a coordinate system over the linear map representations
+    of the atlas.
+
+    For use when the atlas reference comprises evenly spaced volumetric
+    samples (i.e., voxels).
+    """
     def _init_coors(self, source=None, names_dict=None,
                     dtype=None, device=None):
         axes = None
@@ -624,6 +687,15 @@ class _VolumetricMeshMixin:
 
 
 class _VertexCIfTIMeshMixin:
+    """
+    Used to establish a coordinate system over the linear map representations
+    of the atlas.
+
+    For use when the atlas reference is a CIfTI that includes some samples
+    associated to cortical surface meshes. This mixin establishes a spherical
+    topology for cortical samples and a Euclidean topology for subcortical
+    samples.
+    """
     def _init_coors(self, source=None, names_dict=None,
                     dtype=None, device=None):
         model_axis = self.model_axis
@@ -661,6 +733,13 @@ class _VertexCIfTIMeshMixin:
 
 
 class _EvenlySampledConvMixin:
+    """
+    Used to spatially convolve atlas parcels for smoothing.
+
+    This mixin is currently unsupported and likely will not function without
+    substantial extra code, although it is likely to perform better under
+    many conditions. Its use is not currently advised.
+    """
     def _configure_sigma(self, sigma):
         if sigma is not None:
             scale = self.ref.header.get_zooms()[:3]
@@ -675,6 +754,13 @@ class _EvenlySampledConvMixin:
 
 
 class _SpatialConvMixin:
+    """
+    Used to spatially convolve atlas parcels for smoothing.
+
+    For use when a coordinate mesh is available for the atlas and either
+    Euclidean or spherical topologies are assigned to each of its
+    compartments.
+    """
     def _configure_sigma(self, sigma):
         return sigma
 
