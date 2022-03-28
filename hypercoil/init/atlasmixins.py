@@ -11,7 +11,14 @@ import numpy as np
 import nibabel as nb
 from collections import OrderedDict
 from pathlib import PosixPath
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import (
+    gaussian_filter,
+    binary_dilation,
+    binary_erosion,
+    binary_opening,
+    binary_closing,
+    binary_fill_holes
+)
 from ..functional.sphere import spherical_conv, euclidean_conv
 
 
@@ -23,7 +30,6 @@ def _is_path(obj):
     return isinstance(obj, str) or isinstance(obj, PosixPath)
 
 
-#TODO: We need morphological mask logic nodes (dilation, erosion, etc.).
 class FloatLeaf:
     """
     Leaf node for floating-point data in mask logic operations. Used with
@@ -96,7 +102,7 @@ class MaskThreshold:
         initialise a `nibabel` NIfTI image object.
         """
         if not nifti:
-            return (self.child() >= self.threshold)
+            return (self.child() > self.threshold)
         else:
             img = self.child(nifti=True)
             return {
@@ -127,13 +133,200 @@ class MaskUThreshold:
         to initialise a `nibabel` NIfTI image object.
         """
         if not nifti:
-            return (self.child() <= self.threshold)
+            return (self.child() < self.threshold)
         else:
             img = self.child(nifti=True)
             return {
                 'affine': img['affine'],
                 'header': img['header'],
                 'dataobj': (img['dataobj'] <= self.threshold)
+            }
+
+
+class MaskDilation:
+    """
+    Morphological dilation node for mask logic operations. Returns the
+    binary dilation of the mask output by child operations.
+    """
+    def __init__(self, child, structure=None, iterations=1):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+        self.iterations = iterations
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological dilation operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_dilation(
+                input=self.child(),
+                structure=self.structure,
+                iterations=self.iterations
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_dilation(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                    iterations=self.iterations
+                )
+            }
+
+
+class MaskErosion:
+    """
+    Morphological erosion node for mask logic operations. Returns the
+    binary erosion of the mask output by child operations.
+    """
+    def __init__(self, child, structure=None, iterations=1):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+        self.iterations = iterations
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological erosion operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_erosion(
+                input=self.child(),
+                structure=self.structure,
+                iterations=self.iterations
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_erosion(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                    iterations=self.iterations
+                )
+            }
+
+
+class MaskOpening:
+    """
+    Morphological opening node for mask logic operations. Returns the
+    binary opening of the mask output by child operations.
+    """
+    def __init__(self, child, structure=None, iterations=1):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+        self.iterations = iterations
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological opening operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_opening(
+                input=self.child(),
+                structure=self.structure,
+                iterations=self.iterations
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_opening(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                    iterations=self.iterations
+                )
+            }
+
+
+class MaskClosing:
+    """
+    Morphological closing node for mask logic operations. Returns the
+    binary closing of the mask output by child operations.
+    """
+    def __init__(self, child, structure=None, iterations=1):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+        self.iterations = iterations
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological closing operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_closing(
+                input=self.child(),
+                structure=self.structure,
+                iterations=self.iterations
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_closing(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                    iterations=self.iterations
+                )
+            }
+
+
+class MaskFillHoles:
+    """
+    Morphological hole-filling node for mask logic operations. Transforms the
+    mask output by child operations by filling any holes in the mask.
+    """
+    def __init__(self, child, structure=None):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological hole-filling operation. If `nifti` is set to
+        True (default False), then the call returns values for all fields
+        required to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_fill_holes(
+                input=self.child(),
+                structure=self.structure,
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_fill_holes(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                )
             }
 
 
