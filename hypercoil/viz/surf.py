@@ -156,6 +156,7 @@ class fsLRAtlasParcels(
                 plt.savefig(f'{save}_view-{view}.png',
                             dpi=1000,
                             bbox_inches='tight')
+                plt.close('all')
 
 
 
@@ -252,7 +253,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                     size=(400, 200)
                 )
                 p.add_layer(
-                    data.astype('long')[:self.dim],
+                    data[:self.dim],
                     cmap=cmap,
                     cbar=None,
                     color_range=color_range

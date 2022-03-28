@@ -4,7 +4,7 @@
 """
 Reference proximity
 ~~~~~~~~~~~~~~~~~~~
-Loss functions using centre-of-mass proximity to a reference.
+Loss functions using spatial proximity to a reference centre-of-mass.
 """
 from functools import partial
 from torch import mean
