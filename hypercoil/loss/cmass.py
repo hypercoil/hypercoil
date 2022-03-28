@@ -11,9 +11,34 @@ from torch import mean
 from .base import ReducingLoss
 from .norm import NormedLoss
 from ..functional.cmass import (
+    cmass_coor,
     cmass_reference_displacement,
     diffuse
 )
+
+
+def interhemispheric_anchor(lh, rh, lh_coor, rh_coor, radius=100):
+    cm_lh = cmass_coor(X=lh, coor=lh_coor, radius=radius)
+    cm_lh[0, :] = -cm_lh[0, :]
+    return cmass_reference_displacement(
+        weight=rh,
+        refs=cm_lh,
+        coor=rh_coor,
+        radius=radius
+    )
+
+
+class HemisphericTether(NormedLoss):
+    """
+    Displacement of centres of mass in one cortical hemisphere from
+    corresponding centres of mass in the other cortical hemisphere.
+    """
+    def __init__(self, nu=1, radius=100, axis=-2, norm=2,
+                 reduction=None, name=None):
+        loss = partial(interhemispheric_anchor, radius=radius)
+        super(HemisphericTether, self).__init__(
+            nu=nu, p=norm, precompose=loss, axis=axis,
+            reduction=reduction, name=name)
 
 
 class CentroidAnchor(NormedLoss):
