@@ -89,7 +89,6 @@ class TestAtlasInit:
         assert np.all(
             atlas.coors[123 * 104 * x + 104 * y + z].numpy() / 2 == [x, y, z])
 
-
     def test_multifile_atlas(self):
         atlas = MultifileVolumetricAtlas(
             ref_pointer=[tflow.get(
@@ -311,7 +310,7 @@ class TestAtlasInit:
     @pytest.mark.cuda
     def test_cifti_atlas_cuda(self):
         atlas = CortexSubcortexCIfTIAtlas(
-            ref_pointer='/Users/rastkociric/Downloads/gordon.nii',
+            ref_pointer='/home/rastko/Downloads/atlases/gordon.nii',
             mask_L=tflow.get(
                 template='fsLR',
                 hemi='L',
@@ -336,14 +335,14 @@ class TestAtlasInit:
         assert atlas.maps['cortex_L'].shape == (161, 29696)
         assert atlas.maps['cortex_R'].shape == (172, 29716)
         assert atlas.maps['subcortex'].shape == (0,)
-        compartment_index = atlas.compartments['cortex_L'][atlas.mask]
+        compartment_index = atlas.compartments['cortex_L'][atlas.mask].cpu()
         assert np.all(
             atlas.maps['cortex_L'].sum(1).cpu().numpy() == np.histogram(
                 atlas.cached_ref_data[:, compartment_index],
                 bins=360, range=(1, 360)
             )[0][atlas.decoder['cortex_L'] - 1]
         )
-        compartment_index = atlas.compartments['cortex_R'][atlas.mask]
+        compartment_index = atlas.compartments['cortex_R'][atlas.mask].cpu()
         assert np.all(
             atlas.maps['cortex_R'].sum(1).cpu().numpy() == np.histogram(
                 atlas.cached_ref_data[:, compartment_index],
@@ -354,7 +353,7 @@ class TestAtlasInit:
         assert torch.all(
             torch.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
 
-        inp = torch.rand([1, 2, 91282, 3])
+        inp = torch.rand([1, 2, 91282, 3], device='cuda')
         lin = AtlasLinear(atlas, device='cuda')
         out = lin.select_compartment('cortex_L', inp)
         assert out.shape == (1, 2, 29696, 3)
@@ -381,9 +380,33 @@ class TestAtlasInit:
             truncate=20,
             max_bin=1000
         )
-        assert maps.device == torch.device('cuda')
+        assert maps['cortex_L'].device.type == 'cuda'
         assert np.allclose(maps['cortex_L'].sum(-1).cpu(), 1)
         assert pairedcorr(
             maps['cortex_L'][0].view(1, -1),
             atlas.maps['cortex_L'][0].view(1, -1)
         ) > 0.9
+
+    @pytest.mark.cuda
+    def test_multifile_atlas_cuda(self):
+        atlas = MultifileVolumetricAtlas(
+            ref_pointer=[tflow.get(
+                template='MNI152NLin2009cAsym',
+                suffix='probseg',
+                label=l,
+                resolution=2)
+            for l in ('CSF', 'GM', 'WM')],
+            clear_cache=False,
+            dtype=torch.float,
+            device='cuda'
+        )
+        assert atlas.mask.shape[0] == np.prod(atlas.ref.shape[:-1])
+        assert atlas.mask.sum() == 281973
+        assert atlas.compartments['all'].sum() == 281973
+        assert len(atlas.decoder['all']) == 3
+        assert np.allclose(atlas.maps['all'].sum(1).cpu().numpy(),
+            atlas.cached_ref_data.reshape(-1, 3).sum(0))
+        x, y, z = 84, 62, 13
+        assert np.all(
+            atlas.coors[97 * 115 * x + 97 * y + z].cpu().numpy() / 2 ==
+            [x, y, z])
