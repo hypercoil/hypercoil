@@ -74,11 +74,20 @@ def cmass(X, axes=None, na_rm=False):
     return out
 
 
-def cmass_reference_displacement(weight, refs, axes=None, na_rm=False):
+def cmass_reference_displacement_grid(weight, refs, axes=None, na_rm=False):
     """
-    Displacement of centres of mass from reference points.
+    Displacement of centres of mass from reference points -- grid version.
     """
     cm = cmass(weight, axes=axes, na_rm=na_rm)
+    return cm - refs
+
+
+def cmass_reference_displacement(weight, refs, coor, radius=None):
+    """
+    Displacement of centres of mass from reference points -- coordinate
+    version.
+    """
+    cm = cmass_coor(weight, coor, radius=radius)
     return cm - refs
 
 

@@ -10,24 +10,26 @@ from functools import partial
 from torch import mean
 from .base import ReducingLoss
 from .norm import NormedLoss
-from ..functional.cmass import cmass_reference_displacement, diffuse
+from ..functional.cmass import (
+    cmass_reference_displacement,
+    diffuse
+)
 
 
-#TODO: rework this to use cmass_coor instead of cmass in functional.
 class CentroidAnchor(NormedLoss):
     """
     Displacement of centres of mass from reference points.
     """
-    def __init__(self, refs, nu=1, axes=None, na_rm=False,
-                 norm=2, name=None):
+    def __init__(self, refs, nu=1, axis=-2, reduction=None,
+                 radius=None, norm=2, name=None):
         loss = partial(
             cmass_reference_displacement,
             refs=refs,
-            axes=axes,
-            na_rm=na_rm
+            radius=radius
         )
         super(CentroidAnchor, self).__init__(
-            nu=nu, p=norm, loss=loss, name=name)
+            nu=nu, p=norm, precompose=loss, axis=axis,
+            reduction=reduction, name=name)
 
 
 class Compactness(ReducingLoss):
