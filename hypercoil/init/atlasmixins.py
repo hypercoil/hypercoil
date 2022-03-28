@@ -796,12 +796,16 @@ class _ContinuousLabelMixin:
             labels_in_compartment = labels_in_compartment[
                 labels_in_compartment != null_label]
             self.decoder[c] = torch.tensor(
-                labels_in_compartment, dtype=torch.long, device=mask.device)
+                labels_in_compartment + 1,
+                dtype=torch.long,
+                device=mask.device
+            )
 
         mask = self.mask.reshape(self.ref.shape[:-1]).cpu()
         unique_labels = np.where(self.cached_ref_data[mask].sum(0))[0]
+        unique_labels = labels_in_compartment[unique_labels != null_label]
         self.decoder['_all'] = torch.tensor(
-            unique_labels, dtype=torch.long, device=self.mask.device)
+            unique_labels + 1, dtype=torch.long, device=self.mask.device)
 
     def _populate_map_from_ref(self, map, labels, mask, compartment=None):
         ref_data = np.moveaxis(
@@ -810,7 +814,7 @@ class _ContinuousLabelMixin:
             (1, 2, 3, 0)
         ).squeeze()
         for i, l in enumerate(labels):
-            map[i] = torch.tensor(ref_data[l.cpu()].ravel()[mask.cpu()])
+            map[i] = torch.tensor(ref_data[(l - 1).cpu()].ravel()[mask.cpu()])
         return map
 
 
@@ -839,10 +843,10 @@ class _DirichletLabelMixin:
                 continue
             self.decoder[c] = torch.arange(
                 n_labels, n_labels + i,
-                dtype=torch.long, device=self.mask.device)
+                dtype=torch.long, device=self.mask.device) + 1
             n_labels += i
         self.decoder['_all'] = torch.arange(
-            0, n_labels, dtype=torch.long, device=self.mask.device)
+            0, n_labels, dtype=torch.long, device=self.mask.device) + 1
 
     def _populate_map_from_ref(self, map, labels, mask, compartment=None):
         self.init[compartment](map)

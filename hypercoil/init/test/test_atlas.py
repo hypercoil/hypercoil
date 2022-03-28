@@ -236,7 +236,7 @@ class TestAtlasInit:
             n_labels=50
         )
         assert atlas.mask.sum() == 66795
-        assert atlas.decoder['all'].tolist() == list(range(50))
+        assert atlas.decoder['all'].tolist() == list(range(1, 51))
         assert atlas.maps['all'].shape == (50, 66795)
         assert np.allclose(
             atlas.maps['all'].sum(-2), 1)
@@ -290,7 +290,7 @@ class TestAtlasInit:
             }
         )
         assert atlas.mask.sum() == 91282
-        assert atlas.decoder['subcortex'].tolist() == list(range(40, 60))
+        assert atlas.decoder['subcortex'].tolist() == list(range(41, 61))
         assert atlas.maps['cortex_L'].shape == (20, 29696)
         assert atlas.maps['cortex_R'].shape == (20, 29716)
         assert atlas.maps['subcortex'].shape == (20, 31870)
