@@ -87,7 +87,7 @@ class fsLRSurfacePlot:
         self.dim_lh = nb.load(self.lh).darrays[0].dims[0]
         self.dim_rh = nb.load(self.rh).darrays[0].dims[0]
         self.dim = self.dim_lh + self.dim_rh
-        
+
         self.data_mask = {
             'cortex_L' : torch.ones_like(self.atlas.mask),
             'cortex_R' : torch.ones_like(self.atlas.mask),
@@ -131,9 +131,9 @@ class fsLRAtlasParcels(
             )
             compartment_data[self.module.weight[compartment].sum(0) == 0] = 0
             data[mask] = compartment_data
-        self.data = data[self.cmap_mask['all']]
+        self.data = data[self.cmap_mask['all']].cpu()
         cmap = self._select_cmap(cmap=cmap)
-        self.data = data[self.data_mask['all']].numpy()
+        self.data = data[self.data_mask['all']].cpu().numpy()
 
         for view in views:
             view_args = VIEWS[view]
@@ -186,7 +186,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
 
             n_rows = int(np.ceil(figs_per_batch / nodes_per_row))
             figsize = (6 * nodes_per_row, 3 * n_rows)
-            
+
 
             fig, ax = plt.subplots(
                 n_rows,
@@ -227,8 +227,8 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
             cmasses = cmass_coor(map, coor, radius=100)
             closest_poles = spherical_geodesic(
                 cmasses.t(),
-                POLES
-            ).argsort(-1)[:, :3]
+                POLES.to(cmasses.device).type(cmasses.dtype)
+            ).argsort(-1)[:, :3].cpu()
             closest_poles = POLE_DECODER[compartment][closest_poles.numpy()]
             if compartment == 'cortex_L':
                 surf_lh = self.lh
@@ -242,7 +242,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                     dtype=map.dtype
                 )
                 data[compartment_mask] = node.detach()
-                data = data[self.data_mask[compartment]].numpy()
+                data = data[self.data_mask[compartment]].cpu().numpy()
                 p = surfplot.Plot(
                     surf_lh=surf_lh,
                     surf_rh=surf_rh,
@@ -259,7 +259,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                 )
                 figs[name] = p.render()
         figs = [(i, f) for i, f in enumerate(figs) if f is not None]
-        
+
         n_figs = len(figs)
         batches_per_run = 5
         if stop_batch is None:
