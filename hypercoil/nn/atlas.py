@@ -170,12 +170,15 @@ class AtlasLinear(Module):
 
     @property
     def weight(self):
-        return {k: self.domain.image(v) for k, v in self.preweight.items()}
+        return OrderedDict([
+            (k, self.domain.image(v))
+            for k, v in self.preweight.items()
+        ])
 
     @property
     def postweight(self):
         if self.dropout is not None:
-            weight = {}
+            weight = OrderedDict()
             for k, v in self.weight.items():
                 sufficient_voxels = False
                 while not sufficient_voxels:
