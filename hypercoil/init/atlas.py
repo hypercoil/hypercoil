@@ -33,6 +33,8 @@ from .atlasmixins import (
 from .base import DomainInitialiser
 from .dirichlet import DirichletInit
 from ..functional import UnstructuredNoiseSource
+from ..functional.domainbase import Identity
+from ..functional.domain import MultiLogit
 
 
 class BaseAtlas(ABC):
@@ -298,11 +300,13 @@ class DirichletInitBaseAtlas(
             compartment_labels = {'all', compartment_labels}
         self.compartment_labels = compartment_labels
         if init is None:
+            default_init = True
             init = OrderedDict((
                 c, DirichletInit(
                     n_classes=i,
                     concentration=torch.tensor([conc for _ in range (i)]),
-                    axis=-2
+                    axis=-2,
+                    domain=Identity()
                 ))
                 for c, i in compartment_labels.items()
             )
@@ -314,6 +318,9 @@ class DirichletInitBaseAtlas(
                          dtype=dtype,
                          device=device,
                          **kwargs)
+        if default_init:
+            for k, v in self.init.items():
+                v.domain = MultiLogit(axis=-2)
 
     def _global_compartment_init(self):
         if self.init.get('_all'):
@@ -326,7 +333,8 @@ class DirichletInitBaseAtlas(
         self.init['_all'] = DirichletInit(
             n_classes=len(concentrations),
             concentration=concentrations,
-            axis=-2
+            axis=-2,
+            domain=Identity()
         )
 
 
@@ -885,8 +893,8 @@ class AtlasInit(DomainInitialiser):
                        truncate=truncate)
         if domain is None:
             try:
-                domain = atlas.init['all'].domain
-            except AttributeError:
+                domain = atlas.init['_all'].domain
+            except (AttributeError, KeyError):
                 pass
         super(AtlasInit, self).__init__(init=init, domain=domain)
 

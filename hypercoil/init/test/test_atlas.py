@@ -240,7 +240,7 @@ class TestAtlasInit:
         assert atlas.decoder['all'].tolist() == list(range(50))
         assert atlas.maps['all'].shape == (50, 66795)
         assert np.allclose(
-            torch.softmax(atlas.maps['all'], axis=-2).sum(-2), 1)
+            atlas.maps['all'].sum(-2), 1)
         x, y, z = 84, 62, 13
         assert np.all(
             atlas.coors[97 * 115 * x + 97 * y + z].numpy() / 2 == [x, y, z])
