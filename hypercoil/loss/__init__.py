@@ -50,7 +50,8 @@ from .scheme import (
     LossScheme
 )
 from .secondmoment import (
-    SecondMoment
+    SecondMoment,
+    SecondMomentCentred
 )
 from .smoothness import (
     SmoothnessPenalty
