@@ -57,3 +57,47 @@ class ReactiveTerminal(Terminal):
             Y.backward()
             begin += self.max_slice
         return loss
+
+
+class ReactiveMultiTerminal(Terminal):
+    """
+    Generalised `ReactiveTerminal`.
+
+    `slice_instructions` is a dict whose keys correspond to `slice_target`
+    in `ReactiveTerminal` and whose values correspond to `slice_axis`.
+    """
+    def __init__(self, loss, slice_instructions, max_slice,
+                 normalise_by_len=True):
+        super().__init__(loss=loss)
+        self.slice_instructions = slice_instructions
+        self.max_slice = max_slice
+        self.normalise_by_len = normalise_by_len
+
+    def forward(self, arg):
+        instructions = {}
+        targets ={}
+        totals = []
+        for k, v in self.slice_instructions.items():
+            targets[k] = arg.__getitem__(k)
+            slc = [slice(None) for _ in range(targets[k].dim())]
+            totals += [targets[k].shape[v]]
+            instructions[k] = (slc, v)
+        total = totals[0]
+        assert all([t == total for t in totals])
+        begin = 0
+        loss = 0
+        while begin < total:
+            end = begin + self.max_slice
+            for k, (slc, v) in instructions.items():
+                slice_target = targets[k]
+                slc[v] = slice(begin, end)
+                sliced = slice_target[slc]
+                arg.__setitem__(k, sliced)
+                l = sliced.shape[v] # wasteful but cleaner this way
+            Y = self.loss(**arg)
+            if self.normalise_by_len:
+                Y = Y * l / total
+            loss += Y
+            Y.backward()
+            begin += self.max_slice
+        return loss
