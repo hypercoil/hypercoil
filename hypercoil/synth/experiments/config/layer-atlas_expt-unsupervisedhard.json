@@ -15,7 +15,7 @@
         "parcellation" : "hard",
         "entropy_nu" : 0,
         "logdet_nu" : 0.02,
-        "secondmoment_nu" : 1000,
+        "secondmoment_nu" : 0.2,
         "compactness_nu" : 0,
         "equilibrium_nu" : 0
     }

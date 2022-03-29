@@ -16,8 +16,9 @@ def _second_moment(weight, data, mu):
     """
     Core computation for second-moment loss.
     """
+    weight = weight.abs().unsqueeze(-1)
     diff = data.unsqueeze(-3) - mu.unsqueeze(-2)
-    sigma = (diff * weight.unsqueeze(-1)) ** 2 / weight.sum()
+    sigma = ((diff * weight) ** 2).sum(-2) / weight.sum(-2)
     return sigma
 
 
