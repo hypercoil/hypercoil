@@ -16,7 +16,8 @@ from .batchcorr import (
 )
 from .cmass import (
     Compactness,
-    CentroidAnchor
+    CentroidAnchor,
+    HemisphericTether
 )
 from .determinant import (
     Determinant,

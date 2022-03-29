@@ -172,7 +172,7 @@ def diffuse(X, coor, norm=2, floor=0, radius=None):
             coor.transpose(-1, -2),
             cm.transpose(-1, -2),
             r=radius
-        )
+        ).transpose(-1, -2)
     dist = torch.maximum(dist - floor, torch.tensor(
         0, dtype=dist.dtype, device=dist.device))
     return (X * dist).mean(-1)
