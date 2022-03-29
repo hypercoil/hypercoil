@@ -18,7 +18,7 @@ class Terminal(Module):
         self.loss = loss
 
     def forward(self, arg):
-        return self.loss(arg)
+        return self.loss(**arg)
 
 
 class ReactiveTerminal(Terminal):
