@@ -14,8 +14,8 @@ class Terminal(Module):
     Right now, this does nothing whatsoever.
     """
     def __init__(self, loss, arg_factory=None):
-        self.loss = loss
         super().__init__()
+        self.loss = loss
 
     def forward(self, arg):
         return self.loss(arg)
@@ -32,12 +32,11 @@ class ReactiveTerminal(Terminal):
     """
     def __init__(self, loss, slice_target, slice_axis, max_slice,
                  normalise_by_len=True):
-        self.loss = loss
+        super().__init__(loss=loss)
         self.slice_target = slice_target
         self.slice_axis = slice_axis
         self.max_slice = max_slice
         self.normalise_by_len = normalise_by_len
-        super().__init__()
 
     def forward(self, arg):
         slice_target = arg.__getitem__(self.slice_target)
@@ -50,7 +49,7 @@ class ReactiveTerminal(Terminal):
             slc[self.slice_axis] = slice(begin, end)
             sliced = slice_target[slc]
             arg.__setitem__(self.slice_target, sliced)
-            Y = self.loss(arg)
+            Y = self.loss(**arg)
             if self.normalise_by_len:
                 l = sliced.shape[self.slice_axis]
                 Y = Y * l / total

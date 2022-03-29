@@ -38,7 +38,8 @@ def second_moment(weight, data, standardise=False):
                     number of time points).
     """
     if standardise:
-        data = (data - data.mean(-1)) / data.std(-1)
+        data = (
+            data - data.mean(-1, keepdim=True)) / data.std(-1, keepdim=True)
     mu = (weight @ data / weight.sum(-1, keepdim=True))
     return _second_moment(weight, data, mu)
 
@@ -50,7 +51,8 @@ def second_moment_centred(weight, data, mu,
     Compute the second moment of a dataset about a specified mean.
     """
     if standardise_data:
-        data = (data - data.mean(-1)) / data.std(-1)
+        data = (
+            data - data.mean(-1, keepdim=True)) / data.std(-1, keepdim=True)
     if standardise_mu:
         mu = (mu - mu.mean(-1)) / mu.std(-1)
     return _second_moment(weight, data, mu)
