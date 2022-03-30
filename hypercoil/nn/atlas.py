@@ -7,6 +7,7 @@ Atlas layer
 Modules that linearly map voxelwise signals to labelwise signals.
 """
 import torch
+from math import prod
 from collections import OrderedDict
 from torch.nn import Module, Parameter, ParameterDict
 from torch.distributions import Bernoulli
@@ -145,6 +146,7 @@ class AtlasLinear(Module):
                 c : Parameter(torch.empty_like(self.atlas.maps[c],
                                                **factory_kwargs))
                 for c in atlas.compartments.keys()
+                if prod(self.atlas.maps[c].shape) != 0
             })
         else:
             self.preweight = ParameterDict({
@@ -252,7 +254,7 @@ class AtlasLinear(Module):
         if self.mask_input:
             input = self.apply_mask(input)
         out = OrderedDict()
-        for k in self.atlas.compartments.keys():
+        for k in self.preweight.keys():
             #print(compartment, self.atlas.compartments)
             v = self.postweight[k]
             if v.shape == (0,):
