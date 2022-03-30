@@ -9,6 +9,7 @@ import torch
 import surfplot
 import numpy as np
 import nibabel as nb
+import matplotlib
 import matplotlib.pyplot as plt
 import templateflow.api as tflow
 from hypercoil.functional.cmass import cmass_coor
@@ -122,6 +123,8 @@ class fsLRAtlasParcels(
     fsLRSurfacePlot
 ):
     def __call__(self, cmap, views=('lateral', 'medial'), save=None):
+        if save is not None:
+            matplotlib.use('agg')
         data = torch.zeros_like(self.atlas.mask, dtype=torch.long)
         for compartment in ('cortex_L', 'cortex_R'):
             mask = self.atlas.compartments[compartment]
@@ -132,7 +135,8 @@ class fsLRAtlasParcels(
             compartment_data[self.module.weight[compartment].sum(0) == 0] = 0
             data[mask] = compartment_data
         self.data = data[self.cmap_mask['all']].cpu()
-        cmap = self._select_cmap(cmap=cmap)
+        labels = self.atlas.decoder['_all']
+        cmap = self._select_cmap(cmap=cmap, labels=labels)
         self.data = data[self.data_mask['all']].cpu().numpy()
 
         for view in views:
@@ -219,6 +223,8 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
 
     def __call__(self, cmap='Blues', color_range=(0, 1),
                  max_per_batch=21, stop_batch=None, save=None):
+        if save is not None:
+            matplotlib.use('agg')
         figs = [None for _ in range(self.atlas.decoder['_all'].max() + 1)]
         for compartment in ('cortex_L', 'cortex_R'):
             map = self.module.weight[compartment]

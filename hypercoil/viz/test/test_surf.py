@@ -38,7 +38,7 @@ class TestSurfaceVisualisations:
             clear_cache=False,
             dtype=torch.float
         )
-        self.lin = lin = AtlasLinear(self.atlas)
+        self.lin = AtlasLinear(self.atlas)
         self.modal_cmap = pkgrf(
             'hypercoil',
             'viz/resources/cmap_modal.nii'
