@@ -307,6 +307,29 @@ class TestAtlasInit:
         assert torch.all(
             torch.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
 
+    def test_atlas_empty_compartment(self):
+        atlas = DirichletInitSurfaceAtlas(
+            cifti_template='/Users/rastkociric/Downloads/gordon.nii',
+            mask_L=tflow.get(
+                template='fsLR',
+                hemi='L',
+                desc='nomedialwall',
+                density='32k'),
+            mask_R=tflow.get(
+                template='fsLR',
+                hemi='R',
+                desc='nomedialwall',
+                density='32k'),
+            compartment_labels={
+                'cortex_L': 5,
+                'cortex_R': 5,
+                'subcortex': 0
+            }
+        )
+        lin = AtlasLinear(atlas)
+        X = torch.rand(lin.mask.sum(), 5)
+        assert lin(X).shape == (10, 5)
+
     @pytest.mark.cuda
     def test_cifti_atlas_cuda(self):
         atlas = CortexSubcortexCIfTIAtlas(
