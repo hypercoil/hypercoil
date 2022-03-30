@@ -6,6 +6,7 @@ Unit tests for differentiable terminals.
 """
 import pytest
 import torch
+from functools import partial
 from hypercoil.engine.terminal import (
     ReactiveTerminal,
     ReactiveMultiTerminal
@@ -105,3 +106,66 @@ class TestTerminals:
         Y0.backward()
         g0 = weight.grad.clone()
         assert torch.allclose(g0, g1)
+
+    def test_reactive_terminal_pretransform(self):
+        torch.manual_seed(0)
+        n_groups = 3
+        n_channels = 10
+        n_observations = 20
+        data = torch.randn(n_channels, n_observations)
+        weight = torch.randn(n_groups, n_channels)
+        data.requires_grad = True
+        weight.requires_grad = True
+
+        loss = SecondMoment(standardise=False)
+        terminal = ReactiveTerminal(
+            loss=SecondMoment(standardise=False),
+            slice_target='data',
+            slice_axis=-1,
+            max_slice=1,
+            pretransforms={
+                'weight': partial(torch.softmax, axis=-2),
+                'data': partial(torch.softmax, axis=-2)
+            }
+        )
+
+        Y0 = loss(
+            data=torch.softmax(data, axis=-2),
+            weight=torch.softmax(weight, axis=-2)
+        )
+        #TODO: make this an argument object, probably. Not that it matters.
+        Y1 = terminal(arg={'data': data, 'weight': weight})
+        assert torch.isclose(Y0, Y1)
+
+        g1 = weight.grad.clone()
+        weight.grad.zero_()
+        Y0.backward()
+        g0 = weight.grad.clone()
+        assert torch.allclose(g0, g1)
+
+        mu = torch.randn(n_groups, n_observations)
+        loss = SecondMomentCentred()
+        terminal = ReactiveMultiTerminal(
+            loss=SecondMomentCentred(),
+            slice_instructions={'data': -1, 'mu': -1},
+            max_slice=1,
+            pretransforms={
+                'weight': partial(torch.softmax, axis=-2),
+                'data': partial(torch.softmax, axis=-2)
+            }
+        )
+
+        Y0 = loss(
+            data=torch.softmax(data, axis=-2),
+            weight=torch.softmax(weight, axis=-2),
+            mu=mu
+        )
+        #TODO: make this an argument object, probably. Not that it matters.
+        Y1 = terminal(arg={'data': data, 'weight': weight, 'mu': mu})
+        assert torch.isclose(Y0, Y1)
+
+        g1 = weight.grad.clone()
+        weight.grad.zero_()
+        Y0.backward()
+        g0 = weight.grad.clone()
+        assert torch.allclose(g0, g1, atol=1e-3)
