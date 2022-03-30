@@ -57,17 +57,17 @@ dirichlet = DirichletInitSurfaceAtlas(
         desc='nomedialwall',
         density='32k'),
     compartment_labels={
-        'cortex_L': 60,
-        'cortex_R': 60,
-        'subcortex': 1
+        'cortex_L': 200,
+        'cortex_R': 200,
+        'subcortex': 0
     },
     conc=100.,
     dtype=torch.float,
-    device='cuda:1'
+    device='cuda:0'
 )
 atlas = AtlasLinear(dirichlet, mask_input=False,
                     domain=dirichlet.init['_all'].domain,
-                    dtype=torch.float, device='cuda:1')
+                    dtype=torch.float, device='cuda:0')
 
 lh_coor = atlas.coors[dirichlet.compartments['cortex_L'][atlas.mask]].t()
 rh_coor = atlas.coors[dirichlet.compartments['cortex_R'][atlas.mask]].t()
@@ -143,7 +143,7 @@ for epoch in range(max_epoch):
 
     if epoch % log_interval == 0:
         views = ('medial', 'lateral')
-        results = '/tmp/parc-spatial2'
+        results = '/tmp/parc-spatial200'
         plotter = fsLRAtlasParcels(atlas)
         plotter(
             cmap=modal_cmap,

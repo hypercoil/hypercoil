@@ -39,6 +39,9 @@ from .noise import (
 from .polynomial import (
     polychan, polyconv2d
 )
+from .resid import (
+    residualise
+)
 from .sphere import (
     spherical_geodesic
 )
