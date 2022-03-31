@@ -149,7 +149,7 @@ def atlas_experiment(
             Equilibrium(nu=equilibrium_nu),
         ], apply=lambda arg: arg.model),
         LossApply(
-            SecondMoment(nu=secondmoment_nu),
+            SecondMoment(nu=secondmoment_nu, skip_normalise=True),
             apply=lambda arg: UnpackingLossArgument(
                 weight=arg.model,
                 data=arg.x

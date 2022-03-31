@@ -13,12 +13,12 @@
         "max_epoch" : 10001,
         "log_interval" : 100,
         "parcellation" : "soft",
-        "entropy_nu" : 0.5,
+        "entropy_nu" : 0,
         "logdet_nu" : 0.02,
-        "secondmoment_nu" : 0.2,
-        "compactness_nu" : 2,
+        "secondmoment_nu" : 0.005,
+        "compactness_nu" : 1,
         "compactness_floor" : 5,
-        "equilibrium_nu" : 20,
+        "equilibrium_nu" : 0,
         "seed" : 7
     }
 }
