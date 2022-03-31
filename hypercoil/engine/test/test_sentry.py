@@ -39,7 +39,7 @@ class TestSentry:
             transitions={(21, 40): 5, (61, 80): 2},
             base=1
         )
-        archive = LossArchive()
+        archive = LossArchive(epochs)
         loss0 = SoftmaxEntropy(nu=schedule0, name='loss0')
         loss1 = SoftmaxEntropy(nu=schedule1, name='loss1')
         loss2 = SoftmaxEntropy(nu=schedule2, name='loss2')
@@ -48,25 +48,25 @@ class TestSentry:
         loss2.register_sentry(archive)
         Z = torch.rand(10)
 
-        begin = loss0(Z)
-
         for e in epochs:
             loss0(Z)
             loss1(Z)
             loss2(Z)
 
-        end = loss0(Z)
+        begin = archive.get('loss0')[0]
+        end = archive.get('loss0')[-1]
 
         assert (begin * 1.01 ** (max_epoch - 1)) == loss0(Z)
-        assert loss0(Z) == loss1(Z)
-        assert loss0(Z) == archive.get('loss0')[-1]
+        assert end == archive.get('loss1')[-1]
+        assert np.isclose(loss0(Z) / 1.01, end)
 
         loss0_tape = archive.get('loss0', normalised=True)
         assert np.allclose(loss0_tape[0], loss0_tape)
 
-        assert archive.archive['loss2_nu'][20] == 1
-        assert archive.archive['loss2_nu'][30] == 3
-        assert archive.archive['loss2_nu'][40] == 5
-        assert archive.archive['loss2_nu'][60] == 5
-        assert archive.archive['loss2_nu'][70] == 3.5
-        assert archive.archive['loss2_nu'][80] == 2
+        orig = archive.get('loss2')[0]
+        assert np.isclose(archive.archive['loss2'][20], 1 * orig)
+        assert np.isclose(archive.archive['loss2'][30], 3 * orig)
+        assert np.isclose(archive.archive['loss2'][40], 5 * orig)
+        assert np.isclose(archive.archive['loss2'][60], 5 * orig)
+        assert np.isclose(archive.archive['loss2'][70], 3.5 * orig)
+        assert np.isclose(archive.archive['loss2'][80], 2 * orig)

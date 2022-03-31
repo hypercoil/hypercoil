@@ -114,14 +114,33 @@ class UpdateMultiplier(SentryAction):
         sentry.nu = received['NU']
 
 
-class ArchiveLoss(SentryAction):
+class RecordLoss(SentryAction):
     def __init__(self):
         super().__init__(trigger=['LOSS', 'NAME', 'NU'])
 
     def propagate(self, sentry, received):
         name = received['NAME']
-        sentry.archive[name] += [received['LOSS']]
-        sentry.archive[f'{name}_nu'] += [received['NU']]
+        sentry.epoch_buffer[name] += [received['LOSS']]
+        sentry.epoch_buffer[f'{name}_norm'] += (
+            [received['LOSS'] / received['NU']])
+
+
+class ArchiveLoss(SentryAction):
+    def __init__(self):
+        super().__init__(trigger=['EPOCH'])
+
+    def propagate(self, sentry, received):
+        staging = {}
+        for loss, record in sentry.epoch_buffer.items():
+            if len(record) == 0:
+                continue
+            staging[loss] = sum(record) / len(record)
+            sentry.epoch_buffer[loss] = []
+        if len(staging) == 0:
+            return
+        for loss, archive in sentry.archive.items():
+            new = staging.get(loss, float('nan'))
+            sentry.archive[loss] += [new]
 
 
 class Epochs(Sentry, Iterator):
@@ -194,18 +213,25 @@ class MultiplierSigmoidSchedule(MultiplierSchedule):
 
 
 class LossArchive(Sentry):
-    def __init__(self):
+    def __init__(self, epochs):
         super().__init__()
         self.archive = {}
+        self.epoch_buffer = {}
+        self.register_action(RecordLoss())
         self.register_action(ArchiveLoss())
+        epochs.register_sentry(self)
 
     def _register_trigger(self, sentry):
-        self.archive[sentry.name] = []
-        self.archive[f'{sentry.name}_nu'] = []
+        #TODO: explicitly check for Loss when we separate implementations
+        # from base classes.
+        if isinstance(sentry, SentryModule):
+            self.archive[sentry.name] = []
+            self.archive[f'{sentry.name}_norm'] = []
+            self.epoch_buffer[sentry.name] = []
+            self.epoch_buffer[f'{sentry.name}_norm'] = []
 
     def get(self, name, normalised=False):
-        tape = self.archive[name]
         if normalised:
-            nu_tape = self.archive[f'{name}_nu']
-            return [loss / nu for (loss, nu) in zip(tape, nu_tape)]
-        return tape
+            return self.archive[f'{name}_norm']
+        else:
+            return self.archive[name]
