@@ -8,6 +8,7 @@ Base modules for loss functions.
 """
 from torch.nn import Module
 from collections.abc import Mapping
+from hypercoil.engine.sentry import Sentry, SentryModule, UpdateMultiplier
 
 
 def identity(*args):
@@ -48,10 +49,19 @@ class UnpackingLossArgument(LossArgument):
     pass
 
 
-class Loss(Module):
+class Loss(SentryModule):
     """
     Base class for hypercoil loss functions.
     """
+    def __init__(self, nu=1):
+        super().__init__()
+        if isinstance(nu, Sentry):
+            self.nu = nu.base
+            nu.register_sentry(self)
+            self.register_action(UpdateMultiplier())
+        else:
+            self.nu = nu
+
     @property
     def extra_repr(self):
         return ()
@@ -117,13 +127,16 @@ class ReducingLoss(Loss):
         Identifying string for the instantiation of the loss object.
     """
     def __init__(self, nu, reduction, loss, name=None):
-        super(ReducingLoss, self).__init__()
+        super(ReducingLoss, self).__init__(nu=nu)
         if name is None:
             name = type(self).__name__
-        self.nu = nu
         self.reduction = reduction
         self.loss = loss
         self.name = name
 
     def forward(self, *args, **kwargs):
-        return self.nu * self.reduction(self.loss(*args, **kwargs))
+        out = self.nu * self.reduction(self.loss(*args, **kwargs))
+        message = {'LOSS': out.clone().detach().item()}
+        for s in self.listeners:
+            s._listen(message)
+        return out
