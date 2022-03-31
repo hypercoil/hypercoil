@@ -9,7 +9,7 @@ Vertical compression groupings based on geometric adjacencies.
 import torch
 import numpy as np
 from scipy.linalg import toeplitz
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, eye
 
 
 def construct_adjacency_matrix(n_vertices_in, edges, directed=False):
@@ -39,7 +39,6 @@ def construct_group_matrices(n_groups, n_vertices_in):
             i = i[:-1]
             j = j[:-1]
         data = np.ones_like(i, dtype='bool')
-        print(i.max(), j.max(), (n_vertices_out, n_vertices_in))
         group_matrix[g] = coo_matrix(
             (data, (i, j)),
             shape=(n_vertices_out, n_vertices_in),
