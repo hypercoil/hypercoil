@@ -11,6 +11,7 @@ from hypercoil.engine.sentry import (
     Epochs,
     MultiplierSchedule,
     MultiplierRecursiveSchedule,
+    MultiplierSigmoidSchedule,
     LossArchive
 )
 from hypercoil.loss import (
@@ -33,11 +34,18 @@ class TestSentry:
             transform=lambda nu: 1.01 * nu,
             base=(1 / 1.01)
         )
+        schedule2 = MultiplierSigmoidSchedule(
+            epochs=epochs,
+            transitions={(21, 40): 5, (61, 80): 2},
+            base=1
+        )
         archive = LossArchive()
         loss0 = SoftmaxEntropy(nu=schedule0, name='loss0')
         loss1 = SoftmaxEntropy(nu=schedule1, name='loss1')
+        loss2 = SoftmaxEntropy(nu=schedule2, name='loss2')
         loss0.register_sentry(archive)
         loss1.register_sentry(archive)
+        loss2.register_sentry(archive)
         Z = torch.rand(10)
 
         begin = loss0(Z)
@@ -45,6 +53,7 @@ class TestSentry:
         for e in epochs:
             loss0(Z)
             loss1(Z)
+            loss2(Z)
 
         end = loss0(Z)
 
@@ -54,3 +63,10 @@ class TestSentry:
 
         loss0_tape = archive.get('loss0', normalised=True)
         assert np.allclose(loss0_tape[0], loss0_tape)
+
+        assert archive.archive['loss2_nu'][20] == 1
+        assert archive.archive['loss2_nu'][30] == 3
+        assert archive.archive['loss2_nu'][40] == 5
+        assert archive.archive['loss2_nu'][60] == 5
+        assert archive.archive['loss2_nu'][70] == 3.5
+        assert archive.archive['loss2_nu'][80] == 2

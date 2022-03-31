@@ -6,9 +6,11 @@ Sentry
 ~~~~~~
 Elementary sentry objects and actions.
 """
+import torch
 from torch.nn import Module
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
+from functools import partial
 
 
 class Sentry:
@@ -20,17 +22,18 @@ class Sentry:
     def register_sentry(self, sentry):
         if sentry not in self.listeners:
             self.listeners += [sentry]
+            self._register_sentry_extra(sentry)
         if self not in sentry.listening:
             sentry.listening += [self]
             sentry._register_trigger(self)
-        self._register_sentry_extra(sentry)
 
     def register_action(self, action):
         if action not in self.actions:
             self.actions += [action]
+            self._register_action_extra(action)
         if self not in action.sentries:
             action.sentries += [self]
-        self._register_action_extra(action)
+            action._register_trigger(self)
 
     def _register_sentry_extra(self, sentry):
         pass
@@ -70,6 +73,9 @@ class SentryAction(ABC):
             sentry.actions += [self]
         if sentry not in self.sentries:
             self.sentries += [sentry]
+
+    def _register_trigger(self, sentry):
+        pass
 
     @abstractmethod
     def propagate(self, received):
@@ -156,6 +162,35 @@ class MultiplierRecursiveSchedule(SchedulerSentry):
         super().__init__(epochs=epochs, base=base)
         self.register_action(
             PropagateMultiplierFromRecursiveTransform(transform=transform))
+
+
+class MultiplierSigmoidSchedule(MultiplierSchedule):
+    def __init__(self, epochs, transitions, base=1):
+        cur = base
+        for k, v in transitions.items():
+            transitions[k] = (cur, v)
+            cur = v
+        transform = partial(MultiplierSigmoidSchedule.get_transform,
+                            transitions=transitions)
+        super().__init__(
+            epochs=epochs,
+            transform=transform,
+            base=base
+        )
+
+    @staticmethod
+    def get_transform(e, transitions):
+        for ((begin_epoch, end_epoch),
+             (begin_nu, end_nu)) in transitions.items():
+            if e < begin_epoch:
+                return begin_nu
+            elif e < end_epoch:
+                x_scale = (end_epoch - begin_epoch)
+                y_scale = (end_nu - begin_nu)
+                x = torch.tensor(e - (begin_epoch + x_scale / 2) + 0.5)
+                y = begin_nu
+                return y_scale * torch.sigmoid(x).item() + y
+        return end_nu
 
 
 class LossArchive(Sentry):
