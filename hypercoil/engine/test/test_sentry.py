@@ -9,6 +9,7 @@ import torch
 from hypercoil.engine.sentry import (
     Epochs,
     MultiplierSchedule,
+    MultiplierRecursiveSchedule,
     LossArchive
 )
 from hypercoil.loss import (
@@ -22,20 +23,26 @@ class TestSentry:
 
         max_epoch = 100
         epochs = Epochs(max_epoch)
-        schedule = MultiplierSchedule(
+        schedule0 = MultiplierSchedule(
             epochs=epochs,
             transform=lambda e: 1.01 ** e
         )
+        schedule1 = MultiplierRecursiveSchedule(
+            epochs=epochs,
+            transform=lambda nu: 1.01 * nu
+        )
         archive = LossArchive()
-        loss = SoftmaxEntropy(nu=schedule)
-        loss.register_sentry(archive)
+        loss0 = SoftmaxEntropy(nu=schedule0)
+        loss1 = SoftmaxEntropy(nu=schedule1)
+        loss0.register_sentry(archive)
         Z = torch.rand(10)
 
-        begin = loss(Z)
+        begin = loss0(Z)
 
         for e in epochs:
-            loss(Z)
+            loss0(Z)
 
-        end = loss(Z)
+        end = loss0(Z)
 
-        assert (begin * 1.01 ** (max_epoch - 1)) == loss(Z)
+        assert (begin * 1.01 ** (max_epoch - 1)) == loss0(Z)
+        assert loss0(Z) == loss1(Z)

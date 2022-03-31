@@ -64,14 +64,27 @@ class SentryAction(ABC):
         pass
 
 
-class PropagateMultiplierFromEpochTransform(SentryAction):
+class PropagateMultiplierFromTransform(SentryAction):
     def __init__(self, transform):
         super().__init__(trigger='EPOCH')
         self.transform = transform
 
+
+class PropagateMultiplierFromEpochTransform(
+    PropagateMultiplierFromTransform
+):
     def propagate(self, sentry, received):
         message = {'NU': self.transform(received)}
         for s in sentry.listeners:
+            s._listen(message)
+
+
+class PropagateMultiplierFromRecursiveTransform(
+    PropagateMultiplierFromTransform
+):
+    def propagate(self, sentry, received):
+        for s in sentry.listeners:
+            message = {'NU': self.transform(s.nu)}
             s._listen(message)
 
 
@@ -116,6 +129,15 @@ class MultiplierSchedule(Sentry):
         self.base = base
         self.register_action(
             PropagateMultiplierFromEpochTransform(transform=transform))
+        epochs.register_sentry(self)
+
+
+class MultiplierRecursiveSchedule(Sentry):
+    def __init__(self, epochs, transform, base=1):
+        super().__init__()
+        self.base = base
+        self.register_action(
+            PropagateMultiplierFromRecursiveTransform(transform=transform))
         epochs.register_sentry(self)
 
 
