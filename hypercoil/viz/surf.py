@@ -12,6 +12,7 @@ import nibabel as nb
 import matplotlib
 import matplotlib.pyplot as plt
 import templateflow.api as tflow
+from hypercoil.engine import Sentry
 from hypercoil.functional.cmass import cmass_coor
 from hypercoil.functional.sphere import spherical_geodesic
 from hypercoil.neuro.const import fsLR
@@ -75,8 +76,9 @@ VIEWS = {
 }
 
 
-class fsLRSurfacePlot:
+class fsLRSurfacePlot(Sentry):
     def __init__(self, atlas):
+        super().__init__()
         self.module = atlas
         self.atlas = atlas.atlas
         coor_query = fsLR().TFLOW_COOR_QUERY

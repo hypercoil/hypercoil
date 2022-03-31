@@ -13,14 +13,16 @@ import nibabel as nb
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist
 from templateflow import api as tflow
+from hypercoil.engine import Sentry
 from hypercoil.functional.cmass import cmass_coor
 from hypercoil.functional.matrix import sym2vec
 from hypercoil.functional.sphere import spherical_geodesic
 from hypercoil.loss.batchcorr import auto_tol
 
 
-class QCFCPlot:
+class QCFCPlot(Sentry):
     def __init__(self, atlas):
+        super().__init__()
         self.module = atlas
         self.atlas = atlas.atlas
 

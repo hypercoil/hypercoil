@@ -143,6 +143,42 @@ class ArchiveLoss(SentryAction):
             sentry.archive[loss] += [new]
 
 
+class ModuleReport(SentryAction):
+    def __init__(self, report_interval, save_root=None,
+                 save_format='.png', *args, **kwargs):
+        super().__init__(trigger=['EPOCH'])
+        self.report_interval = report_interval
+        self.save_root = save_root
+        self.save_format = save_format
+        self.args = args
+        self.kwargs = kwargs
+
+    def propagate(self, sentry, received):
+        if received % self.report_interval == 0:
+            #TODO: we might need to revisit this save scheme for compatibility
+            # with multi-output reporters
+            if self.save_root is not None:
+                save = (
+                    f'{self.save_root}_epoch-{received:09}{self.save_format}'
+                )
+            else:
+                save = None
+            try:
+                sentry(*self.args, save=save, **self.kwargs)
+            except TypeError: #save repeated or invalid as argument
+                sentry(*self.args, **self.kwargs)
+
+    def _register_trigger(self, sentry):
+        epochs_check = [isinstance(i, Epochs) for i in sentry.listening]
+        if not any(epochs_check):
+            sentry.actions.remove(self)
+            raise ValueError(
+                'Cannot register reporter action to a sentry that is not '
+                'listening to epochs. Register the sentry to an epochs '
+                'instance first.'
+            )
+
+
 class Epochs(Sentry, Iterator):
     def __init__(self, max_epoch):
         self.cur_epoch = -1
