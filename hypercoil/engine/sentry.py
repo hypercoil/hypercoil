@@ -7,6 +7,7 @@ Sentry
 Generic sentry objects.
 """
 from torch.nn import Module
+from abc import ABC, abstractmethod
 from collections.abc import Iterator
 
 
@@ -14,6 +15,7 @@ class Sentry:
     def __init__(self):
         self.listeners = []
         self.listening = []
+        self.actions = []
 
     def register_sentry(self, sentry):
         if sentry not in self.listeners:
@@ -21,9 +23,15 @@ class Sentry:
         if self not in sentry.listening:
             sentry.listening += [self]
 
+    def register_action(self, action):
+        if action not in self.actions:
+            self.actions += [action]
+        if self not in action.sentries:
+            action.sentries += [self]
+
     def _listen(self, message):
-        for s in self.listeners:
-            s._listen(message)
+        for action in self.actions:
+            action(message)
 
 
 class SentryModule(Module):
@@ -31,6 +39,7 @@ class SentryModule(Module):
         super().__init__()
         self.listeners = []
         self.listening = []
+        self.actions = []
 
     def register_sentry(self, sentry):
         if sentry not in self.listeners:
@@ -39,7 +48,40 @@ class SentryModule(Module):
             sentry.listening += [self]
 
     def _listen(self, message):
-        for s in self.listeners:
+        for action in self.actions:
+            action(message)
+
+
+class SentryAction(ABC):
+    def __init__(self, trigger):
+        self.trigger = trigger
+        self.sentries = []
+
+    def __call__(self, message):
+        received = message.get(self.trigger)
+        if received:
+            for sentry in self.sentries:
+                self.propagate(sentry, received)
+
+    def register(self, sentry):
+        if self not in sentry.actions:
+            sentry.actions += [self]
+        if sentry not in self.sentries:
+            self.sentries += [sentry]
+
+    @abstractmethod
+    def propagate(self, received):
+        pass
+
+
+class UpdateMultiplier(SentryAction):
+    def __init__(self):
+        super().__init__(trigger='EPOCH')
+
+    def propagate(self, sentry, received):
+        sentry.loss.nu = sentry.transform(received)
+        message = {'NU': sentry.loss.nu}
+        for s in sentry.listeners:
             s._listen(message)
 
 
@@ -67,12 +109,5 @@ class MultiplierSchedule(Sentry):
         super().__init__()
         self.loss = loss
         self.transform = transform
+        self.register_action(UpdateMultiplier())
         epochs.register_sentry(self)
-
-    def _listen(self, message):
-        epoch = message.get('EPOCH')
-        if epoch:
-            self.loss.nu = self.transform(epoch)
-            message = {'NU': self.loss.nu}
-            for s in self.listeners:
-                s._listen(message)
