@@ -132,6 +132,11 @@ class ModularityLoss(Loss):
             sign=self.sign,
             **self.params
         ).squeeze()
+        message = {
+            'NAME': self.name,
+            'LOSS': out.clone().detach().item(),
+            'NU': self.nu
+        }
         for s in self.listeners:
-            s._listen({'LOSS': out.clone().detach().item()})
+            s._listen(message)
         return out

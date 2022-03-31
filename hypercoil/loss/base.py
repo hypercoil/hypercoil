@@ -136,7 +136,11 @@ class ReducingLoss(Loss):
 
     def forward(self, *args, **kwargs):
         out = self.nu * self.reduction(self.loss(*args, **kwargs))
-        message = {'LOSS': out.clone().detach().item()}
+        message = {
+            'NAME': self.name,
+            'LOSS': out.clone().detach().item(),
+            'NU': self.nu
+        }
         for s in self.listeners:
             s._listen(message)
         return out

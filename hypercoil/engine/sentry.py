@@ -22,12 +22,24 @@ class Sentry:
             self.listeners += [sentry]
         if self not in sentry.listening:
             sentry.listening += [self]
+            sentry._register_trigger(self)
+        self._register_sentry_extra(sentry)
 
     def register_action(self, action):
         if action not in self.actions:
             self.actions += [action]
         if self not in action.sentries:
             action.sentries += [self]
+        self._register_action_extra(action)
+
+    def _register_sentry_extra(self, sentry):
+        pass
+
+    def _register_action_extra(self, sentry):
+        pass
+
+    def _register_trigger(self, sentry):
+        pass
 
     def _listen(self, message):
         for action in self.actions:
@@ -48,8 +60,8 @@ class SentryAction(ABC):
         self.sentries = []
 
     def __call__(self, message):
-        received = message.get(self.trigger)
-        if received:
+        received = {t: message.get(t) for t in self.trigger}
+        if None not in received.values():
             for sentry in self.sentries:
                 self.propagate(sentry, received)
 
@@ -66,7 +78,7 @@ class SentryAction(ABC):
 
 class PropagateMultiplierFromTransform(SentryAction):
     def __init__(self, transform):
-        super().__init__(trigger='EPOCH')
+        super().__init__(trigger=['EPOCH'])
         self.transform = transform
 
 
@@ -74,7 +86,7 @@ class PropagateMultiplierFromEpochTransform(
     PropagateMultiplierFromTransform
 ):
     def propagate(self, sentry, received):
-        message = {'NU': self.transform(received)}
+        message = {'NU': self.transform(received['EPOCH'])}
         for s in sentry.listeners:
             s._listen(message)
 
@@ -90,18 +102,20 @@ class PropagateMultiplierFromRecursiveTransform(
 
 class UpdateMultiplier(SentryAction):
     def __init__(self):
-        super().__init__(trigger='NU')
+        super().__init__(trigger=['NU'])
 
     def propagate(self, sentry, received):
-        sentry.nu = received
+        sentry.nu = received['NU']
 
 
 class ArchiveLoss(SentryAction):
     def __init__(self):
-        super().__init__(trigger='LOSS')
+        super().__init__(trigger=['LOSS', 'NAME', 'NU'])
 
     def propagate(self, sentry, received):
-        sentry.archive += [received]
+        name = received['NAME']
+        sentry.archive[name] += [received['LOSS']]
+        sentry.archive[f'{name}_nu'] += [received['NU']]
 
 
 class Epochs(Sentry, Iterator):
@@ -123,26 +137,40 @@ class Epochs(Sentry, Iterator):
         return self.cur_epoch
 
 
-class MultiplierSchedule(Sentry):
-    def __init__(self, epochs, transform, base=1):
+class SchedulerSentry(Sentry):
+    def __init__(self, epochs, base=1):
         super().__init__()
         self.base = base
+        epochs.register_sentry(self)
+
+
+class MultiplierSchedule(SchedulerSentry):
+    def __init__(self, epochs, transform, base=1):
+        super().__init__(epochs=epochs, base=base)
         self.register_action(
             PropagateMultiplierFromEpochTransform(transform=transform))
-        epochs.register_sentry(self)
 
 
-class MultiplierRecursiveSchedule(Sentry):
+class MultiplierRecursiveSchedule(SchedulerSentry):
     def __init__(self, epochs, transform, base=1):
-        super().__init__()
-        self.base = base
+        super().__init__(epochs=epochs, base=base)
         self.register_action(
             PropagateMultiplierFromRecursiveTransform(transform=transform))
-        epochs.register_sentry(self)
 
 
 class LossArchive(Sentry):
     def __init__(self):
         super().__init__()
-        self.archive = []
+        self.archive = {}
         self.register_action(ArchiveLoss())
+
+    def _register_trigger(self, sentry):
+        self.archive[sentry.name] = []
+        self.archive[f'{sentry.name}_nu'] = []
+
+    def get(self, name, normalised=False):
+        tape = self.archive[name]
+        if normalised:
+            nu_tape = self.archive[f'{name}_nu']
+            return [loss / nu for (loss, nu) in zip(tape, nu_tape)]
+        return tape
