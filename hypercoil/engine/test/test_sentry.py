@@ -8,7 +8,8 @@ import pytest
 import torch
 from hypercoil.engine.sentry import (
     Epochs,
-    MultiplierSchedule
+    MultiplierSchedule,
+    LossArchive
 )
 from hypercoil.loss import (
     SoftmaxEntropy
@@ -21,18 +22,19 @@ class TestSentry:
 
         max_epoch = 100
         epochs = Epochs(max_epoch)
-        loss = SoftmaxEntropy(nu=1)
         schedule = MultiplierSchedule(
-            loss=loss,
             epochs=epochs,
             transform=lambda e: 1.01 ** e
         )
+        archive = LossArchive()
+        loss = SoftmaxEntropy(nu=schedule)
+        loss.register_sentry(archive)
         Z = torch.rand(10)
 
         begin = loss(Z)
 
         for e in epochs:
-            pass
+            loss(Z)
 
         end = loss(Z)
 
