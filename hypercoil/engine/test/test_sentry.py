@@ -9,6 +9,7 @@ import torch
 import numpy as np
 from hypercoil.engine.sentry import (
     Epochs,
+    SentryAction,
     MultiplierSchedule,
     MultiplierRecursiveSchedule,
     MultiplierSigmoidSchedule,
@@ -22,6 +23,15 @@ from hypercoil.loss import (
 class TestSentry:
 
     def test_multiplier_schedule(self):
+
+        class IncompleteTransmit(SentryAction):
+            def __init__(self):
+                super().__init__(trigger=['EPOCH'])
+
+            def propagate(self, sentry, received):
+                message = {'LOSS': -1000, 'NAME': 'BlubbaTheWhale'}
+                for s in sentry.listeners:
+                    s._listen(message)
 
         max_epoch = 100
         epochs = Epochs(max_epoch)
@@ -39,6 +49,8 @@ class TestSentry:
             transitions={(21, 40): 5, (61, 80): 2},
             base=1
         )
+        bad_transmitter = IncompleteTransmit()
+        schedule0.register_action(bad_transmitter)
         archive = LossArchive(epochs)
         loss0 = SoftmaxEntropy(nu=schedule0, name='loss0')
         loss1 = SoftmaxEntropy(nu=schedule1, name='loss1')
@@ -46,6 +58,7 @@ class TestSentry:
         loss0.register_sentry(archive)
         loss1.register_sentry(archive)
         loss2.register_sentry(archive)
+        schedule0.register_sentry(archive) # test ignoring irrelevant messages
         Z = torch.rand(10)
 
         for e in epochs:
@@ -56,7 +69,7 @@ class TestSentry:
         begin = archive.get('loss0')[0]
         end = archive.get('loss0')[-1]
 
-        assert (begin * 1.01 ** (max_epoch - 1)) == loss0(Z)
+        assert np.isclose((begin * 1.01 ** (max_epoch - 1)), loss0(Z))
         assert end == archive.get('loss1')[-1]
         assert np.isclose(loss0(Z) / 1.01, end)
 
