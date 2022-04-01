@@ -393,15 +393,19 @@ class EncodeOneHot(object):
             device=self.device
         )
 
-    def __call__(self, data, conform_to_data=True):
-        if conform_to_data:
+    def __call__(self, data, conform_to_data=False):
+        if conform_to_data and isinstance(data, torch.Tensor):
             return F.vector_encode(
                 data,
-                encoding=self.patterns.type(data.dtype).to(data.device),
+                encoding=self.patterns.to(
+                    dtype=data.dtype,
+                    device=data.device),
+                device=data.device
             )
         return F.vector_encode(
             data,
             encoding=self.patterns,
+            device=self.device
         )
 
     def __repr__(self):

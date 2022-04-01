@@ -219,6 +219,8 @@ def consolidate_block(block):
     """
     if isinstance(block, torch.Tensor):
         return block
+    elif len(block) == 1:
+        return consolidate_block(block[0])
     elif isinstance(block[0], torch.Tensor):
         out = extend_to_max_size(block)
     else:
@@ -342,7 +344,7 @@ def read_neuro_image(path, **kwargs):
     return img.get_fdata()
 
 
-def vector_encode(data, encoding):
+def vector_encode(data, encoding, device=None):
     """
     Encode a categorical variable as a vector.
 
@@ -359,7 +361,9 @@ def vector_encode(data, encoding):
         to store a large matrix, this is not a recommended way to create
         one-hot encodings for categorical variables with many levels.
     """
-    idx = torch.tensor(data, dtype=torch.long, device=data.device)
+    if device is None and isinstance(data, torch.Tensor):
+        device = data.device
+    idx = torch.tensor(data, dtype=torch.long, device=device)
     return encoding[idx]
 
 
