@@ -110,15 +110,47 @@ class QCFCPlot(Sentry):
                           edgealpha=0.7,
                           edges=(10 * thresholded ** 2))
 
+        box = dict(
+            boxstyle="round,pad=0.3",
+            fc="#00000077",
+            lw=0
+        )
+        axlabel_params = {
+            'size': 'xx-large',
+            'fontfamily': ('Futura', 'sans-serif'),
+        }
+        annot_params = {
+            'xycoords': 'axes fraction',
+            'ha': 'center',
+            'va': 'center',
+            'c': 'white',
+            'bbox': box,
+            **axlabel_params
+        }
+
         ax = fig.add_subplot(132)
+        mincorr, maxcorr = vec.qcfc.min(), vec.qcfc.max()
+        mindist, maxdist = vec.distance.min(), vec.distance.max()
         sns.kdeplot(
            data=vec, x='qcfc', fill=True, ax=ax,
            alpha=.5, linewidth=0,
         )
         plt.xticks([])
         plt.yticks([])
-        plt.ylabel('')
-        plt.xlabel('Correlations')
+        plt.annotate(
+            f'{mincorr:.2f}',
+            xy=(0.05, 0.5),
+            rotation='vertical',
+            **annot_params
+        )
+        plt.annotate(
+            f'{maxcorr:.2f}',
+            xy=(0.95, 0.5),
+            rotation='vertical',
+            **annot_params
+        )
+        plt.ylabel('', **axlabel_params)
+        plt.xlabel('Correlations', **axlabel_params)
         plt.axvline(0, color='black', linewidth=4)
 
         ax = fig.add_subplot(133)
@@ -127,13 +159,37 @@ class QCFCPlot(Sentry):
             data=vec, x='distance', y='qcfc',
             fill=True, ax=ax
         )
-        plt.xlim(vec.distance.min(), vec.distance.max())
+        plt.xlim(mindist, maxdist)
         plt.xticks([])
         plt.yticks([])
+        plt.annotate(
+            f'{mindist:.2f}',
+            xy=(0.05, 0.5),
+            rotation='vertical',
+            **annot_params
+        )
+        plt.annotate(
+            f'{maxdist:.2f}',
+            xy=(0.95, 0.5),
+            rotation='vertical',
+            **annot_params
+        )
+        plt.annotate(
+            f'{maxcorr:.2f}',
+            xy=(0.5, 0.95),
+            rotation='horizontal',
+            **annot_params
+        )
+        plt.annotate(
+            f'{mincorr:.2f}',
+            xy=(0.5, 0.05),
+            rotation='horizontal',
+            **annot_params
+        )
         plt.axhline(0, color='black', linewidth=4)
         plt.plot(fit_x, fit_y, color='red', linewidth=4)
-        plt.ylabel('Correlations')
-        plt.xlabel('Distance')
+        plt.ylabel('Correlations', **axlabel_params)
+        plt.xlabel('Distance', **axlabel_params)
         fig.tight_layout()
         if save is not None:
             plt.savefig(f'{save}', bbox_inches='tight')
