@@ -6,10 +6,16 @@ Unit tests for geometric vertical compressions
 """
 import pytest
 import numpy as np
+import nibabel as nb
+import templateflow.api as tflow
+from torch import half
 from hypercoil.init.geomcompress import (
     construct_adjacency_matrix,
     construct_group_matrices,
-    compression_matrix
+    compression_matrix,
+    compressions_from_gifti,
+    compression_block_tensor,
+    edges_from_tri_mesh
 )
 
 
@@ -66,3 +72,28 @@ class TestGeometricVerticalCompression:
              0.0000, 0.0000, 0.0010, 1.0000, 0.0500]
         ]).T
         assert np.all(C0 == ref)
+
+    def test_gifti(self):
+        n_groups = 10
+        walk_weights = [1, 0.25, 0.05, 0.01, 0.001]
+        surf_path = tflow.get(
+            template='fsLR',
+            space=None,
+            density='32k',
+            suffix='sphere',
+            hemi='L'
+        )
+        surf = nb.load(surf_path).darrays[1].data
+        edges = edges_from_tri_mesh(surf)
+        CCC = compressions_from_gifti(
+            path=surf_path,
+            n_groups=n_groups,
+            walk_weights=walk_weights
+        )
+        CCCT = compression_block_tensor(CCC, dtype=half)
+        for (i, j) in list(edges)[:100]:
+            print(i, j)
+            k = i % n_groups
+            i = i // n_groups
+            assert CCC[k][j, i] == CCCT[k, j, i]
+            assert CCCT[k, j, i] >= 0.25

@@ -8,7 +8,7 @@ Vertical compression groupings based on geometric adjacencies.
 """
 import torch
 import numpy as np
-from scipy.linalg import toeplitz
+import nibabel as nb
 from scipy.sparse import coo_matrix, eye
 
 
@@ -78,7 +78,7 @@ def edges_from_tri_mesh(mesh):
     return set(edges)
 
 
-def compressions_from_gifti(path):
+def compressions_from_gifti(path, n_groups, walk_weights):
     surf = nb.load(path)
     n_vertices_in = surf.darrays[0].data.shape[0]
     edges = edges_from_tri_mesh(surf.darrays[1].data)
@@ -95,6 +95,7 @@ def compressions_from_gifti(path):
 
 
 def compression_block_tensor(matrices, device=None, dtype=None):
+    n_groups = len(matrices)
     i = np.zeros((3, 0))
     v = np.zeros(0)
     for g, matrix in enumerate(matrices):
