@@ -23,7 +23,10 @@ def from_distr_init_(tensor, distr):
         Pytorch distribution object from which to sample values used to
         populate the tensor.
     """
-    val = distr.sample(tensor.shape).type(tensor.dtype).to(tensor.device)
+    val = distr.sample(tensor.shape).to(
+        dtype=tensor.dtype,
+        device=tensor.device
+    )
     tensor[:] = val
 
 

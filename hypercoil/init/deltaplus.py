@@ -54,7 +54,7 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
         dtype=tensor.dtype,
         device=tensor.device
     ) * var
-    val.type(tensor.dtype)
+    val.to(dtype=tensor.dtype, device=tensor.device)
     tensor.copy_(val)
 
 

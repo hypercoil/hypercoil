@@ -236,7 +236,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
             cmasses = cmass_coor(map, coor, radius=100)
             closest_poles = spherical_geodesic(
                 cmasses.t(),
-                POLES.to(cmasses.device).type(cmasses.dtype)
+                POLES.to(device=cmasses.device, dtype=cmasses.dtype)
             ).argsort(-1)[:, :3].cpu()
             closest_poles = POLE_DECODER[compartment][closest_poles.numpy()]
             if compartment == 'cortex_L':

@@ -234,7 +234,8 @@ def delete_diagonal(A):
     from the final axis.
     """
     dim = A.shape[-1]
-    mask = (~torch.eye(dim, device=A.device, dtype=torch.bool)).type(A.dtype)
+    mask = (~torch.eye(dim, device=A.device, dtype=torch.bool)).to(
+        dtype=A.dtype)
     return A * mask
 
 
