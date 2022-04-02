@@ -54,7 +54,7 @@ class TestNoise:
         assert torch.allclose(out, out.T, atol=1e-5)
         L = torch.linalg.eigvalsh(out)
         # ignore effectively-zero eigenvalues
-        L[torch.abs(L) < 1e-5] = 0
+        L[torch.abs(L) < 1e-4] = 0
         assert L.min() >= 0
         assert torch.all(L >= 0)
 
