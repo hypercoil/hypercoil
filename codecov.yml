@@ -1,5 +1,6 @@
 ignore:
   - "*/test/*"
+  - "*/examples/*"
   - "*/synth/*"
   - "*/experiments/*"
   - "*/workflows/*"

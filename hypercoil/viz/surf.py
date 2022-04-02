@@ -125,8 +125,10 @@ class fsLRAtlasParcels(
     fsLRSurfacePlot
 ):
     def __call__(self, cmap, views=('lateral', 'medial'), save=None):
+        offscreen = False
         if save is not None:
             matplotlib.use('agg')
+            offscreen = True
         data = torch.zeros_like(self.atlas.mask, dtype=torch.long)
         for compartment in ('cortex_L', 'cortex_R'):
             mask = self.atlas.compartments[compartment]
@@ -149,6 +151,7 @@ class fsLRAtlasParcels(
                 brightness=1,
                 **view_args
             )
+            p.offscreen = offscreen
             p.add_layer(
                 self.data.astype('long')[:self.dim],
                 cmap=cmap,
@@ -157,13 +160,13 @@ class fsLRAtlasParcels(
             )
             fig = p.build()
             fig.set_dpi(200)
-            fig.show()
             if save is not None:
                 plt.savefig(f'{save}_view-{view}.png',
                             dpi=1000,
                             bbox_inches='tight')
                 plt.close('all')
-
+            else:
+                fig.show()
 
 
 class fsLRAtlasMaps(fsLRSurfacePlot):
@@ -213,7 +216,6 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                 ax[i, j].set_yticks([])
                 ax[i, j].set_title(f'Node {name}')
 
-            fig.show()
             if save:
                 plt.tight_layout()
                 plt.savefig(f'{save}_batch-{batch_index}.png',
@@ -221,12 +223,16 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                             bbox_inches='tight')
                 fig.clear()
                 plt.close('all')
+            else:
+                fig.show()
             batch_index += 1
 
     def __call__(self, cmap='Blues', color_range=(0, 1),
                  max_per_batch=21, stop_batch=None, save=None):
+        offscreen = False
         if save is not None:
             matplotlib.use('agg')
+            offscreen = True
         figs = [None for _ in range(self.atlas.decoder['_all'].max() + 1)]
         for compartment in ('cortex_L', 'cortex_R'):
             map = self.module.weight[compartment]
@@ -260,6 +266,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                     zoom=1.25,
                     size=(400, 200)
                 )
+                p.offscreen = offscreen
                 p.add_layer(
                     data[:self.dim],
                     cmap=cmap,
