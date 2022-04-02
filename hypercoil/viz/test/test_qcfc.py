@@ -37,7 +37,7 @@ class TestQCFCPlot:
 
         lin = AtlasLinear(atlas)
 
-        qcfc = torch.randn(333, 333)
+        qcfc = torch.randn(400, 400)
         qcfc = qcfc @ qcfc.T + 5
         sign = torch.sign(qcfc)
         qcfc = sign * qcfc.abs().sqrt()

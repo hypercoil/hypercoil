@@ -15,6 +15,10 @@ def pytest_addoption(parser):
         '--sims', action='store_true', default=False, help='Run simulations'
     )
     parser.addoption(
+        '--simsonly', action='store_true', default=False,
+        help='Run simulations only, skipping unit tests'
+    )
+    parser.addoption(
         '--ci', action='store_true', default=False,
         help='Skip tests unsupported on CI server'
     )
@@ -29,12 +33,22 @@ def pytest_configure(config):
         'markers',
         'cuda: mark test as CUDA-only'
     )
+    config.addinivalue_line(
+        'markers',
+        'ci_unsupported: mark test as unsupported on CI server'
+    )
 
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption('--sims'):
         # --sims given in cli: do not skip simulations
         pass
+    elif config.getoption('--simsonly'):
+        skip_nonsims = pytest.mark.skip(
+            reason='--simsonly option set: skipping unit tests')
+        for item in items:
+            if 'sim' not in item.keywords:
+                item.add_marker(skip_nonsims)
     else:
         skip_sims = pytest.mark.skip(
             reason='--sims option must be set to run simulations')
