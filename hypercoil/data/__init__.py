@@ -30,7 +30,7 @@ In practice, the API is designed to make combine the first three steps into
 a single function call when using a BIDS- or HCP-formatted dataset. In these
 cases, using the
 :doc:`fmriprep_references <api/hypercoil.data.bids.fmriprep_references>` and
-:doc:`hcp_references <api/hypercoil.data.bids.hcp_references>` convenience
+:doc:`hcp_references <api/hypercoil.data.hcp.hcp_references>` convenience
 functions, respectively, is sufficient to implement the first three workflow
 stages. The final stage is handled by passing the references thereby retrieved
 to the
