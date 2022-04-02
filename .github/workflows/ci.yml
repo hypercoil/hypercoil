@@ -25,7 +25,7 @@ jobs:
         python -m pip install pytest
         python -m pip install https://github.com/wiheto/netplotbrain/archive/535a07bb7d2be1a2c95746bcb82b41e69f19a8f1.tar.gz
         python -m pip install https://github.com/rciric/surfplot/archive/9b4a1e65aac89daf5e6747cee0419b6fc39d2392.tar.gz
-        python -m pip install skimage
+        python -m pip install scikit-image
 
     - name: Lint
       run: |
