@@ -10,7 +10,8 @@ Functions for transforming various data modalities.
     in the interim, users are advised to verify that all outputs are as
     expected.
 """
-import re, json, subprocess, bs4, lxml
+import re, json, subprocess, lxml
+import bs4
 import torch
 import numpy as np
 import pandas as pd

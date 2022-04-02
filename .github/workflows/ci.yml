@@ -8,7 +8,8 @@ jobs:
       PYTHON: '3.8'
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v3
       with:
         fetch-depth: ‘2’
 
@@ -31,7 +32,13 @@ jobs:
     - name: Generate coverage report
       run: |
         pip install coverage
-        coverage run -m pytest
+        coverage run -m pytest --sims
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
+
+    - name: Upload test results as artefact
+      uses: actions/upload-artifact@v3
+      with:
+        name: simulations
+        path: hypercoil/results/
