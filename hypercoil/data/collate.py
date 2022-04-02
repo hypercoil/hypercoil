@@ -5,13 +5,13 @@
 Patch of ``pytorch``'s ``default_collate`` function, and associated
 functionality that enables additional arguments. This function is typically
 called when a dataset collates observation tensors to form a batch tensor.
-Our patch, :ref:`gen_collate`, modifies the ``torch`` base by making the
+Our patch, ``gen_collate``, modifies the ``torch`` base by making the
 collation function itself an additional argument.
 
 In the base function, the collation function is set to be ``torch.stack``:
 observation tensors are stacked along a new (typically prepended) axis to
 create batch tensors. With our patch, we also include the alternative
-collation function :ref:`extend_and_bind`, which is designed to also
+collation function ``extend_and_bind``, which is designed to also
 handle the case when the observation tensors being collated might not be the
 same size. This can commonly occur in functional neuroimaging data, for
 instance if different task acquisitions have different durations or if an
@@ -25,7 +25,7 @@ concatenates them.
     ``webdataset``.
 
 .. note::
-    When using :ref:`extend_and_bind`, make sure that missing values are
+    When using ``extend_and_bind``, make sure that missing values are
     handled appropriately for each data type. For instance, if one data type
     is a temporal mask, it would make sense to replace all missing values with
     `0` to signal that the time point should be excluded.

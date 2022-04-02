@@ -26,8 +26,8 @@ ingestion workflow proceeds as follows:
   splits (which can be later used for defining training, validation, and test
   sets) and ``.tar``-formatted shards.
 
-In practice, the API is designed to make combine the first three steps into
-a single function call when using a BIDS- or HCP-formatted dataset. In these
+In practice, the API is designed to combine the first three steps into a
+single function call when using a BIDS- or HCP-formatted dataset. In these
 cases, using the
 :doc:`fmriprep_references <api/hypercoil.data.bids.fmriprep_references>` and
 :doc:`hcp_references <api/hypercoil.data.hcp.hcp_references>` convenience
@@ -49,7 +49,7 @@ to the
     factor is likely the disk read/write head, so it's not clear how helpful
     it would actually be. In our experience it can take close to an hour to
     initialise the layout for a large dataset, and upwards of a day to write
-    a webdataset to a slow hard disk.
+    a large webdataset to a slow hard disk.
 """
 from .bids import (
     fmriprep_references,
@@ -58,7 +58,8 @@ from .bids import (
     fMRIPrepDataset
 )
 from .dataset import (
-    ReferencedDataset
+    ReferencedDataset,
+    ReferencedDataLoader
 )
 from .grabber import (
     LightGrabber

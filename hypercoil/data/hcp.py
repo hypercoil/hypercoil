@@ -2,9 +2,20 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-HCP interfaces
-~~~~~~~~~~~~~~~
 Interfaces for loading HCP-like neuroimaging data.
+
+The recommended use is first retrieving data references through the
+:doc:`hcp_references <hypercoil.data.hcp.hcp_references>`
+function call, and then passing the references to the
+:doc:`make_wds <api/hypercoil.data.wds.make_wds>`
+function.
+
+.. warning::
+    The reference retrieval utility currently requires some additional
+    processing and cannot be used on the downloaded HCP data directly.
+    In particular, it requires fMRIPrep-formatted confound data and
+    metadata to be generated to enable specification of a confound model.
+    A script for creating these files this will be shared in the future.
 """
 import subprocess
 from ..formula import ModelSpec, FCConfoundModelSpec
@@ -155,8 +166,7 @@ def hcp_references(hcp_dir, additional_tables=None,
                    levels=('task', 'session', 'run'),
                    dtype=None, device=None):
     """
-    Obtain data references for a directory containing data processed with
-    fMRIPrep.
+    Obtain data references for a directory containing HCP or HCP-like data.
 
     Parameters
     ----------

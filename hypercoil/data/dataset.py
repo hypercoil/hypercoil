@@ -2,14 +2,25 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Referenced datasets
-~~~~~~~~~~~~~~~~~~~
 Dataset objects composed of DataReference subclasses.
+
+For loading of data, ``webdataset`` is strongly encouraged over these classes.
+The remaining use case for these (which will likely be replaced) is changing
+the depth of
+:doc:`DataReference <hypercoil.data.dataref.DataReference>`
+objects (e.g., switching from subject-level references to session-level
+references).
+
+.. warning::
+    These classes will likely be deprecated entirely in the future, and it is
+    strongly advised they not be used for anything important.
 """
 from itertools import chain
 from functools import partial
 from torch.utils.data import Dataset, DataLoader
 from .collate import gen_collate, extend_and_bind
+##TODO: phase out referenced datasets. Implement reference depth shifting as a
+# standalone, modular operation.
 
 
 class ReferencedDataset(Dataset):
@@ -18,7 +29,7 @@ class ReferencedDataset(Dataset):
 
     Parameters
     ----------
-    data_refs : list(DataReference)
+    data_refs : list(:doc:`DataReference <hypercoil.data.dataref.DataReference>`)
         List of data references to include in the dataset. References can be
         obtained using a search method like `data_references` or one of its
         parent functions.
@@ -70,7 +81,7 @@ class ReferencedDataset(Dataset):
 
         Parameters
         ----------
-        data_refs : list(DataReference)
+        data_refs : list(:doc:`DataReference <hypercoil.data.dataref.DataReference>`)
             List of additional references to add.
         """
         self._data_refs += data_refs
@@ -89,7 +100,7 @@ class ReferencedDataset(Dataset):
 
 class ReferencedDataLoader(DataLoader):
     """
-    Data loader for a ReferencedDataset.
+    Data loader for a :doc:`ReferencedDataset <hypercoil.data.dataref.ReferencedDataset>`.
     """
     def __init__(self, dataset, **kwargs):
         kwargs=kwargs

@@ -2,9 +2,13 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Data transform functions
-~~~~~~~~~~~~~~~~~~~~~~~~
 Functions for transforming various data modalities.
+
+.. warning::
+    Data transformations are, at the moment, largely undocumented and
+    untested. This will change during a coming round of development; however,
+    in the interim, users are advised to verify that all outputs are as
+    expected.
 """
 import re, json, subprocess, bs4, lxml
 import torch
