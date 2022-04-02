@@ -20,6 +20,7 @@ from hypercoil.nn import (
 )
 
 
+"""
 # Standard architecture
 glasser = fsLRAtlas(path=atlas_path, name='glasser')
 atlas = AtlasLinear(glasser, mask_input=False)
@@ -42,3 +43,4 @@ atlasL = [
 filterL = [
     FrequencyDomainFilter()
 ]
+"""
