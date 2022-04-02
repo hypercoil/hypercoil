@@ -8,7 +8,7 @@ The ``data`` submodule contains functionality for efficiently interacting with
 and ingesting data into the differentiable pipeline. The recommended data
 ingestion workflow proceeds as follows:
 
-.. image:: _images/ingestion.png
+.. image:: _images/ingestion.svg
 
 - Creating a ``pybids``-inspired representation of a dataset's layout on
   disk. This process uses a data grabber to locate files whose names match an
