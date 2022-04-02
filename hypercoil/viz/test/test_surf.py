@@ -20,11 +20,12 @@ class TestSurfaceVisualisations:
 
     @pytest.fixture(autouse=True)
     def setup_class(self):
-        #TODO: These hard codes really need to be changed at some point.
-        # It's just too bad that the references we're testing with are
-        # barred from redistribution.
+        ref_pointer = pkgrf(
+            'hypercoil',
+            'viz/resources/nullexample.nii'
+        )
         self.atlas = CortexSubcortexCIfTIAtlas(
-            ref_pointer='/Users/rastkociric/Downloads/glasser.nii',
+            ref_pointer=ref_pointer,
             mask_L=tflow.get(
                 template='fsLR',
                 hemi='L',

@@ -135,6 +135,7 @@ class QCFCPlot(Sentry):
            data=vec, x='qcfc', fill=True, ax=ax,
            alpha=.5, linewidth=0,
         )
+        plt.xlim(mincorr, maxcorr)
         plt.xticks([])
         plt.yticks([])
         plt.annotate(
@@ -160,6 +161,7 @@ class QCFCPlot(Sentry):
             fill=True, ax=ax
         )
         plt.xlim(mindist, maxdist)
+        plt.ylim(mincorr, maxcorr)
         plt.xticks([])
         plt.yticks([])
         plt.annotate(
