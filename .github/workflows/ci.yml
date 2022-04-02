@@ -40,7 +40,7 @@ jobs:
     - name: Generate coverage report
       run: |
         python -m pip install coverage
-        coverage run -m pytest --sims
+        coverage run -m pytest --sims --ci
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2

@@ -1,0 +1,46 @@
+name: doc
+on: [push, pull_request]
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      OS: ubuntu-latest
+      PYTHON: '3.8'
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: ‘2’
+        submodules: recursive
+
+    - name: Make HTML
+      uses: ammaraskar/sphinx-action@master
+      with:
+        docs-folder: "docs/"
+
+    - name: Upload HTML
+      uses: actions/upload-artifact@v3
+      with:
+        name: DocumentationHTML
+        path: docs/build/html/
+
+    - name: Commit documentation changes
+      run: |
+        git clone https://github.com/hypercoil/hypercoil.github.io.git --branch pages-dev --single-branch pages-dev
+        cp -r docs/build/html/* hypercoil.github.io/
+        cd hypercoil.github.io/
+        touch .nojekyll
+        git config --local user.email "102877884+amalgam-amalgam@users.noreply.github.com"
+        git config --local user.name "amalgam-amalgam"
+        git add .
+        git commit -m "Update documentation" -a || true
+        # The above command will fail if no changes were present, so we ignore
+        # that.
+
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        branch: pages-dev
+        directory: hypercoil.github.io
+        github_token: ${{ secrets.AMALGAM_AMALGAM }}

@@ -14,6 +14,10 @@ def pytest_addoption(parser):
     parser.addoption(
         '--sims', action='store_true', default=False, help='Run simulations'
     )
+    parser.addoption(
+        '--ci', action='store_true', default=False,
+        help='Skip tests unsupported on CI server'
+    )
 
 
 def pytest_configure(config):
