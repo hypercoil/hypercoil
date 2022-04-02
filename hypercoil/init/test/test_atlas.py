@@ -271,8 +271,8 @@ class TestAtlasInit:
         # reductions.
         lin.reduction = 'zscore'
         out = lin(torch.rand(66795, 3))
-        assert np.allclose(out.mean(-1).detach(), 0, atol=1e-4)
-        assert np.allclose(out.std(-1).detach(), 1, atol=1e-4)
+        assert np.allclose(out.mean(-1).detach(), 0, atol=1e-3)
+        assert np.allclose(out.std(-1).detach(), 1, atol=1e-3)
         lin.reduction = 'mean'
 
     def test_surface_dirichlet_atlas(self):
