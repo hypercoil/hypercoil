@@ -15,8 +15,12 @@ from hypercoil.viz.qcfc import QCFCPlot
 
 class TestQCFCPlot:
     def test_qcfc_plot(self):
+        ref_pointer = pkgrf(
+            'hypercoil',
+            'viz/resources/nullexample.nii'
+        )
         atlas = CortexSubcortexCIfTIAtlas(
-            ref_pointer='/Users/rastkociric/Downloads/gordon.nii',
+            ref_pointer=ref_pointer,
             mask_L=tflow.get(
                 template='fsLR',
                 hemi='L',
