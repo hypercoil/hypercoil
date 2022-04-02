@@ -48,5 +48,5 @@ jobs:
     - name: Upload test results as artefact
       uses: actions/upload-artifact@v3
       with:
-        name: simulations
+        name: SimulationResults
         path: hypercoil/results/

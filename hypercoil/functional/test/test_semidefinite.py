@@ -41,6 +41,8 @@ class TestSemidefinite:
         self.rtol = 5e-5
         self.approx = lambda out, ref: np.allclose(
             out, ref, atol=self.tol, rtol=self.tol)
+        np.random.seed(10)
+        torch.manual_seed(10)
 
         A = np.random.rand(10, 10)
         AM = np.random.rand(200, 10, 10)

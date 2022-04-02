@@ -49,6 +49,7 @@ class TestSurfaceVisualisations:
             'viz/resources/cmap_network.nii'
         )
 
+    @pytest.mark.skip_ci_unsupported
     def test_parcellation_plotter(self):
         all_views = (
             'dorsal', 'ventral',
@@ -71,6 +72,7 @@ class TestSurfaceVisualisations:
             save=f'{results}/parcellation_cmap-network'
         )
 
+    @pytest.mark.skip_ci_unsupported
     def test_map_plotter(self):
         results = pkgrf(
             'hypercoil',

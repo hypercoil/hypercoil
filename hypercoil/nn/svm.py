@@ -346,7 +346,8 @@ class SVM(torch.nn.Module):
             variables=[alpha]
         )
 
-    def formulate(self, n_observations, n_classes, Y, sample_weight=None):
+    def formulate(self, n_observations, n_classes,
+                  Y=None, sample_weight=None):
         """
         Formulate all SVM problems to be solved during each forward pass.
 

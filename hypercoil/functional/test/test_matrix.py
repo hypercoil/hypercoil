@@ -27,6 +27,8 @@ class TestMatrix:
     def setup_class(self):
         self.tol = 5e-3
         self.approx = lambda out, ref: np.allclose(out, ref, atol=self.tol)
+        np.random.seed(10)
+        torch.manual_seed(10)
 
 
         A = np.random.rand(10, 10)

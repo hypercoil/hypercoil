@@ -38,6 +38,17 @@ def pytest_collection_modifyitems(config, items):
             if 'sim' in item.keywords:
                 item.add_marker(skip_sims)
 
+    if config.getoption('--ci'):
+        # --ci given in cli: skip unsupported tests
+        skip_ci_unsupported = pytest.mark.skip(
+            reason='--ci option indicates not to run tests unsupported '
+                   'in CI environment')
+        for item in items:
+            if 'ci_unsupported' in item.keywords:
+                item.add_marker(skip_ci_unsupported)
+    else:
+        pass
+
     if torch.cuda.is_available():
         pass
     else:
