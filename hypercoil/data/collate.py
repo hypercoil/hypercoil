@@ -15,7 +15,7 @@ collation function ``extend_and_bind``, which is designed to also
 handle the case when the observation tensors being collated might not be the
 same size. This can commonly occur in functional neuroimaging data, for
 instance if different task acquisitions have different durations or if an
-acquisition is terminated early. :ref:`extend_and_bind` first pads each
+acquisition is terminated early. ``extend_and_bind`` first pads each
 observation with missing values until all are the same size and then
 concatenates them.
 

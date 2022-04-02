@@ -100,7 +100,7 @@ class ReferencedDataset(Dataset):
 
 class ReferencedDataLoader(DataLoader):
     """
-    Data loader for a :doc:`ReferencedDataset <hypercoil.data.dataref.ReferencedDataset>`.
+    Data loader for a :doc:`ReferencedDataset <hypercoil.data.dataset.ReferencedDataset>`.
     """
     def __init__(self, dataset, **kwargs):
         kwargs=kwargs
