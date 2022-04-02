@@ -42,8 +42,8 @@ jobs:
     - name: Commit documentation changes
       run: |
         git clone https://github.com/hypercoil/hypercoil.github.io.git --branch pages-dev --single-branch pages-dev
-        cp -r docs/build/html/* hypercoil.github.io/
-        cd hypercoil.github.io/
+        cp -r docs/build/html/* pages-dev/
+        cd pages-dev/
         touch .nojekyll
         git config --local user.email "102877884+amalgam-amalgam@users.noreply.github.com"
         git config --local user.name "amalgam-amalgam"
@@ -56,5 +56,5 @@ jobs:
       uses: ad-m/github-push-action@master
       with:
         branch: pages-dev
-        directory: hypercoil.github.io
+        directory: pages-dev
         github_token: ${{ secrets.AMALGAM_AMALGAM }}
