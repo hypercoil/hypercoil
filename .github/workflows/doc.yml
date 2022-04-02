@@ -14,15 +14,24 @@ jobs:
         fetch-depth: ‘2’
         submodules: recursive
 
+    - name: Setup Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.8
+
     - name: Install dependencies
       run: |
+        sudo apt install pandoc
+        python -m pip install --upgrade pip
         python -m pip install numpydoc
         python -m pip install pydata_sphinx_theme
 
     - name: Make HTML
-      uses: ammaraskar/sphinx-action@master
-      with:
-        docs-folder: "docs/"
+      run: |
+        pushd docs/
+        python -m pip install -r requirements.txt
+        make html
+        popd
 
     - name: Upload HTML
       uses: actions/upload-artifact@v3
