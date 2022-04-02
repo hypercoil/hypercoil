@@ -2,10 +2,41 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Collate functions
-~~~~~~~~~~~~~~~~~
-Patch of pytorch default_collate and associated functionality that enables
-additional arguments.
+Patch of ``pytorch``'s ``default_collate`` function, and associated
+functionality that enables additional arguments. This function is typically
+called when a dataset collates observation tensors to form a batch tensor.
+Our patch, :ref:`gen_collate`, modifies the ``torch`` base by making the
+collation function itself an additional argument.
+
+In the base function, the collation function is set to be ``torch.stack``:
+observation tensors are stacked along a new (typically prepended) axis to
+create batch tensors. With our patch, we also include the alternative
+collation function :ref:`extend_and_bind`, which is designed to also
+handle the case when the observation tensors being collated might not be the
+same size. This can commonly occur in functional neuroimaging data, for
+instance if different task acquisitions have different durations or if an
+acquisition is terminated early. :ref:`extend_and_bind` first pads each
+observation with missing values until all are the same size and then
+concatenates them.
+
+.. note::
+    Another way of handling data of different durations is by prefixing a
+    random window selector transform to each input. This can be handled by
+    ``webdataset``.
+
+.. note::
+    When using :ref:`extend_and_bind`, make sure that missing values are
+    handled appropriately for each data type. For instance, if one data type
+    is a temporal mask, it would make sense to replace all missing values with
+    `0` to signal that the time point should be excluded.
+
+.. warning::
+    This is a patch. Keeping the code in sync with the base function in
+    ``pytorch`` could be a failure point.
+
+.. autofunction:: hypercoil.data.collate.gen_collate
+
+.. autofunction:: hypercoil.data.collate.extend_and_bind
 """
 
 #TODO
@@ -35,7 +66,7 @@ def gen_collate(
     concat_axis=0
 ):
     """
-    Basically stolen/adapted from torch/utils/data/_utils/collate.py
+    Basically stolen/adapted from ``torch/utils/data/_utils/collate.py``.
     """
     elem = batch[0]
     elem_type = type(elem)
