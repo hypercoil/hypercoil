@@ -13,6 +13,7 @@ jobs:
       with:
         fetch-depth: ‘2’
         submodules: recursive
+        path: ./hypercoil
 
     - name: Setup Python
       uses: actions/setup-python@v3
@@ -25,10 +26,13 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install numpydoc
         python -m pip install pydata_sphinx_theme
+        pushd hypercoil/
+        python -m pip install .
+        popd
 
     - name: Make HTML
       run: |
-        pushd docs/
+        pushd hypercoil/docs/
         python -m pip install -r requirements.txt
         make html
         popd
@@ -37,12 +41,12 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: DocumentationHTML
-        path: docs/build/html/
+        path: hypercoil/docs/build/html/
 
     - name: Commit documentation changes
       run: |
         git clone https://github.com/hypercoil/hypercoil.github.io.git --branch pages-dev --single-branch pages-dev
-        cp -r docs/build/html/* pages-dev/
+        cp -r hypercoil/docs/build/html/* pages-dev/
         cd pages-dev/
         touch .nojekyll
         git config --local user.email "102877884+amalgam-amalgam@users.noreply.github.com"
@@ -53,8 +57,8 @@ jobs:
         # that.
 
     - name: Push changes
-      uses: ad-m/github-push-action@master
-      with:
-        branch: pages-dev
-        directory: pages-dev
-        github_token: ${{ secrets.AMALGAM_AMALGAM }}
+      run: |
+        cd pages-dev
+        git config --local user.email "102877884+amalgam-amalgam@users.noreply.github.com"
+        git config --local user.name "amalgam-amalgam"
+        git push https://${{ secrets.AMALGAM_AMALGAM }}@github.com/hypercoil/hypercoil.github.io.git
