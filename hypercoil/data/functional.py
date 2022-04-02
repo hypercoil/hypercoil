@@ -285,7 +285,7 @@ def extend_to_max_size(tensor_list):
     the input; they can be populated by chaining this with a call to
     `nanfill`.
     """
-    sizes = [t.size() for t in tensor_list]
+    sizes = [t.size() if t.dim() != 0 else [1] for t in tensor_list]
     max_size = torch.amax(
         torch.tensor(sizes, dtype=torch.long, device=tensor_list[0].device),
         0
