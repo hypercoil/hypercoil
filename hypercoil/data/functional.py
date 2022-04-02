@@ -446,7 +446,7 @@ def nifti_header(path):
         elif t_units in ('ms', 'msec', 'millisec', 'milliseconds'):
             t_rep /= 1000.
         else:
-            raise RuntimeError(f'Unrecognised units: {units}')
+            raise RuntimeError(f'Unrecognised units: {t_units}')
         metadata['RepetitionTime'] = t_rep
     except TypeError: # CIfTI case
         t_rep = [

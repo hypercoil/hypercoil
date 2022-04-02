@@ -143,7 +143,7 @@ class HCPDataset(ReferencedDataset):
         )
         super(HCPDataset, self).__init__(data_refs, depth=depth)
 
-    def add_data(self, fmriprep_dir, space=None, additional_tables=None,
+    def add_data(self, hcp_dir, space=None, additional_tables=None,
                  ignore=None, labels=('task',), outcomes=None,
                  model=None, tmask=None, observations=('subject',),
                  levels=('task', 'session', 'run')):

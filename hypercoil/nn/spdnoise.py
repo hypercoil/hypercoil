@@ -57,7 +57,7 @@ class SPDNoise(Module):
         """
         Set the module into training mode.
         """
-        super(_Cov, self).train(mode)
+        super(SPDNoise, self).train(mode)
         self.noise.train(mode)
 
     def eval(self):
@@ -66,7 +66,7 @@ class SPDNoise(Module):
 
         In evaluation mode, the module does nothing.
         """
-        super(_Cov, self).eval()
+        super(SPDNoise, self).eval()
         self.noise.eval()
 
     def __repr__(self):

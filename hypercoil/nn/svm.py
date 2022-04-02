@@ -54,7 +54,7 @@ def gaussian_kernel(X, Z, gamma):
     )
 
 
-def sigmoid_kernel(X, Z, r):
+def sigmoid_kernel(X, Z, gamma, r):
     return torch.tanh(gamma * X @ Z.transpose(-1, -2) + r)
 
 
@@ -346,7 +346,7 @@ class SVM(torch.nn.Module):
             variables=[alpha]
         )
 
-    def formulate(self, n_observations, n_classes, sample_weight=None):
+    def formulate(self, n_observations, n_classes, Y, sample_weight=None):
         """
         Formulate all SVM problems to be solved during each forward pass.
 
@@ -415,6 +415,7 @@ class SVM(torch.nn.Module):
             self.formulate(
                 n_observations=n_observations,
                 n_classes=n_classes,
+                Y=Y,
                 sample_weight=sample_weight
             )
 
