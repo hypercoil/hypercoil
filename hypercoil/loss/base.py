@@ -73,7 +73,7 @@ class Loss(SentryModule):
         return f'[ν = {self.nu}]{self.name}'
 
 
-class LossApply(Module):
+class LossApply(SentryModule):
     """
     Callable loss function wrapper that composes the loss with a selector or
     other pretransformation.
@@ -98,6 +98,12 @@ class LossApply(Module):
 
     def __repr__(self):
         return self.loss.__repr__()
+
+    def register_sentry(self, sentry):
+        self.loss.register_sentry(sentry)
+
+    def register_action(self, action):
+        self.loss.register_action(action)
 
     def forward(self, *args, **kwargs):
         applied = self.apply(*args, **kwargs)

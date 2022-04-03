@@ -4,6 +4,11 @@
 
 
 from .sentry import (
-	Sentry,
-	SentryModule
+    Sentry,
+    SentryModule,
+    Epochs,
+    MultiplierSchedule,
+    MultiplierRecursiveSchedule,
+    MultiplierSigmoidSchedule,
+    LossArchive,
 )
