@@ -61,7 +61,7 @@ def compression_matrix(adjmat, walk_weights, group_matrix):
         masked_walks[s] = w - prev
         power = adjmat @ power
         prev = prev + w
-        
+
     return sum([
         wei * walk.astype('int')
         for wei, walk in zip(walk_weights, masked_walks)
@@ -92,6 +92,16 @@ def compressions_from_gifti(path, n_groups, walk_weights):
         walk_weights=walk_weights,
         group_matrix=m.T
     ) for m in group_matrix.values()]
+
+
+def compression_tensor(matrix, device=None, dtype=None):
+    matrix = matrix.tocoo()
+    r = matrix.row
+    c = matrix.col
+    v = matrix.data
+    i = np.stack((r, c))
+    return torch.sparse_coo_tensor(i, v, matrix.shape,
+                                   device=device, dtype=dtype)
 
 
 def compression_block_tensor(matrices, device=None, dtype=None):
