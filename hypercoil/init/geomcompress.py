@@ -106,4 +106,44 @@ def compression_block_tensor(matrices, device=None, dtype=None):
         j = g * np.ones_like(r)
         i = np.concatenate((i, np.stack((j, r, c))), axis=-1)
     return torch.sparse_coo_tensor(i, v, (n_groups, *matrix.shape),
-                                   device=device, dtype=dtype)
+                                   device=device, dtype=dtype).coalesce()
+
+
+def mask_coo_tensor_along_axis(tensor, mask, mask_axis=-2):
+    """
+    This code is quite slow and unvectorised.
+
+    Some operations might be destructive depending on the mask axis and
+    coalescence state of the input tensor. Clone your original tensor first
+    if you're going to need it afterward.
+    """
+    tensor = tensor.transpose(0, mask_axis).coalesce()
+    indices = tensor.indices()
+    values = tensor.values()
+    shape = list(tensor.size())
+    drop = torch.where(~mask)[0]
+    ax = indices[0]
+    delta = torch.empty_like(ax)
+    pointer = 0
+    cur_delta = 0
+    for i, e in enumerate(ax):
+        if pointer >= len(drop):
+            delta[i] = cur_delta
+            continue
+        elif e == drop[pointer]:
+            delta[i] = -1
+            continue
+        elif e > drop[pointer]:
+            cur_delta += 1
+            pointer += 1
+        delta[i] = cur_delta
+    coo_mask = (delta != -1)
+    values = values[coo_mask]
+    indices[0] = indices[0] - delta
+    indices = indices[:, coo_mask]
+    shape[0] -= len(drop)
+    new_tensor = torch.sparse_coo_tensor(
+        indices, values, shape,
+        device=tensor.device, dtype=tensor.dtype
+    )
+    return new_tensor.transpose(0, mask_axis).coalesce()
