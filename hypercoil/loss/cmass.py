@@ -4,30 +4,57 @@
 """
 Reference proximity
 ~~~~~~~~~~~~~~~~~~~
-Loss functions using centre-of-mass proximity to a reference.
+Loss functions using spatial proximity to a reference centre-of-mass.
 """
 from functools import partial
 from torch import mean
 from .base import ReducingLoss
 from .norm import NormedLoss
-from ..functional.cmass import cmass_reference_displacement, diffuse
+from ..functional.cmass import (
+    cmass_coor,
+    cmass_reference_displacement,
+    diffuse
+)
 
 
-#TODO: rework this to use cmass_coor instead of cmass in functional.
+def interhemispheric_anchor(lh, rh, lh_coor, rh_coor, radius=100):
+    cm_lh = cmass_coor(X=lh, coor=lh_coor, radius=radius)
+    cm_lh[0, :] = -cm_lh[0, :]
+    return cmass_reference_displacement(
+        weight=rh,
+        refs=cm_lh,
+        coor=rh_coor,
+        radius=radius
+    )
+
+
+class HemisphericTether(NormedLoss):
+    """
+    Displacement of centres of mass in one cortical hemisphere from
+    corresponding centres of mass in the other cortical hemisphere.
+    """
+    def __init__(self, nu=1, radius=100, axis=-2, norm=2,
+                 reduction=None, name=None):
+        loss = partial(interhemispheric_anchor, radius=radius)
+        super(HemisphericTether, self).__init__(
+            nu=nu, p=norm, precompose=loss, axis=axis,
+            reduction=reduction, name=name)
+
+
 class CentroidAnchor(NormedLoss):
     """
     Displacement of centres of mass from reference points.
     """
-    def __init__(self, refs, nu=1, axes=None, na_rm=False,
-                 norm=2, name=None):
+    def __init__(self, refs, nu=1, axis=-2, reduction=None,
+                 radius=None, norm=2, name=None):
         loss = partial(
             cmass_reference_displacement,
             refs=refs,
-            axes=axes,
-            na_rm=na_rm
+            radius=radius
         )
         super(CentroidAnchor, self).__init__(
-            nu=nu, p=norm, loss=loss, name=name)
+            nu=nu, p=norm, precompose=loss, axis=axis,
+            reduction=reduction, name=name)
 
 
 class Compactness(ReducingLoss):

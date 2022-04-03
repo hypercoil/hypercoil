@@ -12,7 +12,11 @@ from torch.nn import Module, Parameter
 from ..functional import (
     cone_project_spd, tangent_project_spd
 )
-from ..init.semidefinite import mean_block_spd, TangencyInit
+from ..init.semidefinite import (
+    mean_block_spd,
+    TangencyInit,
+    SPDEuclideanMean
+)
 
 
 class _TangentProject(Module):

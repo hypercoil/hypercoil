@@ -10,6 +10,7 @@ regularisations to a set of inputs.
 import torch
 from torch.nn import Module
 from .base import LossApply, UnpackingLossArgument
+from ..engine.terminal import Terminal
 
 
 def identity(*args):
@@ -83,11 +84,28 @@ class LossScheme(Module):
                 else:
                     loss = f(applied)
                     print(f'- {f}: {loss}')
+                # Terminals will automatically send gradients back along
+                # their lines. We should not duplicate this if a terminal is
+                # nested.
+                if isinstance(f, Terminal):
+                    continue
+                elif (isinstance(f, LossApply) and
+                    isinstance(f.loss, Terminal)):
+                    continue
                 losses = losses + loss
         else:
             for f in self:
                 if isinstance(applied, UnpackingLossArgument):
-                    losses = losses + f(**applied)
+                    loss = f(**applied)
                 else:
-                    losses = losses + f(applied)
+                    loss = f(applied)
+                # Terminals will automatically send gradients back along
+                # their lines. We should not duplicate this if a terminal is
+                # nested.
+                if isinstance(f, Terminal):
+                    continue
+                elif (isinstance(f, LossApply) and
+                    isinstance(f.loss, Terminal)):
+                    continue
+                losses = losses + loss
         return losses

@@ -20,11 +20,12 @@ class TestSurfaceVisualisations:
 
     @pytest.fixture(autouse=True)
     def setup_class(self):
-        #TODO: These hard codes really need to be changed at some point.
-        # It's just too bad that the references we're testing with are
-        # barred from redistribution.
+        ref_pointer = pkgrf(
+            'hypercoil',
+            'viz/resources/nullexample.nii'
+        )
         self.atlas = CortexSubcortexCIfTIAtlas(
-            ref_pointer='/Users/rastkociric/Downloads/glasser.nii',
+            ref_pointer=ref_pointer,
             mask_L=tflow.get(
                 template='fsLR',
                 hemi='L',
@@ -38,7 +39,7 @@ class TestSurfaceVisualisations:
             clear_cache=False,
             dtype=torch.float
         )
-        self.lin = lin = AtlasLinear(self.atlas)
+        self.lin = AtlasLinear(self.atlas)
         self.modal_cmap = pkgrf(
             'hypercoil',
             'viz/resources/cmap_modal.nii'
@@ -48,6 +49,7 @@ class TestSurfaceVisualisations:
             'viz/resources/cmap_network.nii'
         )
 
+    @pytest.mark.ci_unsupported
     def test_parcellation_plotter(self):
         all_views = (
             'dorsal', 'ventral',
@@ -70,6 +72,7 @@ class TestSurfaceVisualisations:
             save=f'{results}/parcellation_cmap-network'
         )
 
+    @pytest.mark.ci_unsupported
     def test_map_plotter(self):
         results = pkgrf(
             'hypercoil',

@@ -16,7 +16,8 @@ from .batchcorr import (
 )
 from .cmass import (
     Compactness,
-    CentroidAnchor
+    CentroidAnchor,
+    HemisphericTether
 )
 from .determinant import (
     Determinant,
@@ -49,7 +50,8 @@ from .scheme import (
     LossScheme
 )
 from .secondmoment import (
-    SecondMoment
+    SecondMoment,
+    SecondMomentCentred
 )
 from .smoothness import (
     SmoothnessPenalty

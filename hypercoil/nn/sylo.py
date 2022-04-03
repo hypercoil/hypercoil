@@ -243,7 +243,7 @@ class SyloResNet(nn.Module):
 
         # TODO: enable community group
         self.sylo1 = Sylo(
-            in_cnannels,
+            in_channels,
             channel_sequence[0],
             dim,
             rank=1,

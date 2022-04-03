@@ -9,8 +9,10 @@ import torch
 import surfplot
 import numpy as np
 import nibabel as nb
+import matplotlib
 import matplotlib.pyplot as plt
 import templateflow.api as tflow
+from hypercoil.engine import Sentry
 from hypercoil.functional.cmass import cmass_coor
 from hypercoil.functional.sphere import spherical_geodesic
 from hypercoil.neuro.const import fsLR
@@ -74,8 +76,9 @@ VIEWS = {
 }
 
 
-class fsLRSurfacePlot:
+class fsLRSurfacePlot(Sentry):
     def __init__(self, atlas):
+        super().__init__()
         self.module = atlas
         self.atlas = atlas.atlas
         coor_query = fsLR().TFLOW_COOR_QUERY
@@ -87,7 +90,7 @@ class fsLRSurfacePlot:
         self.dim_lh = nb.load(self.lh).darrays[0].dims[0]
         self.dim_rh = nb.load(self.rh).darrays[0].dims[0]
         self.dim = self.dim_lh + self.dim_rh
-        
+
         self.data_mask = {
             'cortex_L' : torch.ones_like(self.atlas.mask),
             'cortex_R' : torch.ones_like(self.atlas.mask),
@@ -122,6 +125,10 @@ class fsLRAtlasParcels(
     fsLRSurfacePlot
 ):
     def __call__(self, cmap, views=('lateral', 'medial'), save=None):
+        offscreen = False
+        if save is not None:
+            matplotlib.use('agg')
+            offscreen = True
         data = torch.zeros_like(self.atlas.mask, dtype=torch.long)
         for compartment in ('cortex_L', 'cortex_R'):
             mask = self.atlas.compartments[compartment]
@@ -131,9 +138,10 @@ class fsLRAtlasParcels(
             )
             compartment_data[self.module.weight[compartment].sum(0) == 0] = 0
             data[mask] = compartment_data
-        self.data = data[self.cmap_mask['all']]
-        cmap = self._select_cmap(cmap=cmap)
-        self.data = data[self.data_mask['all']].numpy()
+        self.data = data[self.cmap_mask['all']].cpu()
+        labels = self.atlas.decoder['_all']
+        cmap = self._select_cmap(cmap=cmap, labels=labels)
+        self.data = data[self.data_mask['all']].cpu().numpy()
 
         for view in views:
             view_args = VIEWS[view]
@@ -143,6 +151,7 @@ class fsLRAtlasParcels(
                 brightness=1,
                 **view_args
             )
+            p.offscreen = offscreen
             p.add_layer(
                 self.data.astype('long')[:self.dim],
                 cmap=cmap,
@@ -151,12 +160,13 @@ class fsLRAtlasParcels(
             )
             fig = p.build()
             fig.set_dpi(200)
-            fig.show()
             if save is not None:
                 plt.savefig(f'{save}_view-{view}.png',
                             dpi=1000,
                             bbox_inches='tight')
-
+                plt.close('all')
+            else:
+                fig.show()
 
 
 class fsLRAtlasMaps(fsLRSurfacePlot):
@@ -186,7 +196,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
 
             n_rows = int(np.ceil(figs_per_batch / nodes_per_row))
             figsize = (6 * nodes_per_row, 3 * n_rows)
-            
+
 
             fig, ax = plt.subplots(
                 n_rows,
@@ -206,7 +216,6 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                 ax[i, j].set_yticks([])
                 ax[i, j].set_title(f'Node {name}')
 
-            fig.show()
             if save:
                 plt.tight_layout()
                 plt.savefig(f'{save}_batch-{batch_index}.png',
@@ -214,10 +223,16 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                             bbox_inches='tight')
                 fig.clear()
                 plt.close('all')
+            else:
+                fig.show()
             batch_index += 1
 
     def __call__(self, cmap='Blues', color_range=(0, 1),
                  max_per_batch=21, stop_batch=None, save=None):
+        offscreen = False
+        if save is not None:
+            matplotlib.use('agg')
+            offscreen = True
         figs = [None for _ in range(self.atlas.decoder['_all'].max() + 1)]
         for compartment in ('cortex_L', 'cortex_R'):
             map = self.module.weight[compartment]
@@ -227,8 +242,8 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
             cmasses = cmass_coor(map, coor, radius=100)
             closest_poles = spherical_geodesic(
                 cmasses.t(),
-                POLES
-            ).argsort(-1)[:, :3]
+                POLES.to(device=cmasses.device, dtype=cmasses.dtype)
+            ).argsort(-1)[:, :3].cpu()
             closest_poles = POLE_DECODER[compartment][closest_poles.numpy()]
             if compartment == 'cortex_L':
                 surf_lh = self.lh
@@ -242,7 +257,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                     dtype=map.dtype
                 )
                 data[compartment_mask] = node.detach()
-                data = data[self.data_mask[compartment]].numpy()
+                data = data[self.data_mask[compartment]].cpu().numpy()
                 p = surfplot.Plot(
                     surf_lh=surf_lh,
                     surf_rh=surf_rh,
@@ -251,15 +266,16 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                     zoom=1.25,
                     size=(400, 200)
                 )
+                p.offscreen = offscreen
                 p.add_layer(
-                    data.astype('long')[:self.dim],
+                    data[:self.dim],
                     cmap=cmap,
                     cbar=None,
                     color_range=color_range
                 )
                 figs[name] = p.render()
         figs = [(i, f) for i, f in enumerate(figs) if f is not None]
-        
+
         n_figs = len(figs)
         batches_per_run = 5
         if stop_batch is None:

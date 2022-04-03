@@ -4,6 +4,9 @@
 """
 Functional interfaces
 """
+from .cmass import (
+    cmass_coor
+)
 from .cov import (
     cov, corr, partialcorr, pairedcov, conditionalcov, conditionalcorr,
     precision, pairedcorr, covariance, correlation, corrcoef, pcorr, ccov,
@@ -35,6 +38,12 @@ from .noise import (
 )
 from .polynomial import (
     polychan, polyconv2d
+)
+from .resid import (
+    residualise
+)
+from .sphere import (
+    spherical_geodesic
 )
 from .sylo import (
     sylo

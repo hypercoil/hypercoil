@@ -133,7 +133,7 @@ class DetCorr(ReducingLoss):
         super(DetCorr, self).__init__(
             nu=nu,
             reduction=reduction,
-            loss=logdetcorr,
+            loss=detcorr,
             name=name
         )
 

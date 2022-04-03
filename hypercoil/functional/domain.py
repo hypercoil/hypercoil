@@ -317,7 +317,7 @@ class IIRNumerator(_Domain):
             X = X + torch.flip(X, (-2,))
         else:
             X = X + torch.flip(X, (-1,))
-        return self.mask.type(X.dtype).to(X.device) * X / 2
+        return self.mask.to(dtype=X.dtype, device=X.device) * X / 2
 
     def encode(self, X):
         if self.btype == 'bandpass':
@@ -372,7 +372,7 @@ class IIRDenominator(_Domain):
             self.mask = self.mask.unsqueeze(-1)
 
     def iircoefs(self, X):
-        return self.mask.type(X.dtype).to(X.device) * X
+        return self.mask.to(dtype=X.dtype, device=X.device) * X
 
     def encode(self, X):
         return torch.abs(X)

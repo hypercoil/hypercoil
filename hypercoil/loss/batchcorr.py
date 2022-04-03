@@ -132,7 +132,7 @@ class BatchCorrelation(ReducingLoss):
             Note that, if you want the original correlations back, you will
             have to add `tol` to any nonzero correlations.
         """
-        return self.nu * self.reduction(self.loss(data, measure))
+        return super().forward(X=data, N=measure)
 
 
 def qcfc_loss(FC, QC, tol=0, tol_sig=0.1):
@@ -196,4 +196,4 @@ class QCFC(BatchCorrelation):
             Note that, if you want the original correlations back, you will
             have to add `tol` to any nonzero correlations.
         """
-        return self.nu * self.reduction(self.loss(X=FC, N=QC))
+        return super().forward(data=FC, measure=QC)

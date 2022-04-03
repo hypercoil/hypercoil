@@ -11,7 +11,14 @@ import numpy as np
 import nibabel as nb
 from collections import OrderedDict
 from pathlib import PosixPath
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import (
+    gaussian_filter,
+    binary_dilation,
+    binary_erosion,
+    binary_opening,
+    binary_closing,
+    binary_fill_holes
+)
 from ..functional.sphere import spherical_conv, euclidean_conv
 
 
@@ -27,10 +34,19 @@ def _is_path(obj):
 
 
 class FloatLeaf:
+    """
+    Leaf node for floating-point data in mask logic operations. Used with
+    thresholding operations.
+    """
     def __init__(self, img):
         self.img = img
 
     def __call__(self, nifti=False):
+        """
+        Load the specified image as a floating point-valued array. If `nifti`
+        is set to True (default False), then the call returns values for all
+        fields required to initialise a `nibabel` NIfTI image object.
+        """
         if not nifti:
             return nb.load(self.img).get_fdata()
         else:
@@ -50,6 +66,11 @@ class MaskLeaf:
         self.mask = mask
 
     def __call__(self, nifti=False):
+        """
+        Load the specified image as a Boolean-valued array. If `nifti` is set
+        to True (default False), then the call returns values for all fields
+        required to initialise a `nibabel` NIfTI image object.
+        """
         if not nifti:
             mask = _to_mask(self.mask)
             return mask
@@ -64,6 +85,12 @@ class MaskLeaf:
 
 
 class MaskThreshold:
+    """
+    Create a mask by thresholding and binarising a continuous-valued image.
+    `MaskThreshold` zeros all values less than the specified threshold and
+    then uses surviving (larger) values as a Boolean mask. To zero larger
+    values, use `MaskUThreshold`.
+    """
     def __init__(self, child, threshold):
         self.threshold = threshold
         if _is_path(child):
@@ -72,8 +99,13 @@ class MaskThreshold:
             self.child = child
 
     def __call__(self, nifti=False):
+        """
+        Apply the threshold operation. If `nifti` is set to True (default
+        False), then the call returns values for all fields required to
+        initialise a `nibabel` NIfTI image object.
+        """
         if not nifti:
-            return (self.child() >= self.threshold)
+            return (self.child() > self.threshold)
         else:
             img = self.child(nifti=True)
             return {
@@ -84,6 +116,12 @@ class MaskThreshold:
 
 
 class MaskUThreshold:
+    """
+    Create a mask by thresholding and binarising a continuous-valued image.
+    `MaskUThreshold` zeros all values greater than the specified threshold and
+    then uses surviving (smaller) values as a Boolean mask. To zero smaller
+    values, use `MaskThreshold`.
+    """
     def __init__(self, child, threshold):
         self.threshold = threshold
         if _is_path(child):
@@ -92,8 +130,13 @@ class MaskUThreshold:
             self.child = child
 
     def __call__(self, nifti=False):
+        """
+        Apply the upper threshold operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
         if not nifti:
-            return (self.child() <= self.threshold)
+            return (self.child() < self.threshold)
         else:
             img = self.child(nifti=True)
             return {
@@ -103,9 +146,197 @@ class MaskUThreshold:
             }
 
 
+class MaskDilation:
+    """
+    Morphological dilation node for mask logic operations. Returns the
+    binary dilation of the mask output by child operations.
+    """
+    def __init__(self, child, structure=None, iterations=1):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+        self.iterations = iterations
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological dilation operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_dilation(
+                input=self.child(),
+                structure=self.structure,
+                iterations=self.iterations
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_dilation(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                    iterations=self.iterations
+                )
+            }
+
+
+class MaskErosion:
+    """
+    Morphological erosion node for mask logic operations. Returns the
+    binary erosion of the mask output by child operations.
+    """
+    def __init__(self, child, structure=None, iterations=1):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+        self.iterations = iterations
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological erosion operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_erosion(
+                input=self.child(),
+                structure=self.structure,
+                iterations=self.iterations
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_erosion(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                    iterations=self.iterations
+                )
+            }
+
+
+class MaskOpening:
+    """
+    Morphological opening node for mask logic operations. Returns the
+    binary opening of the mask output by child operations.
+    """
+    def __init__(self, child, structure=None, iterations=1):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+        self.iterations = iterations
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological opening operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_opening(
+                input=self.child(),
+                structure=self.structure,
+                iterations=self.iterations
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_opening(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                    iterations=self.iterations
+                )
+            }
+
+
+class MaskClosing:
+    """
+    Morphological closing node for mask logic operations. Returns the
+    binary closing of the mask output by child operations.
+    """
+    def __init__(self, child, structure=None, iterations=1):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+        self.iterations = iterations
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological closing operation. If `nifti` is set to True
+        (default False), then the call returns values for all fields required
+        to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_closing(
+                input=self.child(),
+                structure=self.structure,
+                iterations=self.iterations
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_closing(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                    iterations=self.iterations
+                )
+            }
+
+
+class MaskFillHoles:
+    """
+    Morphological hole-filling node for mask logic operations. Transforms the
+    mask output by child operations by filling any holes in the mask.
+    """
+    def __init__(self, child, structure=None):
+        if _is_path(child):
+            self.child = MaskLeaf(child)
+        else:
+            self.child = child
+        self.structure = structure
+
+    def __call__(self, nifti=False):
+        """
+        Apply the morphological hole-filling operation. If `nifti` is set to
+        True (default False), then the call returns values for all fields
+        required to initialise a `nibabel` NIfTI image object.
+        """
+        if not nifti:
+            return binary_fill_holes(
+                input=self.child(),
+                structure=self.structure,
+            )
+        else:
+            img = self.child(nifti=True)
+            return {
+                'affine': img['affine'],
+                'header': img['header'],
+                'dataobj': binary_fill_holes(
+                    input=img['dataobj'],
+                    structure=self.structure,
+                )
+            }
+
+
 class MaskNegation:
     """
-    Negation node for mask logic operations.
+    Negation node for mask logic operations. Returns the negation of the mask
+    output by child operations.
     """
     def __init__(self, child):
         if _is_path(child):
@@ -114,6 +345,12 @@ class MaskNegation:
             self.child = child
 
     def __call__(self, nifti=False):
+        """
+        Apply the negation operation, recursively calling the operations trees
+        of all child nodes. If `nifti` is set to True (default False), then
+        the call returns values for all fields required to initialise a
+        `nibabel` NIfTI image object.
+        """
         if not nifti:
             return ~self.child()
         else:
@@ -127,7 +364,8 @@ class MaskNegation:
 
 class MaskUnion:
     """
-    Union node for mask logic operations.
+    Union node for mask logic operations. Returns the union of all masks
+    output by child operations.
     """
     def __init__(self, *children):
         self.children = [
@@ -136,6 +374,12 @@ class MaskUnion:
         ]
 
     def __call__(self, nifti=False):
+        """
+        Apply the union operation, recursively calling the operations trees
+        of all child nodes. If `nifti` is set to True (default False), then
+        the call returns values for all fields required to initialise a
+        `nibabel` NIfTI image object.
+        """
         child = self.children[0]
         if not nifti:
             mask = child()
@@ -158,7 +402,8 @@ class MaskUnion:
 
 class MaskIntersection:
     """
-    Intersection node for mask logic operations.
+    Intersection node for mask logic operations. Returns the intersection of
+    all masks output by child operations.
     """
     def __init__(self, *children):
         self.children = [
@@ -167,6 +412,12 @@ class MaskIntersection:
         ]
 
     def __call__(self, nifti=False):
+        """
+        Apply the intersection operation, recursively calling the operations
+        trees of all child nodes. If `nifti` is set to True (default False),
+        then the call returns values for all fields required to initialise a
+        `nibabel` NIfTI image object.
+        """
         child = self.children[0]
         if not nifti:
             mask = child()
@@ -189,7 +440,9 @@ class MaskIntersection:
 
 class _ObjectReferenceMixin:
     """
-    For when a NIfTI image object is already provided as the `ref_pointer`
+    Use to load a reference into an atlas class.
+
+    For use when a NIfTI image object is already provided as the `ref_pointer`
     argument.
     """
     def _load_reference(self, ref_pointer):
@@ -198,6 +451,12 @@ class _ObjectReferenceMixin:
 
 
 class _SingleReferenceMixin:
+    """
+    Use to load a reference into an atlas class.
+
+    For use when the `ref_pointer` object references a single path to an image
+    on disk.
+    """
     def _load_reference(self, ref_pointer):
         ref = nb.load(ref_pointer)
         self.cached_ref_data = ref.get_fdata()
@@ -205,6 +464,12 @@ class _SingleReferenceMixin:
 
 
 class _MultiReferenceMixin:
+    """
+    Use to load a reference into an atlas class.
+
+    For use when the `ref_pointer` object is an iterable of paths to images on
+    disk.
+    """
     def _load_reference(self, ref_pointer):
         ref = [nb.load(path) for path in ref_pointer]
         self.cached_ref_data = np.stack([r.get_fdata() for r in ref], -1)
@@ -217,6 +482,14 @@ class _MultiReferenceMixin:
 
 
 class _PhantomReferenceMixin:
+    """
+    Use to load a reference into an atlas class.
+
+    For use when the data content of the reference is unimportant, for
+    instance when instances of the atlas class are to be initialised from a
+    distribution rather than from an existing reference. The reference is
+    still used for inferring dimensions of the atlas and input images.
+    """
     def _load_reference(self, ref_pointer):
         try:
             ref = nb.load(ref_pointer)
@@ -236,12 +509,23 @@ class _PhantomReferenceMixin:
 
 
 class _PhantomDataobj:
+    """
+    For tricking `nibabel` into instantiating `Nifti1Image` objects without
+    any real data. Used to reduce data overhead when initialising atlases from
+    distributions.
+    """
     def __init__(self, base):
         self.shape = base.shape
         self.ndim = base.ndim
 
 
 class _CIfTIReferenceMixin:
+    """
+    Use if an atlas uses a CIfTI as its reference. This class implements the
+    additional methods `axes` and `model_axis`, which facilitate access to
+    CIfTI model axes. Note that this is *not* a substitute for a reference
+    loader mixin like `_ObjectReferenceMixin` or `_SingleReferenceMixin`.
+    """
     @property
     def axes(self):
         """
@@ -260,6 +544,15 @@ class _CIfTIReferenceMixin:
 
 
 class _LogicMaskMixin:
+    """
+    Use to create an overall mask that specifies atlas inclusion status of
+    spatial locations.
+
+    For use when the mask source is either a path on the file system
+    containing Boolean-valued data or a nested logical expression tree
+    (comprising operation nodes such as `MaskIntersection` or
+    `MaskThreshold` with filesystem paths as leaf nodes).
+    """
     def _create_mask(self, source, device=None):
         if _is_path(source):
             source = MaskLeaf(source)
@@ -268,6 +561,14 @@ class _LogicMaskMixin:
 
 
 class _CortexSubcortexCIfTIMaskMixin:
+    """
+    Use to create an overall mask that specifies atlas inclusion status of
+    spatial locations.
+
+    For use when creating a CIfTI atlas with separate cortical and subcortical
+    compartments, and when the provided mask source indicates medial wall
+    regions of the cortical surface marked for exclusion from the atlas.
+    """
     def _create_mask(self, source, device=None):
         init = []
         for k, v in source.items():
@@ -283,6 +584,18 @@ class _CortexSubcortexCIfTIMaskMixin:
 
 
 class _FromNullMaskMixin:
+    """
+    Use to create an overall mask that specifies atlas inclusion status of
+    spatial locations.
+
+    For use when automatically creating a mask by excluding all background-
+    or null-valued (typically 0-valued) spatial locations from the reference.
+    For single-volume references (typically discrete-valued), this mixin
+    creates a mask that includes all locations not labelled as background.
+    For multi-volume references (often continuous-valued), this mixin
+    creates a mask that includes all locations that are greater than or equal
+    to the provided source parameter after taking the sum across volumes.
+    """
     def _create_mask(self, source, device=None):
         if self.ref.ndim <= 3:
             init = (self.cached_ref_data.round() != source)
@@ -293,6 +606,13 @@ class _FromNullMaskMixin:
 
 
 class _SingleCompartmentMixin:
+    """
+    Use to isolate spatial subcompartments of the overall atlas such that each
+    has separate label sets.
+
+    For use when no isolation is desired, and the entire atlased region is a
+    single compartment.
+    """
     def _compartment_names_dict(self, **kwargs):
         return {}
 
@@ -309,7 +629,19 @@ class _SingleCompartmentMixin:
             }
 
 
+#TODO: Intersect compartment mask with overall mask before saving.
+#TODO: (low-priority) We need to either make sure these work with CIfTI, or we
+# need to make CIfTI-compatible compartment masking other than
+# cortex/subcortex.
 class _MultiCompartmentMixin:
+    """
+    Use to isolate spatial subcompartments of the overall atlas such that each
+    has separate label sets.
+
+    For use when isolation into multiple compartments is desired. With this
+    mixin, each extra keyword argument passed to the atlas constructor is
+    interpreted as a name-mask path pair defining an atlas compartment.
+    """
     def _compartment_names_dict(self, **kwargs):
         return kwargs
 
@@ -333,6 +665,13 @@ class _MultiCompartmentMixin:
 
 
 class _CortexSubcortexCIfTICompartmentMixin:
+    """
+    Use to isolate spatial subcompartments of the overall atlas such that each
+    has separate label sets.
+
+    For use when creating a CIfTI-based atlas with separate subcompartments
+    for the left and right cortical hemispheres and for subcortical locations.
+    """
     def _compartment_names_dict(self, **kwargs):
         return kwargs
 
@@ -390,6 +729,13 @@ class _CortexSubcortexCIfTICompartmentMixin:
 
 
 class _DiscreteLabelMixin:
+    """
+    Use to decode label sets present in an atlas and to create a linear map
+    representation of the atlas.
+
+    For use when the label sets are encoded as discrete values in a single
+    reference volume or surface.
+    """
     def _configure_decoders(self, null_label=0):
         self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
@@ -431,6 +777,16 @@ class _DiscreteLabelMixin:
 
 
 class _ContinuousLabelMixin:
+    """
+    Use to decode label sets present in an atlas and to create a linear map
+    representation of the atlas.
+
+    For use when the label sets are encoded across multiple volumes. This is
+    necessary for continuous-valued atlases or atlases with overlapping
+    labels, but is also a valid encoding scheme for discrete-valued atlases.
+    If the reference uses a single volume or surface, use `DiscreteLabelMixin`
+    instead.
+    """
     def _configure_decoders(self, null_label=None):
         self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
@@ -440,12 +796,16 @@ class _ContinuousLabelMixin:
             labels_in_compartment = labels_in_compartment[
                 labels_in_compartment != null_label]
             self.decoder[c] = torch.tensor(
-                labels_in_compartment, dtype=torch.long, device=mask.device)
+                labels_in_compartment + 1,
+                dtype=torch.long,
+                device=mask.device
+            )
 
         mask = self.mask.reshape(self.ref.shape[:-1]).cpu()
         unique_labels = np.where(self.cached_ref_data[mask].sum(0))[0]
+        unique_labels = labels_in_compartment[unique_labels != null_label]
         self.decoder['_all'] = torch.tensor(
-            unique_labels, dtype=torch.long, device=self.mask.device)
+            unique_labels + 1, dtype=torch.long, device=self.mask.device)
 
     def _populate_map_from_ref(self, map, labels, mask, compartment=None):
         ref_data = np.moveaxis(
@@ -454,11 +814,25 @@ class _ContinuousLabelMixin:
             (1, 2, 3, 0)
         ).squeeze()
         for i, l in enumerate(labels):
-            map[i] = torch.tensor(ref_data[l.cpu()].ravel()[mask.cpu()])
+            map[i] = torch.tensor(ref_data[(l - 1).cpu()].ravel()[mask.cpu()])
         return map
 
 
 class _DirichletLabelMixin:
+    """
+    Use to decode label sets present in an atlas and to create a linear map
+    representation of the atlas.
+
+    For use when the linear map is to be initialised from a Dirichlet
+    distribution rather than a reference. This requires the prior existence of
+    a dictionary attribute called `compartment_labels` for the Atlas object,
+    whose key-value pairs associate to each atlas compartment an integer
+    number of labels. It additionally requires a second key-value mapping
+    `init`, whose entries associate to each atlas compartment the Dirichlet
+    distribution from which that compartment's parcel assignment probability
+    distributions are to be sampled. These mappings can be instantiated in the
+    atlas class's constructor method, potentially from user arguments.
+    """
     def _configure_decoders(self, null_label=None):
         self.decoder = OrderedDict()
         n_labels = 0
@@ -469,10 +843,10 @@ class _DirichletLabelMixin:
                 continue
             self.decoder[c] = torch.arange(
                 n_labels, n_labels + i,
-                dtype=torch.long, device=self.mask.device)
+                dtype=torch.long, device=self.mask.device) + 1
             n_labels += i
         self.decoder['_all'] = torch.arange(
-            0, n_labels, dtype=torch.long, device=self.mask.device)
+            0, n_labels, dtype=torch.long, device=self.mask.device) + 1
 
     def _populate_map_from_ref(self, map, labels, mask, compartment=None):
         self.init[compartment](map)
@@ -480,6 +854,13 @@ class _DirichletLabelMixin:
 
 
 class _VolumetricMeshMixin:
+    """
+    Used to establish a coordinate system over the linear map representations
+    of the atlas.
+
+    For use when the atlas reference comprises evenly spaced volumetric
+    samples (i.e., voxels).
+    """
     def _init_coors(self, source=None, names_dict=None,
                     dtype=None, device=None):
         axes = None
@@ -507,6 +888,15 @@ class _VolumetricMeshMixin:
 
 
 class _VertexCIfTIMeshMixin:
+    """
+    Used to establish a coordinate system over the linear map representations
+    of the atlas.
+
+    For use when the atlas reference is a CIfTI that includes some samples
+    associated to cortical surface meshes. This mixin establishes a spherical
+    topology for cortical samples and a Euclidean topology for subcortical
+    samples.
+    """
     def _init_coors(self, source=None, names_dict=None,
                     dtype=None, device=None):
         model_axis = self.model_axis
@@ -547,6 +937,13 @@ class _VertexCIfTIMeshMixin:
 
 
 class _EvenlySampledConvMixin:
+    """
+    Used to spatially convolve atlas parcels for smoothing.
+
+    This mixin is currently unsupported and likely will not function without
+    substantial extra code, although it is likely to perform better under
+    many conditions. Its use is not currently advised.
+    """
     def _configure_sigma(self, sigma):
         if sigma is not None:
             scale = self.ref.header.get_zooms()[:3]
@@ -561,6 +958,13 @@ class _EvenlySampledConvMixin:
 
 
 class _SpatialConvMixin:
+    """
+    Used to spatially convolve atlas parcels for smoothing.
+
+    For use when a coordinate mesh is available for the atlas and either
+    Euclidean or spherical topologies are assigned to each of its
+    compartments.
+    """
     def _configure_sigma(self, sigma):
         return sigma
 

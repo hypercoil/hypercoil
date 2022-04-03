@@ -27,6 +27,8 @@ class TestMatrix:
     def setup_class(self):
         self.tol = 5e-3
         self.approx = lambda out, ref: np.allclose(out, ref, atol=self.tol)
+        np.random.seed(10)
+        torch.manual_seed(10)
 
 
         A = np.random.rand(10, 10)
@@ -57,9 +59,9 @@ class TestMatrix:
             self.ftC = self.ft.clone().cuda()
 
     def test_invert_spd(self):
-        out = invert_spd(self.At) @ self.At
-        ref = torch.eye(self.At.size(-1))
-        assert self.approx(out, ref)
+        out = invert_spd(invert_spd(self.At))
+        ref = self.At
+        assert torch.allclose(out, ref, atol=1e-2)
 
     def test_symmetric(self):
         out = symmetric(self.Bt)
@@ -153,8 +155,8 @@ class TestMatrix:
 
     @pytest.mark.cuda
     def test_invert_spd_cuda(self):
-        out = invert_spd(self.AtC) @ self.AtC
-        ref = torch.eye(self.At.size(-1))
+        out = invert_spd(invert_spd(self.AtC))
+        ref = self.AtC
         assert self.approx(out.cpu(), ref)
 
     @pytest.mark.cuda

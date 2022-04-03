@@ -1,0 +1,52 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      OS: ubuntu-latest
+      PYTHON: '3.8'
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: ‘2’
+        submodules: recursive
+
+    - name: Setup Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.8
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install .
+        python -m pip install pytest
+        python -m pip install https://github.com/wiheto/netplotbrain/archive/535a07bb7d2be1a2c95746bcb82b41e69f19a8f1.tar.gz
+        python -m pip install https://github.com/rciric/surfplot/archive/9b4a1e65aac89daf5e6747cee0419b6fc39d2392.tar.gz
+        python -m pip install scikit-image
+        python -m pip install pingouin
+        python -m pip install nilearn
+        python -m pip install setuptools
+        python -m pip install communities
+
+    - name: Lint
+      run: |
+        python -m pip install flake8
+        flake8 . --count --select=E9,F63,F7,F82
+
+    - name: Generate coverage report
+      run: |
+        python -m pip install coverage
+        coverage run -m pytest --sims --ci
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
+
+    - name: Upload test results as artefact
+      uses: actions/upload-artifact@v3
+      with:
+        name: SimulationResults
+        path: hypercoil/results/

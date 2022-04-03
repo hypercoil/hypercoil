@@ -2,11 +2,17 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Data transform functions
-~~~~~~~~~~~~~~~~~~~~~~~~
 Functions for transforming various data modalities.
+
+.. warning::
+    Data transformations are, at the moment, largely undocumented and
+    untested. This will change during a coming round of development; however,
+    in the interim, users are advised to verify that all outputs are as
+    expected.
 """
-import re, json, subprocess, bs4, lxml
+import re, json, subprocess
+import bs4
+import lxml
 import torch
 import numpy as np
 import pandas as pd
@@ -219,6 +225,8 @@ def consolidate_block(block):
     """
     if isinstance(block, torch.Tensor):
         return block
+    elif len(block) == 1:
+        return consolidate_block(block[0])
     elif isinstance(block[0], torch.Tensor):
         out = extend_to_max_size(block)
     else:
@@ -279,7 +287,7 @@ def extend_to_max_size(tensor_list):
     the input; they can be populated by chaining this with a call to
     `nanfill`.
     """
-    sizes = [t.size() for t in tensor_list]
+    sizes = [t.size() if t.dim() != 0 else [1] for t in tensor_list]
     max_size = torch.amax(
         torch.tensor(sizes, dtype=torch.long, device=tensor_list[0].device),
         0
@@ -342,7 +350,7 @@ def read_neuro_image(path, **kwargs):
     return img.get_fdata()
 
 
-def vector_encode(data, encoding):
+def vector_encode(data, encoding, device=None):
     """
     Encode a categorical variable as a vector.
 
@@ -359,7 +367,9 @@ def vector_encode(data, encoding):
         to store a large matrix, this is not a recommended way to create
         one-hot encodings for categorical variables with many levels.
     """
-    idx = torch.tensor(data, dtype=torch.long, device=data.device)
+    if device is None and isinstance(data, torch.Tensor):
+        device = data.device
+    idx = torch.tensor(data, dtype=torch.long, device=device)
     return encoding[idx]
 
 
@@ -438,7 +448,7 @@ def nifti_header(path):
         elif t_units in ('ms', 'msec', 'millisec', 'milliseconds'):
             t_rep /= 1000.
         else:
-            raise RuntimeError(f'Unrecognised units: {units}')
+            raise RuntimeError(f'Unrecognised units: {t_units}')
         metadata['RepetitionTime'] = t_rep
     except TypeError: # CIfTI case
         t_rep = [

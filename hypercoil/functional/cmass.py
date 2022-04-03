@@ -14,7 +14,7 @@ from ..functional.sphere import spherical_geodesic
 
 
 def cmass(X, axes=None, na_rm=False):
-    """
+    r"""
     Differentiably compute a weight's centre of mass. This can be used to
     regularise the weight so that its centre of mass is close to a provided
     coordinate.
@@ -74,16 +74,25 @@ def cmass(X, axes=None, na_rm=False):
     return out
 
 
-def cmass_reference_displacement(weight, refs, axes=None, na_rm=False):
+def cmass_reference_displacement_grid(weight, refs, axes=None, na_rm=False):
     """
-    Displacement of centres of mass from reference points.
+    Displacement of centres of mass from reference points -- grid version.
     """
     cm = cmass(weight, axes=axes, na_rm=na_rm)
     return cm - refs
 
 
-def cmass_coor(X, coor, radius=None):
+def cmass_reference_displacement(weight, refs, coor, radius=None):
     """
+    Displacement of centres of mass from reference points -- coordinate
+    version.
+    """
+    cm = cmass_coor(weight, coor, radius=radius)
+    return cm - refs
+
+
+def cmass_coor(X, coor, radius=None):
+    r"""
     Differentiably compute a weight's centre of mass.
 
     :Dimension: **Input :** :math:`(*, W, L)`
@@ -163,7 +172,7 @@ def diffuse(X, coor, norm=2, floor=0, radius=None):
             coor.transpose(-1, -2),
             cm.transpose(-1, -2),
             r=radius
-        )
+        ).transpose(-1, -2)
     dist = torch.maximum(dist - floor, torch.tensor(
         0, dtype=dist.dtype, device=dist.device))
     return (X * dist).mean(-1)

@@ -4,7 +4,7 @@
 """
 Neuroimaging
 ~~~~~~~~~~~~
-Neuroimaging dataset-specific datasets and data references.
+Neuroimaging-specific datasets and data references.
 """
 import torch
 from .dataref import DataReference

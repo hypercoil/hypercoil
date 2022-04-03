@@ -14,6 +14,14 @@ def pytest_addoption(parser):
     parser.addoption(
         '--sims', action='store_true', default=False, help='Run simulations'
     )
+    parser.addoption(
+        '--simsonly', action='store_true', default=False,
+        help='Run simulations only, skipping unit tests'
+    )
+    parser.addoption(
+        '--ci', action='store_true', default=False,
+        help='Skip tests unsupported on CI server'
+    )
 
 
 def pytest_configure(config):
@@ -25,18 +33,39 @@ def pytest_configure(config):
         'markers',
         'cuda: mark test as CUDA-only'
     )
+    config.addinivalue_line(
+        'markers',
+        'ci_unsupported: mark test as unsupported on CI server'
+    )
 
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption('--sims'):
         # --sims given in cli: do not skip simulations
         pass
+    elif config.getoption('--simsonly'):
+        skip_nonsims = pytest.mark.skip(
+            reason='--simsonly option set: skipping unit tests')
+        for item in items:
+            if 'sim' not in item.keywords:
+                item.add_marker(skip_nonsims)
     else:
         skip_sims = pytest.mark.skip(
             reason='--sims option must be set to run simulations')
         for item in items:
             if 'sim' in item.keywords:
                 item.add_marker(skip_sims)
+
+    if config.getoption('--ci'):
+        # --ci given in cli: skip unsupported tests
+        skip_ci_unsupported = pytest.mark.skip(
+            reason='--ci option indicates not to run tests unsupported '
+                   'in CI environment')
+        for item in items:
+            if 'ci_unsupported' in item.keywords:
+                item.add_marker(skip_ci_unsupported)
+    else:
+        pass
 
     if torch.cuda.is_available():
         pass

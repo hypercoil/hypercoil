@@ -15,7 +15,7 @@ from ..init.base import (
 
 
 class LinearCombinationSelector(Linear):
-    """
+    r"""
     Model selection as a linear combination.
 
     Learn linear combinations of candidate vectors to produce a model. Thin
@@ -55,7 +55,7 @@ class LinearCombinationSelector(Linear):
 
 
 class EliminationSelector(Module):
-    """
+    r"""
     Model selection by elimination of variables.
 
     Begin with a full complement of model vectors, then eliminate them by

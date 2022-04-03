@@ -18,13 +18,13 @@ from cvxpylayers.torch import CvxpyLayer
 
 def labels_binary(labels, dtype=torch.float):
     l = labels.unique()[0]
-    return [2 * (labels == l).type(dtype) - 1]
+    return [2 * (labels == l).to(dtype=dtype) - 1]
 
 
 def labels_one_vs_rest(labels, dtype=torch.float):
     uniq = labels.unique()
     return [
-        2 * (labels == u).type(dtype) - 1
+        2 * (labels == u).to(dtype=dtype) - 1
         for u in uniq
     ]
 
@@ -34,7 +34,7 @@ def labels_one_vs_one(labels, dtype=torch.float):
     uniqlist = uniq.tolist()
     label_combinations = product(uniqlist, uniqlist)
     return [
-        (labels == label1).type(dtype) - (labels == label2).dtype(dtype)
+        (labels == label1).to(dtype=dtype) - (labels == label2).to(dtype=dtype)
         for label1, label2 in label_combinations
         if label1 != label2
     ]
@@ -54,7 +54,7 @@ def gaussian_kernel(X, Z, gamma):
     )
 
 
-def sigmoid_kernel(X, Z, r):
+def sigmoid_kernel(X, Z, gamma, r):
     return torch.tanh(gamma * X @ Z.transpose(-1, -2) + r)
 
 
@@ -132,7 +132,7 @@ class SVM(torch.nn.Module):
         n_classes=None,
         sample_weight=None
     ):
-        """
+        r"""
         Initialise a kernelised support vector machine as a fully
         differentiable convex optimisation layer.
 
@@ -346,7 +346,8 @@ class SVM(torch.nn.Module):
             variables=[alpha]
         )
 
-    def formulate(self, n_observations, n_classes, sample_weight=None):
+    def formulate(self, n_observations, n_classes,
+                  Y=None, sample_weight=None):
         """
         Formulate all SVM problems to be solved during each forward pass.
 
@@ -415,6 +416,7 @@ class SVM(torch.nn.Module):
             self.formulate(
                 n_observations=n_observations,
                 n_classes=n_classes,
+                Y=Y,
                 sample_weight=sample_weight
             )
 

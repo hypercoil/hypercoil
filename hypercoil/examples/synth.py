@@ -15,6 +15,7 @@ import nibabel as nb
 import pandas as pd
 from scipy import fft
 from scipy.signal import convolve
+from itertools import product
 from collections import OrderedDict
 
 
@@ -87,6 +88,12 @@ def stim_pattern(on=10, off=40, n=500):
     return pattern[:n]
 
 
+def stim_roi(ax=4, scale=1):
+    roi = np.zeros((ax, ax, ax, 1))
+    roi[:2, 1:3, 1:3] = scale
+    return roi
+
+
 def add_stim(seed=666, ax=4, region=stim_roi, pattern=stim_pattern):
     if pattern is not None:
         pattern = pattern()
@@ -99,12 +106,6 @@ def add_stim(seed=666, ax=4, region=stim_roi, pattern=stim_pattern):
         return region * pattern
     else:
         return np.zeros((ax, ax, ax, 1))
-
-
-def stim_roi(ax=4, scale=1):
-    roi = np.zeros((ax, ax, ax, 1))
-    roi[:2, 1:3, 1:3] = scale
-    return roi
 
 
 def regressor_ts(img, seed=666, n=500):

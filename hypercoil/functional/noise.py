@@ -86,7 +86,7 @@ class _IIDNoiseSource(_IIDSource):
         """
         if self.training:
             return tensor + self.sample(
-                tensor.size()).type(tensor.dtype).to(tensor.device)
+                tensor.size()).to(dtype=tensor.dtype, device=tensor.device)
         else:
             return tensor
 
@@ -118,7 +118,7 @@ class _IIDSquareNoiseSource(_IIDNoiseSource):
                                  'the last two dimensions.')
         if self.training:
             return tensor + self.sample(
-                tensor.size()[:-1]).type(tensor.dtype).to(tensor.device)
+                tensor.size()[:-1]).to(dtype=tensor.dtype, device=tensor.device)
         else:
             return tensor
 
@@ -143,7 +143,7 @@ class _IIDDropoutSource(_IIDSource):
     def inject(self, tensor):
         if self.training:
             return tensor * self.sample(
-                tensor.size()).type(tensor.dtype).to(tensor.device)
+                tensor.size()).to(dtype=tensor.dtype, device=tensor.device)
         else:
             return tensor
 
@@ -175,7 +175,8 @@ class _IIDSquareDropoutSource(_IIDDropoutSource):
                                  'the last two dimensions.')
         if self.training:
             return tensor * self.sample(
-                tensor.size()[:-1]).type(tensor.dtype).to(tensor.device)
+                tensor.size()[:-1]).to(
+                    dtype=tensor.dtype, device=tensor.device)
         else:
             return tensor
 

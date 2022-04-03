@@ -9,7 +9,7 @@ import math
 
 
 def invert_spd(A, force_invert_singular=True):
-    """
+    r"""
     Invert a symmetric positive definite matrix.
 
     Currently, this operates by computing the Cholesky decomposition of the
@@ -234,12 +234,13 @@ def delete_diagonal(A):
     from the final axis.
     """
     dim = A.shape[-1]
-    mask = (~torch.eye(dim, device=A.device, dtype=torch.bool)).type(A.dtype)
+    mask = (~torch.eye(dim, device=A.device, dtype=torch.bool)).to(
+        dtype=A.dtype)
     return A * mask
 
 
 def toeplitz(c, r=None, dim=None, fill_value=0, dtype=None, device=None):
-    """
+    r"""
     Populate a block of tensors with Toeplitz banded structure.
 
     :Dimension: **c :** :math:`(C, *)`

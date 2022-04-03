@@ -201,7 +201,7 @@ def frequency_band_partition_experiment(
         arg = LossArgument(model=model, X=X, corr=corr)
         if epoch == 0:
             print('Statistics at train start:')
-            loss(model, X, corr, verbose=True)
+            loss(arg, verbose=True)
         loss_epoch = loss(arg)
         loss_epoch.backward()
         losses += [loss_epoch.detach().item()]

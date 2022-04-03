@@ -286,7 +286,7 @@ def freqfilter_init_(tensor, filter_specs, domain=None):
         for fspec in filter_specs:
             fspec.initialise_spectrum(worN, domain)
         spectra = torch.cat([fspec.spectrum for fspec in filter_specs])
-        tensor[:] = spectra.type(tensor.dtype).to(tensor.device)
+        tensor[:] = spectra.to(dtype=tensor.dtype, device=tensor.device)
 
 
 def clamp_init_(points_tensor, values_tensor, filter_specs):

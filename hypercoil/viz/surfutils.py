@@ -58,45 +58,35 @@ class _CMapFromSurfMixin:
     def _compute_linear_map(self, null=0, dtype=None, device=None):
         labels = np.unique(self.data).astype(int)
         labels = np.delete(labels, labels==null)
-        n_labels = labels.max() + 1
+        n_labels = len(labels)
         n_voxels = np.prod(self.data.shape[:3])
         map = np.zeros((n_labels, n_voxels))
-        for l in labels:
-            map[l, :] = (self.data == l)
+        for i, l in enumerate(labels):
+            map[i, :] = (self.data == l)
         map /= map.sum(1, keepdims=True)
         map[np.isnan(map)] = 0
-        return torch.tensor(map, dtype=dtype, device=device)
+        return torch.tensor(map, dtype=dtype, device=device), labels
 
-    def _compute_parcel_colours(self, linear_map, surf_cmap):
-        parcel_colours = linear_map @ surf_cmap.T
-        parcel_colours = parcel_colours.numpy()
-        parcel_colours = np.maximum(parcel_colours, 0)
-        parcel_colours = np.minimum(parcel_colours, 1)
-        return parcel_colours
+    def _compute_parcel_colours(self, linear_map, surf_cmap,
+                                labels=None, labels_present=None):
+        colours = linear_map @ surf_cmap.T
+        colours = colours.cpu().numpy()
+        colours = np.maximum(colours, 0)
+        colours = np.minimum(colours, 1)
+        if labels is None:
+            return colours
+        else:
+            parcel_colours = np.ones((len(labels), colours.shape[-1]))
+            for i, l in enumerate(labels_present):
+                parcel_colours[l - 1] = colours[i]
+            return parcel_colours
 
-    def _align_cmap_to_data(self, dataset, cmap):
-        null = 0 # hard coding this now
-        present_in_dset = np.unique(dataset).astype(int)
-        present_in_dset = np.delete(
-            present_in_dset,
-            present_in_dset==null
-        )
-        present_map = np.arange(len(present_in_dset)).astype(int) + 1
-        present_band = np.zeros(cmap.colors.shape[0]).astype(int)
-        present_band[present_in_dset] = present_map
-        # This shift sort of depends on where null is, so right now your
-        # null had better be zero
-        cmap = cmap.colors[present_in_dset]
-        dataset = dataset.int()
-        dataset = present_band[dataset]
-        return dataset, ListedColormap(cmap)
-
-    def _select_cmap(self, cmap, struc_tag=None):
+    def _select_cmap(self, cmap, struc_tag=None, labels=None):
         surf_cmap = nb.load(cmap)
         surf_cmap = data_from_struc_tag(surf_cmap, struc_tag)
-        linear_map = self._compute_linear_map(null=0)
-        parcel_colours = self._compute_parcel_colours(linear_map, surf_cmap)
+        linear_map, labels_present = self._compute_linear_map(null=0)
+        parcel_colours = self._compute_parcel_colours(
+            linear_map, surf_cmap, labels=labels,
+            labels_present=labels_present)
         cmap = ListedColormap(parcel_colours)
-        self.data, cmap = self._align_cmap_to_data(self.data, cmap)
-        self.data, self.coor = self.drop_null(null=0)
         return cmap

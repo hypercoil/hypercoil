@@ -2,13 +2,31 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-BIDS interfaces
-~~~~~~~~~~~~~~~
 Interfaces for loading BIDS-conformant neuroimaging data.
 
-Currently we use a LightGrabber but we'd like to use a BIDSLayout when the
-PyBIDS code stabilises.
+The reference retrieval utility is written with the assumption that the input
+path is a BIDS derivatives dataset created by fMRIPrep.
+
+The recommended use is first retrieving data references through the
+:doc:`fmriprep_references <hypercoil.data.bids.fmriprep_references>`
+function call, and then passing the references to the
+:doc:`make_wds <api/hypercoil.data.wds.make_wds>`
+function. A
+:doc:`fMRIPrepDataset <hypercoil.data.bids.fMRIPrepDataset>`
+class also exists, but porting references to a ``webdataset`` will yield far
+superior data loading performance in general.
+
+.. warning::
+    ``ciftify`` compatibility is likely absent. This should be a development
+    priority, given that a great deal of development has operated under the
+    assumption of CIfTI inputs.
+
+.. note::
+    Currently we acquire dataset paths using an internal class called a
+    ``LightGrabber``, but we'd eventually like to use an actual ``BIDSLayout``
+    from ``pybids`` for robustness.
 """
+##TODO: ciftify compatibility
 ##TODO: use pybids wherever possible
 # import bids
 from .dataref import data_references, DataQuery
@@ -56,9 +74,11 @@ bids_regex = {
 
 class BIDSObjectFactory(VariableFactory):
     """
-    Factory for producing LightBIDSObjects. Thin wrapper around
-    `VariableFactory`. Consult `hypercoil.data.VariableFactory` for further
-    documentation.
+    Factory for producing
+    :doc:`LightBIDSObjects <hypercoil.data.bids.LightBIDSObject>`.
+    Thin wrapper around
+    :doc:`VariableFactory <hypercoil.data.variables.VariableFactory>`; consult
+    for further documentation.
     """
     def __init__(self):
         super(BIDSObjectFactory, self).__init__(
@@ -72,8 +92,9 @@ class BIDSObjectFactory(VariableFactory):
 
 class LightBIDSObject(DataPathVariable):
     """
-    Thin wrapper around `DataPathVariable`.
-    Consult the `hypercoil.data.DataPathVariable` documentation.
+    Thin wrapper around
+    :doc:`DataPathVariable <hypercoil.data.variables.DataPathVariable>`;
+    consult for further documentation.
     """
     def __repr__(self):
         return (
@@ -84,7 +105,7 @@ class LightBIDSObject(DataPathVariable):
 
 class LightBIDSLayout(LightGrabber):
     """
-    Lightweight and stupid DataGrabber for BIDS-like data.
+    Lightweight and minimal ``DataGrabber``-inspired class for BIDS-like data.
 
     Parameters
     ----------
@@ -94,7 +115,7 @@ class LightBIDSLayout(LightGrabber):
         String patterns to constrain the scope of the layout. If patterns are
         provided, then the layout will not include any files that do not match
         at least one pattern.
-    queries : list(DataQuery)
+    queries : list(:doc:`DataQuery <hypercoil.data.dataref.DataQuery>`)
         Query objects defining the variables to extract from the dataset via
         query.
     """
@@ -242,18 +263,18 @@ def fmriprep_references(fmriprep_dir, space=None, additional_tables=None,
         List of data identifiers whose levels are packaged as sublevels of the
         same data reference. This permits easier augmentation of data via
         pooling across sublevels.
-    dtype : torch datatype
+    dtype : torch datatype (default None)
         Datatype of sampled DataReferences at creation. Note that, if you are
         using a `WebDataset` for training (strongly recommended), this will
         not constrain the data type used at training.
-    device : str (default 'cpu')
+    device : str or torch device (default None)
         Device on which DataReferences are to be sampled at creation. Note
         that, if you are using a `WebDataset` for training (strongly
         recommended), this will not constrain the device used at training.
 
     Returns
     -------
-    data_refs : list(fMRIDataReference)
+    data_refs : list(:doc:`fMRIDataReference <hypercoil.data.neuro.fMRIDataReference>`)
         List of data reference objects created from files found in the input
         directory.
     """

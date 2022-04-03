@@ -72,11 +72,10 @@ class ModularityLoss(Loss):
                  null=girvan_newman_null, normalise_modularity=True,
                  normalise_coaffiliation=True, directed=False, sign='+',
                  name=None, **params):
-        super(ModularityLoss, self).__init__()
+        super(ModularityLoss, self).__init__(nu=nu)
         if affiliation_xfm is None:
             affiliation_xfm = lambda x: x
         self.affiliation_xfm = affiliation_xfm
-        self.nu = nu
         self.exclude_diag = exclude_diag
         self.gamma = gamma
         self.null = null
@@ -119,7 +118,7 @@ class ModularityLoss(Loss):
         """
         if C_o is None:
             C_o = C
-        return -self.nu * relaxed_modularity(
+        out = -self.nu * relaxed_modularity(
             A=A,
             C=self.affiliation_xfm(C),
             C_o=self.affiliation_xfm(C_o),
@@ -133,3 +132,11 @@ class ModularityLoss(Loss):
             sign=self.sign,
             **self.params
         ).squeeze()
+        message = {
+            'NAME': self.name,
+            'LOSS': out.clone().detach().item(),
+            'NU': self.nu
+        }
+        for s in self.listeners:
+            s._listen(message)
+        return out

@@ -12,7 +12,21 @@ from .base import ReducingLoss
 from functools import partial
 
 
-def second_moment(weight, data):
+def _second_moment(weight, data, mu, skip_normalise=False):
+    """
+    Core computation for second-moment loss.
+    """
+    weight = weight.abs().unsqueeze(-1)
+    if skip_normalise:
+        normfac = 1
+    else:
+        normfac = weight.sum(-2)
+    diff = data.unsqueeze(-3) - mu.unsqueeze(-2)
+    sigma = ((diff * weight) ** 2).sum(-2) / normfac
+    return sigma
+
+
+def second_moment(weight, data, standardise=False, skip_normalise=False):
     r"""
     Compute the second moment of a dataset.
 
@@ -28,10 +42,26 @@ def second_moment(weight, data):
                     T denotes number of observations at each location (e.g.,
                     number of time points).
     """
+    if standardise:
+        data = (
+            data - data.mean(-1, keepdim=True)) / data.std(-1, keepdim=True)
     mu = (weight @ data / weight.sum(-1, keepdim=True))
-    diff = data.unsqueeze(-3) - mu.unsqueeze(-2)
-    sigma = (diff * weight.unsqueeze(-1)) ** 2 / weight.sum()
-    return sigma
+    return _second_moment(weight, data, mu, skip_normalise)
+
+
+def second_moment_centred(weight, data, mu,
+                          standardise_data=False,
+                          standardise_mu=False,
+                          skip_normalise=False):
+    r"""
+    Compute the second moment of a dataset about a specified mean.
+    """
+    if standardise_data:
+        data = (
+            data - data.mean(-1, keepdim=True)) / data.std(-1, keepdim=True)
+    if standardise_mu:
+        mu = (mu - mu.mean(-1)) / mu.std(-1)
+    return _second_moment(weight, data, mu, skip_normalise)
 
 
 class SecondMoment(ReducingLoss):
@@ -67,11 +97,37 @@ class SecondMoment(ReducingLoss):
         the linear mapping, multiplied by the number of columns in the
         dataset.
     """
-    def __init__(self, nu=1, reduction=None, name=None):
+    def __init__(self, nu=1, standardise=False, skip_normalise=False,
+                 reduction=None, name=None):
         reduction = reduction or mean
+        loss = partial(
+            second_moment,
+            standardise=standardise,
+            skip_normalise=skip_normalise
+        )
         super(SecondMoment, self).__init__(
             nu=nu,
             reduction=reduction,
-            loss=second_moment,
+            loss=loss,
+            name=name,
+        )
+
+
+class SecondMomentCentred(ReducingLoss):
+    r"""
+    Compute the second moment of a dataset/linear mapping pair about a
+    specified mean.
+    """
+    def __init__(self, nu=1, standardise_data=False, standardise_mu=False,
+                 skip_normalise=False, reduction=None, name=None):
+        reduction = reduction or mean
+        loss = partial(second_moment_centred,
+                       standardise_data=standardise_data,
+                       standardise_mu=standardise_mu,
+                       skip_normalise=skip_normalise)
+        super(SecondMomentCentred, self).__init__(
+            nu=nu,
+            reduction=reduction,
+            loss=loss,
             name=name
         )

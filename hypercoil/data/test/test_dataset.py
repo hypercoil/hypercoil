@@ -36,28 +36,29 @@ class TestDataLoader:
         self.ds.set_depth(0)
 
     def test_dl_depth_0(self):
+        self.ds.set_depth(0)
         for sample in self.dl:
             break
         assert sample['images'].size() == torch.Size([5, 8, 4, 4, 4, 500])
-        assert sample['rps'].size() == torch.Size([5, 8, 500, 6])
-        assert sample['wm + csf'].size() == torch.Size([5, 8, 500, 2])
-        assert sample['gsr'].size() == torch.Size([5, 8, 500, 1])
+        assert sample['rps'].size() == torch.Size([5, 8, 6, 500])
+        assert sample['wm + csf'].size() == torch.Size([5, 8, 2, 500])
+        assert sample['gsr'].size() == torch.Size([5, 8, 1, 500])
         assert sample['acc<v=0.7, mask=WM+CSF>'].size() == torch.Size(
-            [5, 8, 500, 4])
+            [5, 8, 4, 500])
         assert sample['t_r'].size() == torch.Size([5, 8, 1])
-        assert sample['tmask'].size() == torch.Size([5, 8, 500, 1])
+        assert sample['tmask'].size() == torch.Size([5, 8, 1, 500])
 
     def test_dl_depth_1(self):
         self.ds.set_depth(1)
         for sample in self.dl:
             break
         assert sample['images'].size() == torch.Size([5, 4, 4, 4, 500])
-        assert sample['rps'].size() == torch.Size([5, 500, 6])
-        assert sample['wm + csf'].size() == torch.Size([5, 500, 2])
-        assert sample['gsr'].size() == torch.Size([5, 500, 1])
+        assert sample['rps'].size() == torch.Size([5, 6, 500])
+        assert sample['wm + csf'].size() == torch.Size([5, 2, 500])
+        assert sample['gsr'].size() == torch.Size([5, 500])
         assert sample['acc<v=0.7, mask=WM+CSF>'].size() == torch.Size(
-            [5, 500, 3])
-        assert sample['t_r'].size() == torch.Size([5, 1])
-        assert sample['tmask'].size() == torch.Size([5, 500, 1])
+            [5, 3, 500])
+        assert sample['t_r'].size() == torch.Size([5])
+        assert sample['tmask'].size() == torch.Size([5, 500])
         assert sample['tmask'][0].sum() == 333
         self.ds.set_depth(0)

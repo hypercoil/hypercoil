@@ -333,7 +333,7 @@ class _UnweightedCov(_Cov):
 
 
 class UnaryCovariance(_UnaryCov, _WeightedCov):
-    """
+    r"""
     Covariance measures of a single tensor, with a full complement of
     learnable weights.
 
@@ -450,7 +450,7 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
 
 
 class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
-    """
+    r"""
     Covariance measures of a single tensor, with a single learnable weight for
     each time lag.
 
@@ -565,7 +565,7 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
 
 
 class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
-    """
+    r"""
     Covariance measures of a single tensor, without learnable weights.
 
     The input tensor is interpreted as a set of multivariate observations.
@@ -660,7 +660,7 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
 
 
 class BinaryCovariance(_BinaryCov, _WeightedCov):
-    """
+    r"""
     Covariance measures using variables stored in two tensors, with a full
     complement of learnable weights.
 
@@ -790,7 +790,7 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
 
 
 class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
-    """
+    r"""
     Covariance measures using variables stored in two tensors, with a single
     learnable weight for each time lag.
 
@@ -918,7 +918,7 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
 
 
 class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
-    """
+    r"""
     Covariance measures using variables stored in two tensors, without
     learnable weights.
 
