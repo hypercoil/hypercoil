@@ -136,6 +136,12 @@ def mask_coo_tensor_along_axis(tensor, mask, mask_axis=-2):
         elif e > drop[pointer]:
             cur_delta += 1
             pointer += 1
+            try:
+                if e == drop[pointer]:
+                    delta[i] = -1
+                    continue
+            except IndexError:
+                pass
         delta[i] = cur_delta
     coo_mask = (delta != -1)
     values = values[coo_mask]
