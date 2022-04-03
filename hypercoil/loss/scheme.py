@@ -8,8 +8,8 @@ Module for additively applying a set of several losses or
 regularisations to a set of inputs.
 """
 import torch
-from torch.nn import Module
 from .base import LossApply, UnpackingLossArgument
+from ..engine import SentryModule
 from ..engine.terminal import Terminal
 
 
@@ -19,7 +19,7 @@ def identity(*args):
     return args
 
 
-class LossScheme(Module):
+class LossScheme(SentryModule):
     def __init__(self, loss=None, apply=None):
         super(LossScheme, self).__init__()
         self.loss = self._listify(loss) or []
@@ -62,6 +62,18 @@ class LossScheme(Module):
         if not isinstance(x, list):
             return list(x)
         return x
+
+    def register_sentry(self, sentry):
+        for f in self:
+            ##TODO: change when we implement sentry functionality for Terminal
+            if not isinstance(f, Terminal):
+                f.register_sentry(sentry)
+
+    def register_action(self, action):
+        for f in self:
+            ##TODO: change when we implement sentry functionality for Terminal
+            if not isinstance(f, Terminal):
+                f.register_action(action)
 
     def forward(self, *args, verbose=False, **kwargs):
         losses = 0
