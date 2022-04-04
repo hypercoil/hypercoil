@@ -1,5 +1,5 @@
-LightGrabber
-============
+``LightGrabber``
+================
 
 .. currentmodule:: hypercoil.data.grabber
 

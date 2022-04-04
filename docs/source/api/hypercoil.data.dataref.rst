@@ -1,5 +1,5 @@
-Data references
-~~~~~~~~~~~~~~~
+``dataref``: Data references
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: hypercoil.data.dataref
 

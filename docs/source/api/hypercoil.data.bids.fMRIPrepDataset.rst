@@ -1,5 +1,5 @@
-fMRIPrepDataset
-===============
+``fMRIPrepDataset``
+===================
 
 .. currentmodule:: hypercoil.data.bids
 

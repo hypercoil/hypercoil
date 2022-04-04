@@ -1,5 +1,5 @@
-DataQuery
-=========
+``DataQuery``
+=============
 
 .. currentmodule:: hypercoil.data.dataref
 

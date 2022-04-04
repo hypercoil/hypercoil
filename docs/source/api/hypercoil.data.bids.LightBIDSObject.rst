@@ -1,5 +1,5 @@
-LightBIDSObject
-===============
+``LightBIDSObject``
+===================
 
 .. currentmodule:: hypercoil.data.bids
 

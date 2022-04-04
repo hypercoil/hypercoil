@@ -1,5 +1,5 @@
-ReferencedDataset
-=================
+``ReferencedDataset``
+=====================
 
 .. currentmodule:: hypercoil.data.dataset
 

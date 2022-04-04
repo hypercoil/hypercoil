@@ -1,5 +1,5 @@
-ReferencedDataLoader
-====================
+``ReferencedDataLoader``
+========================
 
 .. currentmodule:: hypercoil.data.dataset
 

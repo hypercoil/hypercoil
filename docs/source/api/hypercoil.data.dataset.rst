@@ -1,5 +1,5 @@
-Referenced datasets
-~~~~~~~~~~~~~~~~~~~
+``dataset``: Referenced datasets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: hypercoil.data.dataset
 

@@ -1,5 +1,5 @@
-data_references
-===============
+``data_references``
+===================
 
 .. currentmodule:: hypercoil.data.dataref
 

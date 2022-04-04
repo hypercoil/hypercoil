@@ -1,5 +1,5 @@
-HCP interfaces
-~~~~~~~~~~~~~~~
+``hcp``: HCP interfaces
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: hypercoil.data.hcp
 

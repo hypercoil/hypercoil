@@ -1,4 +1,4 @@
-Batch collation functionality
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``collate``: Batch collation functionality
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: hypercoil.data.collate
