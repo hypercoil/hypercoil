@@ -1,5 +1,5 @@
-Comprehensive API index
-=======================
+API reference
+=============
 
 .. toctree::
    :maxdepth: 2
@@ -11,3 +11,4 @@ Comprehensive API index
    init
    loss
    nn
+   viz

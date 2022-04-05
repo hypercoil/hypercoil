@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Differentiable functional connectivity
-======================================
+Differentiable programming for brain mapping
+============================================
 
 .. toctree::
    :maxdepth: 1
