@@ -18,17 +18,85 @@ class ModularityLoss(Loss):
 
     This relaxation supports non-deterministic assignments of vertices to
     communities and non-assortative linkages between communities. It reverts
-    to standard behaviour when the inputs it is provided are standard.
+    to standard behaviour when the inputs it is provided are standard (i.e.,
+    deterministic and associative).
 
-    The relaxed modularity is defined as the sum of all entries in the
-    Hadamard (elementwise) product between the modularity matrix and the
-    coaffiliation matrix.
+    .. admonition:: Girvan-Newman Modularity Relaxation
 
-    :math:`Q = \mathbf{1}^\intercal \left( B \circ H \right) \mathbf{1}`
+        The relaxed modularity loss is defined as the negative sum of all
+        entries in the Hadamard (elementwise) product between the modularity
+        matrix and the coaffiliation matrix.
+
+        :math:`\mathcal{L}_Q = -\nu_Q \mathbf{1}^\intercal \left( B \circ H \right) \mathbf{1}`
+
+        .. image:: ../_images/modularityloss.svg
+            :width: 500
+            :align: center
+
+        - The modularity matrix :math:`B` is the difference between the
+          observed connectivity matrix :math:`A` and the expected connectivity
+          matrix under some null model that assumes no community structure,
+          :math:`P`: :math:`B = A - \gamma P`.
+
+          - The community resolution parameter :math:`\gamma` essentially
+            determines the scale of the community structure that optimises the
+            relaxed modularity loss.
+
+          - By default, we use the Girvan-Newman null model
+            :math:`P_{GN} = \frac{A \mathbf{1} \mathbf{1}^\intercal A}{\mathbf{1}^\intercal A \mathbf{1}}`,
+            which can be interpreted as the expected weight of connections
+            between each pair of vertices if all existing edges are cut and
+            then randomly rewired. 
+
+          - Note that :math:`A \mathbf{1}` is the in-degree of the adjacency
+            matrix and :math:`\mathbf{1}^\intercal A` is its out-degree, and
+            the two are transposes of one another for symmetric :math:`A`.
+            Also note that the denominator
+            :math:`\mathbf{1}^\intercal A \mathbf{1}` is twice the number of
+            edges for an undirected graph.)
+
+        - The coaffiliation matrix :math:`H` is calculated as
+          :math:`H = C_{in} L C_{out}^\intercal`, where
+          :math:`C_{in} \in \mathbb{R}^{(v_{in} \times c)}` and
+          :math:`C_{out} \in \mathbb{R}^{(v_{out} \times c)}` are proposed
+          assignment weights of in-vertices and out-vertices to communities.
+          :math:`L \in \mathbb{R}^{c \times c)}` is the proposed coupling
+          matrix among each pair of communities and defaults to identity to
+          represent associative structure.
+
+          - Note that, when :math:`C_{in} = C_{out}` is deterministically in
+            :math:`\{0, 1\}` and :math:`L = I`, this term reduces to the
+            familiar delta-function notation for the true Girvan-Newman
+            modularity.
 
     Penalising this favours a weight that induces a modular community
-    structure on the input matrix -- or, an input matrix whose structure is
-    reasonably accounted for by the proposed community affiliation weights.
+    structure on the input matrix -- or, an input matrix whose structure
+    is reasonably accounted for by the proposed community affiliation
+    weights.
+
+    .. warning::
+        To conform with the network community interpretation of this loss
+        function, parameters representing the community affiliation :math:`C`
+        and coupling :math:`L` matrices can be pre-transformed. Mapping the
+        community affiliation matrix :math:`C` through a
+        :doc:`softmax <hypercoil.functional.domain.MultiLogit>`
+        function along the community axis lends the affiliation matrix the
+        intuitive interpretation of distributions over communities, or a
+        quantification of the uncertainty of each vertex's community
+        assignment. Similarly, the coupling matrix can be pre-transformed
+        through a
+        :doc:`sigmoid <hypercoil.functional.domain.Logit>`
+        to constrain inter-community couplings to :math:`(0, 1)`.
+    .. note::
+        Because the community affiliation matrices :math:`C` induce
+        parcellations, we can regularise them using parcellation losses. For
+        instance, penalising the
+        :doc:`entropy <hypercoil.loss.entropy>`
+        will promote a solution wherein each node's community assignment
+        probability distribution is concentrated in a single community.
+        Similarly, using parcel
+        :doc:`equilibrium <hypercoil.loss.equilibrium>` will favour a solution
+        wherein communities are of similar sizes.
 
     Parameters
     ----------
