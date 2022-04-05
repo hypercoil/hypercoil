@@ -18,13 +18,27 @@ def dist(vectors, p=1):
 
 
 class VectorDispersion(ReducingLoss):
-    """
+    r"""
     Mutual separation among a set of vectors.
 
+    .. admonition:: Vector dispersion
+
+        The dispersion among a set of vectors :math:`v \in \mathcal{V}` is
+        defined as
+
+        :math:`\sum_{i, j} \mathrm{d}\left(v_i - v_j\right)`
+
+        for some measure of separation :math:`\mathrm{d}`. (It is also
+        valid to use a reduction other than the sum.)
+
     This can be used as one half of a clustering loss. Such a clustering loss
-    promotes mutual separation among centroids (between-cluster separation)
-    while also promoting proximity between observations and their closest
-    centroids (within-cluster closeness, for instance using a norm loss).
+    would promote mutual separation among centroids (between-cluster
+    separation, imposed by the ``VectorDispersion`` loss) while also promoting
+    proximity between observations and their closest centroids (within-cluster
+    closeness, for instance using a
+    :doc:`norm loss <hypercoil.loss.norm>` or
+    :doc:`compactness <hypercoil.loss.cmass.Compactness>`
+    if the clusters are associated with spatial coordinates).
 
     Parameters
     ----------
