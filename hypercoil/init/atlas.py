@@ -1,10 +1,76 @@
 # -*- coding: utf-8 -*-
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
-"""
-Atlas initialisation
-~~~~~~~~~~~~~~~~~~~~
+r"""
 Tools for initialising parameters corresponding to brain atlases.
+
+Neuroimaging atlases are principally defined and distributed with reference to
+either volumetric or surface-based coordinate spaces. Additionally, atlases
+might be either discrete-valued, hard-label parcellations or continuous-valued
+maps that can overlap with one another. The ``atlas`` initialisation module is
+designed to handle these use cases, together with random or unstructured
+initialisations that do not leverage prior knowledge and are thus unbiased by
+it.
+
+The initialisation class itself,
+:doc:`AtlasInit <hypercoil.init.atlas.AtlasInit>`,
+takes as its main, non-optional argument an instance of an ``Atlas`` object.
+All atlas objects subclass the abstract base class
+:doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
+and incorporate a combination of
+:doc:`atlas mixins <hypercoil.init.atlasmixins>`
+to implement diverse functionalities. These subclasses generally take a
+pointer to a reference as an input argument; this reference either forms the
+base for the atlas (for classes that use previously existing knowledge
+annotations) or defines its dimensions (for classes based on random
+initialisations). Existing subclasses include
+
+- :doc:`DiscreteVolumetricAtlas <hypercoil.init.atlas.DiscreteVolumetricAtlas>`
+  implements a volumetric atlas with discrete parcels, loaded from a single
+  reference image and a single volume in which each unique integer identifies
+  a single parcel.
+- :doc:`MultiVolumetricAtlas <hypercoil.init.atlas.MultiVolumetricAtlas>`
+  implements a volumetric atlas whose parcels are each encoded in a separate
+  volume of the reference image.
+- :doc:`MultifileVolumetricAtlas <hypercoil.init.atlas.MultifileVolumetricAtlas>`
+  implements a volumetric atlas whose parcels (either discrete or continuous)
+  are each encoded in a separate reference image file.
+- :doc:`CortexSubcortexCIfTIAtlas <hypercoil.init.atlas.CortexSubcortexCIfTIAtlas>`
+  implements a surface-based atlas with discrete parcels, loaded from a CIfTI
+  image. Parcels are compartmentalised into left and right cerebral cortex and
+  subcortex.
+- :doc:`DirichletInitVolumetricAtlas <hypercoil.init.atlas.DirichletInitVolumetricAtlas>`
+  implements a volumetric atlas whose voxel-label annotations are initialised
+  as random, i.i.d. samples from a Dirichlet distribution.
+- :doc:`DirichletInitSurfaceAtlas <hypercoil.init.atlas DirichletInitSurfaceAtlas>`
+  implements a surface-based atlas compartmentalised into left and right
+  cerebral cortex and subcortex. Voxel- and vertex-label annotations are
+  initialised as random, i.i.d. samples from a Dirichlet distribution.
+
+.. note::
+    For cases not handled by the existing subclasses, we would eventually like
+    the :doc:`atlas mixins <hypercoil.init.atlasmixins>`
+    to be flexible and robust enough so that users can straightforwardly
+    design new atlas subclasses. In reality, we are not currently close to
+    this objective.
+
+.. image:: ../_images/atlas_linearmap.svg
+  :width: 400
+  :align: center
+
+Each subclass instance of ``BaseAtlas`` has a ``maps`` attribute that stores
+voxel-label annotations as a dictionary. The keys of this dictionary
+correspond to isolated compartments of the atlas. (The single key ``'all'`` is
+used for atlases not compartmentalised.) The dictionary values are
+:math:`L_{compartment} \times V_{compartment}` matrices, where
+:math:`V_{compartment}` is the number of spatial locations (voxels or
+vertices) in the compartment, and
+:math:`L_{compartment}` is the number of distinct parcel labels in the
+compartment. These matrices can be used in a linear mapping to reduce the
+dimension of an input time series from the number of voxels to the number of
+parcels. See
+:doc:`the linear atlas module <hypercoil.nn.atlas>`
+for more details.
 """
 import torch
 import templateflow.api as tflow
@@ -42,32 +108,32 @@ class BaseAtlas(ABC):
     Atlas object encoding linear mappings from voxels to labels.
     Base class inherited by discrete and continuous atlas containers.
 
-    About
-    -----
     Several atlas classes are included to cover frequent scenarios, but users
     can also create their own atlas class compositionally using the available
-    mixins. Each atlas class must implement the following methods:
+    :doc:`mixins <hypercoil.init.atlasmixins>`.
+    Each atlas class must implement the following methods:
 
-    `_load_reference`
-        Implemented by a `~ReferenceMixin` class.
-    `_create_mask`
-        Implemented by a `~MaskMixin` class.
-    `_compartment_names_dict`
-        Implemented by a `~CompartmentMixin` class.
-    `_create_compartments`
-        Implemented by a `~CompartmentMixin` class.
-    `_configure_decoders`
-        Implemented by a `~LabelMixin` class.
-    `_populate_map_from_ref`
-        Implemented by a `~LabelMixin` class.
-    `_init_coors`
-        Implemented by a `~MeshMixin` class.
-    `_configure_sigma`
-        Implemented by a `~ConvMixin` class.
-    `_convolve`
-        Implemented by a `~ConvMixin` class.
+    ``_load_reference``
+        Implemented by a ``~ReferenceMixin`` class.
+    ``_create_mask``
+        Implemented by a ``~MaskMixin`` class.
+    ``_compartment_names_dict``
+        Implemented by a ``~CompartmentMixin`` class.
+    ``_create_compartments``
+        Implemented by a ``~CompartmentMixin`` class.
+    ``_configure_decoders``
+        Implemented by a ``~LabelMixin`` class.
+    ``_populate_map_from_ref``
+        Implemented by a ``~LabelMixin`` class.
+    ``_init_coors``
+        Implemented by a ``~MeshMixin`` class.
+    ``_configure_sigma``
+        Implemented by a ``~ConvMixin`` class.
+    ``_convolve``
+        Implemented by a ``~ConvMixin`` class.
 
     Abstractly, atlas creation proceeds through the following steps:
+
     - Loading a reference that contains the atlas data;
     - Creating an overall mask that indicates regions of space that are
       candidates for inclusion in the atlas
@@ -265,7 +331,9 @@ class DirichletInitBaseAtlas(
 ):
     """
     Abstract base class for atlases initialised from a Dirichlet distribution.
-    See `BaseAtlas` for general details.
+    See
+    :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
+    for general details.
 
     Parameters
     ----------
@@ -274,9 +342,9 @@ class DirichletInitBaseAtlas(
     compartment_labels : dict(int)
         Number of labels to initialise for each compartment.
     conc : float
-        If this is provided and `init` is not, then the Dirichlet
+        If this is provided and ``init`` is not, then the Dirichlet
         distributions used to sample assignments of spatial locations to
-        parcels are defined with the same concentration parameter, `conc`,
+        parcels are defined with the same concentration parameter, ``conc``,
         for each parcel.
     template_image
         Template used to define the spatial dimensions and coordinates of the
@@ -412,7 +480,9 @@ class MultiVolumetricAtlas(
     Continuous atlas container object. Use for atlases whose labels overlap
     and must therefore be stored across multiple image volumes -- for
     instance, probabilistic segmentations or ICA results. If the labels are
-    stored across multiple files, use `MultifileVolumetricAtlas` instead.
+    stored across multiple files, use
+    :doc:`MultifileVolumetricAtlas <hypercoil.init.atlas.MultifileVolumetricAtlas>`
+    instead.
 
     Parameters
     ----------
@@ -474,7 +544,8 @@ class MultifileVolumetricAtlas(
     Continuous atlas container object. Use for atlases whose labels overlap
     and must therefore be stored across multiple image files -- for
     instance, probabilistic segmentations or ICA results. If the labels are
-    stored across multiple volumes of a single file, use `MultiVolumetricAtlas`
+    stored across multiple volumes of a single file, use
+    :doc:`MultiVolumetricAtlas <hypercoil.init.atlas.MultiVolumetricAtlas>`
     instead.
 
     Parameters
@@ -563,8 +634,8 @@ class CortexSubcortexCIfTIAtlas(
         fsLR surface is used by default.
     cortex_L and cortex_R : str
         Names of brain model axis objects corresponding to cortex in the CIfTI
-        reference. Default to 'CIFTI_STRUCTURE_CORTEX_LEFT' and
-        'CIFTI_STRUCTURE_CORTEX_RIGHT'.
+        reference. Default to ``'CIFTI_STRUCTURE_CORTEX_LEFT'`` and
+        ``'CIFTI_STRUCTURE_CORTEX_RIGHT'``.
     dtype
         Datatype for non-Boolean (non-mask) and non-Long (non-label) tensors
         created as part of the atlas.
@@ -630,7 +701,8 @@ class DirichletInitVolumetricAtlas(
     Volumetric atlas object created from random samples of a Dirichlet
     distribution. Each spatial location's parcel assignment is a categorical
     distribution sampled from a Dirichlet distribution. For a surface-based
-    Dirichlet atlas, use `DirichletInitSurfaceAtlas`.
+    Dirichlet atlas, use
+    :doc:`DirichletInitSurfaceAtlas <hypercoil.init.atlas.DirichletInitSurfaceAtlas>`.
 
     Parameters
     ----------
@@ -705,7 +777,8 @@ class DirichletInitSurfaceAtlas(
     and for the subcortical grey matter. The cortical hemispheres are surfaces
     endowed with a spherical coordinate system, while the subcortex uses a
     volumetric, Euclidean coordinate system. For a volumetric Dirichlet atlas,
-    use `DirichletInitVolumetricAtlas`.
+    use
+    :doc:`DirichletInitVolumetricAtlas <hypercoil.init.atlas.DirichletInitVolumetricAtlas>`.
 
     Parameters
     ----------
@@ -884,6 +957,48 @@ def atlas_init_(tensor, compartment, atlas, normalise=False,
 
 
 class AtlasInit(DomainInitialiser):
+    r"""
+    Voxel-to-label mapping initialisation.
+
+    Initialise a tensor dictionary such that its entries characterise a set of
+    matrices that each map a relevant subset of image voxels to a set of
+    labels. The initialisation can use a previously existing atlas,
+    instantiated as a subclass of
+    :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
+    with the option of blurring labels using pointwise spatial convolution or
+    injecting noise.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        Tensor to initialise in-place.
+    atlas : Atlas object
+        Atlas object to use for tensor initialisation.
+    normalise : bool (default False)
+        Indicates that maps should be spatially normalised such that the sum
+        over all assignments to a parcel is equal to 1. When the map is used
+        as a linear transformation, this option results in computation of a
+        weighted average over each parcel.
+    kernel_sigma : float or None (default None)
+        If this is not None, then spatial smoothing using a Gaussian kernel is
+        applied over each parcel’s assignments. Distances are established by
+        the atlas’s coordinate system and the topology of each compartment.
+        The value of sigma establishes the width of the Gaussian kernel.
+    noise_sigma : float or None (default None)
+        If this is not None, then Gaussian noise with the specified standard
+        deviation is added to each label.
+    domain : :doc:`Domain <hypercoil.functional.domainbase>` or None
+        If this is a ``Domain`` instance, then the tensor dict is instead
+        initialised as the preimage of the specified atlas with respect to the
+        domain transformation. If this is None, then ``AtlasInit`` will search
+        the atlas's ``init`` attribute for a domain; if it finds none, then it
+        will default to an identity domain. Note that, for atlases initialised
+        from a Dirichlet distribution, ``AtlasInit`` will by default find a
+        :doc:`MultiLogit <hypercoil.functional.domain.MultiLogit>`
+        domain and accordingly place the pre-weights in the preimage of a
+        softmax so that the weights actually seen by data remain on the
+        probability simplex as the parcellation is learned.
+    """
     def __init__(self, atlas, normalise=False, max_bin=10000,
                  spherical_scale=1, truncate=None, kernel_sigma=None,
                  noise_sigma=None, domain=None):
