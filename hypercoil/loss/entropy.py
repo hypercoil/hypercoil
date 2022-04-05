@@ -1,10 +1,42 @@
 # -*- coding: utf-8 -*-
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
-"""
-Entropy
-~~~~~~~
-Loss functions using the entropy of a distribution.
+r"""
+Loss functions using the entropy of a (categorical) distribution.
+
+.. admonition:: Entropy
+
+    The entropy of a categorical distribution :math:`A` is defined as
+
+    :math:`-\mathbf{1}^\intercal \left(A \circ \log A\right) \mathbf{1}`
+
+    (where :math:`\log` denotes the elementwise logarithm).
+
+    .. image:: ../_images/entropysimplex.svg
+        :width: 250
+        :align: center
+
+    *Cartoon schematic of the contours of an entropy-like function over
+    categorical distributions. The function attains its maximum for the
+    distribution in which all outcomes are equiprobable. The function can
+    become smaller without bound away from this maximum. The superposed
+    triangle represents the probability simplex. By pre-transforming the
+    penalised weights to constrain them to the simplex, the entropy function
+    is bounded and attains a separate minimum for each deterministic
+    distribution.*
+
+    Penalising the entropy promotes concentration of weight into a single
+    category. This has applications in problem settings such as parcellation,
+    when more deterministic parcel assignments are desired.
+
+.. warning::
+    Entropy is a concave function. Minimising it without constraint
+    affords an unbounded capacity for reducing the loss. This is almost
+    certainly undesirable. For this reason, it is recommended that some
+    constraint be imposed on the input set when placing a penalty on entropy.
+    One possibility is using a
+    :doc:`multi-logit (softmax) domain mapper <hypercoil.functional.domain.MultiLogit>`
+    to first project the input weights onto the probability simplex.
 """
 import torch
 from functools import partial
@@ -74,7 +106,7 @@ class SoftmaxEntropy(ReducingLoss):
     category. This is a convenience wrapper that precomposes the entropy with
     a softmax function that first projects the input onto the probability
     simplex. Thus, the input to this loss should contain logits rather than
-    probabilities. Use `Entropy` instead if your inputs will already contain
+    probabilities. Use ``Entropy`` instead if your inputs will already contain
     probabilities.
 
     Parameters

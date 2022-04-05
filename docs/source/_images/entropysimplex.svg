@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="31.749994mm"
+   height="32.230743mm"
+   viewBox="0 0 31.749994 32.230743"
+   version="1.1"
+   id="svg25758"
+   inkscape:version="1.1.1 (c3084ef, 2021-09-22)"
+   sodipodi:docname="entropysimplex.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview25760"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:zoom="4.3034545"
+     inkscape:cx="47.63615"
+     inkscape:cy="64.250709"
+     inkscape:window-width="1312"
+     inkscape:window-height="855"
+     inkscape:window-x="45"
+     inkscape:window-y="23"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       type="xygrid"
+       id="grid25823"
+       originx="-124.35417"
+       originy="-134.45675" />
+  </sodipodi:namedview>
+  <defs
+     id="defs25755" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-124.35417,-134.45675)">
+    <path
+       sodipodi:type="star"
+       style="fill:#a6b4ed;fill-opacity:1;stroke:none;stroke-width:1.51181"
+       id="path33"
+       inkscape:flatsided="true"
+       sodipodi:sides="3"
+       sodipodi:cx="280"
+       sodipodi:cy="200"
+       sodipodi:r1="60"
+       sodipodi:r2="30"
+       sodipodi:arg1="-1.5707963"
+       sodipodi:arg2="-0.52359878"
+       inkscape:rounded="0"
+       inkscape:randomized="0"
+       transform="matrix(0.26458333,0,0,0.26458333,66.145834,97.895834)"
+       inkscape:transform-center-y="-3.9687506"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400"
+       d="m 280,140 51.96152,90 -103.92305,0 z" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018"
+       cx="140.22917"
+       cy="150.8125"
+       r="15.874997"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2"
+       cx="140.22917"
+       cy="150.8125"
+       r="14.552081"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9"
+       cx="140.22917"
+       cy="150.8125"
+       r="13.229164"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9-9"
+       cx="140.22917"
+       cy="150.8125"
+       r="11.906247"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9-9-7"
+       cx="140.22917"
+       cy="150.8125"
+       r="10.583331"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9-9-7-0"
+       cx="140.22917"
+       cy="150.8125"
+       r="9.2604141"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9-9-7-0-3"
+       cx="140.22917"
+       cy="150.8125"
+       r="7.9374976"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9-9-7-0-3-9"
+       cx="140.22917"
+       cy="150.8125"
+       r="6.6145806"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9-9-7-0-3-9-8"
+       cx="140.22917"
+       cy="150.8125"
+       r="5.2916641"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9-9-7-0-3-9-8-6"
+       cx="140.22917"
+       cy="150.8125"
+       r="3.9687474"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9-9-7-0-3-9-8-6-5"
+       cx="140.22917"
+       cy="150.8125"
+       r="2.6458309"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <circle
+       style="fill:#000000;fill-opacity:0.0887097;stroke:none;stroke-width:0.4"
+       id="path1018-2-9-9-7-0-3-9-8-6-5-7"
+       cx="140.22917"
+       cy="150.8125"
+       r="1.3229141"
+       inkscape:export-filename="/Users/rastkociric/Downloads/SimplexContours.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.11667px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
+       x="140.22853"
+       y="151.92503"
+       id="text26377"><tspan
+         sodipodi:role="line"
+         id="tspan26375"
+         style="font-size:2.11667px;text-align:center;text-anchor:middle;fill:#ffffff;stroke-width:0.264583"
+         x="140.22853"
+         y="151.92503">*</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.11667px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
+       x="126.45287"
+       y="159.87743"
+       id="text26377-9"><tspan
+         sodipodi:role="line"
+         id="tspan26375-6"
+         style="font-size:2.11667px;text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.264583"
+         x="126.45287"
+         y="159.87743">*</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.11667px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
+       x="154.04622"
+       y="159.87743"
+       id="text26377-9-6"><tspan
+         sodipodi:role="line"
+         id="tspan26375-6-4"
+         style="font-size:2.11667px;text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.264583"
+         x="154.04622"
+         y="159.87743">*</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.11667px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
+       x="140.20636"
+       y="136.06493"
+       id="text26377-9-0"><tspan
+         sodipodi:role="line"
+         id="tspan26375-6-8"
+         style="font-size:2.11667px;text-align:center;text-anchor:middle;fill:#000000;stroke-width:0.264583"
+         x="140.20636"
+         y="136.06493">*</tspan></text>
+  </g>
+</svg>
