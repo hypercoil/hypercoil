@@ -179,6 +179,32 @@ class ModuleReport(SentryAction):
             )
 
 
+##TODO: change this functionality when we've made every module a sentry
+class ModuleSave(SentryAction):
+    def __init__(self, save_interval, module, attribute, save_root,
+                 save_format='.pt', *args, **kwargs):
+        super().__init__(trigger=['EPOCH'])
+        self.module = module
+        self.attribute = attribute
+        self.save_root = save_root
+        self.save_format = save_format
+        self.args = args
+        self.kwargs = kwargs
+
+    def propagate(self, sentry, received):
+        if received % self.save_interval == 0:
+            to_save = [v for k, v in self.module.named_modules()
+                       if k == self.attribute]
+            if not to_save:
+                raise AttributeError(
+                    f'Module {self.module} has no submodule {self.attribute}'
+                )
+            save_path = (
+                f'{self.save_root}_epoch-{received:09}{self.save_format}'
+            )
+            torch.save(to_save, save_path)
+
+
 class Epochs(Sentry, Iterator):
     def __init__(self, max_epoch):
         self.cur_epoch = -1
