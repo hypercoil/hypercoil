@@ -114,6 +114,16 @@ class UpdateMultiplier(SentryAction):
         sentry.nu = received['NU']
 
 
+class ResetMultiplier(SentryAction):
+    def __init__(self):
+        super().__init__(trigger=['NU_BASE'])
+
+    def propagate(self, sentry, received):
+        for s in sentry.listeners:
+            message = {'NU': received['NU_BASE']}
+            s._listen(message)
+
+
 class RecordLoss(SentryAction):
     def __init__(self):
         super().__init__(trigger=['LOSS', 'NAME', 'NU'])
@@ -154,7 +164,7 @@ class ModuleReport(SentryAction):
         self.kwargs = kwargs
 
     def propagate(self, sentry, received):
-        if received % self.report_interval == 0:
+        if received['EPOCH'] % self.report_interval == 0:
             #TODO: we might need to revisit this save scheme for compatibility
             # with multi-output reporters
             if self.save_root is not None:
@@ -192,7 +202,7 @@ class ModuleSave(SentryAction):
         self.kwargs = kwargs
 
     def propagate(self, sentry, received):
-        if received % self.save_interval == 0:
+        if received['EPOCH'] % self.save_interval == 0:
             to_save = [v for k, v in self.module.named_modules()
                        if k == self.attribute]
             if not to_save:
@@ -238,10 +248,11 @@ class SchedulerSentry(Sentry):
         super().__init__()
         self.base = base
         epochs.register_sentry(self)
+        self.register_action(ResetMultiplier())
 
     def reset(self):
         for action in self.actions:
-            action({'NU': self.base})
+            action({'NU_BASE': self.base})
 
 
 class MultiplierSchedule(SchedulerSentry):

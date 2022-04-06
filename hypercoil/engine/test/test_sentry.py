@@ -60,11 +60,16 @@ class TestSentry:
         loss2.register_sentry(archive)
         schedule0.register_sentry(archive) # test ignoring irrelevant messages
         Z = torch.rand(10)
+        reset = False
 
         for e in epochs:
             loss0(Z)
             loss1(Z)
             loss2(Z)
+            if e == 95 and not reset:
+                epochs.reset()
+                schedule1.reset()
+                reset = True
 
         begin = archive.get('loss0')[0]
         end = archive.get('loss0')[-1]
