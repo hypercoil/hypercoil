@@ -7,6 +7,7 @@ Sentry
 Elementary sentry objects and actions.
 """
 import torch
+import pandas as pd
 from torch.nn import Module
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
@@ -167,9 +168,10 @@ class ModuleReport(SentryAction):
         if received['EPOCH'] % self.report_interval == 0:
             #TODO: we might need to revisit this save scheme for compatibility
             # with multi-output reporters
+            epoch = received['EPOCH']
             if self.save_root is not None:
                 save = (
-                    f'{self.save_root}_epoch-{received:09}{self.save_format}'
+                    f'{self.save_root}_epoch-{epoch}{self.save_format}'
                 )
             else:
                 save = None
@@ -194,6 +196,7 @@ class ModuleSave(SentryAction):
     def __init__(self, save_interval, module, attribute, save_root,
                  save_format='.pt', *args, **kwargs):
         super().__init__(trigger=['EPOCH'])
+        self.save_interval = save_interval
         self.module = module
         self.attribute = attribute
         self.save_root = save_root
@@ -203,6 +206,7 @@ class ModuleSave(SentryAction):
 
     def propagate(self, sentry, received):
         if received['EPOCH'] % self.save_interval == 0:
+            epoch = received['EPOCH']
             to_save = [v for k, v in self.module.named_modules()
                        if k == self.attribute]
             if not to_save:
@@ -210,9 +214,29 @@ class ModuleSave(SentryAction):
                     f'Module {self.module} has no submodule {self.attribute}'
                 )
             save_path = (
-                f'{self.save_root}_epoch-{received:09}{self.save_format}'
+                f'{self.save_root}_epoch-{epoch}{self.save_format}'
             )
             torch.save(to_save, save_path)
+
+
+class WriteTSV(SentryAction):
+    def __init__(self, save_interval, save_root, overwrite=True):
+        super().__init__(trigger=['EPOCH'])
+        self.save_interval = save_interval
+        self.save_root = save_root
+        self.overwrite = overwrite
+
+    def propagate(self, sentry, received):
+        if received['EPOCH'] % self.save_interval == 0:
+            to_save = sentry.data
+            if self.overwrite:
+                save_path = f'{self.save_root}.tsv'
+            else:
+                epoch = received['EPOCH']
+                save_path = (
+                    f'{self.save_root}_epoch-{epoch}.tsv'
+                )
+            to_save.to_csv(save_path, index=False, sep='\t')
 
 
 class Epochs(Sentry, Iterator):
@@ -299,13 +323,20 @@ class MultiplierSigmoidSchedule(MultiplierSchedule):
 
 
 class LossArchive(Sentry):
-    def __init__(self, epochs):
+    def __init__(self, epochs, save_interval=None, save_root=None):
         super().__init__()
         self.archive = {}
         self.epoch_buffer = {}
         self.register_action(RecordLoss())
         self.register_action(ArchiveLoss())
         epochs.register_sentry(self)
+
+        if save_interval is not None:
+            self.register_action(WriteTSV(
+                save_interval=save_interval,
+                save_root=save_root,
+                overwrite=True
+            ))
 
     def _register_trigger(self, sentry):
         #TODO: explicitly check for Loss when we separate implementations
@@ -321,3 +352,10 @@ class LossArchive(Sentry):
             return self.archive[f'{name}_norm']
         else:
             return self.archive[name]
+
+    def to_df(self):
+        return pd.DataFrame(self.archive)
+
+    @property
+    def data(self):
+        return self.to_df()
