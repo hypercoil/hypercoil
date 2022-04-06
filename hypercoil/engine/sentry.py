@@ -185,6 +185,15 @@ class Epochs(Sentry, Iterator):
         self.max_epoch = max_epoch
         super().__init__()
 
+    def reset(self):
+        self.cur_epoch = -1
+
+    def set(self, epoch):
+        self.cur_epoch = epoch
+
+    def set_max(self, epoch):
+        self.max_epoch = epoch
+
     def __iter__(self):
         return self
 
@@ -203,6 +212,10 @@ class SchedulerSentry(Sentry):
         super().__init__()
         self.base = base
         epochs.register_sentry(self)
+
+    def reset(self):
+        for action in self.actions:
+            action({'NU': self.base})
 
 
 class MultiplierSchedule(SchedulerSentry):
