@@ -12,17 +12,27 @@ from .base import ReducingLoss
 from ..functional import precision
 
 
-def multivariate_kurtosis(ts, l2=0):
+def multivariate_kurtosis(ts, l2=0, dimensional_scaling=False):
+    if dimensional_scaling:
+        d = ts.shape[-2]
+        denom = d * (d + 2)
+    else:
+        denom = 1
     prec = precision(ts, l2=l2).unsqueeze(-3)
     ts = ts.transpose(-1, -2).unsqueeze(-2)
     maha = (ts @ prec @ ts.transpose(-1, -2)).squeeze()
-    return -(maha ** 2).mean(-1)
+    return -(maha ** 2).mean(-1) / denom
 
 
 class MultivariateKurtosis(ReducingLoss):
-    def __init__(self, nu=1, l2=0, reduction=None, name=None):
+    def __init__(self, nu=1, l2=0, dimensional_scaling=False,
+                 reduction=None, name=None):
         reduction = reduction or torch.mean
-        loss = partial(multivariate_kurtosis, l2=l2)
+        loss = partial(
+            multivariate_kurtosis,
+            l2=l2,
+            dimensional_scaling=dimensional_scaling
+        )
         super().__init__(
             nu=nu,
             reduction=reduction,
