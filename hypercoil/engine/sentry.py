@@ -7,6 +7,7 @@ Sentry
 Elementary sentry objects and actions.
 """
 import torch
+import pandas as pd
 from torch.nn import Module
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
@@ -114,6 +115,16 @@ class UpdateMultiplier(SentryAction):
         sentry.nu = received['NU']
 
 
+class ResetMultiplier(SentryAction):
+    def __init__(self):
+        super().__init__(trigger=['NU_BASE'])
+
+    def propagate(self, sentry, received):
+        for s in sentry.listeners:
+            message = {'NU': received['NU_BASE']}
+            s._listen(message)
+
+
 class RecordLoss(SentryAction):
     def __init__(self):
         super().__init__(trigger=['LOSS', 'NAME', 'NU'])
@@ -154,12 +165,13 @@ class ModuleReport(SentryAction):
         self.kwargs = kwargs
 
     def propagate(self, sentry, received):
-        if received % self.report_interval == 0:
+        if received['EPOCH'] % self.report_interval == 0:
             #TODO: we might need to revisit this save scheme for compatibility
             # with multi-output reporters
+            epoch = received['EPOCH']
             if self.save_root is not None:
                 save = (
-                    f'{self.save_root}_epoch-{received:09}{self.save_format}'
+                    f'{self.save_root}_epoch-{epoch}{self.save_format}'
                 )
             else:
                 save = None
@@ -179,11 +191,68 @@ class ModuleReport(SentryAction):
             )
 
 
+##TODO: change this functionality when we've made every module a sentry
+class ModuleSave(SentryAction):
+    def __init__(self, save_interval, module, attribute, save_root,
+                 save_format='.pt', *args, **kwargs):
+        super().__init__(trigger=['EPOCH'])
+        self.save_interval = save_interval
+        self.module = module
+        self.attribute = attribute
+        self.save_root = save_root
+        self.save_format = save_format
+        self.args = args
+        self.kwargs = kwargs
+
+    def propagate(self, sentry, received):
+        if received['EPOCH'] % self.save_interval == 0:
+            epoch = received['EPOCH']
+            to_save = [v for k, v in self.module.named_modules()
+                       if k == self.attribute]
+            if not to_save:
+                raise AttributeError(
+                    f'Module {self.module} has no submodule {self.attribute}'
+                )
+            save_path = (
+                f'{self.save_root}_epoch-{epoch}{self.save_format}'
+            )
+            torch.save(to_save, save_path)
+
+
+class WriteTSV(SentryAction):
+    def __init__(self, save_interval, save_root, overwrite=True):
+        super().__init__(trigger=['EPOCH'])
+        self.save_interval = save_interval
+        self.save_root = save_root
+        self.overwrite = overwrite
+
+    def propagate(self, sentry, received):
+        if received['EPOCH'] % self.save_interval == 0:
+            to_save = sentry.data
+            if self.overwrite:
+                save_path = f'{self.save_root}.tsv'
+            else:
+                epoch = received['EPOCH']
+                save_path = (
+                    f'{self.save_root}_epoch-{epoch}.tsv'
+                )
+            to_save.to_csv(save_path, index=False, sep='\t')
+
+
 class Epochs(Sentry, Iterator):
     def __init__(self, max_epoch):
         self.cur_epoch = -1
         self.max_epoch = max_epoch
         super().__init__()
+
+    def reset(self):
+        self.cur_epoch = -1
+
+    def set(self, epoch):
+        self.cur_epoch = epoch
+
+    def set_max(self, epoch):
+        self.max_epoch = epoch
 
     def __iter__(self):
         return self
@@ -203,6 +272,11 @@ class SchedulerSentry(Sentry):
         super().__init__()
         self.base = base
         epochs.register_sentry(self)
+        self.register_action(ResetMultiplier())
+
+    def reset(self):
+        for action in self.actions:
+            action({'NU_BASE': self.base})
 
 
 class MultiplierSchedule(SchedulerSentry):
@@ -249,13 +323,20 @@ class MultiplierSigmoidSchedule(MultiplierSchedule):
 
 
 class LossArchive(Sentry):
-    def __init__(self, epochs):
+    def __init__(self, epochs, save_interval=None, save_root=None):
         super().__init__()
         self.archive = {}
         self.epoch_buffer = {}
         self.register_action(RecordLoss())
         self.register_action(ArchiveLoss())
         epochs.register_sentry(self)
+
+        if save_interval is not None:
+            self.register_action(WriteTSV(
+                save_interval=save_interval,
+                save_root=save_root,
+                overwrite=True
+            ))
 
     def _register_trigger(self, sentry):
         #TODO: explicitly check for Loss when we separate implementations
@@ -271,3 +352,10 @@ class LossArchive(Sentry):
             return self.archive[f'{name}_norm']
         else:
             return self.archive[name]
+
+    def to_df(self):
+        return pd.DataFrame(self.archive)
+
+    @property
+    def data(self):
+        return self.to_df()
