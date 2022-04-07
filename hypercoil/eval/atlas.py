@@ -2,7 +2,8 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 import torch
-from ..functional import (
+from collections import OrderedDict
+from hypercoil.functional import (
     corr,
     pairedcorr,
     sym2vec
@@ -44,7 +45,8 @@ class VarianceExplained(AtlasBenchmark):
         return (torch.diagonal(pairedcorr(parcel, parcel_hat)) ** 2).mean()
 
     def telescope(self, asgt):
-        n_labels = len(asgt.unique())
+        labels = asgt.unique()
+        n_labels = len(labels)
         n_voxels = len(asgt)
         maps = torch.empty((n_labels, n_voxels))
         for i, l in enumerate(labels):
@@ -57,20 +59,26 @@ class AtlasEval:
                  evaluate_homogeneity=True,
                  evaluate_variance=True,
                  evaluate_varexp=True):
-        self.voxel_assignments = {}
+        self.voxel_assignments = OrderedDict()
         self.mask = mask
         self.cur_id = 0
         self.results = {}
         self.benchmarks = []
-        if self.evaluate_homogeneity:
-            self.benchmarks += [InternalHomogeneity()]
-        if self.evaluate_variance:
-            self.benchmarks += [InternalVariance()]
-        if self.evaluate_varexp:
-            self.benchmarks += [VarianceExplained()]
+        if evaluate_homogeneity:
+            benchmark = InternalHomogeneity()
+            self.benchmarks += [benchmark]
+            self.results[benchmark.name] = {}
+        if evaluate_variance:
+            benchmark = InternalVariance()
+            self.benchmarks += [benchmark]
+            self.results[benchmark.name] = {}
+        if evaluate_varexp:
+            benchmark = VarianceExplained()
+            self.benchmarks += [benchmark]
+            self.results[benchmark.name] = {}
 
     def add_voxel_assignment(self, name, asgt):
-        self.voxel_assignments[name] = asgt
+        self.voxel_assignments[name] = asgt.squeeze()
 
     def add_voxel_assignment_from_maps(self, name, maps, compartments):
         asgt = torch.zeros((self.mask.sum()))
@@ -82,22 +90,26 @@ class AtlasEval:
             offset += asgt_compartment.max()
         self.voxel_assignments[name] = asgt
 
-    def evaluate(self, ts, id=None):
+    def evaluate(self, ts, id=None, verbose=False):
         if self.mask is not None:
             ts = ts[self.mask]
         if id is None:
             id = self.cur_id
             self.cur_id += 1
+        if verbose:
+            print(f'[ Computing full spatial correlation ]')
         matrix = corr(ts)
 
         for b in self.benchmarks:
             self.results[b.name][id] = {}
 
         for name, asgt in self.voxel_assignments.items():
+            if verbose:
+                print(f'[ Assignment {name} ]')
             labels = asgt.unique()
             pretransformation = {}
             for b in self.benchmarks:
-                pretransformation[b] = b.pretransform(
+                pretransformation[b.name] = b.pretransform(
                     asgt=asgt,
                     matrix=matrix,
                     ts=ts
@@ -105,6 +117,8 @@ class AtlasEval:
                 self.results[b.name][id][name] = [
                     None for _ in labels]
             for i, label in enumerate(labels):
+                if verbose:
+                    print(f'[ Label {label} ]')
                 label_mask = (asgt == label)
                 parcel = matrix[label_mask, :]
                 for b in self.benchmarks:
