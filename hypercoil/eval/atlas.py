@@ -83,7 +83,7 @@ class AtlasEval:
         self.voxel_assignments[name] = asgt.squeeze()
 
     def add_voxel_assignment_from_maps(self, name, maps, compartments):
-        asgt = torch.zeros((self.mask.sum()))
+        asgt = torch.zeros(self.mask.sum())
         offset = 0
         for k, v in maps.items():
             mask = compartments[k]
@@ -98,34 +98,31 @@ class AtlasEval:
         if id is None:
             id = self.cur_id
             self.cur_id += 1
-        if verbose:
-            print(f'[ Computing full spatial correlation ]')
-        matrix = corr(ts)
-
         for b in self.benchmarks:
             self.results[b.name][id] = {}
 
-        for name, asgt in self.voxel_assignments.items():
+        for i, label in enumerate(labels):
             if verbose:
-                print(f'[ Assignment {name} ]')
-            labels = asgt.unique()
-            pretransformation = {}
-            for b in self.benchmarks:
-                pretransformation[b.name] = b.pretransform(
-                    asgt=asgt,
-                    matrix=matrix,
-                    ts=ts
-                )
-                self.results[b.name][id][name] = [
-                    None for _ in labels]
-            for i, label in enumerate(labels):
+                print(f'[ Label {label} ]')
+            label_mask = (asgt == label)
+            parcel_ts = ts[label_mask, :]
+            parcel = pairedcorr(parcel_ts, ts)
+            for name, asgt in self.voxel_assignments.items():
                 if verbose:
-                    print(f'[ Label {label} ]')
-                label_mask = (asgt == label)
-                parcel = matrix[label_mask, :]
+                    print(f'[ Assignment {name} ]')
+                labels = asgt.unique()
+                pretransformation = {}
                 for b in self.benchmarks:
-                    self.results[b.name][id][name][i] = (
-                        b.transform(
-                            parcel=parcel,
-                            pretransformation=pretransformation[b.name]
-                        ))
+                    pretransformation[b.name] = b.pretransform(
+                        asgt=asgt,
+                        matrix=matrix,
+                        ts=ts
+                    )
+                    self.results[b.name][id][name] = [
+                        None for _ in labels]
+                    for b in self.benchmarks:
+                        self.results[b.name][id][name][i] = (
+                            b.transform(
+                                parcel=parcel,
+                                pretransformation=pretransformation[b.name]
+                            ))
