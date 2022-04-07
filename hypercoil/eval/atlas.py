@@ -11,7 +11,7 @@ from hypercoil.functional import (
 
 
 class AtlasBenchmark:
-    def pretransform(self, asgt, matrix, ts):
+    def pretransform(self, asgt, ts):
         pass
 
     def transform(self, parcel, pretransformation=None):
@@ -35,22 +35,25 @@ class InternalVariance(AtlasBenchmark):
 class VarianceExplained(AtlasBenchmark):
     name = 'varexp'
 
-    def pretransform(self, asgt, matrix, ts):
-        label_ts = self.telescope(asgt) @ ts
+    def pretransform(self, asgt, ts):
+        label_ts = self.telescope(asgt, dtype=ts.dtype, device=ts.device) @ ts
         return pairedcorr(label_ts, ts)
 
     def transform(self, parcel, pretransformation=None):
-        theta, _, _, _ = torch.linalg.lstsq(pretransformation.T, parcel.T)
+        theta, _, _, _ = torch.linalg.lstsq(
+            pretransformation.T, parcel.T,
+            driver='gels'
+        )
         parcel_hat = (pretransformation.T @ theta).T
         return (
             torch.diagonal(pairedcorr(parcel, parcel_hat)) ** 2
         ).mean().item()
 
-    def telescope(self, asgt):
+    def telescope(self, asgt, dtype=None, device=None):
         labels = asgt.unique()
         n_labels = len(labels)
         n_voxels = len(asgt)
-        maps = torch.empty((n_labels, n_voxels))
+        maps = torch.empty((n_labels, n_voxels), dtype=dtype, device=device)
         for i, l in enumerate(labels):
             maps[i] = (asgt == l)
         return maps
@@ -92,37 +95,43 @@ class AtlasEval:
             offset += asgt_compartment.max()
         self.voxel_assignments[name] = asgt
 
-    def evaluate(self, ts, id=None, verbose=False):
+    def evaluate(self, ts, id=None, verbose=False, compute_full_matrix=False):
         if self.mask is not None:
             ts = ts[self.mask]
         if id is None:
             id = self.cur_id
             self.cur_id += 1
+        if compute_full_matrix:
+            if verbose:
+                print(f'[ Computing full spatial correlation ]')
+            matrix = corr(ts)
         for b in self.benchmarks:
             self.results[b.name][id] = {}
 
-        for i, label in enumerate(labels):
+        for name, asgt in self.voxel_assignments.items():
             if verbose:
-                print(f'[ Label {label} ]')
-            label_mask = (asgt == label)
-            parcel_ts = ts[label_mask, :]
-            parcel = pairedcorr(parcel_ts, ts)
-            for name, asgt in self.voxel_assignments.items():
+                print(f'[ Assignment {name} ]')
+            labels = asgt.unique()
+            pretransformation = {}
+            for b in self.benchmarks:
+                pretransformation[b.name] = b.pretransform(
+                    asgt=asgt,
+                    ts=ts
+                )
+                self.results[b.name][id][name] = [
+                    None for _ in labels]
+            for i, label in enumerate(labels):
                 if verbose:
-                    print(f'[ Assignment {name} ]')
-                labels = asgt.unique()
-                pretransformation = {}
+                    print(f'[ Label {label} ]')
+                label_mask = (asgt == label)
+                if compute_full_matrix:
+                    parcel = matrix[label_mask, :]
+                else:
+                    parcel_ts = ts[label_mask, :]
+                    parcel = pairedcorr(parcel_ts, ts)
                 for b in self.benchmarks:
-                    pretransformation[b.name] = b.pretransform(
-                        asgt=asgt,
-                        matrix=matrix,
-                        ts=ts
-                    )
-                    self.results[b.name][id][name] = [
-                        None for _ in labels]
-                    for b in self.benchmarks:
-                        self.results[b.name][id][name][i] = (
-                            b.transform(
-                                parcel=parcel,
-                                pretransformation=pretransformation[b.name]
-                            ))
+                    self.results[b.name][id][name][i] = (
+                        b.transform(
+                            parcel=parcel,
+                            pretransformation=pretransformation[b.name]
+                        ))
