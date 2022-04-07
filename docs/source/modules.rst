@@ -6,6 +6,7 @@ API reference
 
    data
    engine
+   eval
    formula
    functional
    init
