@@ -22,14 +22,14 @@ class InternalHomogeneity(AtlasBenchmark):
     name = 'homogeneity'
 
     def transform(self, parcel, pretransformation=None):
-        return sym2vec(corr(parcel)).mean()
+        return sym2vec(corr(parcel)).mean().item()
 
 
 class InternalVariance(AtlasBenchmark):
     name = 'variance'
 
     def transform(self, parcel, pretransformation=None):
-        return parcel.var(0).mean()
+        return parcel.var(0).mean().item()
 
 
 class VarianceExplained(AtlasBenchmark):
@@ -42,7 +42,9 @@ class VarianceExplained(AtlasBenchmark):
     def transform(self, parcel, pretransformation=None):
         theta, _, _, _ = torch.linalg.lstsq(pretransformation.T, parcel.T)
         parcel_hat = (pretransformation.T @ theta).T
-        return (torch.diagonal(pairedcorr(parcel, parcel_hat)) ** 2).mean()
+        return (
+            torch.diagonal(pairedcorr(parcel, parcel_hat)) ** 2
+        ).mean().item()
 
     def telescope(self, asgt):
         labels = asgt.unique()
