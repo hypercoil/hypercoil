@@ -127,3 +127,27 @@ def plot_frequency_partition(bands, filter, save=None):
         plt.xlim([0, 1])
     if save:
         plt.savefig(save, bbox_inches='tight')
+
+
+def plot_mvkurtosis(fftfilter, weight, input, bands, nu=1, l2=0.01, save=None):
+    from hypercoil.loss import MultivariateKurtosis
+    freq_dim = fftfilter.dim
+    freq = np.linspace(0, 1, freq_dim)
+    out = np.zeros(freq_dim)
+    mvk = MultivariateKurtosis(nu=nu, l2=l2)
+    for hp, lp in bands:
+        with torch.no_grad():
+            fftfilter.preweight.zero_()
+            hp = int(freq_dim * hp)
+            lp = int(freq_dim * lp)
+            fftfilter.preweight[:, hp:lp] = 1.
+        out[hp:lp] = -mvk(fftfilter(input)).detach()
+    plt.figure(figsize=(12, 8))
+    plt.plot(freq, (out / out.max()), c='#999999')
+    plt.plot(freq, weight.squeeze().detach(), c='#7722CC')
+    plt.legend(['MV Kurtosis', 'Transfer'])
+    plt.ylim((0, 1))
+    plt.xlim((0, 1))
+    plt.xlabel('Frequency')
+    if save:
+        plt.savefig(save, bbox_inches='tight')

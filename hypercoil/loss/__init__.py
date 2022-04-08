@@ -63,6 +63,9 @@ from .hinge import (
 from .modularity import (
     ModularityLoss
 )
+from .mvkurtosis import (
+    MultivariateKurtosis
+)
 from .norm import (
     NormedLoss,
     UnilateralNormedLoss
