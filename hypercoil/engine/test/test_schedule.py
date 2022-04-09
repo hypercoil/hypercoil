@@ -23,7 +23,7 @@ from hypercoil.loss import (
 )
 
 
-class TestSentry:
+class TestScheduler:
 
     def test_multiplier_schedule(self):
 
@@ -32,9 +32,12 @@ class TestSentry:
                 super().__init__(trigger=['EPOCH'])
 
             def propagate(self, sentry, received):
-                message = {'LOSS': -1000, 'NAME': 'BlubbaTheWhale'}
+                self.message.update(
+                    ('LOSS', -1000),
+                    ('NAME', 'BlubbaTheWhale')
+                )
                 for s in sentry.listeners:
-                    s._listen(message)
+                    s._listen(self.message)
 
         max_epoch = 100
         epochs = Epochs(max_epoch)
@@ -56,7 +59,7 @@ class TestSentry:
             epochs=epochs,
             transitions={(10, 30): 5,
                          (40, 50): 3,
-                         (55, 60): -1,
+                         (55, 65): -1,
                          (75, 90): 11},
             base=1
         )
@@ -108,7 +111,7 @@ class TestSentry:
         assert np.isclose(archive.archive['loss3'][20], 3 * orig)
         assert np.isclose(archive.archive['loss3'][40], 5 * orig)
         assert np.isclose(archive.archive['loss3'][50], 3 * orig)
-        assert np.isclose(archive.archive['loss3'][60], -1 * orig)
+        assert np.isclose(archive.archive['loss3'][60], 1 * orig)
         assert np.isclose(archive.archive['loss3'][70], -1 * orig)
         assert np.isclose(archive.archive['loss3'][80], 3 * orig)
         assert np.isclose(archive.archive['loss3'][90], 11 * orig)
