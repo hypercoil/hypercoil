@@ -8,7 +8,8 @@ Base modules for loss functions.
 """
 from torch.nn import Module
 from collections.abc import Mapping
-from hypercoil.engine.sentry import Sentry, SentryModule, UpdateMultiplier
+from hypercoil.engine import Sentry, SentryModule
+from hypercoil.engine.action import UpdateMultiplier
 
 
 def identity(*args):
@@ -142,11 +143,12 @@ class ReducingLoss(Loss):
 
     def forward(self, *args, **kwargs):
         out = self.nu * self.reduction(self.loss(*args, **kwargs))
-        message = {
-            'NAME': self.name,
-            'LOSS': out.clone().detach().item(),
-            'NU': self.nu
-        }
+        self.message.update(
+            ('NAME', self.name),
+            ('LOSS', out.clone().detach().item()),
+            ('NU', self.nu)
+        )
         for s in self.listeners:
-            s._listen(message)
+            s._listen(self.message)
+        self.message.clear()
         return out

@@ -20,9 +20,9 @@ class PropagateMultiplierFromEpochTransform(
     PropagateMultiplierFromTransform
 ):
     def propagate(self, sentry, received):
-        message = {'NU': self.transform(received['EPOCH'])}
+        self.message.update(('NU', self.transform(received['EPOCH'])))
         for s in sentry.listeners:
-            s._listen(message)
+            s._listen(self.message)
 
 
 class PropagateMultiplierFromRecursiveTransform(
@@ -30,8 +30,8 @@ class PropagateMultiplierFromRecursiveTransform(
 ):
     def propagate(self, sentry, received):
         for s in sentry.listeners:
-            message = {'NU': self.transform(s.nu)}
-            s._listen(message)
+            self.message.update(('NU', self.transform(s.nu)))
+            s._listen(self.message)
 
 
 class UpdateMultiplier(SentryAction):
@@ -48,8 +48,8 @@ class ResetMultiplier(SentryAction):
 
     def propagate(self, sentry, received):
         for s in sentry.listeners:
-            message = {'NU': received['NU_BASE']}
-            s._listen(message)
+            self.message.update(('NU', received['NU_BASE']))
+            s._listen(self.message)
 
 
 class RecordLoss(SentryAction):

@@ -10,7 +10,7 @@ import torch
 import pandas as pd
 from torch.nn import Module
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 
 
 class Sentry:
@@ -18,6 +18,7 @@ class Sentry:
         self.listeners = []
         self.listening = []
         self.actions = []
+        self.message = SentryMessage()
 
     def register_sentry(self, sentry):
         if sentry not in self.listeners:
@@ -55,12 +56,50 @@ class SentryModule(Module, Sentry):
         self.listeners = []
         self.listening = []
         self.actions = []
+        self.message = SentryMessage()
+
+
+class SentryMessage(Mapping):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.content = {}
+        self.content.update(kwargs)
+
+    def __setitem__(self, k, v):
+        self.__setattr__(k, v)
+
+    def __getitem__(self, k):
+        return self.content[k]
+
+    def __delitem__(self, k):
+        del self.content[k]
+
+    def __len__(self):
+        return len(self.content)
+
+    def __iter__(self):
+        return iter(self.content)
+
+    def clear(self):
+        self.content = {}
+
+    def reset(self):
+        self.clear()
+
+    def update(self, *args, **kwargs):
+        for k, v in args:
+            self.content[k] = v
+        self.content.update(**kwargs)
+
+    def transmit(self):
+        return self.content
 
 
 class SentryAction(ABC):
     def __init__(self, trigger):
         self.trigger = trigger
         self.sentries = []
+        self.message = SentryMessage()
 
     def __call__(self, message):
         received = {t: message.get(t) for t in self.trigger}
@@ -104,7 +143,7 @@ class Epochs(Sentry, Iterator):
         self.cur_epoch += 1
         if self.cur_epoch >= self.max_epoch:
             raise StopIteration
-        message = {'EPOCH' : self.cur_epoch}
+        self.message.update(('EPOCH', self.cur_epoch))
         for s in self.listeners:
-            s._listen(message)
+            s._listen(self.message)
         return self.cur_epoch

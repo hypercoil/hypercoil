@@ -25,8 +25,11 @@ class SchedulerSentry(Sentry):
         self.register_action(ResetMultiplier())
 
     def reset(self):
+        self.message.clear()
+        self.message.update(('NU_BASE', self.base))
         for action in self.actions:
-            action({'NU_BASE': self.base})
+            action(self.message)
+        self.message.clear()
 
 
 class MultiplierSchedule(SchedulerSentry):
