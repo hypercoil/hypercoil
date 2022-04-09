@@ -12,7 +12,8 @@ from .report import (
     LossArchive,
 )
 from .schedule import (
-    MultiplierSchedule,
+    MultiplierTransformSchedule,
     MultiplierRecursiveSchedule,
+    MultiplierLinearSchedule,
     MultiplierSigmoidSchedule,
 )
