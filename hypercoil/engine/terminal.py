@@ -6,10 +6,10 @@ Diff terminals
 ~~~~~~~~~~~~~~
 Differentiable program terminals. Currently minimal functionality.
 """
-from torch.nn import Module
+from .sentry import SentryModule
 
 
-class Terminal(Module):
+class Terminal(SentryModule):
     """
     Right now, this does nothing whatsoever.
     """
@@ -17,8 +17,20 @@ class Terminal(Module):
         super().__init__()
         self.loss = loss
 
+    def _transmit(self, loss_value):
+        self.message.update(
+            ('NAME', self.loss.name),
+            ('LOSS', loss_value.detach().item()),
+            ('NU', self.loss.nu)
+        )
+        for s in self.listeners:
+            s._listen(self.message)
+        self.message.clear()
+
     def forward(self, arg):
-        return self.loss(**arg)
+        loss = self.loss(**arg)
+        self._transmit(loss)
+        return loss
 
 
 class ReactiveTerminal(Terminal):
@@ -66,6 +78,7 @@ class ReactiveTerminal(Terminal):
             loss += Y
             Y.backward()
             begin += self.max_slice
+        self._transmit(loss)
         return loss
 
 
@@ -120,4 +133,5 @@ class ReactiveMultiTerminal(Terminal):
             loss += Y
             Y.backward()
             begin += self.max_slice
+        self._transmit(loss)
         return loss
