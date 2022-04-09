@@ -34,6 +34,7 @@ class InternalVariance(AtlasBenchmark):
 
 class VarianceExplained(AtlasBenchmark):
     name = 'varexp'
+    lstsq_driver = 'gels'
 
     def pretransform(self, asgt, ts):
         label_ts = self.telescope(asgt, dtype=ts.dtype, device=ts.device) @ ts
@@ -42,7 +43,7 @@ class VarianceExplained(AtlasBenchmark):
     def transform(self, parcel, pretransformation=None):
         theta, _, _, _ = torch.linalg.lstsq(
             pretransformation.T, parcel.T,
-            driver='gels'
+            driver=self.lstsq_driver
         )
         parcel_hat = (pretransformation.T @ theta).T
         return (
@@ -63,7 +64,8 @@ class AtlasEval:
     def __init__(self, mask,
                  evaluate_homogeneity=True,
                  evaluate_variance=True,
-                 evaluate_varexp=True):
+                 evaluate_varexp=True,
+                 lstsq_driver='gels'):
         self.voxel_assignments = OrderedDict()
         self.mask = mask
         self.cur_id = 0
@@ -79,6 +81,7 @@ class AtlasEval:
             self.results[benchmark.name] = {}
         if evaluate_varexp:
             benchmark = VarianceExplained()
+            benchmark.lstsq_driver = lstsq_driver
             self.benchmarks += [benchmark]
             self.results[benchmark.name] = {}
 
