@@ -8,6 +8,7 @@ Atlas benchmarks
 Benchmark parcellations.
 """
 import click
+import json
 import torch
 import pathlib
 import numpy as np
@@ -70,14 +71,13 @@ def run_benchmark(
         name = '.'.join(atlas.split('.')[:-1])
         name = name.split('/')[-1]
         eval.add_voxel_assignment(
-            name=atlas,
+            name=name,
             asgt=torch.tensor(
                 nb.load(atlas).get_fdata(),
                 dtype=torch.long,
                 device=device
             )
         )
-        break
 
     for s, sample in enumerate(ds):
         print(f'[ Preparing next sample {s} ]')
@@ -97,13 +97,14 @@ def run_benchmark(
             compute_full_matrix=compute_full_matrix
         )
 
-        break
     return eval
 
 
+##TODO: we really should replace the `atlas_dim` hack with a proper mask option
 @click.command()
 @click.option('-a', '--atlas', 'atlas_list', multiple=True, required=True)
 @click.option('-d', '--data', 'data_dir', required=True, type=str)
+@click.option('-o', '--out', required=True, type=str)
 @click.option('-b', '--batch-size', default=1, type=int)
 @click.option('-s', '--buffer-size', default=1, type=int)
 @click.option('-l', '--atlas-dim', default=59412, type=int)
@@ -112,7 +113,7 @@ def run_benchmark(
 @click.option('--compute-full-matrix', default=False, type=bool)
 @click.option('--lstsq-driver', default='gels',
               type=click.Choice(['gels', 'gelsy', 'gelss', 'gelsd']))
-def main(atlas_list, data_dir, batch_size, buffer_size,
+def main(atlas_list, data_dir, out, batch_size, buffer_size,
          atlas_dim, verbose, device, compute_full_matrix, lstsq_driver):
     eval = run_benchmark(
         atlas_list=atlas_list,
@@ -125,7 +126,13 @@ def main(atlas_list, data_dir, batch_size, buffer_size,
         lstsq_driver=lstsq_driver,
         compute_full_matrix=compute_full_matrix
     )
-    print(eval.results)
+    with open(out, 'w') as fp:
+        json.dump(
+            eval.results, fp,
+            sort_keys=True,
+            indent=4,
+            separators=(',', ': ')
+        )
 
 
 if __name__ == '__main__':
