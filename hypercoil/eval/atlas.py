@@ -60,6 +60,7 @@ class VarianceExplained(AtlasBenchmark):
         return maps
 
 
+##TODO: flexible null label instead of fixed to 0.
 class AtlasEval:
     def __init__(self, mask,
                  evaluate_homogeneity=True,
@@ -70,6 +71,7 @@ class AtlasEval:
         self.mask = mask
         self.cur_id = 0
         self.results = {}
+        self.results['sizes'] = {}
         self.benchmarks = []
         if evaluate_homogeneity:
             benchmark = InternalHomogeneity()
@@ -87,6 +89,7 @@ class AtlasEval:
 
     def add_voxel_assignment(self, name, asgt):
         self.voxel_assignments[name] = asgt.squeeze()
+        self.get_parcel_sizes(name)
 
     def add_voxel_assignment_from_maps(self, name, maps, compartments):
         asgt = torch.zeros(self.mask.sum())
@@ -96,7 +99,17 @@ class AtlasEval:
             asgt_compartment = v.argmax(0)
             asgt[mask] = asgt_compartment + offset
             offset += asgt_compartment.max()
-        self.voxel_assignments[name] = asgt
+        self.add_voxel_assignment(name, asgt)
+
+    def get_parcel_sizes(self, name):
+        asgt = self.voxel_assignments[name]
+        labels = asgt.unique()
+        sizes = [None for _ in labels]
+        for i, label in enumerate(labels):
+            if label == 0:
+                continue
+            sizes[i] = (asgt == label).sum().item()
+        self.results['sizes'][name] = sizes
 
     def evaluate(self, ts, id=None, verbose=False, compute_full_matrix=False):
         if self.mask is not None:
@@ -124,6 +137,8 @@ class AtlasEval:
                 self.results[b.name][id][name] = [
                     None for _ in labels]
             for i, label in enumerate(labels):
+                if label == 0:
+                    continue
                 if verbose:
                     print(f'[ Label {label} ]')
                 label_mask = (asgt == label)
