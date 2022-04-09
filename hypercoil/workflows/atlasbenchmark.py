@@ -12,6 +12,7 @@ import torch
 import pathlib
 import numpy as np
 import nibabel as nb
+import webdataset as wds
 import templateflow.api as tflow
 from collections import OrderedDict
 from hypercoil.eval.atlas import AtlasEval
@@ -23,7 +24,6 @@ from hypercoil.data.functional import identity
 from hypercoil.data.transforms import (
     Normalise
 )
-from hypercoil.data.wds import torch_wds
 
 
 def run_benchmark(
@@ -46,12 +46,10 @@ def run_benchmark(
         't_r' : identity,
         'task' : identity,
     }
-    ds = torch_wds(
-        data_dir,
-        keys=maps,
-        batch_size=batch_size,
-        shuffle=buffer_size,
-        map=identity
+    ds = wds.DataPipeline(
+        wds.ResampledShards(data_dir),
+        wds.tarfile_to_samples(),
+        wds.decode(lambda x, y: wds.autodecode.torch_loads(y))
     )
     polybasis = torch.stack([
         torch.arange(1200, device=device) ** i
@@ -69,6 +67,8 @@ def run_benchmark(
     parcellations = list(atlas_list)
     parcellations.sort()
     for i, atlas in enumerate(parcellations):
+        name = '.'.join(atlas.split('.')[:-1])
+        name = name.split('/')[-1]
         eval.add_voxel_assignment(
             name=atlas,
             asgt=torch.tensor(
@@ -81,7 +81,8 @@ def run_benchmark(
 
     for s, sample in enumerate(ds):
         print(f'[ Preparing next sample {s} ]')
-        X = sample[0].squeeze().to(device=device, dtype=torch.float)
+        key = sample['__key__'].split('/')[-1]
+        X = sample['images'].squeeze().to(device=device, dtype=torch.float)
         if X.shape[-1] != 1200:
             print(f'[ Incorrect time dim: {X.shape[-1]}. Skipping ]')
             continue
@@ -91,7 +92,7 @@ def run_benchmark(
         data = normalise(data)
 
         eval.evaluate(
-            data,
+            data, id=key,
             verbose=verbose,
             compute_full_matrix=compute_full_matrix
         )
