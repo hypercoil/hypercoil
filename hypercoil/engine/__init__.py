@@ -6,9 +6,13 @@
 from .sentry import (
     Sentry,
     SentryModule,
-    Epochs,
+    Epochs
+)
+from .report import (
+    LossArchive,
+)
+from .schedule import (
     MultiplierSchedule,
     MultiplierRecursiveSchedule,
     MultiplierSigmoidSchedule,
-    LossArchive,
 )

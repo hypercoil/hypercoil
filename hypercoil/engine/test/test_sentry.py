@@ -7,13 +7,15 @@ Unit tests for sentry objects.
 import pytest
 import torch
 import numpy as np
-from hypercoil.engine.sentry import (
+from hypercoil.engine import (
     Epochs,
-    SentryAction,
     MultiplierSchedule,
     MultiplierRecursiveSchedule,
     MultiplierSigmoidSchedule,
     LossArchive
+)
+from hypercoil.engine.sentry import (
+    SentryAction
 )
 from hypercoil.loss import (
     SoftmaxEntropy
