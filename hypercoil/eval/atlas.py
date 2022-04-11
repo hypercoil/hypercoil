@@ -11,6 +11,8 @@ from hypercoil.functional import (
 
 
 class AtlasBenchmark:
+    parcel = True
+
     def pretransform(self, asgt, ts):
         pass
 
@@ -18,8 +20,16 @@ class AtlasBenchmark:
         pass
 
 
-class InternalHomogeneity(AtlasBenchmark):
+class TimeSeriesHomogeneity(AtlasBenchmark):
     name = 'homogeneity'
+    parcel = False
+
+    def transform(self, parcel, pretransformation=None):
+        return sym2vec(corr(parcel)).mean().item()
+
+
+class ConnectivityHomogeneity(AtlasBenchmark):
+    name = 'connhomogeneity'
 
     def transform(self, parcel, pretransformation=None):
         return sym2vec(corr(parcel)).mean().item()
@@ -64,6 +74,7 @@ class VarianceExplained(AtlasBenchmark):
 class AtlasEval:
     def __init__(self, mask,
                  evaluate_homogeneity=True,
+                 evaluate_connhomogeneity=False,
                  evaluate_variance=True,
                  evaluate_varexp=True,
                  lstsq_driver='gels'):
@@ -74,7 +85,11 @@ class AtlasEval:
         self.results['sizes'] = {}
         self.benchmarks = []
         if evaluate_homogeneity:
-            benchmark = InternalHomogeneity()
+            benchmark = TimeSeriesHomogeneity()
+            self.benchmarks += [benchmark]
+            self.results[benchmark.name] = {}
+        if evaluate_connhomogeneity:
+            benchmark = ConnectivityHomogeneity()
             self.benchmarks += [benchmark]
             self.results[benchmark.name] = {}
         if evaluate_variance:
@@ -146,10 +161,15 @@ class AtlasEval:
                     parcel = matrix[label_mask, :]
                 else:
                     parcel_ts = ts[label_mask, :]
+                if any([b.parcel for b in self.benchmarks]):
                     parcel = pairedcorr(parcel_ts, ts)
                 for b in self.benchmarks:
+                    if b.parcel:
+                        p = parcel
+                    else:
+                        p = parcel_ts
                     self.results[b.name][id][name][i] = (
                         b.transform(
-                            parcel=parcel,
+                            parcel=p,
                             pretransformation=pretransformation[b.name]
                         ))

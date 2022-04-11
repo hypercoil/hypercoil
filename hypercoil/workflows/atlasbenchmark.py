@@ -39,7 +39,8 @@ def run_benchmark(
     compute_full_matrix=False,
     skip_homogeneity=False,
     skip_variance=False,
-    skip_varexp=False
+    skip_varexp=False,
+    compute_connhomogeneity=False
 ):
 
     normalise = Normalise()
@@ -67,7 +68,8 @@ def run_benchmark(
         lstsq_driver=lstsq_driver,
         evaluate_homogeneity=(not skip_homogeneity),
         evaluate_variance=(not skip_variance),
-        evaluate_varexp=(not skip_varexp)
+        evaluate_varexp=(not skip_varexp),
+        evaluate_connhomogeneity=compute_connhomogeneity
     )
 
     print('[ Loading parcellations ]')
@@ -120,11 +122,13 @@ def run_benchmark(
 @click.option('--skip-homogeneity', default=False, type=bool, is_flag=True)
 @click.option('--skip-variance', default=False, type=bool, is_flag=True)
 @click.option('--skip-varexp', default=False, type=bool, is_flag=True)
+@click.option('--compute-connhomogeneity', default=False, type=bool, is_flag=True)
 @click.option('--lstsq-driver', default='gels',
               type=click.Choice(['gels', 'gelsy', 'gelss', 'gelsd']))
 def main(atlas_list, data_dir, out, batch_size, buffer_size,
          atlas_dim, verbose, device, compute_full_matrix, lstsq_driver,
-         skip_homogeneity, skip_variance, skip_varexp):
+         skip_homogeneity, skip_variance, skip_varexp,
+         compute_connhomogeneity):
     eval = run_benchmark(
         atlas_list=atlas_list,
         data_dir=data_dir,
@@ -137,7 +141,8 @@ def main(atlas_list, data_dir, out, batch_size, buffer_size,
         compute_full_matrix=compute_full_matrix,
         skip_homogeneity=skip_homogeneity,
         skip_variance=skip_variance,
-        skip_varexp=skip_varexp
+        skip_varexp=skip_varexp,
+        compute_connhomogeneity=compute_connhomogeneity
     )
     with open(out, 'w') as fp:
         json.dump(
