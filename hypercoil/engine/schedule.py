@@ -69,7 +69,7 @@ class MultiplierTransitionSchedule(MultiplierTransformSchedule):
         )
 
 
-class MultiplierSigmoidSchedule(MultiplierTransitionSchedule):
+class MultiplierCascadeSchedule(MultiplierTransitionSchedule):
     @staticmethod
     def get_transform(e, transitions):
         for ((begin_epoch, end_epoch),
@@ -85,7 +85,7 @@ class MultiplierSigmoidSchedule(MultiplierTransitionSchedule):
         return end_nu
 
 
-class MultiplierLinearSchedule(MultiplierTransitionSchedule):
+class MultiplierRampSchedule(MultiplierTransitionSchedule):
     @staticmethod
     def get_transform(e, transitions):
         for ((begin_epoch, end_epoch),

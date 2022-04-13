@@ -14,6 +14,6 @@ from .report import (
 from .schedule import (
     MultiplierTransformSchedule,
     MultiplierRecursiveSchedule,
-    MultiplierLinearSchedule,
-    MultiplierSigmoidSchedule,
+    MultiplierRampSchedule,
+    MultiplierCascadeSchedule,
 )

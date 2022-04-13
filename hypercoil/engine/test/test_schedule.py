@@ -11,8 +11,8 @@ from hypercoil.engine import (
     Epochs,
     MultiplierTransformSchedule,
     MultiplierRecursiveSchedule,
-    MultiplierLinearSchedule,
-    MultiplierSigmoidSchedule,
+    MultiplierRampSchedule,
+    MultiplierCascadeSchedule,
     LossArchive
 )
 from hypercoil.engine.sentry import (
@@ -50,12 +50,12 @@ class TestScheduler:
             transform=lambda nu: 1.01 * nu,
             base=(1 / 1.01)
         )
-        schedule2 = MultiplierSigmoidSchedule(
+        schedule2 = MultiplierCascadeSchedule(
             epochs=epochs,
             transitions={(21, 40): 5, (61, 80): 2},
             base=1
         )
-        schedule3 = MultiplierLinearSchedule(
+        schedule3 = MultiplierRampSchedule(
             epochs=epochs,
             transitions={(10, 30): 5,
                          (40, 50): 3,
