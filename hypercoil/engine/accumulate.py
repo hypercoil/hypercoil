@@ -12,6 +12,60 @@ from collections import OrderedDict
 from hypercoil.loss import LossArgument as ModelArgument
 
 
+class AccumulatingRecord(Function):
+    @staticmethod
+    def forward(
+        ctx,
+        record,
+        gradient,
+        backward,
+        retain_dims,
+        inputs,
+        outputs,
+        terminate,
+        *params
+    ):
+        ctx.backward = backward
+        ctx.terminate = terminate
+        ctx.n_inputs = len(inputs)
+        if terminate:
+            grad = [g for _, g in record]
+            ctx.save_for_backward(*grad)
+            return out, record
+        grad = gradient(*inputs, *outputs, *params)
+        if record is None:
+            record = [(0, 0) for _ in grad]
+        for i, g in enumerate(grad):
+            reduce_dims = [True for _ in range(g.dim())]
+            for d in retain_dims:
+                try:
+                    reduce_dims[d] = False
+                except IndexError:
+                    pass
+            reduced_dims = [i for i, d in enumerate(reduce_dims) if d]
+            n_wei = torch.tensor(g.shape)[reduced_dims].prod().item()
+            wei, rec = record[i]
+            grad[i] = n_wei * torch.mean(g, axis=*reduce_dims) + wei * record[i]
+            record[i] = (n_wei + wei, grad[i])
+        return out, record
+
+    @staticmethod
+    def backward(ctx, *grad_output):
+        if not ctx.terminate:
+            return 0
+        ret = (
+            None, #record,
+            None, #gradient,
+            None, #backward,
+            None, #retain_dims,
+            None, #inputs,
+            None, #outputs,
+            None, #terminate,
+            *ctx.backward(*grad_output, *ctx.saved_tensors)
+        )
+        return ret
+
+
 class AccumulatingFunction(Function):
     @staticmethod
     def forward(
