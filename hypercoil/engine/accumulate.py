@@ -42,7 +42,7 @@ class AccumulatingFunction(Function):
             arg = argmap(sample)
             out += [acc(arg)]
             sampled += throughput
-        acc_vals = [v.clone() for v in acc.acc.values()]
+        acc_vals = [v for v in acc.acc.values()]
         ctx.save_for_backward(*acc_vals)
         acc.reset()
         keys = out[0].keys()
