@@ -36,7 +36,11 @@ def run_benchmark(
     verbose=False,
     device='cuda:0',
     lstsq_driver='gels',
-    compute_full_matrix=False
+    compute_full_matrix=False,
+    skip_homogeneity=False,
+    skip_variance=False,
+    skip_varexp=False,
+    compute_connhomogeneity=False
 ):
 
     normalise = Normalise()
@@ -48,7 +52,7 @@ def run_benchmark(
         'task' : identity,
     }
     ds = wds.DataPipeline(
-        wds.ResampledShards(data_dir),
+        wds.SimpleShardList(data_dir),
         wds.tarfile_to_samples(),
         wds.decode(lambda x, y: wds.autodecode.torch_loads(y))
     )
@@ -61,7 +65,11 @@ def run_benchmark(
     mask[:atlas_dim] = 1
     eval = AtlasEval(
         mask=mask,
-        lstsq_driver=lstsq_driver
+        lstsq_driver=lstsq_driver,
+        evaluate_homogeneity=(not skip_homogeneity),
+        evaluate_variance=(not skip_variance),
+        evaluate_varexp=(not skip_varexp),
+        evaluate_connhomogeneity=compute_connhomogeneity
     )
 
     print('[ Loading parcellations ]')
@@ -80,8 +88,8 @@ def run_benchmark(
         )
 
     for s, sample in enumerate(ds):
-        print(f'[ Preparing next sample {s} ]')
         key = sample['__key__'].split('/')[-1]
+        print(f'[ Preparing next sample {key} ]')
         X = sample['images'].squeeze().to(device=device, dtype=torch.float)
         if X.shape[-1] != 1200:
             print(f'[ Incorrect time dim: {X.shape[-1]}. Skipping ]')
@@ -110,11 +118,17 @@ def run_benchmark(
 @click.option('-l', '--atlas-dim', default=59412, type=int)
 @click.option('-v', '--verbose', default=False, type=bool, is_flag=True)
 @click.option('-c', '--device', default='cuda:0', type=str)
-@click.option('--compute-full-matrix', default=False, type=bool)
+@click.option('--compute-full-matrix', default=False, type=bool, is_flag=True)
+@click.option('--skip-homogeneity', default=False, type=bool, is_flag=True)
+@click.option('--skip-variance', default=False, type=bool, is_flag=True)
+@click.option('--skip-varexp', default=False, type=bool, is_flag=True)
+@click.option('--compute-connhomogeneity', default=False, type=bool, is_flag=True)
 @click.option('--lstsq-driver', default='gels',
               type=click.Choice(['gels', 'gelsy', 'gelss', 'gelsd']))
 def main(atlas_list, data_dir, out, batch_size, buffer_size,
-         atlas_dim, verbose, device, compute_full_matrix, lstsq_driver):
+         atlas_dim, verbose, device, compute_full_matrix, lstsq_driver,
+         skip_homogeneity, skip_variance, skip_varexp,
+         compute_connhomogeneity):
     eval = run_benchmark(
         atlas_list=atlas_list,
         data_dir=data_dir,
@@ -124,7 +138,11 @@ def main(atlas_list, data_dir, out, batch_size, buffer_size,
         verbose=verbose,
         device=device,
         lstsq_driver=lstsq_driver,
-        compute_full_matrix=compute_full_matrix
+        compute_full_matrix=compute_full_matrix,
+        skip_homogeneity=skip_homogeneity,
+        skip_variance=skip_variance,
+        skip_varexp=skip_varexp,
+        compute_connhomogeneity=compute_connhomogeneity
     )
     with open(out, 'w') as fp:
         json.dump(
