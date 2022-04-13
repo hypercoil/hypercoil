@@ -14,15 +14,64 @@ from hypercoil.loss import LossArgument as ModelArgument
 
 class AccumulatingFunction(Function):
     @staticmethod
-    def forward(ctx, arg):
-        with torch.no_grad():
-            pass
+    def forward(
+        ctx,
+        model,
+        gradient,
+        backward,
+        retain_dims,
+        argmap,
+        throughput,
+        batch_size,
+        data_source,
+        *params
+    ):
+        ctx.backward = backward
+        acc = Accumulator(
+            model=model,
+            gradient=gradient,
+            retain_dims=retain_dims,
+            model_params=[],
+            reduce_dims='mean'
+        )
+        sampled = 0
+        out = []
+        output = {}
+        while sampled < batch_size:
+            sample = data_source.sample(throughput)
+            arg = argmap(sample)
+            out += [acc(arg)]
+            sampled += throughput
+        acc_vals = [v.clone() for v in acc.acc.values()]
+        ctx.save_for_backward(*acc_vals)
+        acc.reset()
+        keys = out[0].keys()
+        for k in keys:
+            output[k] = torch.cat([o[k] for o in out])
+        ret = [o for o in output.values()]
+        return tuple(ret)
+
+    @staticmethod
+    def backward(ctx, *grad_output):
+        ret = (
+            None, #model
+            None, #gradient
+            None, #backward
+            None, #retain_dims
+            None, #argmap
+            None, #throughput
+            None, #batch_size
+            None, #data_source
+            *ctx.backward(*grad_output, *ctx.saved_tensors) # params
+        )
+        return ret
 
 
-class Accumulator:
+class Accumulator(torch.nn.Module):
     def __init__(self, model, gradient, retain_dims,
                  reduce_dims=None, autouse_domain_gradient=False,
                  model_outputs=None, model_params=None):
+        super().__init__()
         if model_outputs is None:
             model_outputs = ['out']
         if model_params is None:
@@ -44,9 +93,12 @@ class Accumulator:
         self.reduction = reduction
         self.model_outputs = model_outputs
         self.model_params = model_params
+        self.reset()
+
+    def reset(self):
         self.acc = {}
         self.acc_weight = {}
-        
+
     def _get_reduced_dims(self, tensor):
         reduced_dims = [True for _ in range(tensor.dim())]
         for ax in self.retain_dims:
@@ -56,7 +108,7 @@ class Accumulator:
                 pass
         reduced_weight = torch.tensor(tensor.shape)[reduced_dims].prod().item()
         return [i for i, d in enumerate(reduced_dims) if d], reduced_weight
-        
+
     def _conform_dims(self, grad):
         reduced_weight = {}
         for k, v in grad.items():
@@ -67,7 +119,7 @@ class Accumulator:
                 grad[k] = v
             reduced_weight[k] = r_weight
         return grad, reduced_weight
-    
+
     def _accumulate(self, grad, reduced_weight):
         for k, v in grad.items():
             if self.acc.get(k) is None:
@@ -100,6 +152,3 @@ class Accumulator:
             grad, reduced_weight = self._conform_dims(self.gradient(**grad_arg))
             self._accumulate(grad, reduced_weight)
         return out
-
-    def backward(self, arg, retain_graph=False):
-        pass
