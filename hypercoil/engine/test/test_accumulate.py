@@ -106,18 +106,32 @@ class TestAccumulator:
 
         af = AccumulatingFunction.apply
         argmap = lambda t: ModelArgument(x=t)
+        data_source = Slicing0Source(T)
 
-        out = af(
-            lambda x: W @ x, # model
-            model_grad, # gradient
-            bwd, # backward
-            (-1, -2), # retain_dims
-            argmap, # argmap
-            3, # throughput
-            20, # batch_size
-            Slicing0Source(T), # data_source
-            W # param
-        )[0]
+        sampled = 0
+        batch_size = 20
+        throughput = 3
+        out = []
+        record = []
+        terminate = False
+        while not terminate:
+            if sampled > batch_size:
+                terminate = True
+                sample = None
+            else:
+                sample = data_source.sample(throughput)
+                sampled += throughput
+            out = af(
+                acc,
+                bwd,
+                argmap,
+                sample,
+                out,
+                record,
+                terminate,
+                W
+            )
+        out = out[0]
         Y = torch.tanh(out)
         Y = W2 @ out @ W3
         l = loss(Y, torch.zeros_like(Y))
