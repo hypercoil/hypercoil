@@ -2,9 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Accumulator
-~~~~~~~~~~~
-Gradient accumulator for throughput control.
+Local gradient accumulator for throughput control.
 
 Data conveyances through the atlas layer are, in general, throughput-limited.
 The atlas layer operates on voxel-wise or vertex-wise datasets, which
@@ -28,18 +26,18 @@ forward pass through the atlas layer.
     There is no principled reason for this inefficiency; it appears to be a
     limitation of the way we interact with autograd. It would be great to work
     out a more streamlined approach, perhaps involving forward-mode
-    autodifferentiation. The AI community likely already has many better
-    solutions, but as a general rule is challenging to get information from.
+    autodifferentiation. There are likely already many better solutions in
+    existence.
 
 Our solution works by first fragmenting each batch according to the throughput
 limit of the high-memory-demand function. It then passes the data fragments
 (which need not all be loaded into memory at once) one by one through a
 throughput-limited
-``AccumulatingFunction`` that subclasses
-``torch.autograd.Function``. Each ``AccumulatingFunction`` caches only the
-accumulated batch-average local gradient with respect to each parameter for
-the backward pass, enabling memory savings of a factor equal to the batch size
-or batch size to throughput ratio.
+:doc:`AccumulatingFunction <hypercoil.engine.accumulate.AccumulatingFunction>`
+that subclasses ``torch.autograd.Function``. Each ``AccumulatingFunction``
+caches only the accumulated batch-average local gradient with respect to each
+parameter for the backward pass, enabling memory savings of a factor equal to
+the batch size or batch size-to-throughput ratio.
 
 .. warning::
     Note that this solution only works if the local gradient over the batch is
@@ -47,7 +45,7 @@ or batch size to throughput ratio.
     the input as non differentiable and thereby blocks further backpropagation,
     it will only work as an input layer.
 
-Because of the compartmentalised environment of ``autograd.Function``s, it is
+Because of the compartmentalised environment of ``autograd.Function``, it is
 not possible to interact with the per-fragment inputs and outputs outside of
 that environment, and inside the environment there is no history tracking;
 automatic differentiation is therefore inactive. This introduces a second
@@ -60,7 +58,8 @@ cannot be tracked at the fragment level in the ``AccumulatingFunction``'s
 forward pass.
 
 The working solution is to implement two parallel forward passes in a
-``Module`` that wraps ``AccumulatingFunction``, the ``Accumuline``. For each
+``Module`` that wraps ``AccumulatingFunction``, the
+:doc:`Accumuline <hypercoil.engine.accumulate.Accumuline>`. For each
 batch fragment, the ``Accumuline`` runs one forward pass inside the
 ``AccumulatingFunction`` and a second outside it. The forward pass run outside
 of the ``AccumulatingFunction`` can then interact with local loss functions.
@@ -80,7 +79,9 @@ class Accumuline(torch.nn.Module):
         retain_dims,
         argmap,
         throughput,
-        batch_size
+        batch_size,
+        loss=None,
+        loss_argmap=None
     ):
         super().__init__()
         self.model = model
@@ -90,6 +91,8 @@ class Accumuline(torch.nn.Module):
         self.argmap = argmap
         self.throughput = throughput
         self.batch_size = batch_size
+        self.loss = loss
+        self.loss_argmap = loss_argmap
         self.acc = Accumulator(
             model=self.model,
             gradient=self.gradient,
@@ -111,6 +114,13 @@ class Accumuline(torch.nn.Module):
             else:
                 sample = data_source.sample(self.throughput)
                 sampled += self.throughput
+            if self.loss is not None:
+                sample_out = self.model(sample)
+                loss_arg = self.loss_argmap(
+                    sample, sample_out, self.model
+                )
+                l = loss(loss_arg)
+                l.backward()
             out = accfwd(
                 self.acc,
                 self.backward,
@@ -168,6 +178,99 @@ class AccumulatingFunction(Function):
 
 
 class Accumulator(torch.nn.Module):
+    """
+    Additive local gradient accumulator module.
+
+    We can implement batch-averaged local additive gradient accumulation for
+    matrix-matrix multiplication as follows. Let's assume that one matrix
+    ``W`` we are multiplying is also the parameter for which we want to
+    accumulate gradient.
+
+    First, we define a ``model`` for the forward call. This is the matrix
+    multiply operation.::
+
+        model = lambda X: W @ X
+
+    Next, we specify the local gradient function -- the derivative of the
+    model output with respect to the parameter ``W`` that we are interested
+    in. The gradient should return a mapping over parameters of interest.::
+
+        def model_grad(X, *args, **kwargs):
+            return {'W': X.transpose(-1, -2)}
+
+    By default, an ``Accumulator`` will reduce any dimensions of the local
+    gradient tensor not explicitly protected with a declaration to the
+    argument ``retain_dims``. For matrix multiplication, we must protect
+    the matrix slice, corresponding to the last two dimensions of the
+    gradient tensors. We can now define our ``Accumulator``.::
+
+        acc = Accumulator(
+            model=model,
+            gradient=model_grad,
+            retain_dims=(-1, -2)
+        )
+
+    To use this ``Accumulator``, we pass it an argument mapping containing
+    inputs to the ``model`` we specified.::
+
+        T0 = torch.random.rand(4, 4, W.shape[-1], 100)
+        out0 = acc(arg={'X' : T0})
+        T1 = torch.random.rand(6, W.shape[-1], 100)
+        out1 = acc(arg={'X' : T1})
+
+    The accumulator then accumulates the average (or summed) gradient computed
+    over all matrix slices of the inputs ``T0`` and ``T1``. It internally
+    tracks the overall weight of gradients accumulated thus far (4 * 4 = 16
+    after processing ``T0`` and 16 + 6 = 22 after also processing ``T1``).
+    The accumulated gradient is accessible in the attribute ``acc``, and the
+    gradient weight is accessible in the attribute ``acc_weight``. To reset
+    the accumulated tensors, use the ``reset`` or ``zero_grad`` operations.
+
+    .. note::
+        The ``Accumulator`` only stores the accumulated local gradient in its
+        attribute ``acc``. It is still the user's responsibility to apply that
+        gradient in any backward pass. The additional classes
+        :doc:`AccumulatingFunction <hypercoil.engine.accumulate.AccumulatingFunction>`
+        and
+        :doc:`Accumuline <hypercoil.engine.accumulate.Accumuline>`
+        can facilitate this for many use cases.
+
+    Parameters
+    ----------
+    model : callable
+        Forward computation. This should be a callable that maps from some
+        input arguments to some outputs.
+    gradient : callable
+        Backward computation. This should be a callable that takes as
+        arguments all inputs to and outputs from the ``model`` callable and
+        returns a dictionary of local gradients of outputs with respect to
+        each parameter of interest, i.e. each parameter for which the local
+        gradient is to be accumulated.
+    retain_dims : iterable
+        List of dimensions of each gradient tensor returned by ``gradient``
+        over which averaging will not return a correct gradient.
+    reduce_dims : ``'mean'`` or ``'sum'`` (default ``'mean'``)
+        Reduction operation over all axes not protected by the ``retain_dims``
+        argument.
+    autouse_domain_gradient : bool
+        Unused argument -- currently does nothing.
+    model_outputs : iterable (default ``['out']``)
+        Keys naming each output of the model.
+    model_params : iterable
+        Unused argument -- currently does nothing.
+
+    Attributes
+    ----------
+    reduction : callable
+        Callable applied to gradient tensors to reduce all dimensions not
+        explicitly protected by ``retain_dim``.
+    acc : dict
+        Dictionary storing all accumulated gradients.
+    acc_weight : dict
+        Dictionary storing total weights of all accumulated gradients.
+    """
+    ##TODO: Should retain_dims optionally be a mapping over parameters of
+    # interest?
     def __init__(self, model, gradient, retain_dims,
                  reduce_dims=None, autouse_domain_gradient=False,
                  model_outputs=None, model_params=None):
@@ -198,6 +301,10 @@ class Accumulator(torch.nn.Module):
     def reset(self):
         self.acc = {}
         self.acc_weight = {}
+
+    def zero_grad(self):
+        super().zero_grad()
+        self.reset()
 
     def _get_reduced_dims(self, tensor):
         reduced_dims = [True for _ in range(tensor.dim())]

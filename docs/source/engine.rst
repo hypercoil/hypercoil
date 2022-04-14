@@ -5,3 +5,5 @@
 
 .. toctree::
    :maxdepth: 4
+
+   api/hypercoil.engine.accumulate
