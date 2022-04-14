@@ -98,7 +98,7 @@ class Accumuline(torch.nn.Module):
             reduce_dims='mean'
         )
 
-    def forward(data_source, *params):
+    def forward(self, data_source, *params):
         sampled = 0
         out = []
         record = []
@@ -110,7 +110,7 @@ class Accumuline(torch.nn.Module):
                 sample = None
             else:
                 sample = data_source.sample(self.throughput)
-                sampled += throughput
+                sampled += self.throughput
             out = accfwd(
                 self.acc,
                 self.backward,

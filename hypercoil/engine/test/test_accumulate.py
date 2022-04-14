@@ -8,6 +8,7 @@ import pytest
 import torch
 from hypercoil.loss import LossArgument as ModelArgument
 from hypercoil.engine.accumulate import (
+    Accumuline,
     Accumulator,
     AccumulatingFunction
 )
@@ -131,6 +132,78 @@ class TestAccumulator:
                 terminate,
                 W
             )
+        out = out[0]
+        Y = torch.tanh(out)
+        Y = W2 @ out @ W3
+        l = loss(Y, torch.zeros_like(Y))
+        l.backward()
+
+        attempt = W.grad.clone()
+
+        W.grad.zero_()
+        W2.grad.zero_()
+        W3.grad.zero_()
+
+        out = W @ T
+        out.retain_grad()
+        Y = torch.tanh(out)
+        Y = W2 @ out @ W3
+        l = loss(Y, torch.zeros_like(Y))
+        l.backward()
+
+        ref = W.grad.clone()
+
+        gradchk = (
+            (ref - attempt).abs() /
+            torch.maximum(ref.abs(), attempt.abs())
+        )
+        assert gradchk.max() < 1e-3
+
+    def test_acc_line(self):
+        W = torch.rand(10, 50, dtype=torch.double)
+        W.requires_grad = True
+        T = torch.rand(20, 50, 45, dtype=torch.double)
+
+        W2 = torch.rand(10, 10, dtype=torch.double)
+        W3 = torch.rand(45, 5, dtype=torch.double)
+        W2.requires_grad = True
+        W3.requires_grad = True
+
+        loss = torch.nn.MSELoss()
+
+        def bwd(grad_output, grad_local):
+            return grad_output @ grad_local,
+
+        def model_grad(x, *args, **kwargs):
+            return ModelArgument(
+                weight=x.transpose(-1, -2)
+            )
+
+        class Slicing0Source:
+            def __init__(self, tensor):
+                self.tensor = tensor
+                self.idx = 0
+
+            def sample(self, samples):
+                s = slice(self.idx, self.idx + samples)
+                sample = self.tensor[s]
+                self.idx += samples
+                return sample
+
+        data_source = Slicing0Source(T)
+
+        aline = Accumuline(
+            model=lambda x: W @ x,
+            gradient=model_grad,
+            backward=bwd,
+            retain_dims=(-1, -2),
+            argmap=(lambda t: ModelArgument(x=t)),
+            throughput=3,
+            batch_size=20
+        )
+        out = aline(
+            data_source, W
+        )
         out = out[0]
         Y = torch.tanh(out)
         Y = W2 @ out @ W3
