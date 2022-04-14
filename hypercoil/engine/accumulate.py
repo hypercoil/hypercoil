@@ -80,6 +80,7 @@ class Accumuline(torch.nn.Module):
         argmap,
         throughput,
         batch_size,
+        reduction='mean',
         loss=None,
         loss_argmap=None
     ):
@@ -98,13 +99,12 @@ class Accumuline(torch.nn.Module):
             gradient=self.gradient,
             retain_dims=self.retain_dims,
             model_params=[],
-            reduce_dims='mean'
+            reduce_dims=reduction
         )
 
     def forward(self, data_source, *params):
         sampled = 0
         out = []
-        record = []
         accfwd = AccumulatingFunction.apply
         terminate = False
         while not terminate:
@@ -127,7 +127,6 @@ class Accumuline(torch.nn.Module):
                 self.argmap,
                 sample,
                 out,
-                record,
                 terminate,
                 *params
             )
@@ -143,12 +142,12 @@ class AccumulatingFunction(Function):
         argmap,
         sample,
         out,
-        record,
         terminate,
         *params
     ):
         ctx.terminate = terminate
         if terminate:
+            ctx.acc = acc
             ctx.backward = backward
             acc_vals = [v for v in acc.acc.values()]
             ctx.save_for_backward(*acc_vals)
@@ -160,20 +159,29 @@ class AccumulatingFunction(Function):
         out = list(out) + [acc(arg)]
         return out
 
+    @staticmethod
     def backward(ctx, *grad_output):
         if ctx.terminate:
+            grad = [g for g in grad_output]
+            for i, g in enumerate(grad_output):
+                reduced_dims, _ = ctx.acc._get_reduced_dims(g)
+                if len(reduced_dims) > 0:
+                    grad[i] = torch.sum(
+                        g,
+                        keepdim=True,
+                        axis=reduced_dims
+                    )
             ret = (
                 None, #acc
                 None, #backward
                 None, #argmap
                 None, #sample
                 None, #out
-                None, #record
                 None, #terminate
-                *ctx.backward(*grad_output, *ctx.saved_tensors) # params
+                *ctx.backward(*grad, *ctx.saved_tensors) # params
             )
         else:
-            ret = (None, None, None, None, None, None, None, None)
+            ret = (None, None, None, None, None, None, None)
         return ret
 
 
@@ -279,8 +287,9 @@ class Accumulator(torch.nn.Module):
             model_outputs = ['out']
         if model_params is None:
             model_params = ['weight']
-        if reduce_dims is None or reduce_dims == 'mean':
-            reduce_dims = 'mean'
+        if reduce_dims is None:
+            reduce_dims = 'sum'
+        if reduce_dims == 'mean':
             reduction = torch.mean
         elif reduce_dims == 'sum':
             reduction = torch.sum
