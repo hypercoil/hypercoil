@@ -62,7 +62,7 @@ Four loss classes are available:
     differences between pairs of singular values. Thus, if two singular
     values of the input matrix are close together, the gradient can become
     unstable (and undefined if the singular values are identical). A simple
-    :doc`:matrix reconditioning <hypercoil.functional.matrix.recondition_eigenspaces>`
+    :doc:`matrix reconditioning <hypercoil.functional.matrix.recondition_eigenspaces>`
     procedure is available for all operations involving the determinant to
     reduce the likelihood of degenerate eigenvalues.
 """
