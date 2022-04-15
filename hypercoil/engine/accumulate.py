@@ -58,7 +58,7 @@ cannot be tracked at the fragment level in the ``AccumulatingFunction``'s
 forward pass.
 
 The working solution is to implement two parallel forward passes in a
-``Module`` that wraps ``AccumulatingFunction``, the
+``Module`` that wraps ``AccumulatingFunction``,
 :doc:`Accumuline <hypercoil.engine.accumulate.Accumuline>`. For each
 batch fragment, the ``Accumuline`` runs one forward pass inside the
 ``AccumulatingFunction`` and a second outside it. The forward pass run outside
@@ -108,10 +108,12 @@ class Accumuline(torch.nn.Module):
         accfwd = AccumulatingFunction.apply
         terminate = False
         while not terminate:
-            if sampled > self.batch_size:
+            if sampled >= self.batch_size:
                 terminate = True
                 sample = None
             else:
+                #TODO: sometimes, we'll need to sample fewer than the max
+                # throughput to get the exact batch size we want
                 sample = data_source.sample(self.throughput)
                 sampled += self.throughput
             if self.loss is not None:
@@ -134,6 +136,117 @@ class Accumuline(torch.nn.Module):
 
 
 class AccumulatingFunction(Function):
+    """
+    ``autograd.Function`` that supports local gradient accumulation.
+
+    For many use cases, it will make most sense to use an
+    :doc:`Accumuline <hypercoil.engine.accumulate.Accumuline>`
+    instead of directly interfacing with this class.
+
+    To use an ``AccumulatingFunction``, we need to begin by defining an
+    :doc:`Accumulator <hypercoil.engine.accumulate.Accumulator>`
+    to perform the accumulation::
+
+        acc = Accumulator(
+            model=model,
+            gradient=model_grad,
+            retain_dims=(-1, -2)
+        )
+
+    We will also need a function to operationalise the backward pass through
+    the ``AccumulatingFunction``. The backward function should take as inputs
+    (i) all of the tensors that encode the back-propagated gradient of the
+    loss node with respect to each output of the ``AccumulatingFunction`` and
+    (ii) all of the local derivatives accumulated by the ``Accumulator`` we've
+    created. For the case of matrix-matrix multiplication, we can reasonably
+    use::
+
+        def accbwd(grad_output, grad_local):
+            return grad_output @ grad_local,
+
+    We'll also need a quick function to map from samples input to the
+    ``AccumulatingFunction`` to arguments to the ``Accumulator``'s specified
+    ``model``::
+
+        argmap = lambda T: {'X' : T}
+
+    We can now apply our ``AccumulatingFunction`` to input samples. Here we're
+    accumulating the local derivative of the matrix multiplication operation
+    with respect to one of the matrices being multiplied, ``W``::
+
+        out = []
+        T0 = torch.random.rand(4, 4, 10, 100)
+        accfwd = AccumulatingFunction.apply
+        out = accfwd(acc, None, argmap, T0, out, False, W)
+        T1 = torch.random.rand(6, W.shape[-1], 100)
+        out = accfwd(acc, None, argmap, T1, out, False, W)
+
+    Each call to ``accfwd`` above will accumulate the local derivative in the
+    provided ``acc`` object and will also append any outputs to the ``out``
+    iterable that we provided in our call. When we've collected all of the
+    outputs we need in ``out``, we make a terminal call to ``accfwd``::
+
+        out = accfwd(acc, bwd, None, None, out, True, W)
+
+    The terminal call is made by setting the ``terminate`` argument to True.
+    We should not pass new data to the accumulating function during the
+    terminal call, as it will not be used. The terminal call caches the
+    accumulated derivative for the backward pass and then clears all
+    accumulated data from the ``Accumulator``.
+
+    .. note::
+        Only the terminal call of an ``AccumulatingFunction`` is capable of
+        back-propagating gradients. All other calls will not track tensor
+        history and will block any gradients that they receive from being
+        further propagated.
+
+    We can use a ``partial`` to simplify usage::
+
+        accfwd = partial(AccumulatingFunction.apply, acc, argmap)
+
+    Parameters
+    ----------
+    acc : ``Accumulator``
+        Accumulator object for accumulating the local derivative over calls
+        to the function.
+    backward : callable
+        Backward pass through the function. This should take as inputs (i) all
+        of the tensors that encode the back-propagated gradient of the
+        loss node with respect to each output of the ``AccumulatingFunction``
+        and (ii) all of the local derivatives accumulated by the
+        ``Accumulator`` and should return the back-propagated gradient with
+        respect to each input parameter provided in ``params``.
+    argmap : callable
+        Map from samples input to the function to mappings representing
+        arguments to the ``Accumulator``.
+    sample : ``tensor`` or iterable(``tensor``)
+        Input sample to be processed. The gradient with respect to the input
+        sample is not returned.
+    out : iterable
+        Iterable containing accumulated outputs thus far. The output created
+        at each call is appended to this iterable.
+    terminate : bool
+        Indicates that accumulation should be terminated, and a new node
+        containing the accumulated local derivative should be added to the
+        computational graph. Only the terminal call will retain tensor
+        history, and only the terminal node accordingly backpropagates
+        received gradient. However, the terminal call does not do any data
+        processing or new accumulation, so it should not receive previously
+        unseen input data.
+    params : ``tensor``
+        Parameters with respect to which the accumulated gradient should be
+        computed and backpropagated. The ``gradient`` parameter provided to
+        the input ``Accumulator`` should define local gradients with respect
+        to each of these parameters.
+
+    Returns
+    -------
+    out : iterable
+        Iterable containing all previously accumulated outputs provided as
+        parameters to ``out``, together with a new output from the current
+        call to the internal ``model`` of the input ``Accumulator``. For the
+        terminal call, this will instead be a tuple of collated tensors.
+    """
     @staticmethod
     def forward(
         ctx,
@@ -195,13 +308,13 @@ class Accumulator(torch.nn.Module):
     accumulate gradient.
 
     First, we define a ``model`` for the forward call. This is the matrix
-    multiply operation.::
+    multiply operation::
 
         model = lambda X: W @ X
 
     Next, we specify the local gradient function -- the derivative of the
     model output with respect to the parameter ``W`` that we are interested
-    in. The gradient should return a mapping over parameters of interest.::
+    in. The gradient should return a mapping over parameters of interest::
 
         def model_grad(X, *args, **kwargs):
             return {'W': X.transpose(-1, -2)}
@@ -210,7 +323,7 @@ class Accumulator(torch.nn.Module):
     gradient tensor not explicitly protected with a declaration to the
     argument ``retain_dims``. For matrix multiplication, we must protect
     the matrix slice, corresponding to the last two dimensions of the
-    gradient tensors. We can now define our ``Accumulator``.::
+    gradient tensors. We can now define our ``Accumulator``::
 
         acc = Accumulator(
             model=model,
@@ -219,7 +332,7 @@ class Accumulator(torch.nn.Module):
         )
 
     To use this ``Accumulator``, we pass it an argument mapping containing
-    inputs to the ``model`` we specified.::
+    inputs to the ``model`` we specified::
 
         T0 = torch.random.rand(4, 4, W.shape[-1], 100)
         out0 = acc(arg={'X' : T0})
@@ -271,7 +384,7 @@ class Accumulator(torch.nn.Module):
     ----------
     reduction : callable
         Callable applied to gradient tensors to reduce all dimensions not
-        explicitly protected by ``retain_dim``.
+        explicitly protected by ``retain_dim``. Defaults to ``torch.mean``.
     acc : dict
         Dictionary storing all accumulated gradients.
     acc_weight : dict
@@ -288,7 +401,7 @@ class Accumulator(torch.nn.Module):
         if model_params is None:
             model_params = ['weight']
         if reduce_dims is None:
-            reduce_dims = 'sum'
+            reduce_dims = 'mean'
         if reduce_dims == 'mean':
             reduction = torch.mean
         elif reduce_dims == 'sum':
@@ -311,8 +424,8 @@ class Accumulator(torch.nn.Module):
         self.acc = {}
         self.acc_weight = {}
 
-    def zero_grad(self):
-        super().zero_grad()
+    def zero_grad(self, set_to_none=True):
+        super().zero_grad(set_to_none=set_to_none)
         self.reset()
 
     def _get_reduced_dims(self, tensor):
