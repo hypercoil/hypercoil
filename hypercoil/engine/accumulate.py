@@ -67,7 +67,7 @@ of the ``AccumulatingFunction`` can then interact with local loss functions.
 import torch
 from torch.autograd import Function
 from collections import OrderedDict
-from hypercoil.loss import LossArgument as ModelArgument
+from hypercoil.engine.argument import ModelArgument
 
 
 class Accumuline(torch.nn.Module):

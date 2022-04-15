@@ -6,7 +6,7 @@ Unit tests for accumulators.
 """
 import pytest
 import torch
-from hypercoil.loss import LossArgument as ModelArgument
+from hypercoil.engine.argument import ModelArgument
 from hypercoil.engine.accumulate import (
     Accumuline,
     Accumulator,

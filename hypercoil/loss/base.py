@@ -7,47 +7,18 @@ Base losses
 Base modules for loss functions.
 """
 from torch.nn import Module
-from collections.abc import Mapping
 from hypercoil.engine import Sentry, SentryModule
 from hypercoil.engine.action import UpdateMultiplier
+from hypercoil.engine.argument import (
+    ModelArgument as LossArgument,
+    UnpackingModelArgument as UnpackingLossArgument
+)
 
 
 def identity(*args):
     if len(args) == 1:
         return args[0]
     return args
-
-
-class LossArgument(Mapping):
-    """
-    Effectively this is currently little more than a prettified dict.
-    """
-    def __init__(self, **kwargs):
-        super().__init__()
-        self.__dict__.update(kwargs)
-
-    def __setitem__(self, k, v):
-        self.__setattr__(k, v)
-
-    def __getitem__(self, k):
-        return self.__dict__[k]
-
-    def __delitem__(self, k):
-        del self.__dict__[k]
-
-    def __len__(self):
-        return len(self.__dict__)
-
-    def __iter__(self):
-        return iter(self.__dict__)
-
-
-class UnpackingLossArgument(LossArgument):
-    """
-    LossArgument variant that is automatically unpacked when it is the output
-    of an `apply` call.
-    """
-    pass
 
 
 class Loss(SentryModule):
