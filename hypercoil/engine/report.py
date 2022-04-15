@@ -7,6 +7,7 @@ Reporters
 Reporter sentries for relaying and communicating results and parameter changes
 over the course of learning.
 """
+import pandas as pd
 from .sentry import Sentry, SentryModule
 from .action import (
     RecordLoss,

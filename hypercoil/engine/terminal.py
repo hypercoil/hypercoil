@@ -16,6 +16,7 @@ class Terminal(SentryModule):
     def __init__(self, loss, arg_factory=None):
         super().__init__()
         self.loss = loss
+        self.name = self.loss.name
 
     def _transmit(self, loss_value):
         self.message.update(

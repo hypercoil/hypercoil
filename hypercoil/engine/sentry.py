@@ -7,7 +7,6 @@ Sentry
 Elementary sentry objects and actions.
 """
 import torch
-import pandas as pd
 from torch.nn import Module
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Mapping
