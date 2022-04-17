@@ -13,6 +13,7 @@ from collections import OrderedDict
 from torch.nn import Module, Parameter, ParameterDict
 from torch.distributions import Bernoulli
 from ..engine.accumulate import Accumuline
+from ..engine.argument import ModelArgument
 from ..functional.domain import Identity
 from ..functional.noise import UnstructuredDropoutSource
 from ..init.atlas import AtlasInit
@@ -281,6 +282,9 @@ class AtlasAccumuline(Accumuline):
         batch_size,
         loss
     ):
+        gradient = self.gradient
+        backward = self.backward
+        loss_argmap = self.argmap
         super().__init__(
             model=atlas,
             gradient=gradient,
@@ -292,16 +296,14 @@ class AtlasAccumuline(Accumuline):
             loss=loss,
             loss_argmap=loss_argmap
         )
-        gradient = self.gradient
-        backward = self.backward
-        loss_argmap = self.argmap
-        self.domain_gradient = domain.gradient
-        self.coor = {}
+        self.coors = {}
         self.masks = {}
         self.ref = atlas.atlas
         for name, compartment in self.ref.compartments.items():
-            self.coor[f'{name}_coor'] = self.ref.coors[compartment].t()
-            self.masks[name] = compartment[atlas.mask].unsqueeze(0)
+            if compartment[atlas.mask].sum() == 0:
+                continue
+            self.masks[name] = compartment[atlas.mask]
+            self.coors[f'{name}_coor'] = self.ref.coors[self.masks[name]].t()
 
     def argmap(self, input, output, atlas):
         masks = {name: (
@@ -312,34 +314,36 @@ class AtlasAccumuline(Accumuline):
             f'indata_{name}': input[mask].view(*shape)
             for name, (mask, shape) in masks.items()
         }
-        weights = self.atlas.weight
-        return LossArgument(
+        weights = self.model.weight
+        preweights = {f'preweight_{k}': v
+                      for k, v in self.model.preweight.items()}
+        return ModelArgument(
             indata=input,
             outdata=output,
-            **inputs
+            **inputs,
+            **preweights,
             **weights,
             **self.coors
         )
 
-    def backward(grad_output, *grad_compartments):
+    def backward(self, grad_output, *grad_compartments):
         ret = [
             grad_output @ grad_local
             for grad_local in grad_compartments
         ]
         return tuple(ret)
 
-    def gradient(input, *args, **kwargs):
+    def gradient(self, input, *args, **kwargs):
         compartment_grads = {}
-        for name, compartment in self.ref.compartments.items():
-            compartment_ts = self.atlas.select_compartment(compartment, input)
-            compartment_ts = compartment_ts.transpose(-1, -2)
+        for name in self.ref.compartments.keys():
+            compartment_ts = self.model.select_compartment(name, input)
             compartment_grads[name] = compartment_ts.transpose(-1, -2)
         return ModelArgument(
             **compartment_grads
         )
 
     def forward(self, data_source):
-        params = [self.atlas.weight[c] for c in self.ref.compartments.keys()]
+        params = [v for v in self.model.weight.values()]
         return super().forward(
             data_source,
             *params

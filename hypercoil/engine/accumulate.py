@@ -116,13 +116,13 @@ class Accumuline(torch.nn.Module):
                 # throughput to get the exact batch size we want
                 sample = data_source.sample(self.throughput)
                 sampled += self.throughput
-            if self.loss is not None:
-                sample_out = self.model(sample)
-                loss_arg = self.loss_argmap(
-                    sample, sample_out, self.model
-                )
-                l = loss(loss_arg)
-                l.backward()
+                if self.loss is not None:
+                    sample_out = self.model(sample)
+                    loss_arg = self.loss_argmap(
+                        sample, sample_out, self.model
+                    )
+                    l = self.loss(loss_arg, verbose=True)
+                    l.backward()
             out = accfwd(
                 self.acc,
                 self.backward,
