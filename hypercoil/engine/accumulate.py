@@ -106,9 +106,16 @@ class Accumuline(torch.nn.Module):
             reduce_dims=reduction
         )
 
+    def pass_forward(self, pas):
+        pass_keys = list(pas[0].keys())
+        if len(pass_keys) > 0:
+            return [torch.cat([s[k] for s in pas]) for k in pass_keys]
+        return ()
+
     def forward(self, data_source, *params):
         sampled = 0
         out = []
+        pas = []
         accfwd = AccumulatingFunction.apply
         terminate = False
         while not terminate:
@@ -119,8 +126,9 @@ class Accumuline(torch.nn.Module):
                 sample_size = min(self.throughput, self.batch_size - sampled)
                 sample = data_source.sample(sample_size)
                 sampled += sample_size
+                pas += [self.passmap(sample)]
                 if self.loss is not None:
-                    sample_out = self.model(sample)
+                    sample_out = self.model(**self.argmap(sample))
                     loss_arg = self.loss_argmap(
                         sample, sample_out, self.model
                     )
@@ -130,40 +138,12 @@ class Accumuline(torch.nn.Module):
                 self.acc,
                 self.backward,
                 self.argmap,
-                self.passmap,
                 sample,
                 out,
                 terminate,
                 *params
             )
-        return out
-
-
-def accumulate(
-    acc,
-    backward,
-    argmap,
-    sample,
-    *params,
-    out=None,
-    passmap=None,
-    terminate=False,
-):
-    if passmap is None:
-        passmap = lambda _: ModelArgument()
-    if out is None:
-        out = []
-    accfwd = AccumulatingFunction.apply
-    return accfwd(
-        acc,
-        backward,
-        argmap,
-        passmap,
-        sample,
-        out,
-        terminate,
-        *params
-    )
+        return (*out, *self.pass_forward(pas))
 
 
 class AccumulatingFunction(Function):
@@ -200,7 +180,6 @@ class AccumulatingFunction(Function):
     ``model``::
 
         argmap = lambda T: {'X' : T}
-        passmap = lambda T: {}
 
     We can now apply our ``AccumulatingFunction`` to input samples. Here we're
     accumulating the local derivative of the matrix multiplication operation
@@ -251,9 +230,6 @@ class AccumulatingFunction(Function):
     argmap : callable
         Map from samples input to the function to mappings representing
         arguments to the ``Accumulator``.
-    passmap : callable
-        Map from samples input to the function to mappings to be passed
-        directly through the function without interacting with the model.
     sample : ``tensor`` or iterable(``tensor``)
         Input sample to be processed. The gradient with respect to the input
         sample is not returned.
@@ -288,7 +264,6 @@ class AccumulatingFunction(Function):
         acc,
         backward,
         argmap,
-        passmap,
         sample,
         out,
         terminate,
@@ -304,9 +279,9 @@ class AccumulatingFunction(Function):
             keys = out[0].keys()
             ret = [torch.cat([o[k] for o in out]) for k in keys]
             return tuple(ret)
+        ctx.n_params = len(params)
         arg = argmap(sample)
-        out_new = {**acc(arg), **passmap(sample)}
-        out = list(out) + [out_new]
+        out = list(out) + [acc(arg)]
         return out
 
     @staticmethod
@@ -325,14 +300,14 @@ class AccumulatingFunction(Function):
                 None, #acc
                 None, #backward
                 None, #argmap
-                None, #passmap
                 None, #sample
                 None, #out
                 None, #terminate
                 *ctx.backward(*grad, *ctx.saved_tensors) # params
             )
         else:
-            ret = (None, None, None, None, None, None, None, None)
+            r_param = [None for _ in range(ctx.n_params)]
+            ret = (None, None, None, None, None, None, *r_param)
         return ret
 
 

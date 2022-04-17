@@ -307,6 +307,7 @@ class AtlasAccumuline(Accumuline):
             self.coors[f'{name}_coor'] = self.ref.coors[self.masks[name]].t()
 
     def argmap(self, input, output, atlas):
+        input = input[0]
         masks = {name: (
             mask.tile(input.shape[0], 1),
             (input.shape[0], mask.sum(), -1)

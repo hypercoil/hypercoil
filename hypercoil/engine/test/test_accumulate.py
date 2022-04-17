@@ -109,7 +109,6 @@ class TestAccumulator:
 
         af = AccumulatingFunction.apply
         argmap = lambda t: ModelArgument(x=t)
-        passmap = lambda t: ModelArgument()
         data_source = Slicing0Source(T)
 
         sampled = 0
@@ -128,7 +127,6 @@ class TestAccumulator:
                 acc,
                 bwd,
                 argmap,
-                passmap,
                 sample,
                 out,
                 terminate,
