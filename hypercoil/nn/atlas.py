@@ -280,7 +280,8 @@ class AtlasAccumuline(Accumuline):
         argmap,
         throughput,
         batch_size,
-        loss
+        loss=None,
+        passmap=None,
     ):
         gradient = self.gradient
         backward = self.backward
@@ -294,7 +295,8 @@ class AtlasAccumuline(Accumuline):
             throughput=throughput,
             batch_size=batch_size,
             loss=loss,
-            loss_argmap=loss_argmap
+            loss_argmap=loss_argmap,
+            passmap=passmap
         )
         self.coors = {}
         self.masks = {}
