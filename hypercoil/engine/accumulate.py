@@ -112,10 +112,9 @@ class Accumuline(torch.nn.Module):
                 terminate = True
                 sample = None
             else:
-                #TODO: sometimes, we'll need to sample fewer than the max
-                # throughput to get the exact batch size we want
-                sample = data_source.sample(self.throughput)
-                sampled += self.throughput
+                sample_size = min(self.throughput, self.batch_size - sampled)
+                sample = data_source.sample(sample_size)
+                sampled += sample_size
                 if self.loss is not None:
                     sample_out = self.model(sample)
                     loss_arg = self.loss_argmap(
