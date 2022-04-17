@@ -81,15 +81,19 @@ class Accumuline(torch.nn.Module):
         throughput,
         batch_size,
         reduction='mean',
+        passmap=None,
         loss=None,
         loss_argmap=None
     ):
         super().__init__()
+        if passmap is None:
+            passmap = lambda sample: ModelArgument()
         self.model = model
         self.gradient = gradient
         self.backward = backward
         self.retain_dims = retain_dims
         self.argmap = argmap
+        self.passmap = passmap
         self.throughput = throughput
         self.batch_size = batch_size
         self.loss = loss
@@ -126,12 +130,40 @@ class Accumuline(torch.nn.Module):
                 self.acc,
                 self.backward,
                 self.argmap,
+                self.passmap,
                 sample,
                 out,
                 terminate,
                 *params
             )
         return out
+
+
+def accumulate(
+    acc,
+    backward,
+    argmap,
+    sample,
+    *params,
+    out=None,
+    passmap=None,
+    terminate=False,
+):
+    if passmap is None:
+        passmap = lambda _: ModelArgument()
+    if out is None:
+        out = []
+    accfwd = AccumulatingFunction.apply
+    return accfwd(
+        acc,
+        backward,
+        argmap,
+        passmap,
+        sample,
+        out,
+        terminate,
+        *params
+    )
 
 
 class AccumulatingFunction(Function):
@@ -168,6 +200,7 @@ class AccumulatingFunction(Function):
     ``model``::
 
         argmap = lambda T: {'X' : T}
+        passmap = lambda T: {}
 
     We can now apply our ``AccumulatingFunction`` to input samples. Here we're
     accumulating the local derivative of the matrix multiplication operation
@@ -176,16 +209,16 @@ class AccumulatingFunction(Function):
         out = []
         T0 = torch.random.rand(4, 4, 10, 100)
         accfwd = AccumulatingFunction.apply
-        out = accfwd(acc, None, argmap, T0, out, False, W)
+        out = accfwd(acc, None, argmap, passmap, T0, out, False, W)
         T1 = torch.random.rand(6, W.shape[-1], 100)
-        out = accfwd(acc, None, argmap, T1, out, False, W)
+        out = accfwd(acc, None, argmap, passmap, T1, out, False, W)
 
     Each call to ``accfwd`` above will accumulate the local derivative in the
     provided ``acc`` object and will also append any outputs to the ``out``
     iterable that we provided in our call. When we've collected all of the
     outputs we need in ``out``, we make a terminal call to ``accfwd``::
 
-        out = accfwd(acc, bwd, None, None, out, True, W)
+        out = accfwd(acc, bwd, None, None, None, out, True, W)
 
     The terminal call is made by setting the ``terminate`` argument to True.
     We should not pass new data to the accumulating function during the
@@ -218,6 +251,9 @@ class AccumulatingFunction(Function):
     argmap : callable
         Map from samples input to the function to mappings representing
         arguments to the ``Accumulator``.
+    passmap : callable
+        Map from samples input to the function to mappings to be passed
+        directly through the function without interacting with the model.
     sample : ``tensor`` or iterable(``tensor``)
         Input sample to be processed. The gradient with respect to the input
         sample is not returned.
@@ -252,6 +288,7 @@ class AccumulatingFunction(Function):
         acc,
         backward,
         argmap,
+        passmap,
         sample,
         out,
         terminate,
@@ -268,7 +305,8 @@ class AccumulatingFunction(Function):
             ret = [torch.cat([o[k] for o in out]) for k in keys]
             return tuple(ret)
         arg = argmap(sample)
-        out = list(out) + [acc(arg)]
+        out_new = {**acc(arg), **passmap(sample)}
+        out = list(out) + [out_new]
         return out
 
     @staticmethod
@@ -287,13 +325,14 @@ class AccumulatingFunction(Function):
                 None, #acc
                 None, #backward
                 None, #argmap
+                None, #passmap
                 None, #sample
                 None, #out
                 None, #terminate
                 *ctx.backward(*grad, *ctx.saved_tensors) # params
             )
         else:
-            ret = (None, None, None, None, None, None, None)
+            ret = (None, None, None, None, None, None, None, None)
         return ret
 
 
