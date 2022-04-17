@@ -299,9 +299,8 @@ class AtlasAccumuline(Accumuline):
         self.coors = {}
         self.masks = {}
         self.ref = atlas.atlas
-        for name, compartment in self.ref.compartments.items():
-            if compartment[atlas.mask].sum() == 0:
-                continue
+        for name in self.model.preweight.keys():
+            compartment = self.ref.compartments[name]
             self.masks[name] = compartment[atlas.mask]
             self.coors[f'{name}_coor'] = self.ref.coors[self.masks[name]].t()
 
@@ -327,15 +326,31 @@ class AtlasAccumuline(Accumuline):
         )
 
     def backward(self, grad_output, *grad_compartments):
-        ret = [
-            grad_output @ grad_local
-            for grad_local in grad_compartments
-        ]
+        grad_output = grad_output.squeeze(0)
+        ret = []
+        offset = 0
+        i = 0
+        for name, code in self.ref.decoder.items():
+            if name not in self.model.preweight:
+                continue
+            if not self.model.decode:
+                n_labels = len(code)
+                code = torch.arange(
+                    offset,
+                    offset + n_labels,
+                    dtype=torch.long,
+                    device=grad_output.device
+                )
+                offset += n_labels
+            grad_out_compartment = grad_output[code] @ grad_compartments[i]
+            ret += [grad_out_compartment]
+            # indexing seems a little dangerous
+            i += 1
         return tuple(ret)
 
     def gradient(self, input, *args, **kwargs):
         compartment_grads = {}
-        for name in self.ref.compartments.keys():
+        for name in self.model.preweight.keys():
             compartment_ts = self.model.select_compartment(name, input)
             compartment_grads[name] = compartment_ts.transpose(-1, -2)
         return ModelArgument(
