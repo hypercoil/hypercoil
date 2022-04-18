@@ -172,6 +172,7 @@ class TestTerminals:
 
     def test_reactive_terminal_pretransform_mask(self):
         torch.manual_seed(0)
+        batch_size = 2
         n_groups = 3
         n_channels = 10
         n_observations = 20
@@ -179,7 +180,8 @@ class TestTerminals:
             [1 for _ in range(10)] + [0 for _ in range(10)],
             dtype=torch.bool
         )
-        data = torch.randn(n_channels, n_observations)
+        mask = torch.stack((mask, mask))
+        data = torch.randn(batch_size, n_channels, n_observations)
         weight = torch.randn(n_groups, n_channels)
         weight.requires_grad = True
 
@@ -196,7 +198,7 @@ class TestTerminals:
         )
 
         Y0 = loss(
-            data=torch.softmax(data[:, :10], axis=-2),
+            data=torch.softmax(data[:, :, :10], axis=-2),
             weight=torch.softmax(weight, axis=-2)
         )
         #TODO: make this an argument object, probably. Not that it matters.
