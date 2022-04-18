@@ -113,18 +113,22 @@ def configure_timing(
     )
     determinant_nu = MultiplierCascadeSchedule(
         epochs=epochs, base=.005,
-        transitions={(80, 120): .001, (200, 400): .0001}
+        transitions={(80, 120): .001, (200, 400): .0001, (2500, 2505): .00001}
     )
     equilibrium_nu = MultiplierCascadeSchedule(
         epochs=epochs, base=1e6,
-        transitions={(200, 300): 25000, (500, 700): 1e6, (2500, 2505): 1e5,
-                     (3000, 3005): 2500}
+        transitions={(200, 300): 25000,
+                     (500, 700): 1e7,
+                     (2000, 2005): 1e6,
+                     (2500, 2505): 1e5,
+                     (3000, 3005): 1e4}
     )
     entropy_nu = MultiplierCascadeSchedule(
         epochs=epochs, base=0.1,
         transitions={
             (100, 200): 0.0001,
             (500, 800): 0.1,
+            (1500, 1505): 0.5,
             (2000, 2005): 1.0,
             (2500, 2505): 2.0,
             (3000, 3005) : 3.0,
@@ -134,8 +138,7 @@ def configure_timing(
     )
     compactness_nu = MultiplierCascadeSchedule(
         epochs=epochs, base=2,
-        transitions={(80, 120): 5, (400, 800): 20, (2500, 2505): 30,
-                     (3500, 3505): 40}
+        transitions={(80, 120): 5, (400, 800): 20, (2500, 2505): 30}
     )
     tether_nu = MultiplierCascadeSchedule(
         epochs=epochs, base=.2,
@@ -253,8 +256,10 @@ def cut_lr(epoch, opt):
         opt.param_groups[0]['lr'] /= 2.5
     if epoch == 1000:
         opt.param_groups[0]['lr'] /= 2
-    if epoch == 2000:
-        opt.param_groups[0]['lr'] /= 10
+    if epoch == 2500:
+        opt.param_groups[0]['lr'] /= 2
+    if epoch == 3000:
+        opt.param_groups[0]['lr'] /= 5
 
 
 def compartmentalise_data(data, lh_mask, rh_mask):
@@ -287,13 +292,15 @@ def entropy_cascade(epochs, out_root, ds, atlas, opt,
     atlas_name = f'{atlas_basename}_atlas'
     results = f'{out_root}/{atlas_name}'
     os.makedirs(results, exist_ok=True)
+    no_data = True
 
     for epoch in epochs:
-        if epoch % data_interval == 0:
+        if epoch % data_interval == 0 or no_data:
             #TODO: fix this data looping, use a dataloader
             for sample in ds:
                 data = transform_sample(sample, atlas, basis, device)
                 break
+            no_data = False
 
         cut_lr(epoch, opt)
 
@@ -324,7 +331,7 @@ def entropy_cascade(epochs, out_root, ds, atlas, opt,
         if epoch % log_interval == 0:
             plotter = fsLRAtlasParcels(atlas)
             plotter(
-                cmap=modal_cmap,
+                cmap=network_cmap,
                 views=views,
                 save=f'{results}/epoch-{epoch:08}'
             )
@@ -376,12 +383,21 @@ def main(out_root, data_path, n_labels, device, max_epoch,
          saved_state, saved_archive, resume_epoch, log_interval,
          save_interval, data_interval, batch_size, buffer_size,
          window_size, reactive_slice):
+    lr = 0.05
+    if resume_epoch > 3000:
+        lr = 0.001
+    elif resume_epoch > 2500:
+        lr = 0.005
+    elif resume_epoch > 1000:
+        lr = 0.01
+    elif resume_epoch > 500:
+        lr = 0.02
     (atlas, opt,
      lh_coor, rh_coor,
      lh_mask, rh_mask) = configure_model(
         n_labels=n_labels,
         device=device,
-        lr=0.05,
+        lr=lr,
         saved_state=saved_state
     )
     (epochs, loss,
@@ -392,8 +408,8 @@ def main(out_root, data_path, n_labels, device, max_epoch,
         lh_coor=lh_coor,
         rh_coor=rh_coor,
         max_epoch=max_epoch,
+        resume_epoch=resume_epoch,
         reactive_slice=reactive_slice,
-        resume_epoch=-1
     )
     ds, basis = configure_dataset(
         data_path,
