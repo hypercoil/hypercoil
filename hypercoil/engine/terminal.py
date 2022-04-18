@@ -6,6 +6,7 @@ Diff terminals
 ~~~~~~~~~~~~~~
 Differentiable program terminals. Currently minimal functionality.
 """
+from ..functional import mask as apply_mask
 from .sentry import SentryModule
 
 
@@ -52,12 +53,17 @@ class ReactiveTerminal(Terminal):
         self.normalise_by_len = normalise_by_len
         self.pretransforms = pretransforms or {}
 
-    def forward(self, arg):
+    def forward(self, arg, axis_mask=None):
         pretransform = {}
         for k in self.pretransforms.keys():
             if k != self.slice_target:
                 pretransform[k] = arg.__getitem__(k)
         slice_target = arg.__getitem__(self.slice_target)
+        if axis_mask is not None:
+            slice_target = apply_mask(
+                slice_target,
+                axis_mask,
+                self.slice_axis)
         slc = [slice(None) for _ in range(slice_target.dim())]
         total = slice_target.shape[self.slice_axis]
         begin = 0
