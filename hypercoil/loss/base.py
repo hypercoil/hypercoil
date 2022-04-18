@@ -21,6 +21,25 @@ def identity(*args):
     return args
 
 
+def wmean(input, weight, dim=None, keepdim=False):
+    """
+    Reducing function for reducing losses: weighted mean.
+    """
+    if dim is None:
+        dim = list(range(input.dim()))
+    elif isinstance(dim, int):
+        dim = (dim,)
+    assert weight.dim() == len(dim), (
+        'Weight must have as many dimensions as are being reduced')
+    retain = [True for _ in range(input.dim())]
+    for d in dim:
+        retain[d] = False
+    for i, d in enumerate(retain):
+        if d: weight = weight.unsqueeze(i)
+    wtd = (weight * input)
+    return wtd.sum(dim, keepdim=keepdim) / weight.sum(dim, keepdim=keepdim)
+
+
 class Loss(SentryModule):
     """
     Base class for hypercoil loss functions.
