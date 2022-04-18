@@ -55,3 +55,7 @@ from .semidefinite import (
     tangent_project_spd, cone_project_spd, mean_euc_spd, mean_harm_spd,
     mean_logeuc_spd, mean_geom_spd
 )
+from .utils import (
+    mask,
+    wmean
+)
