@@ -13,6 +13,7 @@ from hypercoil.loss import (
     ReducingLoss,
     LossScheme
 )
+from hypercoil.loss.base import wmean
 
 
 class TestLossBase:
@@ -43,3 +44,34 @@ class TestLossBase:
 
         out = scheme(x=self.B, y=self.A)
         assert out == 4 + math.sqrt(8)
+
+    def test_wmean(self):
+        z = torch.tensor([[
+            [1., 4., 2.],
+            [0., 9., 1.],
+            [4., 6., 7.]],[
+            [0., 9., 1.],
+            [4., 6., 7.],
+            [1., 4., 2.]
+        ]])
+        w = torch.ones_like(z)
+        assert wmean(z, w) == torch.mean(z)
+        w = torch.tensor([1., 0., 1.])
+        assert torch.all(wmean(z, w, dim=1) == torch.tensor([
+            [(1 + 4) / 2, (4 + 6) / 2, (2 + 7) / 2],
+            [(0 + 1) / 2, (9 + 4) / 2, (1 + 2) / 2]
+        ]))
+        assert torch.all(wmean(z, w, dim=2) == torch.tensor([
+            [(1 + 2) / 2, (0 + 1) / 2, (4 + 7) / 2],
+            [(0 + 1) / 2, (4 + 7) / 2, (1 + 2) / 2]
+        ]))
+        w = torch.tensor([
+            [1., 0., 1.],
+            [0., 1., 1.]
+        ])
+        assert torch.all(wmean(z, w, dim=(0, 1)) == torch.tensor([
+            [(1 + 4 + 4 + 1) / 4, (4 + 6 + 6 + 4) / 4, (2 + 7 + 7 + 2) / 4]
+        ]))
+        assert torch.all(wmean(z, w, dim=(0, 2)) == torch.tensor([
+            [(1 + 2 + 9 + 1) / 4, (0 + 1 + 6 + 7) / 4, (4 + 7 + 4 + 2) / 4]
+        ]))
