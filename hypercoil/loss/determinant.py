@@ -73,7 +73,7 @@ from ..functional import corr
 from ..functional.matrix import recondition_eigenspaces
 
 
-def log_det_corr(X, psi=0.001, xi=0.0099, cor=corr):
+def log_det_corr(X, psi=0.001, xi=0.0099, cor=corr, weight=None):
     """
     Compute the negative log determinant of the correlation matrix of the
     specified variables.
@@ -95,12 +95,12 @@ def log_det_corr(X, psi=0.001, xi=0.0099, cor=corr):
     cor : callable (default corr)
         Covariance measure. By default, this is the Pearson correlation.
     """
-    Z = cor(X)
+    Z = cor(X, weight=weight)
     Z = recondition_eigenspaces(Z, psi=psi, xi=xi)
     return -torch.logdet(Z)
 
 
-def det_corr(X, psi=0.001, xi=0.0099, cor=corr):
+def det_corr(X, psi=0.001, xi=0.0099, cor=corr, weight=None):
     """
     Compute the negative determinant of the correlation matrix of the
     specified variables.
@@ -119,7 +119,7 @@ def det_corr(X, psi=0.001, xi=0.0099, cor=corr):
     cor : callable (default corr)
         Covariance measure. By default, this is the Pearson correlation.
     """
-    Z = cor(X)
+    Z = cor(X, weight=weight)
     Z = recondition_eigenspaces(Z, psi=psi, xi=xi)
     return -torch.linalg.det(Z)
 
