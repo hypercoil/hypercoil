@@ -12,6 +12,25 @@ altogether out of irrelevance, but for now they exist, a sad blemish.
 import torch
 
 
+def conform_mask(tensor, msk, axis, batch=False):
+    """
+    Conform a mask or weight for elementwise applying to a tensor.
+    """
+    if batch:
+        tile = list(tensor.shape)
+        tile[0] = 1
+        tile[axis] = 1
+        shape = [1 for _ in range(tensor.dim())]
+        shape[0] = msk.shape[0]
+        shape[axis] = msk.shape[-1]
+        msk = msk.view(*shape).tile(*tile)
+    else:
+        shape_pfx = tensor.shape[:axis]
+        msk = msk.tile(*shape_pfx, 1)
+    return msk
+
+
+
 def mask(tensor, msk, axis):
     """
     Mask a tensor along an axis.

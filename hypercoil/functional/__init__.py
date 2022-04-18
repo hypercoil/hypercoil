@@ -56,6 +56,7 @@ from .semidefinite import (
     mean_logeuc_spd, mean_geom_spd
 )
 from .utils import (
+    conform_mask,
     mask,
     wmean
 )
