@@ -6,7 +6,7 @@ Diff terminals
 ~~~~~~~~~~~~~~
 Differentiable program terminals. Currently minimal functionality.
 """
-from ..functional import mask as apply_mask
+from ..functional import conform_mask
 from .sentry import SentryModule
 
 
@@ -59,13 +59,17 @@ class ReactiveTerminal(Terminal):
             if k != self.slice_target:
                 pretransform[k] = arg.__getitem__(k)
         slice_target = arg.__getitem__(self.slice_target)
-        if axis_mask is not None:
-            slice_target = apply_mask(
-                slice_target,
-                axis_mask,
-                self.slice_axis)
         slc = [slice(None) for _ in range(slice_target.dim())]
         total = slice_target.shape[self.slice_axis]
+        if axis_mask is not None:
+            axis_mask = conform_mask(
+                slice_target,
+                axis_mask,
+                self.slice_axis,
+                batch=True
+            )
+            slice_target = slice_target * axis_mask
+            norm_fac = axis_mask.sum()
         begin = 0
         loss = 0
         while begin < total:
@@ -79,7 +83,11 @@ class ReactiveTerminal(Terminal):
                 else:
                     arg.__setitem__(k, v(sliced))
             Y = self.loss(**arg)
-            if self.normalise_by_len:
+            if self.normalise_by_len and axis_mask is not None:
+                mask_sliced = axis_mask[slc]
+                l = mask_sliced.sum()
+                Y = Y * l / norm_fac
+            elif self.normalise_by_len:
                 l = sliced.shape[self.slice_axis]
                 Y = Y * l / total
             loss += Y
