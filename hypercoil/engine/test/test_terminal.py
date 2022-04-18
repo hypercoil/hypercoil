@@ -169,3 +169,36 @@ class TestTerminals:
         Y0.backward()
         g0 = weight.grad.clone()
         assert torch.allclose(g0, g1, atol=1e-3)
+
+    def test_reactive_terminal_pretransform_mask(self):
+        torch.manual_seed(0)
+        n_groups = 3
+        n_channels = 10
+        n_observations = 20
+        mask = torch.tensor(
+            [1 for _ in range(10)] + [0 for _ in range(10)],
+            dtype=torch.bool
+        )
+        data = torch.randn(n_channels, n_observations)
+        weight = torch.randn(n_groups, n_channels)
+        weight.requires_grad = True
+
+        loss = SecondMoment(standardise=False)
+        terminal = ReactiveTerminal(
+            loss=SecondMoment(standardise=False),
+            slice_target='data',
+            slice_axis=-1,
+            max_slice=1,
+            pretransforms={
+                'weight': partial(torch.softmax, axis=-2),
+                'data': partial(torch.softmax, axis=-2)
+            }
+        )
+
+        Y0 = loss(
+            data=torch.softmax(data[:, :10], axis=-2),
+            weight=torch.softmax(weight, axis=-2)
+        )
+        #TODO: make this an argument object, probably. Not that it matters.
+        Y1 = terminal(arg={'data': data, 'weight': weight}, axis_mask=mask)
+        assert torch.isclose(Y0, Y1)
