@@ -17,7 +17,10 @@ def mask(tensor, msk, axis):
     Mask a tensor along an axis.
     """
     shape_pfx = tensor.shape[:axis]
-    shape_sfx = tensor.shape[(axis + 1):]
+    if axis == -1:
+        shape_sfx = ()
+    else:
+        shape_sfx = tensor.shape[(axis + 1):]
     msk = msk.tile(*shape_pfx, 1)
     return tensor[msk].reshape(*shape_pfx, -1, *shape_sfx)
 
