@@ -18,9 +18,7 @@ def hybrid_interpolate(
     map_to_kernel=None,
     oversampling_frequency=8,
     maximum_frequency=1,
-    frequency_thresh=0.3,
-    dtype=None,
-    device=None
+    frequency_thresh=0.3
 ):
     rec = weighted_interpolate(
         data=data,

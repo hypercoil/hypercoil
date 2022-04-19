@@ -13,7 +13,9 @@ from .freqfilter import (
     FrequencyDomainFilter
 )
 from .interpolate import (
-    SpectralInterpolate
+    SpectralInterpolate,
+    WeightedInterpolate,
+    HybridInterpolate
 )
 from .iirfilter import (
     IIRFilter,
