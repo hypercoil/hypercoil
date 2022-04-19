@@ -30,8 +30,7 @@ def conform_mask(tensor, msk, axis, batch=False):
     return msk
 
 
-
-def mask(tensor, msk, axis):
+def apply_mask(tensor, msk, axis):
     """
     Mask a tensor along an axis.
     """

@@ -20,11 +20,15 @@ from .crosssim import (
 )
 from .fourier import (
     product_filter,
-    product_filtfilt,
-    spectral_interpolate
+    product_filtfilt
 )
 from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity
+)
+from .interpolate import (
+    hybrid_interpolate,
+    spectral_interpolate,
+    weighted_interpolate
 )
 from .matrix import (
     invert_spd, expand_outer, spd, symmetric,
@@ -58,6 +62,6 @@ from .semidefinite import (
 )
 from .utils import (
     conform_mask,
-    mask,
+    apply_mask,
     wmean
 )
