@@ -176,15 +176,18 @@ def spectral_interpolate(
     dtype, device = data.dtype, data.device
     recon = torch.zeros_like(data, dtype=dtype, device=device)
     for i, (tsr, msk) in enumerate(zip(data, tmask)):
-        (sin_basis, cos_basis, angular_frequencies, all_samples
-            ) = _periodogram_cfg(
-                tmask=msk,
-                sampling_period=sampling_period,
-                oversampling_frequency=oversampling_frequency,
-                maximum_frequency=maximum_frequency,
-                dtype=dtype,
-                device=device
-            )
+        try:
+            (sin_basis, cos_basis, angular_frequencies, all_samples
+                ) = _periodogram_cfg(
+                    tmask=msk,
+                    sampling_period=sampling_period,
+                    oversampling_frequency=oversampling_frequency,
+                    maximum_frequency=maximum_frequency,
+                    dtype=dtype,
+                    device=device
+                )
+        except FilterInterpolateError:
+            continue
         recon[i] = _interpolate_spectral(
             data=apply_mask(tsr, msk, -1),
             sine_basis=sin_basis,
@@ -195,6 +198,8 @@ def spectral_interpolate(
         )
     return torch.where(tmask, data, recon)
 
+
+class FilterInterpolateError(Exception): pass
 
 
 def _periodogram_cfg(tmask,
@@ -243,7 +248,8 @@ def _periodogram_cfg(tmask,
     freqstep = 1 / (timespan * oversampling_frequency)
     n_samples_seen = seen_samples.shape[0]
     if n_samples_seen == n_samples:
-        raise ValueError('No interpolation is necessary for this dataset.')
+        raise FilterInterpolateError(
+            'No interpolation is necessary for this dataset.')
 
     all_samples = torch.arange(start=sampling_period,
                                step=sampling_period,
