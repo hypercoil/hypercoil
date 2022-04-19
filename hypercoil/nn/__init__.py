@@ -12,6 +12,9 @@ from .cov import(
 from .freqfilter import (
     FrequencyDomainFilter
 )
+from .interpolate import (
+    SpectralInterpolate
+)
 from .iirfilter import (
     IIRFilter,
     IIRFiltFilt
