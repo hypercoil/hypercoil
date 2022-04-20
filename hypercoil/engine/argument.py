@@ -7,6 +7,7 @@ Model argument
 Convenience mappings representing arguments to a model or loss function.
 Also aliased to loss arguments.
 """
+import torch
 from collections.abc import Mapping
 
 
@@ -32,6 +33,15 @@ class ModelArgument(Mapping):
 
     def __iter__(self):
         return iter(self.__dict__)
+
+    def __repr__(self):
+        s = f'{type(self).__name__}('
+        for k, v in self.items():
+            if isinstance(v, torch.Tensor):
+                v = f'<tensor of dimension {tuple(v.shape)}>'
+            s += f'\n    {k} : {v}'
+        s += ')'
+        return s
 
 
 class UnpackingModelArgument(ModelArgument):
