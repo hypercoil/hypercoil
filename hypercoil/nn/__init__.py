@@ -32,6 +32,7 @@ from .resid import (
 )
 from .select import (
     ResponseFunctionLinearSelector,
+    QCPredict,
     LinearCombinationSelector,
     EliminationSelector
 )

@@ -8,8 +8,9 @@ Modules supporting model selection, as for denoising/confound regression.
 """
 import torch
 from torch.nn import Module, Linear, Parameter, ParameterDict
+from functools import partial
 from ..functional.domain import Logit
-from ..functional import basisconv2d
+from ..functional import basischan, basisconv2d, tsconv2d
 from ..init.dirichlet import DirichletInit
 from ..init.base import (
     DistributionInitialiser
@@ -78,6 +79,104 @@ class ResponseFunctionLinearSelector(Module):
             rf_conv.view(n, c * h, w)
         ), axis=-2)
         return self.weight['lin'] @ all_functions
+
+
+class QCPredict(Module):
+    def __init__(
+        self,
+        n_ts,
+        basis_functions=None,
+        n_response_functions=10,
+        response_function_len=9,
+        n_global_patterns=10,
+        global_pattern_len=9,
+        final_filter_len=1,
+        n_qc=1,
+        init_rf=None,
+        init_global=None,
+        init_final=None
+    ):
+        super().__init__()
+        default_init = lambda x: torch.nn.init.kaiming_uniform_(
+            x, nonlinearity='relu')
+        self.weight = ParameterDict({
+            'rf' : Parameter(torch.empty(
+                n_response_functions,
+                len(basis_functions),
+                1,
+                response_function_len)),
+            'global' : Parameter(torch.empty(
+                n_global_patterns,
+                n_response_functions + len(basis_functions),
+                n_ts,
+                global_pattern_len)),
+            'final' : Parameter(torch.empty(
+                n_qc,
+                n_global_patterns + n_ts,
+                1,
+                final_filter_len)),
+            'thresh_rf' : Parameter(torch.empty(
+                n_response_functions, 1, 1)),
+            'thresh_global' : Parameter(torch.empty(
+                n_global_patterns, 1, 1)),
+            'thresh_final' : Parameter(torch.empty(
+                1, 1, 1))
+        })
+        self.init_rf = init_rf or  default_init
+        self.init_global = init_global or default_init
+        self.init_final = init_final or default_init
+        self.basis_functions = basis_functions or [lambda x : x]
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.init_rf(self.weight['rf'])
+        self.init_global(self.weight['global'])
+        self.init_final(self.weight['final'])
+        torch.nn.init.normal_(self.weight['thresh_rf'], 0.05)
+        torch.nn.init.normal_(self.weight['thresh_global'], 0.05)
+        torch.nn.init.normal_(self.weight['thresh_final'], 0.05)
+
+    def conv_and_thresh(self, conv, x, weight, thresh):
+        conv_out = conv(
+            X=x,
+            weight=weight,
+            bias=None,
+            padding=None)
+        conv_out = conv_out - thresh
+        conv_out = torch.relu(conv_out)
+        conv_out = conv_out + thresh
+        return conv_out
+
+    def forward(self, x):
+        rf_conv = self.conv_and_thresh(
+            conv=partial(basisconv2d,
+                         basis_functions=self.basis_functions,
+                         include_const=False),
+            x=x,
+            weight=self.weight['rf'],
+            thresh=self.weight['thresh_rf'])
+        n, c, h, w = rf_conv.shape
+        augmented = torch.cat((
+            basischan(x, basis_functions=self.basis_functions).view(n, -1, h, w),
+            rf_conv
+        ), axis=1)
+
+        global_conv = self.conv_and_thresh(
+            conv=tsconv2d,
+            x=augmented,
+            weight=self.weight['global'],
+            thresh=self.weight['thresh_global'])
+        augmented = torch.cat((
+            x.view(n, h, 1, w),
+            global_conv
+        ), axis=1)
+
+        final_conv = self.conv_and_thresh(
+            conv=tsconv2d,
+            x=augmented,
+            weight=self.weight['final'],
+            thresh=self.weight['thresh_final'])
+        return final_conv
 
 
 class LinearCombinationSelector(Linear):
