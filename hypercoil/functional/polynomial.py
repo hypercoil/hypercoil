@@ -145,17 +145,28 @@ def polyconv2d(X, weight, include_const=False, bias=None,
     return torch.conv2d(X, weight, bias=bias, padding=padding, **params)
 
 
-def _configure_input_for_channel_basis(X):
-    """
-    Helper function for conforming arbitrary inputs to dimensions expected
-    for defining a channel basis.
-    """
+def tsconv2d(X, weight, bias=None, padding=None, **params):
+    X = _configure_input_for_ts_conv(X)
+    padding = padding or (0, weight.size(-1) // 2)
+    return torch.conv2d(X, weight, bias=bias, padding=padding, **params)
+
+
+def _configure_input_for_ts_conv(X):
     if X.dim() > 2:
         pass
     elif X.dim() == 2:
         X = X.view(1, *X.size())
     elif X.dim() == 1:
         X = X.view(1, -1)
+    return X
+
+
+def _configure_input_for_channel_basis(X):
+    """
+    Helper function for conforming arbitrary inputs to dimensions expected
+    for defining a channel basis.
+    """
+    X = _configure_input_for_ts_conv(X)
     stack = [X]
     return X, stack
 
@@ -190,7 +201,7 @@ def basischan(X, basis_functions, include_const=False):
     include_const : bool (default False)
         Indicates that a constant or intercept term should be included.
     """
-    X, _ = _configure_input_for_channel_basis(X)
+    X = _configure_input_for_ts_conv(X)
     stack = [f(X) for f in basis_functions]
     if include_const:
         stack = [torch.ones_like(X)] + stack

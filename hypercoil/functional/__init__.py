@@ -42,7 +42,7 @@ from .noise import (
     UnstructuredNoiseSource, UnstructuredDropoutSource
 )
 from .polynomial import (
-    polychan, polyconv2d, basischan, basisconv2d
+    polychan, polyconv2d, basischan, basisconv2d, tsconv2d
 )
 from .resid import (
     residualise
