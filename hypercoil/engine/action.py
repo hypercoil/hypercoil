@@ -158,3 +158,16 @@ class WriteTSV(SentryAction):
                     f'{self.save_root}_epoch-{epoch}.tsv'
                 )
             to_save.to_csv(save_path, index=False, sep='\t')
+
+
+class Convey(SentryAction):
+    def __init__(self, receive_line=None, transmit_line=None):
+        self.receive_line = receive_line
+        self.transmit_line = transmit_line
+        super().__init__(trigger=['DATA'])
+
+    def propagate(self, sentry, received):
+        input = received['DATA'].get(self.receive_line)
+        if not input:
+            return
+        sentry(input, line=self.transmit_line)
