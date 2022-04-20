@@ -7,11 +7,77 @@ Model Selection
 Modules supporting model selection, as for denoising/confound regression.
 """
 import torch
-from torch.nn import Module, Linear, Parameter
+from torch.nn import Module, Linear, Parameter, ParameterDict
 from ..functional.domain import Logit
+from ..functional import basisconv2d
+from ..init.dirichlet import DirichletInit
 from ..init.base import (
     DistributionInitialiser
 )
+
+
+class ResponseFunctionLinearSelector(Module):
+    """
+    Model selection as a linear combination, with convolutional model
+    augmentation.
+    """
+    def __init__(
+        self,
+        model_dim,
+        n_columns,
+        basis_functions=None,
+        n_response_functions=10,
+        response_function_len=9,
+        init_lin=None,
+        init_conv=None
+    ):
+        super().__init__()
+        n_columns = n_columns * (1 + n_response_functions)
+        if basis_functions is None:
+            basis_functions = [lambda x : x]
+        if init_lin is None:
+            init_lin = lambda x: torch.nn.init.xavier_uniform_(x)
+        if init_conv is None:
+            init_conv = lambda x: torch.nn.init.kaiming_uniform_(
+                x, nonlinearity='relu')
+        self.weight = ParameterDict({
+            'rf' : Parameter(torch.empty(
+                n_response_functions,
+                len(basis_functions),
+                1,
+                response_function_len)),
+            'lin' : Parameter(torch.empty(
+                model_dim, n_columns)),
+            'thresh' : Parameter(torch.empty(
+                n_response_functions, 1, 1))
+        })
+        self.init_lin = init_lin
+        self.init_conv = init_conv
+        self.basis_functions = basis_functions
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.init_conv(self.weight['rf'])
+        self.init_lin(self.weight['lin'])
+        torch.nn.init.normal_(self.weight['thresh'], 0.05)
+
+    def forward(self, x):
+        rf_conv = basisconv2d(
+            X=x,
+            weight=self.weight['rf'],
+            basis_functions=self.basis_functions,
+            include_const=False,
+            bias=None,
+            padding=None)
+        rf_conv = rf_conv - self.weight['thresh']
+        rf_conv = torch.relu(rf_conv)
+        rf_conv = rf_conv + self.weight['thresh']
+        n, c, h, w = rf_conv.shape
+        all_functions = torch.cat((
+            x,
+            rf_conv.view(n, c * h, w)
+        ), axis=-2)
+        return self.weight['lin'] @ all_functions
 
 
 class LinearCombinationSelector(Linear):

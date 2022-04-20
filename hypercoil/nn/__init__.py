@@ -30,6 +30,11 @@ from .recombinator import (
 from .resid import (
     Residualise
 )
+from .select import (
+    ResponseFunctionLinearSelector,
+    LinearCombinationSelector,
+    EliminationSelector
+)
 from .semidefinite import(
     TangentProject, BatchTangentProject
 )
