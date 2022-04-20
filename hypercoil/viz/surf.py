@@ -148,7 +148,7 @@ class fsLRAtlasParcels(
             p = surfplot.Plot(
                 surf_lh=self.lh,
                 surf_rh=self.rh,
-                brightness=1,
+                brightness=0.1,
                 **view_args
             )
             p.offscreen = offscreen
