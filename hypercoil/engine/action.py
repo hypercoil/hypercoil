@@ -168,6 +168,14 @@ class Convey(SentryAction):
 
     def propagate(self, sentry, received):
         input = received['DATA'].get(self.receive_line)
-        if not input:
-            return
-        sentry(input, line=self.transmit_line)
+        if input is not None:
+            sentry(input, line=self.transmit_line)
+
+
+class VerboseReceive(SentryAction):
+    def __init__(self):
+        super().__init__(trigger=None)
+
+    def propagate(self, sentry, received):
+        print(f'\n[Sentry {sentry} receiving transmission]')
+        print(received)

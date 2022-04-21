@@ -79,6 +79,15 @@ class SentryMessage(Mapping):
     def __iter__(self):
         return iter(self.content)
 
+    def __repr__(self):
+        s = f'{type(self).__name__}('
+        for k, v in self.items():
+            if isinstance(v, torch.Tensor):
+                v = f'<tensor of dimension {tuple(v.shape)}>'
+            s += f'\n    {k} : {v}'
+        s += ')'
+        return s
+
     def clear(self):
         self.content = {}
 
@@ -101,6 +110,10 @@ class SentryAction(ABC):
         self.message = SentryMessage()
 
     def __call__(self, message):
+        if self.trigger is None:
+            for sentry in self.sentries:
+                self.propagate(sentry, message)
+            return
         received = {t: message.get(t) for t in self.trigger}
         if None not in received.values():
             for sentry in self.sentries:
