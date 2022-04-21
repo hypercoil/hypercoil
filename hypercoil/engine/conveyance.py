@@ -122,3 +122,32 @@ class Origin(BaseConveyance):
             self._update_transmission(data, transmit_line)
         self._transmit()
         return data
+
+
+class DataPool(BaseConveyance):
+    def __init__(self, release_size=1, lines=None, line_filters=None):
+        super().__init__(lines=lines, line_filters=line_filters)
+        self.register_action(CountBatches())
+        self.register_action(BatchRelease(batch_size=release_size))
+        self.reset()
+        self.batched = 0
+
+    def reset(self):
+        self.pool = {line: [] for line in self.transmit}
+
+    def release(self):
+        for line, pool in self.pool.items():
+            transmit = ModelArgument()
+            try:
+                keys = list(pool[0].keys())
+                for key in keys:
+                    rebatched = [a[key] for a in pool]
+                    transmit[key] = torch.cat(rebatched, dim=0)
+            except IndexError: # empty pool
+                return
+            self._update_transmission(transmit, line)
+        self._transmit()
+        self.reset()
+
+    def forward(self, arg, line=None):
+        self.pool[line] += [arg]
