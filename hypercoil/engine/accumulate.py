@@ -66,8 +66,108 @@ of the ``AccumulatingFunction`` can then interact with local loss functions.
 """
 import torch
 from torch.autograd import Function
+from functools import partial
 from collections import OrderedDict
-from hypercoil.engine.argument import ModelArgument
+from .conveyance import (
+    BaseConveyance,
+    Conveyance,
+    Conflux,
+    DataPool
+)
+from .argument import ModelArgument
+
+
+class AccumulineConveyance(Conveyance):
+    def __init__(
+        self,
+        model,
+        origin,
+        accfn,
+        gradient,
+        backward,
+        argmap,
+        cfx_fields,
+        retain_dims,
+        throughput,
+        batch_size,
+        influx=None,
+        efflux=None,
+        lines=None,
+        line_filters=None
+    ):
+        self.module = model
+        self.gradient = gradient
+        self.retain_dims = retain_dims
+        self.argmap = argmap
+        self.batched = 0
+        self.acc = Accumulator(
+            model=self.module,
+            gradient=self.gradient,
+            retain_dims=self.retain_dims,
+            model_params=[],
+            reduce_dims=reduction
+        )
+        accmodel = partial(
+            accfn,
+            acc=self.acc,
+            backward=self.backward,
+            argmap=self.argmap
+        )
+        if lines is None:
+            lines = [
+                ('accumuline', None),
+                ('accumuline', 'accumuline'),
+                ('accumuline', 'terminal')
+            ]
+        else:
+            lines += [
+                ('accumuline', 'accumuline'),
+                ('accumuline', 'terminal')
+            ]
+        super().__init__(
+            influx=influx,
+            efflux=efflux,
+            model=accmodel,
+            lines=lines,
+            line_filters=line_filters
+        )
+        self.register_action(CountBatches())
+        self.register_action(BatchRelease(batch_size=batch_size))
+        cfx_fields = list(cfx_fields) + ['out']
+        conflux = Conflux(
+            fields=cfx_fields,
+            lines=[('accumuline', 'accumuline')]
+        )
+        pool = DataPool(
+            release_size=throughput,
+            lines=[('accumuline', 'accumuline')]
+        )
+        origin.add_line(('source', 'accumuline'))
+        origin.connect_downstream(pool)
+        pool.connect_downstream(conflux)
+        conflux.connect_downstream(self)
+        conflux.connect_upstream(self)
+        self.origin = origin
+        self.conflux = conflux
+        self.pool = pool
+
+    def release(self):
+        for line in self.transmit:
+            if line != 'accumuline':
+                self._update_transmission(self.out, line)
+        self._transmit()
+
+    def forward(self, arg=None, line=None):
+        init = True
+        while (self.pool.batched != 0) or (init):
+            self.origin(line='source')
+            init = True
+        if arg is None:
+            out = ModelArgument(out=[])
+            self._update_transmission(out, 'accumuline')
+            self._transmit()
+        else:
+            super().forward(arg=arg, line=line)
 
 
 class Accumuline(torch.nn.Module):
