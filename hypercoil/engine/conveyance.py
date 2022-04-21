@@ -25,30 +25,51 @@ def transport(*pparams, **params):
 
 
 class BaseConveyance(SentryModule):
-    def __init__(self, lines=None, line_filters=None):
+    def __init__(
+        self,
+        lines=None,
+        transmit_filters=None,
+        receive_filters=None
+    ):
         super().__init__()
         if isinstance(lines, str): lines = [lines]
         if lines is None: lines = [(None, None)]
-        if line_filters is None: line_filters = {}
+        if transmit_filters is None: transmit_filters = {}
+        if receive_filters is None: receive_filters = {}
         lines = [l if isinstance(l, tuple) else (l, l) for l in lines]
-        self.lines = lines
+        self.lines = set()
         self.receive = set()
         self.transmit = set()
         self.transmit_map = {}
         self.data_transmission = SentryMessage()
-        self.line_filters = line_filters
-        for (receive, transmit) in self.lines:
-            convey = Convey(
-                receive_line=receive,
-                transmit_line=transmit
-            )
-            self.register_action(convey)
-            self.receive = self.receive.union({receive})
-            self.transmit = self.transmit.union({transmit})
-            if self.transmit_map.get(receive) is None:
-                self.transmit_map[receive] = [transmit]
-            else:
-                self.transmit_map[receive] += [transmit]
+        self.transmit_filters = transmit_filters
+        self.receive_filters = receive_filters
+        for line in self.lines:
+            self.add_line(line)
+
+    def add_line(self, line):
+        if not isinstance(line, tuple):
+            line = (line, line)
+        if line in self.lines:
+            return
+        receive, transmit = line
+        convey = Convey(
+            receive_line=receive,
+            transmit_line=transmit
+        )
+        self.register_action(convey)
+        self.receive = self.receive.union({receive})
+        self.transmit = self.transmit.union({transmit})
+        if self.transmit_map.get(receive) is None:
+            self.transmit_map[receive] = [transmit]
+        else:
+            self.transmit_map[receive] += [transmit]
+
+    def transmit_filter_cfg(self, line, filter):
+        self.transmit_filters[line] = filter
+
+    def receive_filter_cfg(self, line, filter):
+        self.receive_filters[line] = filter
 
     def connect_downstream(self, conveyance):
         self.register_sentry(conveyance)
@@ -56,17 +77,23 @@ class BaseConveyance(SentryModule):
     def connect_upstream(self, conveyance):
         conveyance.register_sentry(self)
 
-    def _filter_line(self, data, line):
-        if self.line_filters.get(line) is None:
+    def _filter_line(self, data, line, filters):
+        if filters.get(line) is None:
             return data
         arg = type(data)
         mapped = {k: v for k, v in data.items()
-                  if k in self.line_filters.get(line)}
+                  if k in filters.get(line)}
         return arg(**mapped)
+
+    def _filter_received(self, data, line):
+        return self._filter_line(data, line, self.receive_filters)
+
+    def _filter_transmission(self, data, line):
+        return self._filter_line(data, line, self.transmit_filters)
 
     def _update_transmission(self, data, line):
         self.data_transmission.update(
-            (line, self._filter_line(data, line))
+            (line, self._filter_transmission(data, line))
         )
 
     def _transmit(self):
@@ -80,17 +107,22 @@ class BaseConveyance(SentryModule):
 
 
 class Conveyance(BaseConveyance):
-    def __init__(self, influx, efflux, model=None,
-                 lines=None, line_filters=None):
-        super().__init__(lines=lines, line_filters=line_filters)
+    def __init__(self, influx=None, efflux=None, model=None,
+                 lines=None, transmit_filters=None,
+                 receive_filters=None):
+        super().__init__(
+            lines=lines,
+            transmit_filters=transmit_filters,
+            receive_filters=receive_filters
+        )
         if model is None:
             model = transport
         self.model = model
-        self.influx = influx
-        self.efflux = efflux
+        self.influx = influx or lambda x: x
+        self.efflux = efflux or lambda x: x
 
     def forward(self, arg, line=None):
-        input = self.influx(arg)
+        input = self.influx(self._filter_received(arg))
         if isinstance(input, UnpackingModelArgument):
             output = self.model(**input)
         else:
@@ -103,11 +135,18 @@ class Conveyance(BaseConveyance):
 
 
 class Origin(BaseConveyance):
-    def __init__(self, pipeline, lines=None, line_filters=None, **params):
+    def __init__(
+        self,
+        pipeline,
+        lines=None,
+        transmit_filters=None,
+        receive_filters=None,
+        **params
+    ):
         if isinstance(lines, str): lines = [lines]
         if lines is None: lines = [None]
         lines = [('source', line) for line in lines]
-        super().__init__(lines=lines, line_filters=line_filters)
+        super().__init__(lines=lines, transmit_filters=transmit_filters)
         self.pipeline = pipeline
         self.loader = torch.utils.data.DataLoader(
             self.pipeline, **params)
@@ -115,6 +154,7 @@ class Origin(BaseConveyance):
 
     def forward(self, arg=None, line=None):
         data = ModelArgument(**next(self.iter_loader))
+        data = self._filter_received(data)
         self.message.update(
             ('BATCH', self.loader.batch_size)
         )
@@ -125,8 +165,18 @@ class Origin(BaseConveyance):
 
 
 class DataPool(BaseConveyance):
-    def __init__(self, release_size=1, lines=None, line_filters=None):
-        super().__init__(lines=lines, line_filters=line_filters)
+    def __init__(
+        self,
+        release_size=1,
+        lines=None,
+        transmit_filters=None,
+        receive_filters=None
+    ):
+        super().__init__(
+            lines=lines,
+            transmit_filters=transmit_filters,
+            receive_filters=receive_filters
+        )
         self.register_action(CountBatches())
         self.register_action(BatchRelease(batch_size=release_size))
         self.reset()
@@ -135,7 +185,7 @@ class DataPool(BaseConveyance):
     def reset(self):
         self.pool = {line: [] for line in self.transmit}
 
-    def release(self):
+    def compile(self):
         for line, pool in self.pool.items():
             transmit = ModelArgument()
             try:
@@ -144,10 +194,13 @@ class DataPool(BaseConveyance):
                     rebatched = [a[key] for a in pool]
                     transmit[key] = torch.cat(rebatched, dim=0)
             except IndexError: # empty pool
-                return
+                continue
             self._update_transmission(transmit, line)
+
+    def release(self):
+        self.compile()
         self._transmit()
         self.reset()
 
     def forward(self, arg, line=None):
-        self.pool[line] += [arg]
+        self.pool[line] += [self._filter_received(arg)]

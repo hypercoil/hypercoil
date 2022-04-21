@@ -172,6 +172,19 @@ class Convey(SentryAction):
             sentry(input, line=self.transmit_line)
 
 
+class IndexBatchSize(SentryAction):
+    def __init__(self, key, receive_line=None):
+        super().__init__(trigger=['DATA'])
+        self.receive_line = receive_line
+        self.key = key
+
+    def propagate(self, sentry, received):
+        input = received['DATA'].get(self.receive_line)
+        if input is not None:
+            batch_size = input[self.key].shape[0]
+            sentry.message.update(('BATCH', batch_size))
+
+
 class CountBatches(SentryAction):
     def __init__(self):
         super().__init__(trigger=['BATCH'])
@@ -188,6 +201,7 @@ class BatchRelease(SentryAction):
 
     def propagate(self, sentry, received):
         if sentry.batched >= self.batch_size:
+            sentry.message.update(('BATCH', self.batch_size))
             sentry.release()
             sentry.batched = 0
 
