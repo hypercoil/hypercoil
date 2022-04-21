@@ -206,6 +206,18 @@ class BatchRelease(SentryAction):
             sentry.batched = 0
 
 
+class ConfluxRelease(SentryAction):
+    def __init__(self, requirements):
+        self.requirements = requirements
+        super().__init__(trigger=['DATA'])
+
+    def propagate(self, sentry, received):
+        for req in self.requirements:
+            if req not in sentry.staged.keys():
+                return
+        sentry.release()
+
+
 class VerboseReceive(SentryAction):
     def __init__(self):
         super().__init__(trigger=None)

@@ -16,7 +16,8 @@ from . import (
 from .action import (
     Convey,
     CountBatches,
-    BatchRelease
+    BatchRelease,
+    ConfluxRelease
 )
 
 
@@ -162,6 +163,38 @@ class Origin(BaseConveyance):
             self._update_transmission(data, transmit_line)
         self._transmit()
         return data
+
+
+class Conflux(BaseConveyance):
+    def __init__(
+        self,
+        fields,
+        lines=None,
+        transmit_filters=None,
+        receive_filters=None
+    ):
+        super().__init__(
+            lines=lines,
+            transmit_filters=transmit_filters,
+            receive_filters=receive_filters
+        )
+        self.register_action(ConfluxRelease(requirements=fields))
+        self.reset()
+
+    def reset(self):
+        self.staged = ModelArgument()
+
+    def compile(self):
+        for transmit_line in self.transmit:
+            self._update_transmission(self.staged, transmit_line)
+
+    def release(self):
+        self.compile()
+        self._transmit()
+        self.reset()
+
+    def forward(self, arg, line=None):
+        self.staged.update(**self._filter_received(arg))
 
 
 class DataPool(BaseConveyance):
