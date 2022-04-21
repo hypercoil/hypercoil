@@ -172,6 +172,26 @@ class Convey(SentryAction):
             sentry(input, line=self.transmit_line)
 
 
+class CountBatches(SentryAction):
+    def __init__(self):
+        super().__init__(trigger=['BATCH'])
+
+    def propagate(self, sentry, received):
+        count = received['BATCH']
+        sentry.batched += count
+
+
+class BatchRelease(SentryAction):
+    def __init__(self, batch_size):
+        super().__init__(trigger=['BATCH'])
+        self.batch_size = batch_size
+
+    def propagate(self, sentry, received):
+        if sentry.batched >= self.batch_size:
+            sentry.release()
+            sentry.batched = 0
+
+
 class VerboseReceive(SentryAction):
     def __init__(self):
         super().__init__(trigger=None)

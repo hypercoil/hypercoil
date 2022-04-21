@@ -10,6 +10,7 @@ from .argument import (
 from .sentry import (
     Sentry,
     SentryModule,
+    SentryMessage,
     Epochs
 )
 from .report import (
