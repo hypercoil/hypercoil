@@ -7,6 +7,7 @@ Conveyances
 Abstractions representing transport through a model.
 """
 import torch
+import warnings
 from . import (
     SentryModule,
     SentryMessage,
@@ -52,6 +53,9 @@ class BaseConveyance(SentryModule):
         lines = [l if isinstance(l, tuple) else (l, l) for l in lines]
         return lines
 
+    def _add_line_extra(self, line):
+        pass
+
     def add_line(self, line):
         if not isinstance(line, tuple):
             line = (line, line)
@@ -69,6 +73,7 @@ class BaseConveyance(SentryModule):
             self.transmit_map[receive] = [transmit]
         else:
             self.transmit_map[receive] += [transmit]
+        self._add_line_extra(line)
 
     def transmit_filter_cfg(self, line, filter):
         self.transmit_filters[line] = filter
@@ -261,15 +266,22 @@ class DataPool(BaseConveyance):
             transmit_filters=transmit_filters,
             receive_filters=receive_filters
         )
+        self.batched = 0
         self.register_action(CountBatches())
         self.register_action(BatchRelease(batch_size=release_size))
         self.reset()
-        self.batched = 0
+        if len(self.receive) > 1:
+            warnings.warn(
+                'DataPool receiving over multiple lines: '
+                'Loss of pool size synchrony is possible. '
+                'It is recommended that you create a separate '
+                'DataPool for each receiving line.'
+            )
 
     def reset(self):
         self.pool = {line: [] for line in self.transmit}
 
-    def compile(self):
+    def compile(self, inplace=False):
         for line, pool in self.pool.items():
             transmit = ModelArgument()
             try:
@@ -281,7 +293,47 @@ class DataPool(BaseConveyance):
                     transmit[key] = rebatched
             except IndexError: # empty pool
                 continue
-            self._update_transmission(transmit, line)
+            if inplace:
+                self.pool[line] = [transmit]
+            else:
+                self._update_transmission(transmit, line)
+
+    def sample(
+        self,
+        sample_size=1,
+        destroy=True,
+        destroy_unused=False,
+        batch_key=None,
+        line=None
+    ):
+        self.compile(inplace=True)
+        ret = ModelArgument()
+        repool = ModelArgument()
+        sample, = self.pool[line]
+        keys = list(sample.keys())
+        batch_key = batch_key or keys[0]
+        sampled_size = sample[batch_key].shape[0]
+        require_repool = False
+        restore_size = 0
+        if sampled_size < sample_size:
+            raise ValueError(
+                f'Insufficient pooled data for a '
+                f'sample of size {sample_size}')
+        for k, v in sample.items():
+            if sampled_size > sample_size and not destroy_unused:
+                restore = v[sample_size:]
+                restore_size = restore.shape[0]
+                if destroy:
+                    require_repool = True
+                    repool[k] = restore
+            ret[k] = v[:sample_size]
+        if destroy:
+            if require_repool:
+                self.pool[line] = [repool]
+            else:
+                self.pool[line] = []
+            self.batched = restore_size
+        return ret
 
     def release(self):
         self.compile()
