@@ -79,11 +79,21 @@ class SentryMessage(Mapping):
     def __iter__(self):
         return iter(self.content)
 
+    def _fmt_tsr_repr(self, tsr):
+        return f'<tensor of dimension {tuple(tsr.shape)}>'
+
     def __repr__(self):
         s = f'{type(self).__name__}('
         for k, v in self.items():
             if isinstance(v, torch.Tensor):
-                v = f'<tensor of dimension {tuple(v.shape)}>'
+                v = self._fmt_tsr_repr(v)
+            elif isinstance(v, list):
+                v = f'<list with {len(v)} elements>'
+            elif isinstance(v, tuple):
+                fmt = [self._fmt_tsr_repr(i)
+                       if isinstance(i, torch.Tensor)
+                       else i for i in v]
+                v = f'({fmt})'
             s += f'\n    {k} : {v}'
         s += ')'
         return s
