@@ -183,7 +183,7 @@ class TestAccumulator:
         def accfn_W(weight, input, acc, out=[], terminate=False):
             fwd = AccumulatingFunction.apply
             bwd = lambda grad_output, grad_local: (grad_output @ grad_local,)
-            argmap = argmap=(lambda t: ModelArgument(x=t))
+            argmap = (lambda t: ModelArgument(x=t))
             return fwd(
                 acc,
                 bwd,
@@ -199,18 +199,11 @@ class TestAccumulator:
                 weight=x.transpose(-1, -2)
             )
 
-        class Slicing0Source:
-            def __init__(self, tensor):
-                self.tensor = tensor
-                self.idx = 0
-
-            def sample(self, samples):
-                s = slice(self.idx, self.idx + samples)
-                sample = self.tensor[s]
-                self.idx += samples
-                return sample
-
-        data_source = Slicing0Source(T)
+        dpl = wds.DataPipeline(
+            lambda: iter(T),
+            wds.map(lambda t: {'input' : t})
+        )
+        origin = Origin(pipeline=dpl, lines='bypass')
 
         ##TODO: If we just change all the softmax axes to -1 instead of
         # -2, this fails the gradient check catastrophically! In further
@@ -221,16 +214,17 @@ class TestAccumulator:
         # furthermore include a major warning in the documentation.
         aline = Accumuline(
             model=lambda x: torch.softmax(W, -2) @ x,
-            gradient=model_grad,
             accfn=accfn_W,
+            gradient=model_grad,
+            origin=origin,
             retain_dims=(-1, -2),
             throughput=3,
             batch_size=20
         )
         out = aline(
-            data_source, weight=torch.softmax(W, -2)
+            weight=torch.softmax(W, -2)
         )
-        out = out[0]
+        out = out[0][0]
         Y = torch.tanh(out)
         Y = W2 @ out @ W3
         l = loss(Y, torch.zeros_like(Y))
