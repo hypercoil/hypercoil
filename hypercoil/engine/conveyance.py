@@ -183,6 +183,38 @@ class Origin(BaseConveyance):
         return data
 
 
+class Hollow(BaseConveyance):
+    def __init__(
+        self,
+        fields,
+        lines=None,
+        transmit_filters=None,
+        receive_filters=None
+    ):
+        super().__init__(
+            lines=lines,
+            transmit_filters=transmit_filters,
+            receive_filters=receive_filters
+        )
+        self.fields = fields
+
+    def hollow_fields(self, arg):
+        for field in self.fields:
+            if arg.get(field) is None:
+                new = {field : None}
+                arg = ModelArgument(**arg, **new)
+        return arg
+
+    def forward(self, arg=None, line=None, transmit_lines=None):
+        if arg is not None:
+            data = ModelArgument(**self._filter_received(arg, line))
+        else:
+            data = ModelArgument()
+        data = self.hollow_fields(data)
+        self._update_all_transmissions(data, line, transmit_lines)
+        self._transmit()
+
+
 class Conflux(BaseConveyance):
     def __init__(
         self,
