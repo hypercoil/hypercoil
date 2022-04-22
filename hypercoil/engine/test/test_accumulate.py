@@ -212,19 +212,24 @@ class TestAccumulator:
         # figure out what is going on, and in the meantime we should
         # implement some kind of built-in test to the accumuline class and
         # furthermore include a major warning in the documentation.
+        throughput = 3
+        batch_size = 20
         aline = Accumuline(
             model=lambda x: torch.softmax(W, -2) @ x,
             accfn=accfn_W,
             gradient=model_grad,
             origin=origin,
             retain_dims=(-1, -2),
-            throughput=3,
-            batch_size=20
+            throughput=throughput,
+            batch_size=batch_size,
+            local_argmap=(lambda data, model: ModelArgument(data=data))
         )
-        repool = DataPool(release_size=20, lines='bypass')
+        locpool = DataPool(lines='local')
+        repool = DataPool(release_size=batch_size, lines='bypass')
         repool2 = DataPool(lines='bypass')
         origin.connect_downstream(repool)
         repool.connect_downstream(repool2)
+        aline.connect_downstream(locpool)
 
         out = aline(
             weight=torch.softmax(W, -2)
@@ -235,9 +240,13 @@ class TestAccumulator:
         l = loss(Y, torch.zeros_like(Y))
         l.backward()
 
-        assert torch.all(repool2.pool['bypass'][0].input == T)
-
         attempt = W.grad.clone()
+
+        assert torch.all(repool2.pool['bypass'][0].input == T)
+        assert len(locpool.pool['local']) >= (batch_size // throughput)
+        for arg in locpool.pool['local']:
+            print(arg)
+            assert arg.data.input.shape[0] <= throughput
 
         W.grad.zero_()
         W2.grad.zero_()

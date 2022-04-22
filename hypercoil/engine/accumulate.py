@@ -86,7 +86,7 @@ from .conveyance import (
 from .sentry import Sentry
 
 
-class Accumuline(torch.nn.Module):
+class Accumuline(Conveyance):
     def __init__(
         self,
         model,
@@ -99,8 +99,8 @@ class Accumuline(torch.nn.Module):
         reduction='mean',
         influx=None,
         efflux=None,
-        loss=None,
-        loss_argmap=None
+        local_argmap=None,
+        skip_local=False
     ):
         super().__init__()
         self.model = model
@@ -109,8 +109,8 @@ class Accumuline(torch.nn.Module):
         self.retain_dims = retain_dims
         self.throughput = throughput
         self.batch_size = batch_size
-        self.loss = loss
-        self.loss_argmap = loss_argmap
+        self.local_argmap = local_argmap or (lambda _: ModelArgument())
+        self.skip_local = skip_local
         self.acc = Accumulator(
             model=self.model,
             gradient=self.gradient,
@@ -131,6 +131,7 @@ class Accumuline(torch.nn.Module):
         self.origin.add_line(('source', 'accumuline'))
         self.pool = DataPool(lines='accumuline')
         self.origin.connect_downstream(self.pool)
+        self.add_line(('__nullsrc__', 'local'))
 
     def pool_and_sample(self, sample_size):
         while self.pool.batched < sample_size:
@@ -155,24 +156,28 @@ class Accumuline(torch.nn.Module):
         output = ModelArgument(out=output)
         return output
 
+    def _transmit_over_local(self, data):
+        if self.skip_local:
+            return
+        local_arg = self.local_argmap(
+            data, self.model
+        )
+        self.clear_transmission()
+        self._update_transmission(local_arg, 'local')
+        self._transmit()
+
     def _step(self, out, **params):
         if self.batched >= self.batch_size:
             terminate = True
-            sample = None
+            data = None
         else:
             terminate = False
             sample_size = min(self.throughput, self.batch_size - self.batched)
-            sample = self.pool_and_sample(sample_size)
+            data = self.pool_and_sample(sample_size)
             self.batched += sample_size
-            if self.loss is not None:
-                sample_out = self.model(**self.argmap(sample))
-                loss_arg = self.loss_argmap(
-                    sample, sample_out, self.model
-                )
-                l = self.loss(loss_arg, verbose=True)
-                l.backward()
+            self._transmit_over_local(data)
         out = self._accfn_call(
-            arg=sample,
+            arg=data,
             out=out,
             terminate=terminate,
             **params
