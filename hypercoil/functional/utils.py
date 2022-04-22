@@ -40,7 +40,7 @@ def apply_mask(tensor, msk, axis):
     else:
         shape_sfx = tensor.shape[(axis + 1):]
     msk = msk.tile(*shape_pfx, 1)
-    return tensor[msk].reshape(*shape_pfx, -1, *shape_sfx)
+    return tensor[msk].view(*shape_pfx, -1, *shape_sfx)
 
 
 def wmean(input, weight, dim=None, keepdim=False):
