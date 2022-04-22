@@ -33,11 +33,9 @@ class BaseConveyance(SentryModule):
         receive_filters=None
     ):
         super().__init__()
-        if isinstance(lines, str): lines = [lines]
-        if lines is None: lines = [(None, None)]
         if transmit_filters is None: transmit_filters = {}
         if receive_filters is None: receive_filters = {}
-        lines = [l if isinstance(l, tuple) else (l, l) for l in lines]
+        lines = self._fmt_lines(lines)
         self.lines = set()
         self.receive = set()
         self.transmit = set()
@@ -45,8 +43,14 @@ class BaseConveyance(SentryModule):
         self.data_transmission = SentryMessage()
         self.transmit_filters = transmit_filters
         self.receive_filters = receive_filters
-        for line in self.lines:
+        for line in lines:
             self.add_line(line)
+
+    def _fmt_lines(self, lines):
+        if isinstance(lines, str): lines = [lines]
+        if lines is None: lines = [None]
+        lines = [l if isinstance(l, tuple) else (l, l) for l in lines]
+        return lines
 
     def add_line(self, line):
         if not isinstance(line, tuple):
@@ -55,9 +59,9 @@ class BaseConveyance(SentryModule):
             return
         receive, transmit = line
         convey = Convey(
-            receive_line=receive,
-            transmit_line=transmit
+            line=receive
         )
+        self.lines = self.lines.union({(receive, transmit)})
         self.register_action(convey)
         self.receive = self.receive.union({receive})
         self.transmit = self.transmit.union({transmit})
@@ -97,11 +101,20 @@ class BaseConveyance(SentryModule):
             (line, self._filter_transmission(data, line))
         )
 
+    def clear_transmission(self):
+        self.data_transmission.clear()
+
+    def _update_all_transmissions(self, data, line, transmit_lines):
+        for transmit_line in self.transmit_map[line]:
+            if transmit_lines is None or transmit_line in transmit_lines:
+                self._update_transmission(data, transmit_line)
+
     def _transmit(self):
         self.message.update(
             ('DATA', self.data_transmission)
         )
         for s in self.listeners:
+            #print(self, s, self.message)
             s._listen(self.message)
         self.data_transmission.clear()
         self.message.clear()
@@ -119,18 +132,18 @@ class Conveyance(BaseConveyance):
         if model is None:
             model = transport
         self.model = model
-        self.influx = influx or lambda x: x
-        self.efflux = efflux or lambda x: x
+        self.influx = influx or (lambda x: x)
+        self.efflux = efflux or (
+            lambda output, arg: ModelArgument(output=output))
 
-    def forward(self, arg, line=None):
-        input = self.influx(self._filter_received(arg))
+    def forward(self, arg, line=None, transmit_lines=None):
+        input = self.influx(self._filter_received(arg, line))
         if isinstance(input, UnpackingModelArgument):
             output = self.model(**input)
         else:
             output = self.model(input)
-        output = self.efflux(output, arg)
-        for transmit_line in self.transmit_map[line]:
-            self._update_transmission(output, transmit_line)
+        output = self.efflux(output=output, arg=arg)
+        self._update_all_transmissions(output, line, transmit_lines)
         self._transmit()
         return output
 
@@ -147,20 +160,25 @@ class Origin(BaseConveyance):
         if isinstance(lines, str): lines = [lines]
         if lines is None: lines = [None]
         lines = [('source', line) for line in lines]
-        super().__init__(lines=lines, transmit_filters=transmit_filters)
+        super().__init__(
+            lines=lines, transmit_filters=transmit_filters)
         self.pipeline = pipeline
         self.loader = torch.utils.data.DataLoader(
             self.pipeline, **params)
         self.iter_loader = iter(self.loader)
 
-    def forward(self, arg=None, line=None):
-        data = ModelArgument(**next(self.iter_loader))
-        data = self._filter_received(data)
+    def forward(self, arg=None, line=None, transmit_lines=None):
+        try:
+            data = ModelArgument(**next(self.iter_loader))
+        except StopIteration:
+            raise StopIteration
+            self.iter_loader = iter(self.loader)
+            data = ModelArgument(**next(self.iter_loader))
+        data = self._filter_received(data, line)
         self.message.update(
             ('BATCH', self.loader.batch_size)
         )
-        for transmit_line in self.transmit_map[line]:
-            self._update_transmission(data, transmit_line)
+        self._update_all_transmissions(data, line, transmit_lines)
         self._transmit()
         return data
 
@@ -185,22 +203,23 @@ class Conflux(BaseConveyance):
         self.staged = ModelArgument()
 
     def compile(self):
+        transmit = ModelArgument(**self.staged)
         for transmit_line in self.transmit:
-            self._update_transmission(self.staged, transmit_line)
+            self._update_transmission(transmit, transmit_line)
 
     def release(self):
         self.compile()
-        self._transmit()
         self.reset()
+        self._transmit()
 
     def forward(self, arg, line=None):
-        self.staged.update(**self._filter_received(arg))
+        self.staged.update(**self._filter_received(arg, line))
 
 
 class DataPool(BaseConveyance):
     def __init__(
         self,
-        release_size=1,
+        release_size=float('inf'),
         lines=None,
         transmit_filters=None,
         receive_filters=None
@@ -225,15 +244,17 @@ class DataPool(BaseConveyance):
                 keys = list(pool[0].keys())
                 for key in keys:
                     rebatched = [a[key] for a in pool]
-                    transmit[key] = torch.cat(rebatched, dim=0)
+                    if isinstance(rebatched[0], torch.Tensor):
+                        rebatched = torch.cat(rebatched, dim=0)
+                    transmit[key] = rebatched
             except IndexError: # empty pool
                 continue
             self._update_transmission(transmit, line)
 
     def release(self):
         self.compile()
-        self._transmit()
         self.reset()
+        self._transmit()
 
     def forward(self, arg, line=None):
-        self.pool[line] += [self._filter_received(arg)]
+        self.pool[line] += [self._filter_received(arg, line)]
