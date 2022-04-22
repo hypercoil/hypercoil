@@ -81,8 +81,7 @@ from .conveyance import (
     BaseConveyance,
     Conveyance,
     Conflux,
-    DataPool,
-    Hollow
+    DataPool
 )
 from .sentry import Sentry
 
@@ -92,9 +91,8 @@ class Accumuline(torch.nn.Module):
         self,
         model,
         gradient,
-        backward,
+        accfn,
         retain_dims,
-        argmap,
         throughput,
         batch_size,
         reduction='mean',
@@ -107,9 +105,7 @@ class Accumuline(torch.nn.Module):
             passmap = lambda sample: ModelArgument()
         self.model = model
         self.gradient = gradient
-        self.backward = backward
         self.retain_dims = retain_dims
-        self.argmap = argmap
         self.passmap = passmap
         self.throughput = throughput
         self.batch_size = batch_size
@@ -122,6 +118,10 @@ class Accumuline(torch.nn.Module):
             model_params=[],
             reduce_dims=reduction
         )
+        self.accfn = partial(
+            accfn,
+            acc=self.acc,
+        )
         self.batched = 0
 
     def pass_forward(self, pas):
@@ -130,7 +130,7 @@ class Accumuline(torch.nn.Module):
             return [torch.cat([s[k] for s in pas]) for k in pass_keys]
         return ()
 
-    def step(self, data_source, out, pas, accfwd, *params):
+    def step(self, data_source, out, pas, **params):
         if self.batched >= self.batch_size:
             terminate = True
             sample = None
@@ -147,24 +147,20 @@ class Accumuline(torch.nn.Module):
                 )
                 l = self.loss(loss_arg, verbose=True)
                 l.backward()
-        out = accfwd(
-            self.acc,
-            self.backward,
-            self.argmap,
-            sample,
-            out,
-            terminate,
-            *params
+        out = self.accfn(
+            input=sample,
+            out=out,
+            terminate=terminate,
+            **params
         )
         return out, terminate
 
-    def forward(self, data_source, *params):
+    def forward(self, data_source, **params):
         out = []
         pas = []
-        accfwd = AccumulatingFunction.apply
         terminate = False
         while not terminate:
-            out, terminate = self.step(data_source, out, pas, accfwd, *params)
+            out, terminate = self.step(data_source, out, pas, **params)
         self.batched = 0
         return (*out, *self.pass_forward(pas))
 

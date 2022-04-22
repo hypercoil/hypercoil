@@ -9,8 +9,8 @@ import torch
 import webdataset as wds
 from hypercoil.engine.argument import ModelArgument
 from hypercoil.engine.accumulate import (
+    _AccumulineRecursive,
     Accumuline,
-    AccumulineStandalone,
     Accumulator,
     AccumulatingFunction
 )
@@ -180,6 +180,20 @@ class TestAccumulator:
         def bwd(grad_output, grad_local):
             return grad_output @ grad_local,
 
+        def accfn_W(weight, input, acc, out=[], terminate=False):
+            fwd = AccumulatingFunction.apply
+            bwd = lambda grad_output, grad_local: (grad_output @ grad_local,)
+            argmap = argmap=(lambda t: ModelArgument(x=t))
+            return fwd(
+                acc,
+                bwd,
+                argmap,
+                input,
+                out,
+                terminate,
+                weight
+            )
+
         def model_grad(x, *args, **kwargs):
             return ModelArgument(
                 weight=x.transpose(-1, -2)
@@ -205,17 +219,16 @@ class TestAccumulator:
         # figure out what is going on, and in the meantime we should
         # implement some kind of built-in test to the accumuline class and
         # furthermore include a major warning in the documentation.
-        aline = AccumulineStandalone(
+        aline = Accumuline(
             model=lambda x: torch.softmax(W, -2) @ x,
             gradient=model_grad,
-            backward=bwd,
+            accfn=accfn_W,
             retain_dims=(-1, -2),
-            argmap=(lambda t: ModelArgument(x=t)),
             throughput=3,
             batch_size=20
         )
         out = aline(
-            data_source, torch.softmax(W, -2)
+            data_source, weight=torch.softmax(W, -2)
         )
         out = out[0]
         Y = torch.tanh(out)
@@ -299,7 +312,7 @@ class TestAccumulator:
         # figure out what is going on, and in the meantime we should
         # implement some kind of built-in test to the accumuline class and
         # furthermore include a major warning in the documentation.
-        aline = Accumuline(
+        aline = _AccumulineRecursive(
             model=lambda x: torch.softmax(W, -2) @ x,
             params={'weight' : torch.softmax(W, -2)},
             origin=origin,
@@ -312,6 +325,10 @@ class TestAccumulator:
             verbose=False,
         )
         pool = DataPool()
+        repool = DataPool(release_size=20, lines='bypass')
+        repool2 = DataPool(lines='bypass')
+        origin.connect_downstream(repool)
+        repool.connect_downstream(repool2)
         aline.connect_downstream(pool)
         aline(line='accumuline')
         out = pool.pool[None]
@@ -320,6 +337,8 @@ class TestAccumulator:
         Y = W2 @ out @ W3
         l = loss(Y, torch.zeros_like(Y))
         l.backward()
+
+        print(origin.lines, repool2.pool)
 
         attempt = W.grad.clone()
 
@@ -340,7 +359,7 @@ class TestAccumulator:
             (ref - attempt).abs() /
             torch.maximum(ref.abs(), attempt.abs())
         )
-        print(ref, attempt)
+        #print(ref, attempt)
         """
         print(ref.ravel()[torch.argsort(gradchk.ravel(),
             descending=True)])
