@@ -161,15 +161,14 @@ class WriteTSV(SentryAction):
 
 
 class Convey(SentryAction):
-    def __init__(self, receive_line=None, transmit_line=None):
-        self.receive_line = receive_line
-        self.transmit_line = transmit_line
+    def __init__(self, line=None):
+        self.line = line
         super().__init__(trigger=['DATA'])
 
     def propagate(self, sentry, received):
-        input = received['DATA'].get(self.receive_line)
+        input = received['DATA'].get(self.line)
         if input is not None:
-            sentry(input, line=self.transmit_line)
+            sentry(input, line=self.line)
 
 
 class IndexBatchSize(SentryAction):
@@ -191,6 +190,19 @@ class CountBatches(SentryAction):
 
     def propagate(self, sentry, received):
         count = received['BATCH']
+        sentry.batched += count
+
+
+class CountBatchesByKey(SentryAction):
+    def __init__(self, key, receive_line=None):
+        super().__init__(trigger=['DATA'])
+        self.receive_line = receive_line
+        self.key = key
+
+    def propagate(self, sentry, received):
+        input = received['DATA'].get(self.receive_line)
+        if input is not None:
+            count = input[self.key].shape[0]
         sentry.batched += count
 
 
@@ -216,6 +228,15 @@ class ConfluxRelease(SentryAction):
             if req not in sentry.staged.keys():
                 return
         sentry.release()
+
+
+class SignalRelease(SentryAction):
+    def __init__(self):
+        super().__init__(trigger=['RELEASE'])
+
+    def propagate(self, sentry, received):
+        if received.get('RELEASE'):
+            sentry.release()
 
 
 class VerboseReceive(SentryAction):
