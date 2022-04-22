@@ -222,14 +222,17 @@ class TestAccumulator:
             retain_dims=(-1, -2),
             throughput=throughput,
             batch_size=batch_size,
+            lines='main',
             local_argmap=(lambda data, model: ModelArgument(data=data))
         )
         locpool = DataPool(lines='local')
         repool = DataPool(release_size=batch_size, lines='bypass')
         repool2 = DataPool(lines='bypass')
+        nlpool = DataPool(lines='main')
         origin.connect_downstream(repool)
         repool.connect_downstream(repool2)
         aline.connect_downstream(locpool)
+        aline.connect_downstream(nlpool)
 
         out = aline(
             weight=torch.softmax(W, -2)
@@ -245,8 +248,8 @@ class TestAccumulator:
         assert torch.all(repool2.pool['bypass'][0].input == T)
         assert len(locpool.pool['local']) >= (batch_size // throughput)
         for arg in locpool.pool['local']:
-            print(arg)
             assert arg.data.input.shape[0] <= throughput
+        assert torch.all(nlpool.pool['main'][0].out == out)
 
         W.grad.zero_()
         W2.grad.zero_()

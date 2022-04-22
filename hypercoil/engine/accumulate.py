@@ -99,18 +99,27 @@ class Accumuline(Conveyance):
         reduction='mean',
         influx=None,
         efflux=None,
+        lines=None,
+        transmit_filters=None,
+        receive_filters=None,
+        skip_local=False,
         local_argmap=None,
-        skip_local=False
+        nonlocal_argmap=None,
     ):
-        super().__init__()
+        super().__init__(
+            lines=lines,
+            transmit_filters=transmit_filters,
+            receive_filters=receive_filters
+        )
         self.model = model
         self.gradient = gradient
         self.origin = origin
         self.retain_dims = retain_dims
         self.throughput = throughput
         self.batch_size = batch_size
-        self.local_argmap = local_argmap or (lambda _: ModelArgument())
         self.skip_local = skip_local
+        self.local_argmap = local_argmap or (lambda _: ModelArgument())
+        self.nonlocal_argmap = nonlocal_argmap or (lambda x: x)
         self.acc = Accumulator(
             model=self.model,
             gradient=self.gradient,
@@ -137,7 +146,7 @@ class Accumuline(Conveyance):
         while self.pool.batched < sample_size:
             self.origin(line='source')
         sample = self.pool.sample(sample_size, line='accumuline')
-        return sample
+        return self._filter_received(sample, 'accumuline')
 
     def _accfn_call(self, arg, out, terminate, **params):
         accfn = partial(
@@ -166,6 +175,15 @@ class Accumuline(Conveyance):
         self._update_transmission(local_arg, 'local')
         self._transmit()
 
+    def _transmit_over_nonlocal(self, data):
+        nonlocal_arg = self.nonlocal_argmap(data)
+        self.clear_transmission()
+        for line in self.transmit:
+            if line in ('local', 'accumuline'):
+                continue
+            self._update_transmission(nonlocal_arg, line)
+        self._transmit()
+
     def _step(self, out, **params):
         if self.batched >= self.batch_size:
             terminate = True
@@ -174,8 +192,8 @@ class Accumuline(Conveyance):
             terminate = False
             sample_size = min(self.throughput, self.batch_size - self.batched)
             data = self.pool_and_sample(sample_size)
-            self.batched += sample_size
             self._transmit_over_local(data)
+            self.batched += sample_size
         out = self._accfn_call(
             arg=data,
             out=out,
@@ -189,6 +207,7 @@ class Accumuline(Conveyance):
         terminate = False
         while not terminate:
             out, terminate = self._step(out, **params)
+        self._transmit_over_nonlocal(out)
         self.batched = 0
         return out
 
