@@ -68,39 +68,56 @@ import torch
 from torch.autograd import Function
 from functools import partial
 from collections import OrderedDict
+from .action import (
+    SignalRelease,
+    TerminateAccumuline,
+    VerboseReceive
+)
+from .argument import (
+    ModelArgument,
+    UnpackingModelArgument
+)
 from .conveyance import (
     BaseConveyance,
     Conveyance,
     Conflux,
-    DataPool
+    DataPool,
+    Hollow
 )
-from .argument import ModelArgument
+from .sentry import Sentry
 
 
-class AccumulineConveyance(Conveyance):
+class Accumuline(Conveyance):
     def __init__(
         self,
         model,
+        params,
         origin,
         accfn,
         gradient,
-        backward,
-        argmap,
         cfx_fields,
         retain_dims,
         throughput,
         batch_size,
+        reduction='mean',
         influx=None,
         efflux=None,
         lines=None,
-        line_filters=None
+        transmit_filters=None,
+        receive_filters=None,
+        batch_key=None,
+        verbose=False
     ):
         self.module = model
         self.gradient = gradient
         self.retain_dims = retain_dims
-        self.argmap = argmap
         self.batched = 0
-        self.acc = Accumulator(
+        self.throughput = throughput
+        self.batch_size = batch_size
+        self.argbase = ModelArgument(**params)
+        assert self.batch_size > self.throughput, (
+            'Line throughput must be strictly less than batch size')
+        acc = Accumulator(
             model=self.module,
             gradient=self.gradient,
             retain_dims=self.retain_dims,
@@ -109,31 +126,38 @@ class AccumulineConveyance(Conveyance):
         )
         accmodel = partial(
             accfn,
-            acc=self.acc,
-            backward=self.backward,
-            argmap=self.argmap
+            acc=acc,
         )
+        influx = influx or (lambda arg: UnpackingModelArgument(**arg))
+        efflux = efflux or (lambda output, arg: ModelArgument(out=output))
         if lines is None:
             lines = [
                 ('accumuline', None),
                 ('accumuline', 'accumuline'),
-                ('accumuline', 'terminal')
+                ('accumuline', 'accumuline_terminate'),
+                ('accumuline', 'terminal'),
+                ('accumuline', 'null')
             ]
         else:
             lines += [
                 ('accumuline', 'accumuline'),
-                ('accumuline', 'terminal')
+                ('accumuline', 'accumuline_terminate'),
+                ('accumuline', 'terminal'),
+                ('accumuline', 'null')
             ]
         super().__init__(
             influx=influx,
             efflux=efflux,
             model=accmodel,
             lines=lines,
-            line_filters=line_filters
+            transmit_filters=transmit_filters,
+            receive_filters=receive_filters
         )
-        self.register_action(CountBatches())
-        self.register_action(BatchRelease(batch_size=batch_size))
+        self.register_action(SignalRelease())
+        if isinstance(cfx_fields, str):
+            cfx_fields = [cfx_fields]
         cfx_fields = list(cfx_fields) + ['out']
+        self.batch_key = batch_key or cfx_fields[0]
         conflux = Conflux(
             fields=cfx_fields,
             lines=[('accumuline', 'accumuline')]
@@ -142,35 +166,108 @@ class AccumulineConveyance(Conveyance):
             release_size=throughput,
             lines=[('accumuline', 'accumuline')]
         )
+        terminator = Sentry()
+        terminator.register_action(TerminateAccumuline())
         origin.add_line(('source', 'accumuline'))
         origin.connect_downstream(pool)
         pool.connect_downstream(conflux)
         conflux.connect_downstream(self)
-        conflux.connect_upstream(self)
+        self.connect_downstream(conflux)
+        self.register_sentry(terminator)
+        terminator.register_sentry(self)
+        self.acc = acc
         self.origin = origin
         self.conflux = conflux
         self.pool = pool
+        self.terminator = terminator
+        self.released = False
+        if verbose:
+            self.register_action(VerboseReceive())
+            self.origin.register_action(VerboseReceive())
+            self.conflux.register_action(VerboseReceive())
+            self.pool.register_action(VerboseReceive())
+            self.terminator.register_action(VerboseReceive())
+
+    def __repr__(self):
+        return 'Accumuline()'
 
     def release(self):
+        if self.released:
+            return
+        self.released = True
+        self.clear_transmission()
+        out = super().forward(
+            arg=self.cache['arg'],
+            line=self.cache['line'],
+            transmit_lines={'null'}
+        )
+        self.cache = {}
+        self.out = out.out
         for line in self.transmit:
-            if line != 'accumuline':
+            if line not in {'accumuline', 'accumuline_terminate', 'null'}:
                 self._update_transmission(self.out, line)
         self._transmit()
 
-    def forward(self, arg=None, line=None):
+    def _update_batched(self, arg):
+        self.batched += arg[self.batch_key].shape[0]
+
+    def _load_into_conflux(self):
         init = True
         while (self.pool.batched != 0) or (init):
             self.origin(line='source')
-            init = True
+            init = False
+
+    def _initialise_chain(self, line, arg=None):
+        #print('initialising')
+        self.released = False
+        arg_out = ModelArgument(**self.argbase)
+        self.out = []
+        arg_out.update(out=self.out)
+        self._update_transmission(arg_out, line=line)
+        self._transmit()
+
+    def _propagate_chain(self, line, arg=None):
+        #print('propagating')
+        arg_out = ModelArgument(**self.argbase)
+        self._update_batched(arg)
+        arg_out.update(**arg)
+        out = super().forward(
+            arg=arg_out,
+            line=line,
+            transmit_lines={'accumuline'}
+        )
+        #print(self.acc.acc)
+        self.out = out.out
+
+    def _terminate_chain(self, line, arg):
+        #print(f'\n\n\ndurrrrp on {line}\n\n\n')
+        arg_out = ModelArgument(**self.argbase)
+        arg_out.update(**arg)
+        arg_out.update(out=self.out, terminate=True)
+        self._update_transmission(arg_out, line='accumuline_terminate')
+        self.message.update(('DATA', self.data_transmission))
+        self.cache = {}
+        self.cache['arg'] = arg_out
+        self.cache['line'] = line
+        self.terminator._listen(self.message)
+
+    def forward(self, arg=None, line='accumuline'):
+        #print(self.batched)
         if arg is None:
-            out = ModelArgument(out=[])
-            self._update_transmission(out, 'accumuline')
-            self._transmit()
+            self._load_into_conflux()
+            self._initialise_chain(line=line, arg=arg)
+        elif self.released:
+            return
+        elif self.batched >= self.batch_size:
+            self._terminate_chain(line=line, arg=arg)
+        elif self.batched + self.throughput >= self.batch_size:
+            self._propagate_chain(line=line, arg=arg)
         else:
-            super().forward(arg=arg, line=line)
+            self._load_into_conflux()
+            self._propagate_chain(line=line, arg=arg)
 
 
-class Accumuline(torch.nn.Module):
+class AccumulineStandalone(torch.nn.Module):
     def __init__(
         self,
         model,
