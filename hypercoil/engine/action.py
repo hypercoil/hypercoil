@@ -239,6 +239,19 @@ class SignalRelease(SentryAction):
             sentry.release()
 
 
+class TerminateAccumuline(SentryAction):
+    def __init__(self):
+        super().__init__(trigger=['DATA'])
+
+    def propagate(self, sentry, received):
+        arg = received['DATA'].get('accumuline_terminate') or {}
+        if arg.get('terminate') is True:
+            sentry.message.clear()
+            sentry.message.update(('RELEASE', True))
+            for s in sentry.listeners:
+                s._listen(sentry.message)
+
+
 class VerboseReceive(SentryAction):
     def __init__(self):
         super().__init__(trigger=None)
