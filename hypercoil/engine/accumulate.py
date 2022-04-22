@@ -97,6 +97,7 @@ class Accumuline(Conveyance):
         throughput,
         batch_size,
         reduction='mean',
+        params=None,
         influx=None,
         efflux=None,
         lines=None,
@@ -111,6 +112,8 @@ class Accumuline(Conveyance):
             transmit_filters=transmit_filters,
             receive_filters=receive_filters
         )
+        params = params or {}
+        self.params = ModelArgument(**params)
         self.model = model
         self.gradient = gradient
         self.origin = origin
@@ -185,6 +188,8 @@ class Accumuline(Conveyance):
         self._transmit()
 
     def _step(self, out, **params):
+        arg = ModelArgument(**self.params)
+        arg.update(**params)
         if self.batched >= self.batch_size:
             terminate = True
             data = None
@@ -198,7 +203,7 @@ class Accumuline(Conveyance):
             arg=data,
             out=out,
             terminate=terminate,
-            **params
+            **arg
         )
         return out, terminate
 
