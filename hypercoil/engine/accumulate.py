@@ -87,7 +87,97 @@ from .conveyance import (
 from .sentry import Sentry
 
 
-class Accumuline(Conveyance):
+class Accumuline(torch.nn.Module):
+    def __init__(
+        self,
+        model,
+        gradient,
+        backward,
+        retain_dims,
+        argmap,
+        throughput,
+        batch_size,
+        reduction='mean',
+        passmap=None,
+        loss=None,
+        loss_argmap=None
+    ):
+        super().__init__()
+        if passmap is None:
+            passmap = lambda sample: ModelArgument()
+        self.model = model
+        self.gradient = gradient
+        self.backward = backward
+        self.retain_dims = retain_dims
+        self.argmap = argmap
+        self.passmap = passmap
+        self.throughput = throughput
+        self.batch_size = batch_size
+        self.loss = loss
+        self.loss_argmap = loss_argmap
+        self.acc = Accumulator(
+            model=self.model,
+            gradient=self.gradient,
+            retain_dims=self.retain_dims,
+            model_params=[],
+            reduce_dims=reduction
+        )
+        self.batched = 0
+
+    def pass_forward(self, pas):
+        pass_keys = list(pas[0].keys())
+        if len(pass_keys) > 0:
+            return [torch.cat([s[k] for s in pas]) for k in pass_keys]
+        return ()
+
+    def step(self, data_source, out, pas, accfwd, *params):
+        if self.batched >= self.batch_size:
+            terminate = True
+            sample = None
+        else:
+            terminate = False
+            sample_size = min(self.throughput, self.batch_size - self.batched)
+            sample = data_source.sample(sample_size)
+            self.batched += sample_size
+            pas += [self.passmap(sample)]
+            if self.loss is not None:
+                sample_out = self.model(**self.argmap(sample))
+                loss_arg = self.loss_argmap(
+                    sample, sample_out, self.model
+                )
+                l = self.loss(loss_arg, verbose=True)
+                l.backward()
+        out = accfwd(
+            self.acc,
+            self.backward,
+            self.argmap,
+            sample,
+            out,
+            terminate,
+            *params
+        )
+        return out, terminate
+
+    def forward(self, data_source, *params):
+        out = []
+        pas = []
+        accfwd = AccumulatingFunction.apply
+        terminate = False
+        while not terminate:
+            out, terminate = self.step(data_source, out, pas, accfwd, *params)
+        self.batched = 0
+        return (*out, *self.pass_forward(pas))
+
+
+class _AccumulineRecursive(Conveyance):
+    """
+    There is no such thing as a recursive accumuline. If it is recursive, an
+    accumuline it is not.
+
+    In other words: do not use this class. It is not an accumuline. It remains
+    in the unit tests as a template in case the future brings changes to the
+    rules for traversing conveyances and purging their messages.
+    """
     def __init__(
         self,
         model,
@@ -265,82 +355,6 @@ class Accumuline(Conveyance):
         else:
             self._load_into_conflux()
             self._propagate_chain(line=line, arg=arg)
-
-
-class AccumulineStandalone(torch.nn.Module):
-    def __init__(
-        self,
-        model,
-        gradient,
-        backward,
-        retain_dims,
-        argmap,
-        throughput,
-        batch_size,
-        reduction='mean',
-        passmap=None,
-        loss=None,
-        loss_argmap=None
-    ):
-        super().__init__()
-        if passmap is None:
-            passmap = lambda sample: ModelArgument()
-        self.model = model
-        self.gradient = gradient
-        self.backward = backward
-        self.retain_dims = retain_dims
-        self.argmap = argmap
-        self.passmap = passmap
-        self.throughput = throughput
-        self.batch_size = batch_size
-        self.loss = loss
-        self.loss_argmap = loss_argmap
-        self.acc = Accumulator(
-            model=self.model,
-            gradient=self.gradient,
-            retain_dims=self.retain_dims,
-            model_params=[],
-            reduce_dims=reduction
-        )
-
-    def pass_forward(self, pas):
-        pass_keys = list(pas[0].keys())
-        if len(pass_keys) > 0:
-            return [torch.cat([s[k] for s in pas]) for k in pass_keys]
-        return ()
-
-    def forward(self, data_source, *params):
-        sampled = 0
-        out = []
-        pas = []
-        accfwd = AccumulatingFunction.apply
-        terminate = False
-        while not terminate:
-            if sampled >= self.batch_size:
-                terminate = True
-                sample = None
-            else:
-                sample_size = min(self.throughput, self.batch_size - sampled)
-                sample = data_source.sample(sample_size)
-                sampled += sample_size
-                pas += [self.passmap(sample)]
-                if self.loss is not None:
-                    sample_out = self.model(**self.argmap(sample))
-                    loss_arg = self.loss_argmap(
-                        sample, sample_out, self.model
-                    )
-                    l = self.loss(loss_arg, verbose=True)
-                    l.backward()
-            out = accfwd(
-                self.acc,
-                self.backward,
-                self.argmap,
-                sample,
-                out,
-                terminate,
-                *params
-            )
-        return (*out, *self.pass_forward(pas))
 
 
 class AccumulatingFunction(Function):
