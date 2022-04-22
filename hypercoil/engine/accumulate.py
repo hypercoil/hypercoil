@@ -99,18 +99,14 @@ class Accumuline(torch.nn.Module):
         reduction='mean',
         influx=None,
         efflux=None,
-        passmap=None,
         loss=None,
         loss_argmap=None
     ):
         super().__init__()
-        if passmap is None:
-            passmap = lambda sample: ModelArgument()
         self.model = model
         self.gradient = gradient
         self.origin = origin
         self.retain_dims = retain_dims
-        self.passmap = passmap
         self.throughput = throughput
         self.batch_size = batch_size
         self.loss = loss
@@ -130,7 +126,7 @@ class Accumuline(torch.nn.Module):
         self.influx = influx or (
             lambda arg: UnpackingModelArgument(**arg))
         self.efflux = efflux or (
-            lambda output, arg: ModelArgument(out=output))
+            lambda output, arg: ModelArgument(out=output[0]))
 
         self.origin.add_line(('source', 'accumuline'))
         self.pool = DataPool(lines='accumuline')
@@ -141,12 +137,6 @@ class Accumuline(torch.nn.Module):
             self.origin(line='source')
         sample = self.pool.sample(sample_size, line='accumuline')
         return sample
-
-    def pass_forward(self, pas):
-        pass_keys = list(pas[0].keys())
-        if len(pass_keys) > 0:
-            return [torch.cat([s[k] for s in pas]) for k in pass_keys]
-        return ()
 
     def _accfn_call(self, arg, out, terminate, **params):
         accfn = partial(
@@ -162,10 +152,10 @@ class Accumuline(torch.nn.Module):
             output = accfn(**input, **out)
         else:
             raise TypeError('influx must map to an UnpackingModelArgument')
-        output = self.efflux(output=output, arg=arg)
+        output = ModelArgument(out=output)
         return output
 
-    def _step(self, out, pas, **params):
+    def _step(self, out, **params):
         if self.batched >= self.batch_size:
             terminate = True
             sample = None
@@ -174,7 +164,6 @@ class Accumuline(torch.nn.Module):
             sample_size = min(self.throughput, self.batch_size - self.batched)
             sample = self.pool_and_sample(sample_size)
             self.batched += sample_size
-            pas += [self.passmap(sample)]
             if self.loss is not None:
                 sample_out = self.model(**self.argmap(sample))
                 loss_arg = self.loss_argmap(
@@ -192,12 +181,11 @@ class Accumuline(torch.nn.Module):
 
     def forward(self, **params):
         out = ModelArgument(out=[])
-        pas = []
         terminate = False
         while not terminate:
-            out, terminate = self._step(out, pas, **params)
+            out, terminate = self._step(out, **params)
         self.batched = 0
-        return (*out.values(), *self.pass_forward(pas))
+        return out
 
 
 class _AccumulineRecursive(Conveyance):

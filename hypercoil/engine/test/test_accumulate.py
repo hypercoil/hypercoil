@@ -162,7 +162,7 @@ class TestAccumulator:
         )
         assert gradchk.max() < 2e-3
 
-    def test_acc_line_standalone(self):
+    def test_acc_line(self):
         #TODO: we've seed some larger errors than the limit of tolerance with
         # other seeds. Include a warning about this utility.
         torch.manual_seed(0)
@@ -221,14 +221,21 @@ class TestAccumulator:
             throughput=3,
             batch_size=20
         )
+        repool = DataPool(release_size=20, lines='bypass')
+        repool2 = DataPool(lines='bypass')
+        origin.connect_downstream(repool)
+        repool.connect_downstream(repool2)
+
         out = aline(
             weight=torch.softmax(W, -2)
         )
-        out = out[0][0]
+        out = out.out
         Y = torch.tanh(out)
         Y = W2 @ out @ W3
         l = loss(Y, torch.zeros_like(Y))
         l.backward()
+
+        assert torch.all(repool2.pool['bypass'][0].input == T)
 
         attempt = W.grad.clone()
 
@@ -259,7 +266,7 @@ class TestAccumulator:
         """
         assert gradchk.max() < 5e-3
 
-    def test_acc_line(self):
+    def test_acc_line_rec(self):
         #TODO: we've seed some larger errors than the limit of tolerance with
         # other seeds. Include a warning about this utility.
         torch.manual_seed(0)
@@ -298,14 +305,6 @@ class TestAccumulator:
             wds.map(lambda t: {'input' : t})
         )
         origin = Origin(pipeline=dpl, lines='bypass')
-
-        ##TODO: If we just change all the softmax axes to -1 instead of
-        # -2, this fails the gradient check catastrophically! In further
-        # learning tests, it additionally exxhibited extremely undesirable
-        # behaviour, including rebounding losses. At some point, we should
-        # figure out what is going on, and in the meantime we should
-        # implement some kind of built-in test to the accumuline class and
-        # furthermore include a major warning in the documentation.
         aline = _AccumulineRecursive(
             model=lambda x: torch.softmax(W, -2) @ x,
             params={'weight' : torch.softmax(W, -2)},
@@ -331,8 +330,6 @@ class TestAccumulator:
         Y = W2 @ out @ W3
         l = loss(Y, torch.zeros_like(Y))
         l.backward()
-
-        print(origin.lines, repool2.pool)
 
         attempt = W.grad.clone()
 
