@@ -53,7 +53,7 @@ class StochasticWeightAveraging(SentryAction):
         if epoch > self.swa_start:
             self.swa_model.update_parameters(self.model)
             self.swa_scheduler.step()
-        else:
+        elif epoch > 0:
             self.scheduler.step()
 
 
@@ -70,7 +70,7 @@ class WeightDecayStep(SentryAction):
                 target_wd = target
         if target_wd is not None:
             for pg in sentry.param_groups:
-                pg['weight_decay'] = target
+                pg['weight_decay'] = target_wd
 
 
 class PropagateMultiplierFromTransform(SentryAction):
