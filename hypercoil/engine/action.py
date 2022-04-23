@@ -20,6 +20,25 @@ class StepScheduler(SentryAction):
                 scheduler.step()
 
 
+class LossStepScheduler(SentryAction):
+    def __init__(self, reduction=sum):
+        super().__init__(trigger=['EPOCH'])
+        self.reduction = reduction
+
+    def propagate(self, sentry, received):
+        if received['EPOCH'] > 0:
+            staging = []
+            for loss, record in sentry.epoch_buffer.items():
+                if len(record) == 0:
+                    continue
+                if loss[-4:] != 'norm':
+                    continue
+                staging += [sum(record) / len(record)]
+                sentry.epoch_buffer[loss] = []
+            for scheduler in sentry.schedulers:
+                scheduler.step(self.reduction(staging))
+
+
 class PropagateMultiplierFromTransform(SentryAction):
     def __init__(self, transform):
         super().__init__(trigger=['EPOCH'])

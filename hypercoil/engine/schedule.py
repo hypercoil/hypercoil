@@ -13,6 +13,8 @@ from collections.abs import Iterable
 from .sentry import Sentry
 from .action import (
     StepScheduler,
+    LossStepScheduler,
+    RecordLoss,
     ResetMultiplier,
     PropagateMultiplierFromEpochTransform,
     PropagateMultiplierFromRecursiveTransform
@@ -39,6 +41,25 @@ class LRSchedule(_Schedule):
             schedulers = [schedulers]
         self.schedulers = schedulers
         self.register_action(StepScheduler())
+
+
+class LRLossSchedule(_Schedule):
+    def __init__(self, epochs, loss, schedulers):
+        super().__init__()
+        epochs.register_sentry(self)
+        if not isinstance(schedulers, Iterable):
+            schedulers = [schedulers]
+        self.schedulers = schedulers
+        self.epoch_buffer = {}
+        self.register_action(RecordLoss())
+        self.register_action(LossStepScheduler())
+
+    def _register_trigger(self, sentry):
+        #TODO: explicitly check for Loss when we configure all loss variants
+        # to subclass something.
+        if isinstance(sentry, SentryModule):
+            self.epoch_buffer[sentry.name] = []
+            self.epoch_buffer[f'{sentry.name}_norm'] = []
 
 
 class _MultiplierSchedule(_Schedule):
