@@ -9,19 +9,42 @@ as the program learns.
 """
 import torch
 from functools import partial
+from collections.abs import Iterable
 from .sentry import Sentry
 from .action import (
+    StepScheduler,
     ResetMultiplier,
     PropagateMultiplierFromEpochTransform,
     PropagateMultiplierFromRecursiveTransform
 )
 
 
-class SchedulerSentry(Sentry):
-    def __init__(self, epochs, base=1):
+class _Schedule(Sentry):
+    def __init__(self, epochs):
         super().__init__()
-        self.base = base
         epochs.register_sentry(self)
+
+
+class LRSchedule(_Schedule):
+    """
+    .. warning::
+        Do not assign the same torch ``Scheduler`` to more than one schedule.
+        This will result in multiple learning rate steps per epoch. Be advised
+        that ``SWA`` is also a schedule.
+    """
+    def __init__(self, epochs, schedulers):
+        super().__init__()
+        epochs.register_sentry(self)
+        if not isinstance(schedulers, Iterable):
+            schedulers = [schedulers]
+        self.schedulers = schedulers
+        self.register_action(StepScheduler())
+
+
+class _MultiplierSchedule(_Schedule):
+    def __init__(self, epochs, base=1):
+        super().__init__(epochs)
+        self.base = base
         self.register_action(ResetMultiplier())
 
     def reset(self):
@@ -32,7 +55,7 @@ class SchedulerSentry(Sentry):
         self.message.clear()
 
 
-class MultiplierSchedule(SchedulerSentry):
+class MultiplierSchedule(_MultiplierSchedule):
     def __init__(self, epochs, transform, base=1):
         super().__init__(epochs=epochs, base=base)
         self.transform=transform

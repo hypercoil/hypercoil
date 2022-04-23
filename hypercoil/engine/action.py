@@ -10,6 +10,16 @@ import torch
 from .sentry import SentryAction
 
 
+class StepScheduler(SentryAction):
+    def __init__(self):
+        super().__init__(trigger=['EPOCH'])
+
+    def propagate(self, sentry, received):
+        if received['EPOCH'] > 0:
+            for scheduler in sentry.schedulers:
+                scheduler.step()
+
+
 class PropagateMultiplierFromTransform(SentryAction):
     def __init__(self, transform):
         super().__init__(trigger=['EPOCH'])
