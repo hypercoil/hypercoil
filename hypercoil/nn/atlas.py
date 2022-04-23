@@ -8,12 +8,12 @@ Modules that linearly map voxelwise signals to labelwise signals.
 """
 import torch
 from operator import mul
-from functools import reduce
+from functools import reduce, partial
 from collections import OrderedDict
 from torch.nn import Module, Parameter, ParameterDict
 from torch.distributions import Bernoulli
 from ..engine.accumulate import Accumuline, AccumulatingFunction
-from ..engine.argument import ModelArgument
+from ..engine.argument import ModelArgument, UnpackingModelArgument
 from ..functional.domain import Identity
 from ..functional.noise import UnstructuredDropoutSource
 from ..functional.utils import apply_mask
@@ -320,7 +320,8 @@ def atlas_gradient(atlas, input, *args, **kwargs):
 
 def atlas_accfn(atlas, input, acc, argmap=None, out=[], terminate=False):
     fwd = AccumulatingFunction.apply
-    bwd = atlas_backward
+    def bwd(grad_output, *grad_compartments):
+        return atlas_backward(atlas, grad_output, *grad_compartments)
     if argmap is None: argmap = lambda x: ModelArgument(input=x)
     params = [atlas.weight[name] for name in atlas.preweight.keys()]
     return fwd(
@@ -354,11 +355,12 @@ class AtlasAccumuline(Accumuline):
     ):
         reduction = reduction or 'mean'
         image_key = image_key or 'images'
-        argmap = argmap or (lambda arg: ModelArgument(input=arg[image_key]))
+        argmap = argmap or (lambda x: ModelArgument(input=x))
         gradient = partial(atlas_gradient, atlas=atlas)
-        backward = partial(atlas_backward, atlas=atlas)
         accfn = partial(atlas_accfn, atlas=atlas, argmap=argmap)
         local_argmap = self.argmap
+        influx = influx or (
+            lambda arg: UnpackingModelArgument(input=arg.images))
         super().__init__(
             model=atlas,
             accfn=accfn,
@@ -387,13 +389,13 @@ class AtlasAccumuline(Accumuline):
             self.masks[name] = compartment[atlas.mask]
             self.coors[name] = self.ref.coors[self.masks[name]].t()
 
-    def argmap(self, input):
-        input = input[self.image_key]
+    def argmap(self, input, atlas):
+        images = input[self.image_key]
         # Note that we require a second forward pass to get our arg.
         # Set skip_local if you don't need it.
-        output = self.model(input)
+        output = self.model(images)
         inputs = {
-            name : apply_mask(input, mask, -2)
+            name : apply_mask(images, mask, -2)
             for name, mask in self.masks.items()
         }
         inputs = ModelArgument(**inputs)
@@ -401,7 +403,8 @@ class AtlasAccumuline(Accumuline):
         preweights = ModelArgument(**self.model.preweight)
         coors = ModelArgument(**self.coors)
         return ModelArgument(
-            input=inputs,
+            input=input,
+            ts=inputs,
             output=output,
             preweight=preweights,
             weight=weights,
@@ -409,4 +412,4 @@ class AtlasAccumuline(Accumuline):
         )
 
     def forward(self):
-        return super().forward(**self.model.weight)
+        return super().forward(atlas=self.model)
