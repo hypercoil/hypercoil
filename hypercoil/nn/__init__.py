@@ -4,7 +4,7 @@
 """
 Neural network modules
 """
-from .atlas import AtlasLinear
+from .atlas import AtlasLinear, AtlasAccumuline
 from .cov import(
     UnaryCovariance, UnaryCovarianceTW, UnaryCovarianceUW,
     BinaryCovariance, BinaryCovarianceTW, BinaryCovarianceUW
