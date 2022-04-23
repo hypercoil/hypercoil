@@ -40,21 +40,37 @@ class LossStepScheduler(SentryAction):
 
 
 class StochasticWeightAveraging(SentryAction):
-    def __init__(self, swa_start, swa_model, swa_scheduler, model, scheduler):
+    def __init__(self, swa_start, swa_scheduler, scheduler):
         super().__init__(trigger=['EPOCH'])
         self.swa_start = swa_start
-        self.swa_model = swa_model
         self.swa_scheduler = swa_scheduler
-        self.model = model
         self.scheduler = scheduler
 
     def propagate(self, sentry, received):
         epoch = received['EPOCH']
         if epoch > self.swa_start:
-            self.swa_model.update_parameters(self.model)
+            sentry.swa_model.update_parameters(sentry.model)
             self.swa_scheduler.step()
         elif epoch > 0:
             self.scheduler.step()
+
+
+class RevolveParametersSWA(SentryAction):
+    def __init__(revolve_epochs):
+        super().__init__(trigger=['EPOCH'])
+        self.revolve_epochs = revolve_epochs
+
+    def propagate(self, sentry, received):
+        epoch = received['EPOCH']
+        if epoch in self.revolve_epochs:
+            sentry.model.load_state_dict(
+                sentry.swa_model.module.state_dict())
+            sentry.swa_model = torch.optim.swa_utils.AveragedModel(
+                model=sentry.model,
+                device=sentry.swa_model.module.device,
+                avg_fn=sentry.swa_model.avg_fn,
+                use_buffers=sentry.swa_model.use_buffers
+            )
 
 
 class WeightDecayStep(SentryAction):

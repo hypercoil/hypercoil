@@ -76,12 +76,43 @@ class SWA(_Schedule):
         scheduler
     ):
         super().__init__(epochs)
+        self.swa_model = swa_model
+        self.model = model
         self.register_action(StochasticWeightAveraging(
+            swa_start=swa_start,
+            swa_scheduler=swa_scheduler,
+            scheduler=scheduler
+        ))
+
+
+class SWAPR(SWA):
+    """
+    Stochastic weight averaging with parameter revolution. Almost certainly a
+    terrible idea. This is really designed specifically for the parcellation/
+    penalised entropy setting for reasons that will be elaborated upon. But,
+    again, almost certainly a terrible idea, as it likely defeats some of the
+    rationale for using SWA in the first place.
+    """
+    def __init__(
+        self,
+        epochs,
+        swa_start,
+        swa_model,
+        swa_scheduler,
+        model,
+        scheduler,
+        revolve_epochs
+    ):
+        super().__init__(
+            epochs=epochs,
             swa_start=swa_start,
             swa_model=swa_model,
             swa_scheduler=swa_scheduler,
             model=model,
             scheduler=scheduler
+        )
+        self.register_action(RevolveParametersSWA(
+            revolve_epochs=revolve_epochs
         ))
 
 
