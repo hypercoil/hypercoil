@@ -13,20 +13,24 @@ from .sentry import SentryAction
 class StepScheduler(SentryAction):
     def __init__(self):
         super().__init__(trigger=['EPOCH'])
+        self.init = False
 
     def propagate(self, sentry, received):
-        if received['EPOCH'] > 0:
+        if self.init:
             for scheduler in sentry.schedulers:
                 scheduler.step()
+        else:
+            self.init = True
 
 
 class LossStepScheduler(SentryAction):
     def __init__(self, reduction=sum):
         super().__init__(trigger=['EPOCH'])
+        self.init = False
         self.reduction = reduction
 
     def propagate(self, sentry, received):
-        if received['EPOCH'] > 0:
+        if self.init:
             staging = []
             for loss, record in sentry.epoch_buffer.items():
                 if len(record) == 0:
@@ -37,11 +41,14 @@ class LossStepScheduler(SentryAction):
                 sentry.epoch_buffer[loss] = []
             for scheduler in sentry.schedulers:
                 scheduler.step(self.reduction(staging))
+        else:
+            self.init = True
 
 
 class StochasticWeightAveraging(SentryAction):
     def __init__(self, swa_start, swa_scheduler, scheduler):
         super().__init__(trigger=['EPOCH'])
+        self.init = False
         self.swa_start = swa_start
         self.swa_scheduler = swa_scheduler
         self.scheduler = scheduler
@@ -51,8 +58,10 @@ class StochasticWeightAveraging(SentryAction):
         if epoch > self.swa_start:
             sentry.swa_model.update_parameters(sentry.model)
             self.swa_scheduler.step()
-        elif epoch > 0:
+        elif self.init:
             self.scheduler.step()
+        else:
+            self.init = True
 
 
 class RevolveParametersSWA(SentryAction):
