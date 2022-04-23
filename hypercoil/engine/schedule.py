@@ -14,6 +14,7 @@ from .sentry import Sentry
 from .action import (
     StepScheduler,
     LossStepScheduler,
+    StochasticWeightAveraging,
     RecordLoss,
     ResetMultiplier,
     PropagateMultiplierFromEpochTransform,
@@ -60,6 +61,18 @@ class LRLossSchedule(_Schedule):
         if isinstance(sentry, SentryModule):
             self.epoch_buffer[sentry.name] = []
             self.epoch_buffer[f'{sentry.name}_norm'] = []
+
+
+class SWA(_Schedule):
+    def __init__(self, epochs, start, model, swa_scheduler, scheduler):
+        super().__init__(epochs)
+        self.register_action(StochasticWeightAveraging(
+            swa_start=swa_start,
+            swa_model=swa_model,
+            swa_scheduler=swa_scheduler,
+            model=model,
+            scheduler=scheduler
+        ))
 
 
 class _MultiplierSchedule(_Schedule):

@@ -39,6 +39,24 @@ class LossStepScheduler(SentryAction):
                 scheduler.step(self.reduction(staging))
 
 
+class StochasticWeightAveraging(SentryAction):
+    def __init__(self, swa_start, swa_model, swa_scheduler, model, scheduler):
+        super().__init__(trigger=['EPOCH'])
+        self.swa_start = swa_start
+        self.swa_model = swa_model
+        self.swa_scheduler = swa_scheduler
+        self.model = model
+        self.scheduler = scheduler
+
+    def propagate(self, sentry, received):
+        epoch = received['EPOCH']
+        if epoch > self.swa_start:
+            self.swa_model.update_parameters(self.model)
+            self.swa_scheduler.step()
+        else:
+            self.scheduler.step()
+
+
 class PropagateMultiplierFromTransform(SentryAction):
     def __init__(self, transform):
         super().__init__(trigger=['EPOCH'])
