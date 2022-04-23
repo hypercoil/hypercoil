@@ -9,13 +9,14 @@ as the program learns.
 """
 import torch
 from functools import partial
-from collections.abs import Iterable
+from collections.abc import Iterable
 from .sentry import Sentry
 from .action import (
     StepScheduler,
     LossStepScheduler,
     StochasticWeightAveraging,
     RecordLoss,
+    WeightDecayStep,
     ResetMultiplier,
     PropagateMultiplierFromEpochTransform,
     PropagateMultiplierFromRecursiveTransform
@@ -28,6 +29,9 @@ class _Schedule(Sentry):
         epochs.register_sentry(self)
 
 
+##TODO: track the last seen epoch, and if the next one is unexpected,
+# fast-forward steps to the correct one. This probably belongs in the action
+# rather than here.
 class LRSchedule(_Schedule):
     """
     .. warning::
@@ -36,8 +40,7 @@ class LRSchedule(_Schedule):
         that ``SWA`` is also a schedule.
     """
     def __init__(self, epochs, schedulers):
-        super().__init__()
-        epochs.register_sentry(self)
+        super().__init__(epochs)
         if not isinstance(schedulers, Iterable):
             schedulers = [schedulers]
         self.schedulers = schedulers
@@ -46,8 +49,7 @@ class LRSchedule(_Schedule):
 
 class LRLossSchedule(_Schedule):
     def __init__(self, epochs, loss, schedulers):
-        super().__init__()
-        epochs.register_sentry(self)
+        super().__init__(epochs)
         if not isinstance(schedulers, Iterable):
             schedulers = [schedulers]
         self.schedulers = schedulers
@@ -64,7 +66,15 @@ class LRLossSchedule(_Schedule):
 
 
 class SWA(_Schedule):
-    def __init__(self, epochs, start, model, swa_scheduler, scheduler):
+    def __init__(
+        self,
+        epochs,
+        swa_start,
+        swa_model,
+        swa_scheduler,
+        model,
+        scheduler
+    ):
         super().__init__(epochs)
         self.register_action(StochasticWeightAveraging(
             swa_start=swa_start,
@@ -73,6 +83,15 @@ class SWA(_Schedule):
             model=model,
             scheduler=scheduler
         ))
+
+
+class WeightDecayMultiStepSchedule(_Schedule):
+    def __init__(self, epochs, steps, param_groups):
+        super().__init__(epochs)
+        if not isinstance(param_groups, Iterable):
+            param_groups = [param_groups]
+        self.param_groups = param_groups
+        self.register_action(WeightDecayStep(steps=steps))
 
 
 class _MultiplierSchedule(_Schedule):

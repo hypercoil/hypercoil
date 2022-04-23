@@ -57,6 +57,22 @@ class StochasticWeightAveraging(SentryAction):
             self.scheduler.step()
 
 
+class WeightDecayStep(SentryAction):
+    def __init__(self, steps):
+        super().__init__(trigger=['EPOCH'])
+        self.steps = steps
+
+    def propagate(self, sentry, received):
+        epoch = received['EPOCH']
+        target_wd = None
+        for step, target in self.steps:
+            if epoch >= step:
+                target_wd = target
+        if target_wd is not None:
+            for pg in sentry.param_groups:
+                pg['weight_decay'] = target
+
+
 class PropagateMultiplierFromTransform(SentryAction):
     def __init__(self, transform):
         super().__init__(trigger=['EPOCH'])

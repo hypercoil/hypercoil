@@ -17,6 +17,10 @@ from .report import (
     LossArchive,
 )
 from .schedule import (
+    LRSchedule,
+    LRLossSchedule,
+    SWA,
+    WeightDecayMultiStepSchedule,
     MultiplierTransformSchedule,
     MultiplierRecursiveSchedule,
     MultiplierRampSchedule,
