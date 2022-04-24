@@ -34,5 +34,6 @@ from .schedule import (
     MultiplierTransformSchedule,
     MultiplierRecursiveSchedule,
     MultiplierRampSchedule,
+    MultiplierDecaySchedule,
     MultiplierCascadeSchedule,
 )

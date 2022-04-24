@@ -15,6 +15,7 @@ from .action import (
     StepScheduler,
     LossStepScheduler,
     StochasticWeightAveraging,
+    RevolveParametersSWA,
     RecordLoss,
     WeightDecayStep,
     ResetMultiplier,
@@ -186,9 +187,28 @@ class MultiplierCascadeSchedule(MultiplierTransitionSchedule):
             elif e < end_epoch:
                 x_scale = (end_epoch - begin_epoch)
                 y_scale = (end_nu - begin_nu)
-                x = torch.tensor(e - (begin_epoch + x_scale / 2) + 0.5)
-                y = begin_nu
-                return y_scale * torch.sigmoid(x).item() + y
+                x_offset = torch.tensor(e - (begin_epoch + x_scale / 2) + 0.5)
+                y_offset = begin_nu
+                return y_scale * torch.sigmoid(x_offset).item() + y_offset
+        return end_nu
+
+
+class MultiplierDecaySchedule(MultiplierTransitionSchedule):
+    @staticmethod
+    def get_transform(e, transitions):
+        BASE_SCALE = 0.63212055882
+        BASE_OFFSET = 1 - BASE_SCALE
+        for ((begin_epoch, end_epoch),
+             (begin_nu, end_nu)) in transitions.items():
+            if e < begin_epoch:
+                return begin_nu
+            elif e < end_epoch:
+                x_scale = (end_epoch - begin_epoch)
+                y_scale = (end_nu - begin_nu) / BASE_SCALE
+                x_offset = torch.tensor(e - begin_epoch)
+                y_offset = end_nu
+                return -y_scale * (torch.exp(-x_offset / x_scale
+                    ).item() - BASE_OFFSET) + y_offset
         return end_nu
 
 
