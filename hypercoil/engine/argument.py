@@ -58,6 +58,17 @@ class ModelArgument(Mapping):
             self.__setitem__(k, v)
         self.__dict__.update(kwargs)
 
+    @classmethod
+    def all_except(cls, arg, remove):
+        arg = {k: v for k, v in arg.items() if k not in remove}
+        return cls(**arg)
+
+    @classmethod
+    def replaced(cls, arg, replace):
+        arg = {k: (replace[k] if replace.get(k) is not None else v)
+               for k, v in arg.items()}
+        return cls(**arg)
+
 
 class UnpackingModelArgument(ModelArgument):
     """
