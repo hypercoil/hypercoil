@@ -30,6 +30,7 @@ from .schedule import (
     LRSchedule,
     LRLossSchedule,
     SWA,
+    SWAPR,
     WeightDecayMultiStepSchedule,
     MultiplierTransformSchedule,
     MultiplierRecursiveSchedule,

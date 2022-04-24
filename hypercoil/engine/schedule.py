@@ -102,7 +102,8 @@ class SWAPR(SWA):
         swa_scheduler,
         model,
         scheduler,
-        revolve_epochs
+        revolve_epochs,
+        device
     ):
         super().__init__(
             epochs=epochs,
@@ -113,7 +114,8 @@ class SWAPR(SWA):
             scheduler=scheduler
         )
         self.register_action(RevolveParametersSWA(
-            revolve_epochs=revolve_epochs
+            revolve_epochs=revolve_epochs,
+            device=device
         ))
 
 
@@ -166,7 +168,8 @@ class MultiplierTransitionSchedule(MultiplierTransformSchedule):
     def __init__(self, epochs, transitions, base=1):
         cur = base
         for k, v in transitions.items():
-            transitions[k] = (cur, v)
+            if not isinstance(transitions[k], Iterable):
+                transitions[k] = (cur, v)
             cur = v
         transform = partial(type(self).get_transform,
                             transitions=transitions)

@@ -55,19 +55,20 @@ class StochasticWeightAveraging(SentryAction):
 
     def propagate(self, sentry, received):
         epoch = received['EPOCH']
-        if epoch > self.swa_start:
+        if not self.init:
+            self.init = True
+        elif epoch > self.swa_start:
             sentry.swa_model.update_parameters(sentry.model)
             self.swa_scheduler.step()
-        elif self.init:
-            self.scheduler.step()
         else:
-            self.init = True
+            self.scheduler.step()
 
 
 class RevolveParametersSWA(SentryAction):
-    def __init__(revolve_epochs):
+    def __init__(self, revolve_epochs, device):
         super().__init__(trigger=['EPOCH'])
         self.revolve_epochs = revolve_epochs
+        self.device = device
 
     def propagate(self, sentry, received):
         epoch = received['EPOCH']
@@ -76,7 +77,7 @@ class RevolveParametersSWA(SentryAction):
                 sentry.swa_model.module.state_dict())
             sentry.swa_model = torch.optim.swa_utils.AveragedModel(
                 model=sentry.model,
-                device=sentry.swa_model.module.device,
+                device=self.device,
                 avg_fn=sentry.swa_model.avg_fn,
                 use_buffers=sentry.swa_model.use_buffers
             )
