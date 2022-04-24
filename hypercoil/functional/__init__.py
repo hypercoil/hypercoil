@@ -63,5 +63,6 @@ from .semidefinite import (
 from .utils import (
     conform_mask,
     apply_mask,
-    wmean
+    wmean,
+    threshold
 )

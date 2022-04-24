@@ -60,3 +60,11 @@ def wmean(input, weight, dim=None, keepdim=False):
         if d: weight = weight.unsqueeze(i)
     wtd = (weight * input)
     return wtd.sum(dim, keepdim=keepdim) / weight.sum(dim, keepdim=keepdim)
+
+
+# torch is actually very, very good at doing this. Looks like we might have
+# miscellaneous utilities.
+def threshold(input, threshold, dead=0):
+    if not isinstance(dead, torch.Tensor):
+        dead = torch.tensor(dead, dtype=input.dtype, device=input.device)
+    return torch.where(input > threshold, input, dead)

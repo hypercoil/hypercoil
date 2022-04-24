@@ -23,8 +23,7 @@ def hybrid_interpolate(
     ##TODO
     # Right now, we're using the first weighted interpolation only for
     # determining the frames where spectral interpolation should be applied.
-    # This seems rather wasteful. (We can replace rec and mask with data and
-    # spec_mask with no change in the spectral call below.)
+    # This seems rather wasteful.
     rec = weighted_interpolate(
         data=data,
         mask=mask,
@@ -34,8 +33,8 @@ def hybrid_interpolate(
     )
     spec_mask = ~torch.isnan(rec).sum(-2).to(torch.bool)
     rec = spectral_interpolate(
-        data=rec,
-        tmask=mask,
+        data=data,
+        tmask=spec_mask,
         oversampling_frequency=oversampling_frequency,
         maximum_frequency=maximum_frequency,
         sampling_period=1,

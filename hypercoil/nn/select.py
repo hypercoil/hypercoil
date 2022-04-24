@@ -10,7 +10,7 @@ import torch
 from torch.nn import Module, Linear, Parameter, ParameterDict
 from functools import partial
 from ..functional.domain import Logit
-from ..functional import basischan, basisconv2d, tsconv2d
+from ..functional import basischan, basisconv2d, tsconv2d, threshold
 from ..init.dirichlet import DirichletInit
 from ..init.base import (
     DistributionInitialiser
@@ -120,7 +120,7 @@ class QCPredict(Module):
             'thresh_global' : Parameter(torch.empty(
                 n_global_patterns, 1, 1)),
             'thresh_final' : Parameter(torch.empty(
-                1, 1, 1))
+                n_qc, 1, 1))
         })
         self.init_rf = init_rf or  default_init
         self.init_global = init_global or default_init
@@ -132,9 +132,9 @@ class QCPredict(Module):
         self.init_rf(self.weight['rf'])
         self.init_global(self.weight['global'])
         self.init_final(self.weight['final'])
-        torch.nn.init.normal_(self.weight['thresh_rf'], 0.05)
-        torch.nn.init.normal_(self.weight['thresh_global'], 0.05)
-        torch.nn.init.normal_(self.weight['thresh_final'], 0.05)
+        torch.nn.init.normal_(self.weight['thresh_rf'], 0.01)
+        torch.nn.init.normal_(self.weight['thresh_global'], 0.01)
+        torch.nn.init.normal_(self.weight['thresh_final'], 0.01)
 
     def conv_and_thresh(self, conv, x, weight, thresh):
         conv_out = conv(
@@ -142,10 +142,7 @@ class QCPredict(Module):
             weight=weight,
             bias=None,
             padding=None)
-        conv_out = conv_out - thresh
-        conv_out = torch.relu(conv_out)
-        conv_out = conv_out + thresh
-        return conv_out
+        return threshold(conv_out, threshold=thresh)
 
     def forward(self, x):
         rf_conv = self.conv_and_thresh(
