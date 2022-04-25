@@ -13,8 +13,8 @@ from hypercoil.functional import hybrid_interpolate
 
 class TestInterpolation:
 
-    def test_hybrid_interpolate(self):
-        torch.manual_seed(77)
+    def synthesise_data(self, seed, mode):
+        torch.manual_seed(seed)
         k = 2000
 
         fsp = torch.zeros((k // 2) + 1)
@@ -25,20 +25,20 @@ class TestInterpolation:
         t = torch.fft.irfft(fsp)
         t /= t.std()
         noise = torch.randn(3, k)
-        mask0 = (torch.rand(3, k) > 0.6)
-        mask1 = (torch.arange(k) <= (k // 4)) + (torch.arange(k) >= (3 * k // 4))
+        if mode == 'interpolate':
+            mask0 = (torch.rand(3, k) > 0.6)
+            mask1 = ((torch.arange(k) <= (k // 4)) +
+                     (torch.arange(k) >= (3 * k // 4)))
+        elif mode == 'extrapolate':
+            mask0 = (torch.rand(3, k) > 0.3)
+            mask1 = (torch.arange(k) <= (k // 4))
         mask = mask0 * mask1
         seen = torch.where(mask, t, noise).unsqueeze(-2).squeeze()
 
         seen = seen - seen.mean()
+        return seen, t, mask
 
-        rec = hybrid_interpolate(
-            seen.view(3, 1, 1, -1),
-            mask.view(3, 1, 1, -1),
-            max_weighted_stage=5,
-            frequency_thresh=0.8
-        )
-
+    def plot_figure(self, rec, seen, t, path):
         fig = plt.figure(figsize=(12, 12))
 
         gs = fig.add_gridspec(3, 3)
@@ -81,4 +81,29 @@ class TestInterpolation:
             'hypercoil',
             'results/'
         )
-        fig.savefig(f'{results}/hybrid_interpolate.png', bbox_inches='tight')
+        fig.savefig(f'{results}/hybrid_{path}.png', bbox_inches='tight')
+
+    def test_hybrid_interpolate(self):
+        seen, t, mask = self.synthesise_data(77, 'interpolate')
+
+        rec = hybrid_interpolate(
+            seen.view(3, 1, 1, -1),
+            mask.view(3, 1, 1, -1),
+            max_weighted_stage=5,
+            frequency_thresh=0.8
+        )
+
+        self.plot_figure(rec, seen, t, 'interpolate')
+
+
+    def test_hybrid_extrapolate(self):
+        seen, t, mask = self.synthesise_data(77, 'extrapolate')
+
+        rec = hybrid_interpolate(
+            seen.view(3, 1, 1, -1),
+            mask.view(3, 1, 1, -1),
+            max_weighted_stage=5,
+            frequency_thresh=0.9
+        )
+
+        self.plot_figure(rec, seen, t, 'extrapolate')
