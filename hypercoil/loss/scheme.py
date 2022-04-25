@@ -26,6 +26,7 @@ class LossScheme(SentryModule):
         if apply is None:
             apply = identity
         self.apply = apply
+        self.name = 'Scheme'
 
     def __add__(self, other):
         return LossScheme(loss=(self.loss + other.loss))

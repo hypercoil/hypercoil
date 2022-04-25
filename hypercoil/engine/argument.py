@@ -69,6 +69,13 @@ class ModelArgument(Mapping):
                for k, v in arg.items()}
         return cls(**arg)
 
+    @classmethod
+    def swap(cls, arg, swap, val):
+        old, new = swap
+        arg = {k: v for k, v in arg.items() if k != old}
+        arg.update({new : val})
+        return cls(**arg)
+
 
 class UnpackingModelArgument(ModelArgument):
     """
