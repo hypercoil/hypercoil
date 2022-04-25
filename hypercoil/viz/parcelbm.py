@@ -60,7 +60,7 @@ class AtlasBenchmarkPlotter(Sentry):
         df = df[df['sizes'] > self.min_size]
         return df
 
-    def fit_curve(self, df, minimum=0.1, xfm=np.log):
+    def fit_curve(self, df, minimum=0.1, xfm=np.log, return_params=False):
         if xfm is None:
             X = df[['i', 'sizes']].values
             xfms = [np.ones_like, lambda x: x]
@@ -69,9 +69,27 @@ class AtlasBenchmarkPlotter(Sentry):
             xfms = [np.ones_like, lambda x: x, xfm]
         y = df[self.key].values
         theta = np.linalg.lstsq(X, y, rcond=None)[0]
+        if return_params:
+            return theta
         x = np.linspace(minimum, df['sizes'].max(), 1000)
         y = theta @ np.stack([f(x) for f in xfms])
         return x, y
+
+    def adjust_points(self, theta, xfm=np.log, df=None, x=None, y=None):
+        if xfm is None:
+            xfms = [np.ones_like, lambda x: x]
+        else:
+            xfms = [np.ones_like, lambda x: x, xfm]
+        if df is not None:
+            if xfm is None:
+                x = df[['i', 'sizes']].values
+            else:
+                x = df[['i', 'sizes', 'szxfm']].values
+            y = df[self.key].values
+            y_hat = theta @ x.T
+        else:
+            y_hat = theta @ np.stack([f(x) for f in xfms])
+        return y - y_hat
 
     def add_atlas_set(self, root, name, path, xfm=np.log):
         df = None
@@ -88,11 +106,62 @@ class AtlasBenchmarkPlotter(Sentry):
                 df = df.merge(df_new, 'outer')
         self.atlases[name] = df
 
-    def __call__(self, root, pathdef, xfm=np.log, save=None):
+    def plot_adjusted(self, name, benchmark_data, ax, max_x, max_y,
+                      min_y, l, colour, theta=None, xfm=np.log):
+        # null *must* be first for this to work.
+        if name == 'null':
+            theta = self.fit_curve(
+                benchmark_data,
+                xfm=xfm,
+                return_params=True)
+        benchmark_data[f'{self.key}_adj'] = self.adjust_points(
+            theta=theta,
+            xfm=xfm,
+            df=benchmark_data
+        )
+        if name == 'null':
+            sns.kdeplot(
+                ax=ax, x='sizes', y=f'{self.key}_adj',
+                levels=20, thresh=0, fill=True,
+                data=benchmark_data)
+            name = 'Null model'
+            fit_min = 0.1
+        else:
+            if len(benchmark_data) > 1000:
+                scatter_size = 0.5
+                scatter_marker = '.'
+            else:
+                scatter_size = 2.5
+                scatter_marker = 'o'
+            ax.scatter(
+                x=benchmark_data['sizes'],
+                y=benchmark_data[f'{self.key}_adj'],
+                c=colour,
+                s=scatter_size,
+                marker=scatter_marker,
+                label='_')
+            fit_min = benchmark_data['sizes'].min()
+        max_x = max(max_x, benchmark_data['sizes'].max())
+        max_y = max(max_y, benchmark_data[f'{self.key}_adj'].max())
+        min_y = min(min_y, benchmark_data[f'{self.key}_adj'].min())
+        fit_x, fit_y = self.fit_curve(
+            benchmark_data,
+            minimum=fit_min,
+            xfm=xfm)
+        fit_y_adj = self.adjust_points(theta=theta, xfm=xfm, x=fit_x, y=fit_y)
+        ax.plot(fit_x, fit_y_adj, c=colour)
+        l[name] = patches.Patch(color=colour, label=name)
+        return max_x, max_y, min_y, l, theta
+
+    def __call__(self, root, pathdef, xfm=np.log, save=None, adjusted=False):
         fig, ax = plt.subplots(figsize=(10, 10))
         l = {}
+        min_x = self.min_size / 2
+        min_y = 0
         max_x = -float('inf')
         max_y = -float('inf')
+        theta = None
+        ##TODO: not gonna work with more than 5 now
         colours = ['#FF9966', '#66FF66', '#66DDFF', 'purple', 'red']
         for name, path in pathdef.items():
             try:
@@ -106,6 +175,11 @@ class AtlasBenchmarkPlotter(Sentry):
                 xfm=xfm
             )
             benchmark_data = self.atlases[name]
+            if adjusted:
+                max_x, max_y, min_y, l, theta = self.plot_adjusted(
+                    name, benchmark_data, ax, max_x, max_y, min_y, l,
+                    xfm=xfm, theta=theta, colour=colour)
+                continue
             if name == 'null':
                 sns.kdeplot(
                     ax=ax, x='sizes', y=self.key,
@@ -137,8 +211,8 @@ class AtlasBenchmarkPlotter(Sentry):
         ax.set_xscale('log')
         ax.set_xlabel('Parcel size')
         ax.set_ylabel(f'Parcel {self.key}')
-        ax.set_xlim(10, max_x)
-        ax.set_ylim(0, max_y)
+        ax.set_xlim(min_x, max_x)
+        ax.set_ylim(min_y, max_y)
         plt.legend(handles=[h for h in l.values()])
         if save is not None:
             fig.savefig(save, bbox_inches='tight')
@@ -150,10 +224,11 @@ class AtlasBenchmarkPlotter(Sentry):
 @click.option('-o', '--out', required=True, type=str)
 @click.option('-k', '--key', default='homogeneity', type=str)
 @click.option('-s', '--min-size', default=20, type=int)
-def main(root, pathdef, out, key, min_size):
+@click.option('-a', '--adjusted', default=False, type=bool, is_flag=True)
+def main(root, pathdef, out, key, min_size, adjusted):
     pathdef = {k : v for k, v in [p.split(':') for p in pathdef]}
     a = AtlasBenchmarkPlotter(key=key, min_size=min_size)
-    a(root=root, pathdef=pathdef, save=out)
+    a(root=root, pathdef=pathdef, save=out, adjusted=adjusted)
 
 if __name__ == '__main__':
     main()
