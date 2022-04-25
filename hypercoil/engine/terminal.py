@@ -31,7 +31,7 @@ class Terminal(Conveyance):
         self.args = args
         self.name = self.loss.name
         self.influx = influx or (lambda x: x)
-        self.argbase = argbase
+        self.argbase = argbase or {}
         self.retain_graph = True
         self.reset()
 
