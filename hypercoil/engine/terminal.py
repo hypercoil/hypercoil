@@ -7,19 +7,31 @@ Diff terminals
 Differentiable program terminals. Currently minimal functionality.
 """
 from ..functional import conform_mask
-from .sentry import SentryModule
+from .conveyance import Conveyance
 
 
-class Terminal(SentryModule):
-    """
-    Right now, this does nothing whatsoever.
-    """
-    def __init__(self, loss, arg_factory=None):
-        super().__init__()
+class Terminal(Conveyance):
+    def __init__(
+        self,
+        loss,
+        lines=None,
+        influx=None,
+        arg_factory=None,
+        retain_graph=True,
+        receive_filters=None
+    ):
+        super().__init__(
+            lines=lines,
+            transmit_filters=None,
+            receive_filters=receive_filters
+        )
         self.loss = loss
         self.name = self.loss.name
+        self.influx = influx or (lambda x: x)
+        self.retain_graph = True
 
     def _transmit(self, loss_value):
+        # This is a terminal. It conveys data no further.
         self.message.update(
             ('NAME', self.loss.name),
             ('LOSS', loss_value.detach().item()),
@@ -29,12 +41,19 @@ class Terminal(SentryModule):
             s._listen(self.message)
         self.message.clear()
 
-    def forward(self, arg):
-        loss = self.loss(**arg)
+    def forward(self, arg, line=None):
+        input = self.influx(self._filter_received(arg, line))
+        if isinstance(input, UnpackingModelArgument):
+            loss = self.loss(**input)
+        else:
+            loss = self.loss(input)
+        loss.backward(retain_graph=self.retain_graph)
         self._transmit(loss)
         return loss
 
 
+##TODO: when this extreme development period is over, we need to refactor this
+# and split terminal-dependent functionality from non-dependent.
 class ReactiveTerminal(Terminal):
     """
     Right now, this is just an abstraction to handle salami slicing when the
@@ -46,7 +65,7 @@ class ReactiveTerminal(Terminal):
     """
     def __init__(self, loss, slice_target, slice_axis, max_slice,
                  normalise_by_len=True, pretransforms=None):
-        super().__init__(loss=loss)
+        super().__init__(loss=loss, retain_graph=False)
         self.slice_target = slice_target
         self.slice_axis = slice_axis
         self.max_slice = max_slice
