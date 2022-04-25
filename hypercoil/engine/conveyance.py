@@ -158,6 +158,7 @@ class Origin(BaseConveyance):
         self,
         pipeline,
         lines=None,
+        efflux=None,
         transmit_filters=None,
         receive_filters=None,
         **params
@@ -168,6 +169,7 @@ class Origin(BaseConveyance):
         super().__init__(
             lines=lines, transmit_filters=transmit_filters)
         self.pipeline = pipeline
+        self.efflux = efflux or (lambda arg: arg)
         self.loader = torch.utils.data.DataLoader(
             self.pipeline, **params)
         self.iter_loader = iter(self.loader)
@@ -176,10 +178,9 @@ class Origin(BaseConveyance):
         try:
             data = ModelArgument(**next(self.iter_loader))
         except StopIteration:
-            raise StopIteration
             self.iter_loader = iter(self.loader)
             data = ModelArgument(**next(self.iter_loader))
-        data = self._filter_received(data, line)
+        data = self.efflux(self._filter_received(data, line))
         self.message.update(
             ('BATCH', self.loader.batch_size)
         )

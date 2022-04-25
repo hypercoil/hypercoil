@@ -40,16 +40,16 @@ def hybrid_interpolate(
         sampling_period=1,
         thresh=frequency_thresh
     )
-    final_mask = (mask + ~spec_mask.unsqueeze(-2)).to(torch.bool)
+    final_mask = (mask + ~spec_mask).to(torch.bool).unsqueeze(-3)
     final_data = torch.where(final_mask, rec, data)
     rec = weighted_interpolate(
         data=final_data,
         mask=final_mask,
         start_stage=1,
-        max_stage=max_weighted_stage,
+        max_stage=max_weighted_stage + 1,
         map_to_kernel=None
     )
-    return rec
+    return torch.where(final_mask, final_data, rec)
 
 
 def weighted_interpolate(
@@ -73,6 +73,7 @@ def weighted_interpolate(
         )
     cur_stage = 1
     rec = data
+    mask = mask.view(batch_size, 1, 1, -1)
     rec_mask = mask
     while cur_stage < max_stage:
         kernel = map_to_kernel(cur_stage).view(1, 1, 1, -1)
@@ -82,7 +83,7 @@ def weighted_interpolate(
             kernel,
             cur_stage
         )
-        rec_mask = ~torch.isnan(rec.sum(-2))
+        rec_mask = ~torch.isnan(rec.sum((-2, -3), keepdim=True))
         rec = torch.where(mask, data, rec)
         rmask = conform_mask(rec, rec_mask, axis=-1, batch=True)
         rec[~rmask] = 0
