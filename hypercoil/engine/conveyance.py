@@ -62,11 +62,12 @@ class BaseConveyance(SentryModule):
         if line in self.lines:
             return
         receive, transmit = line
-        convey = Convey(
-            line=receive
-        )
+        if receive not in self.receive:
+            convey = Convey(
+                line=receive
+            )
+            self.register_action(convey)
         self.lines = self.lines.union({(receive, transmit)})
-        self.register_action(convey)
         self.receive = self.receive.union({receive})
         self.transmit = self.transmit.union({transmit})
         if self.transmit_map.get(receive) is None:
