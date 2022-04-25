@@ -20,6 +20,7 @@ def hybrid_interpolate(
     maximum_frequency=1,
     frequency_thresh=0.3
 ):
+    batch_size = data.shape[0]
     ##TODO
     # Right now, we're using the first weighted interpolation only for
     # determining the frames where spectral interpolation should be applied.
@@ -40,7 +41,9 @@ def hybrid_interpolate(
         sampling_period=1,
         thresh=frequency_thresh
     )
-    final_mask = (mask + ~spec_mask).to(torch.bool).unsqueeze(-3)
+    final_mask = (
+        mask.view(batch_size, 1, 1, -1) +
+        ~spec_mask.view(batch_size, 1, 1,-1)).to(torch.bool)
     final_data = torch.where(final_mask, rec, data)
     rec = weighted_interpolate(
         data=final_data,
