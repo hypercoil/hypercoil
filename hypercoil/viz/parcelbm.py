@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
@@ -6,7 +7,17 @@ Atlas benchmark plot
 ~~~~~~~~~~~~~~~~~~~~
 Plot atlas benchmark results. This is going to be very non-generalisable for
 the moment.
+
+CLI usage example:
+viz/parcelbm.py \
+    -r /tmp/connhomogeneity/ \
+    -p 'null:desc-spatialnull*.json' \
+    -p 'gwMRF:desc-schaefer*.json' \
+    -p 'MMP:desc-glasser*.json' \
+    -p 'boundary map:desc-gordon*.json' \
+    -o /tmp/test.png
 """
+import click
 import json
 import pathlib
 import numpy as np
@@ -14,7 +25,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import patches
-from ..engine import Sentry
+from hypercoil.engine import Sentry
 
 
 class AtlasBenchmarkPlotter(Sentry):
@@ -82,7 +93,7 @@ class AtlasBenchmarkPlotter(Sentry):
         l = {}
         max_x = -float('inf')
         max_y = -float('inf')
-        colours = ['#66DDFF', '#FF9966', '#66FF66', 'purple', 'red']
+        colours = ['#FF9966', '#66FF66', '#66DDFF', 'purple', 'red']
         for name, path in pathdef.items():
             try:
                 colour = colours.pop()
@@ -103,7 +114,7 @@ class AtlasBenchmarkPlotter(Sentry):
                 name = 'Null model'
                 fit_min = 0.1
             else:
-                if len(benchmark_data > 1000):
+                if len(benchmark_data) > 1000:
                     scatter_size = 0.5
                     scatter_marker = '.'
                 else:
@@ -131,3 +142,18 @@ class AtlasBenchmarkPlotter(Sentry):
         plt.legend(handles=[h for h in l.values()])
         if save is not None:
             fig.savefig(save, bbox_inches='tight')
+
+
+@click.command()
+@click.option('-r', '--root', required=True, type=str)
+@click.option('-p', '--pathdef', multiple=True, required=True, type=str)
+@click.option('-o', '--out', required=True, type=str)
+@click.option('-k', '--key', default='homogeneity', type=str)
+@click.option('-s', '--min-size', default=20, type=int)
+def main(root, pathdef, out, key, min_size):
+    pathdef = {k : v for k, v in [p.split(':') for p in pathdef]}
+    a = AtlasBenchmarkPlotter(key=key, min_size=min_size)
+    a(root=root, pathdef=pathdef, save=out)
+
+if __name__ == '__main__':
+    main()
