@@ -184,6 +184,8 @@ def expand_outer(L, R=None, symmetry=None):
           for R and L. (This approach also guarantees that the output is
           positive semidefinite.)
     """
+    if L.dim() == 1:
+        L = L.unsqueeze(-1)
     if R is None:
         R = L
     output = L @ R.transpose(-2, -1)
