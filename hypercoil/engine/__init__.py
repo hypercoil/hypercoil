@@ -38,3 +38,4 @@ from .schedule import (
     MultiplierDecaySchedule,
     MultiplierCascadeSchedule,
 )
+from .terminal import Terminal

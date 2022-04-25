@@ -8,16 +8,18 @@ Differentiable program terminals. Currently minimal functionality.
 """
 from ..functional import conform_mask
 from .conveyance import Conveyance
+from .argument import UnpackingModelArgument
 
 
 class Terminal(Conveyance):
     def __init__(
         self,
         loss,
+        args=None,
         lines=None,
         influx=None,
-        arg_factory=None,
-        retain_graph=True,
+        argbase=None,
+        retain_graph=False,
         receive_filters=None
     ):
         super().__init__(
@@ -26,29 +28,47 @@ class Terminal(Conveyance):
             receive_filters=receive_filters
         )
         self.loss = loss
+        self.args = args
         self.name = self.loss.name
         self.influx = influx or (lambda x: x)
+        self.argbase = argbase
         self.retain_graph = True
+        self.reset()
 
     def _transmit(self, loss_value):
+        from ..loss import LossScheme
         # This is a terminal. It conveys data no further.
-        self.message.update(
-            ('NAME', self.loss.name),
-            ('LOSS', loss_value.detach().item()),
-            ('NU', self.loss.nu)
-        )
-        for s in self.listeners:
-            s._listen(self.message)
+        if not isinstance(self.loss, LossScheme):
+            self.message.update(
+                ('NAME', self.loss.name),
+                ('LOSS', loss_value.detach().item()),
+                ('NU', self.loss.nu)
+            )
+            for s in self.listeners:
+                s._listen(self.message)
+        self.reset()
+
+    def reset(self):
         self.message.clear()
+        argtype = type(self.argbase)
+        self.arg = argtype(**self.argbase)
+
+    def release(self):
+        if isinstance(self.arg, UnpackingModelArgument):
+            loss = self.loss(**self.arg)
+        else:
+            loss = self.loss(self.arg)
+        self._transmit(loss)
+        loss.backward(retain_graph=self.retain_graph)
+        return loss
 
     def forward(self, arg, line=None):
         input = self.influx(self._filter_received(arg, line))
-        if isinstance(input, UnpackingModelArgument):
-            loss = self.loss(**input)
-        else:
-            loss = self.loss(input)
-        loss.backward(retain_graph=self.retain_graph)
-        self._transmit(loss)
+        self.arg.update(**input)
+        for arg in self.args:
+            if arg not in self.arg:
+                return
+        loss = self.release()
         return loss
 
 
