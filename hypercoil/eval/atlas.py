@@ -21,7 +21,7 @@ class AtlasBenchmark:
 
 
 class TimeSeriesHomogeneity(AtlasBenchmark):
-    name = 'homogeneity'
+    name = 'homogeneity_ts'
     parcel = False
 
     def transform(self, parcel, pretransformation=None):
@@ -29,7 +29,7 @@ class TimeSeriesHomogeneity(AtlasBenchmark):
 
 
 class ConnectivityHomogeneity(AtlasBenchmark):
-    name = 'connhomogeneity'
+    name = 'homogeneity'
 
     def transform(self, parcel, pretransformation=None):
         return sym2vec(corr(parcel)).mean().item()
@@ -73,10 +73,10 @@ class VarianceExplained(AtlasBenchmark):
 ##TODO: flexible null label instead of fixed to 0.
 class AtlasEval:
     def __init__(self, mask,
+                 evaluate_tshomogeneity=False,
                  evaluate_homogeneity=True,
-                 evaluate_connhomogeneity=False,
-                 evaluate_variance=True,
-                 evaluate_varexp=True,
+                 evaluate_variance=False,
+                 evaluate_varexp=False,
                  lstsq_driver='gels'):
         self.voxel_assignments = OrderedDict()
         self.mask = mask
@@ -84,11 +84,11 @@ class AtlasEval:
         self.results = {}
         self.results['sizes'] = {}
         self.benchmarks = []
-        if evaluate_homogeneity:
+        if evaluate_tshomogeneity:
             benchmark = TimeSeriesHomogeneity()
             self.benchmarks += [benchmark]
             self.results[benchmark.name] = {}
-        if evaluate_connhomogeneity:
+        if evaluate_homogeneity:
             benchmark = ConnectivityHomogeneity()
             self.benchmarks += [benchmark]
             self.results[benchmark.name] = {}

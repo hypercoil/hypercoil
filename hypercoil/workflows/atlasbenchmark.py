@@ -37,10 +37,10 @@ def run_benchmark(
     device='cuda:0',
     lstsq_driver='gels',
     compute_full_matrix=False,
-    skip_homogeneity=False,
-    skip_variance=False,
-    skip_varexp=False,
-    compute_connhomogeneity=False
+    compute_tshomogeneity=False,
+    compute_variance=False,
+    compute_varexp=False,
+    skip_homogeneity=False
 ):
 
     normalise = Normalise()
@@ -66,10 +66,10 @@ def run_benchmark(
     eval = AtlasEval(
         mask=mask,
         lstsq_driver=lstsq_driver,
-        evaluate_homogeneity=(not skip_homogeneity),
-        evaluate_variance=(not skip_variance),
-        evaluate_varexp=(not skip_varexp),
-        evaluate_connhomogeneity=compute_connhomogeneity
+        evaluate_tshomogeneity=(compute_tshomogeneity),
+        evaluate_variance=(compute_variance),
+        evaluate_varexp=(compute_varexp),
+        evaluate_homogeneity=(not skip_homogeneity)
     )
 
     print('[ Loading parcellations ]')
@@ -119,16 +119,16 @@ def run_benchmark(
 @click.option('-v', '--verbose', default=False, type=bool, is_flag=True)
 @click.option('-c', '--device', default='cuda:0', type=str)
 @click.option('--compute-full-matrix', default=False, type=bool, is_flag=True)
+@click.option('--compute-tshomogeneity', default=False, type=bool, is_flag=True)
+@click.option('--compute-variance', default=False, type=bool, is_flag=True)
+@click.option('--compute-varexp', default=False, type=bool, is_flag=True)
 @click.option('--skip-homogeneity', default=False, type=bool, is_flag=True)
-@click.option('--skip-variance', default=False, type=bool, is_flag=True)
-@click.option('--skip-varexp', default=False, type=bool, is_flag=True)
-@click.option('--compute-connhomogeneity', default=False, type=bool, is_flag=True)
 @click.option('--lstsq-driver', default='gels',
               type=click.Choice(['gels', 'gelsy', 'gelss', 'gelsd']))
 def main(atlas_list, data_dir, out, batch_size, buffer_size,
          atlas_dim, verbose, device, compute_full_matrix, lstsq_driver,
-         skip_homogeneity, skip_variance, skip_varexp,
-         compute_connhomogeneity):
+         compute_tshomogeneity, compute_variance, compute_varexp,
+         skip_homogeneity):
     eval = run_benchmark(
         atlas_list=atlas_list,
         data_dir=data_dir,
@@ -139,10 +139,10 @@ def main(atlas_list, data_dir, out, batch_size, buffer_size,
         device=device,
         lstsq_driver=lstsq_driver,
         compute_full_matrix=compute_full_matrix,
-        skip_homogeneity=skip_homogeneity,
-        skip_variance=skip_variance,
-        skip_varexp=skip_varexp,
-        compute_connhomogeneity=compute_connhomogeneity
+        compute_tshomogeneity=compute_tshomogeneity,
+        compute_variance=compute_variance,
+        compute_varexp=compute_varexp,
+        skip_homogeneity=skip_homogeneity
     )
     with open(out, 'w') as fp:
         json.dump(
