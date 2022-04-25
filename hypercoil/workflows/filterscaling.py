@@ -16,12 +16,14 @@ from hypercoil.functional import (
     corr
 )
 from hypercoil.engine import (
+    Epochs,
     ModelArgument,
     UnpackingModelArgument,
     Origin,
     Conveyance,
     Conflux,
-    DataPool
+    DataPool,
+    Terminal
 )
 from hypercoil.loss import (
     LossApply,
@@ -47,9 +49,17 @@ from hypercoil.init.freqfilter import FreqFilterSpec
 from hypercoil.functional.noise import UnstructuredDropoutSource
 
 
+# Note / advisory: If somebody happens to encounter this, they should be
+# advised *not* to use conveyances in the way they are used here. This approach
+# has negative utility, as it delays memory release. Substantial caution must
+# be taken, as there is no engine yet for optimising resource allocation. The
+# use here of this experimental feature is strictly errrr experimental.
+
+
 qcfc_tol = 0
 window_size = 135
 batch_size = 50
+max_epoch = 1000
 time_dim = window_size
 freq_dim = time_dim // 2 + 1
 data_dir = [str(path) for path in pathlib.Path(
@@ -62,7 +72,7 @@ smoothness_nu = 0.4
 symbimodal_nu = 0.05
 l2_nu = 0.015
 entropy_nu = 0.1
-lossfn = 'mvk'
+lossfn = 'qcfc'
 objective = 'max'
 n_bands = 2
 n_networks = 50
@@ -73,31 +83,34 @@ if ((objective == 'min' and lossfn == 'mvk')
     loss_nu *= -1
 
 if lossfn == 'mvk':
-    loss = [LossApply(
+    loss_base = [LossApply(
         MultivariateKurtosis(nu=loss_nu, l2=0.01),
-        apply=lambda arg: arg.ts_filtered
+        apply=lambda arg: arg.bold_filtered
     )]
     entropy_nu = 0
 elif lossfn == 'qcfc':
-    loss = [LossApply(
+    loss_base = [LossApply(
         QCFC(nu=loss_nu),
-        apply=lambda arg: arg.corr_mat
+        apply=lambda arg: UnpackingModelArgument(FC=arg.corr_mat, QC=arg.fd)
     )]
     entropy_nu = 0
 elif lossfn == 'partition':
-    loss = [LossApply(
+    loss_base = [LossApply(
         SymmetricBimodalNorm(nu=loss_nu, modes=(-1, 1)),
         apply=lambda arg: arg.corr_mat
     )]
-loss = LossScheme([
-    *loss,
-    LossScheme([
-        SmoothnessPenalty(nu=smoothness_nu),
-        SymmetricBimodalNorm(nu=symbimodal_nu),
-        NormedLoss(nu=l2_nu),
-        Entropy(nu=entropy_nu)
-    ], apply=lambda arg: arg.weight)
-])
+
+loss = [None for _ in range(n_networks)]
+for i in range(n_networks):
+    loss[i] = LossScheme([
+        *loss_base,
+        LossScheme([
+            SmoothnessPenalty(nu=smoothness_nu),
+            SymmetricBimodalNorm(nu=symbimodal_nu),
+            NormedLoss(nu=l2_nu),
+            Entropy(nu=entropy_nu)
+        ], apply=lambda arg: arg.weight)
+    ])
 
 
 wndw = partial(
@@ -126,7 +139,8 @@ def get_confounds(key, filter=None):
     data = pd.read_csv(path, sep='\t')
     if filter is not None:
         data = pd.DataFrame(data[filter])
-    return {'confounds': data.values, 'conf_names': tuple(data.columns)}
+    return {'confounds': data.values.astype(float),
+            'conf_names': tuple(data.columns)}
 
 def append_qc(dict):
     confs = get_confounds(
@@ -150,16 +164,18 @@ dpl = wds.DataPipeline(
 origin = Origin(
     dpl,
     lines='main',
-    #transmit_filters={'main': None},
-    num_workers=8,
+    transmit_filters={'main': ('bold', 'tmask', 'fd')},
+    num_workers=0,
     batch_size=batch_size,
     efflux=(lambda arg: ModelArgument(
-        images=arg['bold.pyd'],
+        bold=arg['bold.pyd'],
         confounds=arg['confounds'],
         confounds_names=arg['conf_names'],
         t_r=arg['t_r.pyd'],
         tmask=arg['tmask'],
-        __key__=arg['__key__']
+        __key__=arg['__key__'],
+        fd=torch.mean(arg['confounds'][:, 0], -1, keepdim=True
+            ).t().to(dtype=torch.float)
     ))
 )
 
@@ -173,36 +189,37 @@ drop = UnstructuredDropoutSource(
     training=True
 )
 
-image_influx = (lambda arg: UnpackingModelArgument(input=arg.images))
-image_efflux = (lambda output, arg: ModelArgument.replaced(
-    arg, {'images': output}))
-
 fftfilter = [
     Conveyance(
-        lines='main',
-        influx=image_influx,
-        efflux=image_efflux
+        lines=[('main', 'loss'), ('main', 'main')],
+        influx=(lambda arg: UnpackingModelArgument(input=arg.bold)),
+        efflux=(lambda output, arg: ModelArgument.swap(
+            arg, ('bold', 'bold_filtered'), output.squeeze(1))),
+        transmit_filters={'loss': ('bold_filtered', 'fd')},
     ) for _ in range(n_networks)]
 cov = [
     Conveyance(
-        lines='main',
-        influx=image_influx,
-        efflux=image_efflux
+        lines=[('main', 'loss'), ('main', 'main')],
+        influx=(lambda arg: UnpackingModelArgument(
+            input=arg.bold_filtered, mask=arg.tmask)),
+        efflux=(lambda output, arg: ModelArgument.swap(
+            arg, ('bold_filtered', 'corr_mat'), output)),
+        transmit_filters={'loss': ('corr_mat',)},
     ) for _ in range(n_networks)]
 interpol = Conveyance(
     model=HybridInterpolate(),
     lines='main',
     influx=(lambda arg: UnpackingModelArgument(
-        input=arg.images.unsqueeze(-3),
+        input=arg.bold.unsqueeze(-3),
         mask=arg.tmask
     )),
     efflux=(lambda output, arg: ModelArgument.replaced(
-        arg, {'images' : output.squeeze(1)}))
+        arg, {'bold' : output.squeeze(1)}))
 )
-pool = DataPool(lines='main')
+terminal = [None for _ in range(n_networks)]
 origin.connect_downstream(interpol)
 
-for i in range(2) : #n_networks):
+for i in range(n_networks):
     if lossfn == 'partition':
         fftfilter[i].model = FrequencyDomainFilter(
             dim=freq_dim,
@@ -218,9 +235,29 @@ for i in range(2) : #n_networks):
         dim=time_dim,
         estimator=corr,
         dropout=drop)
-    #loss_pool[i] = Conflux(lines='loss')
-    interpol.connect_downstream(fftfilter[i])
-    #fftfilter[i].connect_downstream(cov[i])
-    #cov[i].connect_downstream(loss_pool)
 
-    fftfilter[i].connect_downstream(pool)
+    terminal[i] = Terminal(
+        loss=loss[i],
+        lines='loss',
+        argbase=ModelArgument(
+            weight=fftfilter[i].model.weight
+        ),
+        args=('weight', 'bold_filtered', 'corr_mat')
+    )
+
+    fftfilter[i].connect_downstream(terminal[i])
+    cov[i].connect_downstream(terminal[i])
+    interpol.connect_downstream(fftfilter[i])
+    fftfilter[i].connect_downstream(cov[i])
+
+
+"""
+epochs = Epochs(max_epoch)
+for epoch in epochs:
+    print(f'[ Epoch {epoch} ]')
+    for _ in range(20):
+        origin(line='source')
+        for i in range(n_networks):
+            pass
+        pool.reset()
+"""
