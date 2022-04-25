@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import webdataset as wds
 from functools import partial
+from torch.nn import ModuleList
 from hypercoil.functional import (
     corr
 )
@@ -189,67 +190,85 @@ drop = UnstructuredDropoutSource(
     training=True
 )
 
-fftfilter = [
-    Conveyance(
-        lines=[('main', 'loss'), ('main', 'main')],
-        influx=(lambda arg: UnpackingModelArgument(input=arg.bold)),
-        efflux=(lambda output, arg: ModelArgument.swap(
-            arg, ('bold', 'bold_filtered'), output.squeeze(1))),
-        transmit_filters={'loss': ('bold_filtered', 'fd')},
-    ) for _ in range(n_networks)]
-cov = [
-    Conveyance(
-        lines=[('main', 'loss'), ('main', 'main')],
-        influx=(lambda arg: UnpackingModelArgument(
-            input=arg.bold_filtered, mask=arg.tmask)),
-        efflux=(lambda output, arg: ModelArgument.swap(
-            arg, ('bold_filtered', 'corr_mat'), output)),
-        transmit_filters={'loss': ('corr_mat',)},
-    ) for _ in range(n_networks)]
-interpol = Conveyance(
-    model=HybridInterpolate(),
-    lines='main',
-    influx=(lambda arg: UnpackingModelArgument(
-        input=arg.bold.unsqueeze(-3),
-        mask=arg.tmask
-    )),
-    efflux=(lambda output, arg: ModelArgument.replaced(
-        arg, {'bold' : output.squeeze(1)}))
+class FilterStream(torch.nn.Module):
+    def __init__(self, n_networks, origin, loss):
+        super().__init__()
+        self.origin = origin
+        self.n_networks = n_networks
+        self.interpol = Conveyance(
+            model=HybridInterpolate(),
+            lines='main',
+            influx=(lambda arg: UnpackingModelArgument(
+                input=arg.bold.unsqueeze(-3),
+                mask=arg.tmask
+            )),
+            efflux=(lambda output, arg: ModelArgument.replaced(
+                arg, {'bold' : output.squeeze(1)}))
+        )
+        self.fftfilter = ModuleList([
+            Conveyance(
+                lines=[('main', 'loss'), ('main', 'main')],
+                influx=(lambda arg: UnpackingModelArgument(input=arg.bold)),
+                efflux=(lambda output, arg: ModelArgument.swap(
+                    arg, ('bold', 'bold_filtered'), output.squeeze(1))),
+                transmit_filters={'loss': ('bold_filtered', 'fd')},
+            ) for _ in range(n_networks)
+        ])
+        self.cov = ModuleList([
+            Conveyance(
+                lines=[('main', 'loss'), ('main', 'main')],
+                influx=(lambda arg: UnpackingModelArgument(
+                    input=arg.bold_filtered, mask=arg.tmask)),
+                efflux=(lambda output, arg: ModelArgument.swap(
+                    arg, ('bold_filtered', 'corr_mat'), output)),
+                transmit_filters={'loss': ('corr_mat',)},
+            ) for _ in range(n_networks)
+        ])
+        self.terminal = ModuleList([None for _ in range(n_networks)])
+
+        self.origin.connect_downstream(self.interpol)
+
+        for i in range(n_networks):
+            if lossfn == 'partition':
+                self.fftfilter[i].model = FrequencyDomainFilter(
+                    dim=freq_dim,
+                    filter_specs=[filter_spec() for _ in range(n_bands + 1)],
+                    domain=AmplitudeMultiLogit(axis=0))
+            else:
+                self.fftfilter[i].model = FrequencyDomainFilter(
+                    dim=freq_dim,
+                    filter_specs=[filter_spec()],
+                    domain=AmplitudeAtanh())
+
+            self.cov[i].model = UnaryCovarianceUW(
+                dim=time_dim,
+                estimator=corr,
+                dropout=drop)
+
+            self.terminal[i] = Terminal(
+                loss=loss[i],
+                lines='loss',
+                argbase=ModelArgument(
+                    weight=fftfilter[i].model.weight
+                ),
+                args=('weight', 'bold_filtered', 'corr_mat')
+            )
+
+            self.fftfilter[i].connect_downstream(terminal[i])
+            self.cov[i].connect_downstream(terminal[i])
+            self.interpol.connect_downstream(fftfilter[i])
+            self.fftfilter[i].connect_downstream(cov[i])
+
+    def forward(self):
+        self.origin(line='source')
+
+stream = FilterStream(
+    n_networks=n_networks,
+    origin=origin,
+    loss=loss
 )
-terminal = [None for _ in range(n_networks)]
-origin.connect_downstream(interpol)
 
-for i in range(n_networks):
-    if lossfn == 'partition':
-        fftfilter[i].model = FrequencyDomainFilter(
-            dim=freq_dim,
-            filter_specs=[filter_spec() for _ in range(n_bands + 1)],
-            domain=AmplitudeMultiLogit(axis=0))
-    else:
-        fftfilter[i].model = FrequencyDomainFilter(
-            dim=freq_dim,
-            filter_specs=[filter_spec()],
-            domain=AmplitudeAtanh())
-
-    cov[i].model = UnaryCovarianceUW(
-        dim=time_dim,
-        estimator=corr,
-        dropout=drop)
-
-    terminal[i] = Terminal(
-        loss=loss[i],
-        lines='loss',
-        argbase=ModelArgument(
-            weight=fftfilter[i].model.weight
-        ),
-        args=('weight', 'bold_filtered', 'corr_mat')
-    )
-
-    fftfilter[i].connect_downstream(terminal[i])
-    cov[i].connect_downstream(terminal[i])
-    interpol.connect_downstream(fftfilter[i])
-    fftfilter[i].connect_downstream(cov[i])
-
+#stream()
 
 """
 epochs = Epochs(max_epoch)
