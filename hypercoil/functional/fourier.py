@@ -93,4 +93,5 @@ def product_filtfilt(X, weight, **params):
         in the frequency domain.
     """
     X_filt = product_filter(X, weight, **params)
-    return product_filter(X_filt.flip(-1), weight, **params).flip(-1)
+    out = product_filter(X_filt.flip(-1), weight, **params).flip(-1)
+    return out

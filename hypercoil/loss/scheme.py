@@ -76,7 +76,7 @@ class LossScheme(SentryModule):
             if not isinstance(f, Terminal):
                 f.register_action(action)
 
-    def forward(self, *args, verbose=False, **kwargs):
+    def forward(self, *args, verbose=True, **kwargs):
         losses = 0
         applied = self.apply(*args, **kwargs)
         if verbose:

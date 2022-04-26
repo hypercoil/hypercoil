@@ -18,6 +18,7 @@ from .crosssim import (
     crosshair_l2_similarity,
     crosshair_cosine_similarity
 )
+from .domainbase import complex_decompose, complex_recompose
 from .fourier import (
     product_filter,
     product_filtfilt

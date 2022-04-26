@@ -136,7 +136,7 @@ class _UnaryCov(_Cov):
             if mask.dim() > 1 and mask.shape[-2] == 1:
                 mask = mask.transpose(-1, -2)
             W = W * expand_outer(mask)
-        return self.estimator(
+        out = self.estimator(
             input,
             rowvar=self.rowvar,
             bias=self.bias,
@@ -144,6 +144,7 @@ class _UnaryCov(_Cov):
             weight=W,
             l2=self.l2
         )
+        return out
 
 
 class _BinaryCov(_Cov):
