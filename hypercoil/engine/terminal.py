@@ -8,7 +8,7 @@ Differentiable program terminals. Currently minimal functionality.
 """
 from ..functional import conform_mask
 from .conveyance import Conveyance
-from .argument import UnpackingModelArgument
+from .argument import ModelArgument, UnpackingModelArgument
 
 
 class Terminal(Conveyance):
@@ -19,6 +19,7 @@ class Terminal(Conveyance):
         lines=None,
         influx=None,
         argbase=None,
+        arg_factory=None,
         retain_graph=False,
         receive_filters=None
     ):
@@ -31,7 +32,8 @@ class Terminal(Conveyance):
         self.args = args
         self.name = self.loss.name
         self.influx = influx or (lambda x: x)
-        self.argbase = argbase or {}
+        self.argbase = argbase or ModelArgument()
+        self.arg_factory = arg_factory or ModelArgument()
         self.retain_graph = True
         self.reset()
 
@@ -54,6 +56,9 @@ class Terminal(Conveyance):
         self.arg = argtype(**self.argbase)
 
     def release(self):
+        for k, v in self.arg_factory.items():
+            self.arg.update((k, v()))
+        self.arg = self.influx(self.arg)
         if isinstance(self.arg, UnpackingModelArgument):
             loss = self.loss(**self.arg)
         else:
@@ -63,10 +68,10 @@ class Terminal(Conveyance):
         return loss
 
     def forward(self, arg, line=None):
-        input = self.influx(self._filter_received(arg, line))
+        input = self._filter_received(arg, line)
         self.arg.update(**input)
         for arg in self.args:
-            if arg not in self.arg:
+            if arg not in self.arg and arg not in self.arg_factory:
                 return
         loss = self.release()
         return loss
