@@ -3,7 +3,9 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 from .argument import (
     ModelArgument,
-    UnpackingModelArgument
+    UnpackingModelArgument,
+    Replaced,
+    Swap
 )
 from .sentry import (
     Sentry,

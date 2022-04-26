@@ -140,7 +140,7 @@ class Conveyance(BaseConveyance):
         self.model = model
         self.influx = influx or (lambda x: x)
         self.efflux = efflux or (
-            lambda output, arg: ModelArgument(output=output))
+            lambda arg, output: ModelArgument(output=output))
 
     def forward(self, arg, line=None, transmit_lines=None):
         input = self.influx(self._filter_received(arg, line))

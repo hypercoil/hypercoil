@@ -83,3 +83,32 @@ class UnpackingModelArgument(ModelArgument):
     output of an ``apply`` call.
     """
     pass
+
+
+class Replaced:
+    def __init__(self, replace=None, cls=ModelArgument, replace_map=None):
+        self.replace = replace
+        self.replace_map = replace_map
+        self.cls = cls
+
+    def __call__(self, arg, *pparams, **params):
+        replace = self.replace
+        if self.replace_map:
+            replace = {
+                self.replace: self.replace_map(arg, *pparams, **params)
+            }
+        return self.cls.replaced(arg, replace)
+
+
+class Swap:
+    def __init__(self, swap, val=None, cls=ModelArgument, val_map=None):
+        self.swap = swap
+        self.val = val
+        self.val_map = val_map
+        self.cls = cls
+
+    def __call__(self, arg, *pparams, **params):
+        val = self.val
+        if self.val_map:
+            val = self.val_map(arg, *pparams, **params)
+        return self.cls.swap(arg, self.swap, val)
