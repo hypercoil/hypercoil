@@ -146,15 +146,14 @@ def configure_timing(
             (3000, 3005) : 2.0,
             (3500, 3505): 2.5,
             (4000, 4005): 3.0,
-            (4500, 4505): 4.0}
+            (4500, 4505): 3.5}
     )
     compactness_nu = MultiplierCascadeSchedule(
         epochs=epochs, base=2,
         transitions={
             (80, 120): 5,
             (400, 800): 20,
-            (2500, 2505): 30,
-            (4500, 4505): 40}
+            (2500, 2505): 30}
     )
     tether_nu = MultiplierCascadeSchedule(
         epochs=epochs, base=.2,
@@ -174,7 +173,9 @@ def configure_timing(
             (3500, 3750): (7, 5),
             (3750, 4000): (5, 5),
             (4000, 4250): (7, 5),
-            (4250, 5000): (5, 5),
+            (4250, 4500): (5, 5),
+            (4500, 4750): (7, 5),
+            (4750, 5000): (5, 5),
         }
     )
 
@@ -403,7 +404,7 @@ def entropy_cascade(epochs, out_root, ds, atlas, atlas_swa, opt,
         'posterior', 'anterior',
         'medial', 'lateral'
     )
-    plotter = fsLRAtlasParcels(atlas)
+    plotter = fsLRAtlasParcels(swa.swa_model.module)
     plotter(
         cmap=modal_cmap,
         views=all_views,
