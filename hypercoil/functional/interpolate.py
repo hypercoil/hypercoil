@@ -44,12 +44,13 @@ def hybrid_interpolate(
     final_mask = (
         mask.view(batch_size, 1, 1, -1) +
         ~spec_mask.view(batch_size, 1, 1,-1)).to(torch.bool)
+    final_mask = (final_mask * ~torch.isnan(rec).sum(-2, keepdim=True)).to(torch.bool)
     final_data = torch.where(final_mask, rec, data)
     rec = weighted_interpolate(
         data=final_data,
         mask=final_mask,
         start_stage=1,
-        max_stage=max_weighted_stage + 1,
+        max_stage=None,
         map_to_kernel=None
     )
     return torch.where(final_mask, final_data, rec)
@@ -382,6 +383,6 @@ def _interpolate_spectral(data,
     # oversampling frequency exceeds 1.
     std_recon = recon.std(-1, keepdim=True, unbiased=False)
     std_orig = data.std(-1, keepdim=True, unbiased=False)
-    norm_fac = std_recon / std_orig
+    norm_fac = std_recon / (std_orig + torch.finfo(data.dtype).eps)
 
-    return recon / norm_fac
+    return recon / (norm_fac + torch.finfo(data.dtype).eps)
