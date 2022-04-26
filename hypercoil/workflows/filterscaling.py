@@ -14,12 +14,14 @@ import webdataset as wds
 from functools import partial
 from torch.nn import ModuleList
 from hypercoil.functional import (
-    corr
+    corr, sym2vec, complex_decompose
 )
 from hypercoil.engine import (
     Epochs,
     ModelArgument,
     UnpackingModelArgument,
+    Replaced,
+    Swap,
     Origin,
     Conveyance,
     Conflux,
@@ -34,7 +36,8 @@ from hypercoil.loss import (
     SymmetricBimodalNorm,
     SmoothnessPenalty,
     NormedLoss,
-    Entropy
+    Entropy,
+    VectorDispersion
 )
 from hypercoil.nn import (
     FrequencyDomainFilter,
@@ -48,6 +51,7 @@ from hypercoil.functional.domain import (
 )
 from hypercoil.init.freqfilter import FreqFilterSpec
 from hypercoil.functional.noise import UnstructuredDropoutSource
+from hypercoil.viz.filter import StreamPlot
 
 
 # Note / advisory: If somebody happens to encounter this, they should be
@@ -68,37 +72,53 @@ data_dir = [str(path) for path in pathlib.Path(
     '*.tar')]
 confounds_dir = '/mnt/blazar/Data/DiFuMo-fMRIPrep/confounds/'
 
-loss_nu = 0.001
-smoothness_nu = 0.4
-symbimodal_nu = 0.05
+lr = 0.02
+symb_nu = 0.001
+disp_nu = 1e-4
+mvk_nu  = 0.01
+qcfc_nu = 10
+smoothness_nu = 5
+symbimodal_nu = 1
 l2_nu = 0.015
 entropy_nu = 0.1
-lossfn = 'qcfc'
-objective = 'max'
-n_bands = 2
-n_networks = 50
+lossfn = 'partition'
+objective = 'min'
+n_bands = 3
+n_networks = 8
+
+l2_nu = torch.logspace(0.5, 1, n_networks).tolist()
+
+
+def amplitude(x):
+    a, _ = complex_decompose(x)
+    return a
 
 
 if ((objective == 'min' and lossfn == 'mvk')
     or (objective == 'max' and lossfn == 'qcfc')):
-    loss_nu *= -1
+    qcfc_nu *= -1
+    mvk_nu *= -1
 
 if lossfn == 'mvk':
     loss_base = [LossApply(
-        MultivariateKurtosis(nu=loss_nu, l2=0.01),
+        MultivariateKurtosis(nu=mvk_nu, l2=0.01),
         apply=lambda arg: arg.bold_filtered
     )]
     entropy_nu = 0
 elif lossfn == 'qcfc':
     loss_base = [LossApply(
-        QCFC(nu=loss_nu),
+        QCFC(nu=qcfc_nu),
         apply=lambda arg: UnpackingModelArgument(FC=arg.corr_mat, QC=arg.fd)
     )]
     entropy_nu = 0
 elif lossfn == 'partition':
-    loss_base = [LossApply(
-        SymmetricBimodalNorm(nu=loss_nu, modes=(-1, 1)),
-        apply=lambda arg: arg.corr_mat
+    loss_base = [LossScheme([
+        VectorDispersion(nu=disp_nu),
+        SymmetricBimodalNorm(nu=symb_nu, modes=(-1, 1))
+    ], apply=lambda arg: arg.corr_mat),
+    LossApply(
+        QCFC(nu=qcfc_nu),
+        apply=lambda arg: UnpackingModelArgument(FC=arg.corr_mat, QC=arg.fd)
     )]
 
 loss = [None for _ in range(n_networks)]
@@ -108,9 +128,9 @@ for i in range(n_networks):
         LossScheme([
             SmoothnessPenalty(nu=smoothness_nu),
             SymmetricBimodalNorm(nu=symbimodal_nu),
-            NormedLoss(nu=l2_nu),
+            NormedLoss(nu=l2_nu[i]),
             Entropy(nu=entropy_nu)
-        ], apply=lambda arg: arg.weight)
+        ], apply=lambda arg: amplitude(arg.weight))
     ])
 
 
@@ -175,14 +195,14 @@ origin = Origin(
         t_r=arg['t_r.pyd'],
         tmask=arg['tmask'],
         __key__=arg['__key__'],
-        fd=torch.mean(arg['confounds'][:, 0], -1, keepdim=True
+        fd=torch.nanmean(arg['confounds'][:, 0], -1, keepdim=True
             ).t().to(dtype=torch.float)
     ))
 )
 
 
 filter_spec = lambda: FreqFilterSpec(
-    Wn=None, ftype='randn', btype=None, clamps=[{0: 0}],
+    Wn=None, ftype='randn', btype=None, # clamps=[{0: 0}],
     ampl_scale=0.01, phase_scale=0.01)
 survival_prob=0.5
 drop = UnstructuredDropoutSource(
@@ -190,8 +210,8 @@ drop = UnstructuredDropoutSource(
     training=True
 )
 
-class FilterStream(torch.nn.Module):
-    def __init__(self, n_networks, origin, loss):
+class FilterStreams(torch.nn.Module):
+    def __init__(self, n_networks, origin, loss, lossfn='partition'):
         super().__init__()
         self.origin = origin
         self.n_networks = n_networks
@@ -205,12 +225,17 @@ class FilterStream(torch.nn.Module):
             efflux=(lambda output, arg: ModelArgument.replaced(
                 arg, {'bold' : output.squeeze(1)}))
         )
+        if lossfn == 'partition':
+            fft_efflux = (lambda output, arg: ModelArgument.swap(
+                arg, ('bold', 'bold_filtered'), output[:, :(n_bands)]))
+        else:
+            fft_efflux = (lambda output, arg: ModelArgument.swap(
+                arg, ('bold', 'bold_filtered'), output))
         self.fftfilter = ModuleList([
             Conveyance(
                 lines=[('main', 'loss'), ('main', 'main')],
                 influx=(lambda arg: UnpackingModelArgument(input=arg.bold)),
-                efflux=(lambda output, arg: ModelArgument.swap(
-                    arg, ('bold', 'bold_filtered'), output.squeeze(1))),
+                efflux=fft_efflux,
                 transmit_filters={'loss': ('bold_filtered', 'fd')},
             ) for _ in range(n_networks)
         ])
@@ -218,13 +243,17 @@ class FilterStream(torch.nn.Module):
             Conveyance(
                 lines=[('main', 'loss'), ('main', 'main')],
                 influx=(lambda arg: UnpackingModelArgument(
-                    input=arg.bold_filtered, mask=arg.tmask)),
-                efflux=(lambda output, arg: ModelArgument.swap(
-                    arg, ('bold_filtered', 'corr_mat'), output)),
+                    input=arg.bold_filtered, mask=arg.tmask.unsqueeze(1))),
+                efflux=Swap(('bold_filtered', 'corr_mat'),
+                            val_map=lambda arg, output: output),
                 transmit_filters={'loss': ('corr_mat',)},
             ) for _ in range(n_networks)
         ])
         self.terminal = ModuleList([None for _ in range(n_networks)])
+        def terminal_argfn(filter, n_bands=None):
+            if n_bands is not None:
+                return filter.weight[:(n_bands)]
+            return filter.weight
 
         self.origin.connect_downstream(self.interpol)
 
@@ -234,49 +263,57 @@ class FilterStream(torch.nn.Module):
                     dim=freq_dim,
                     filter_specs=[filter_spec() for _ in range(n_bands + 1)],
                     domain=AmplitudeMultiLogit(axis=0))
+                terminal_arg = partial(
+                    terminal_argfn, n_bands=n_bands,
+                    filter=self.fftfilter[i].model)
             else:
                 self.fftfilter[i].model = FrequencyDomainFilter(
                     dim=freq_dim,
                     filter_specs=[filter_spec()],
                     domain=AmplitudeAtanh())
+                terminal_arg = partial(terminal_argfn,
+                    filter=self.fftfilter[i].model)
 
             self.cov[i].model = UnaryCovarianceUW(
                 dim=time_dim,
                 estimator=corr,
-                dropout=drop)
+                dropout=drop
+            )
 
             self.terminal[i] = Terminal(
                 loss=loss[i],
                 lines='loss',
-                argbase=ModelArgument(
-                    weight=fftfilter[i].model.weight
-                ),
-                args=('weight', 'bold_filtered', 'corr_mat')
+                arg_factory={'weight': terminal_arg},
+                args=('weight', 'bold_filtered', 'corr_mat'),
+                influx=Replaced(
+                    'corr_mat',
+                    replace_map=(lambda arg: sym2vec(arg.corr_mat)))
             )
 
-            self.fftfilter[i].connect_downstream(terminal[i])
-            self.cov[i].connect_downstream(terminal[i])
-            self.interpol.connect_downstream(fftfilter[i])
-            self.fftfilter[i].connect_downstream(cov[i])
+            self.fftfilter[i].connect_downstream(self.terminal[i])
+            self.cov[i].connect_downstream(self.terminal[i])
+            self.interpol.connect_downstream(self.fftfilter[i])
+            self.fftfilter[i].connect_downstream(self.cov[i])
 
     def forward(self):
         self.origin(line='source')
 
-stream = FilterStream(
+stream = FilterStreams(
     n_networks=n_networks,
     origin=origin,
-    loss=loss
+    loss=loss,
+    lossfn=lossfn
 )
 
-#stream()
 
-"""
+opt = torch.optim.Adam(lr=lr, params=stream.fftfilter.parameters())
+
 epochs = Epochs(max_epoch)
 for epoch in epochs:
-    print(f'[ Epoch {epoch} ]')
-    for _ in range(20):
-        origin(line='source')
-        for i in range(n_networks):
-            pass
-        pool.reset()
-"""
+    print(f'\n\n[ Epoch {epoch} ]')
+    for _ in range(1): #20):
+        stream()
+        opt.step()
+        opt.zero_grad()
+    plotter = StreamPlot(stream=stream, objective=lossfn)
+    plotter(f'/tmp/desc-{lossfn}-epoch{epoch:04}_filter.png')
