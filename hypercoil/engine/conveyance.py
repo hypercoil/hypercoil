@@ -344,3 +344,67 @@ class DataPool(BaseConveyance):
 
     def forward(self, arg, line=None):
         self.pool[line] += [self._filter_received(arg, line)]
+
+
+class AveragingPool(BaseConveyance):
+    def __init__(
+        self, keys,
+        reset_on_epoch=True,
+        lines=None,
+        axes=0,
+        transmit_filters=None,
+        receive_filters=None
+    ):
+        super().__init__(
+            lines=lines,
+            transmit_filters=transmit_filters,
+            receive_filters=receive_filters
+        )
+        self.reset()
+        self.keys = keys
+        self.count = {}
+        self.axes = {}
+        for key in self.keys:
+            self.count[key] = 0
+            if isinstance(axes, dict):
+                self.axes[key] = axes[key]
+            else:
+                self.axes[key] = key
+        if reset_on_epoch:
+            self.register_action(ResetOnEpoch())
+        if len(self.receive) > 1:
+            warnings.warn(
+                'DataPool receiving over multiple lines: '
+                'Loss of pool size synchrony is possible. '
+                'It is recommended that you create a separate '
+                'DataPool for each receiving line.'
+            )
+
+    def reset(self):
+        self.pool = {line: [] for line in self.transmit}
+
+    def compile(self):
+        for line, pool in self.pool.items():
+            self._update_transmission(pool, line)
+
+    def release(self):
+        self.compile()
+        self.reset()
+        self._transmit()
+
+    def forward(self, arg, line=None):
+        for key in self.keys:
+            data = arg.get(key)
+            if data is None:
+                continue
+            ax = self.axes[key]
+            count = data.shape[ax]
+            mean = torch.mean(data, dim=ax)
+            if self.pool[line].get(key) is None:
+                self.pool[line][key] = mean
+            else:
+                self.pool[line][key] = (
+                    self.count[key] * self.pool[line][key] +
+                    count * mean
+                ) / (self.count[key] + count)
+            self.count[key] += count

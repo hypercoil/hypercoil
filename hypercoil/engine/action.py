@@ -341,6 +341,14 @@ class TerminateAccumuline(SentryAction):
                 s._listen(sentry.message)
 
 
+class ResetOnEpoch(SentryAction):
+    def __init__(self):
+        super().__init__(trigger=['EPOCH'])
+
+    def propagate(self, sentry, received):
+        sentry.reset()
+
+
 class VerboseReceive(SentryAction):
     def __init__(self):
         super().__init__(trigger=None)
