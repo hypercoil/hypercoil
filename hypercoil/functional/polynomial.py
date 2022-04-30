@@ -10,7 +10,7 @@ import torch
 
 
 def basisconv2d(X, weight, basis_functions, include_const=False, bias=None,
-                padding=None, **params):
+                padding=None, conv=None, **params):
     r"""
     Perform convolution using basis function channel mapping.
 
@@ -70,17 +70,19 @@ def basisconv2d(X, weight, basis_functions, include_const=False, bias=None,
         channels.
     """
     assert weight.size(1) - include_const == len(basis_functions)
-    padding = padding or (0, weight.size(-1) // 2)
+    padding, X = _configure_padding_for_ts_conv(padding, X, weight)
     X = basischan(
         X,
         basis_functions=basis_functions,
         include_const=include_const
     )
-    return torch.conv2d(X, weight, bias=bias, padding=padding, **params)
+    if conv is None:
+        conv = torch.conv2d
+    return conv(X, weight, bias=bias, padding=padding, **params)
 
 
 def polyconv2d(X, weight, include_const=False, bias=None,
-               padding=None, **params):
+               padding=None, conv=None, **params):
     r"""
     Perform convolution using a polynomial channel basis.
 
@@ -140,28 +142,24 @@ def polyconv2d(X, weight, include_const=False, bias=None,
         Input dataset transformed via polynomial convolution.
     """
     degree = weight.size(1) - include_const
-    padding = padding or (0, weight.size(-1) // 2)
+    padding, X = _configure_padding_for_ts_conv(padding, X, weight)
     X = polychan(X, degree=degree, include_const=include_const)
-    return torch.conv2d(X, weight, bias=bias, padding=padding, **params)
+    if conv is None:
+        conv = torch.conv2d
+    return conv(X, weight, bias=bias, padding=padding, **params)
 
 
-def tsconv2d(X, weight, bias=None, padding=None, **params):
+def tsconv2d(X, weight, bias=None, padding=None, conv=None, **params):
     X = _configure_input_for_ts_conv(X)
-    if padding == 'final':
-        X = torch.nn.functional.pad(X, (0, weight.size(-1) - 1))
-        padding = (0, 0)
-    if padding == 'initial':
-        X = torch.nn.functional.pad(X, (weight.size(-1) - 1, 0))
-        padding = (0, 0)
-    padding = padding or (0, weight.size(-1) // 2)
-    return torch.conv2d(X, weight, bias=bias, padding=padding, **params)
+    if conv is None:
+        conv = torch.conv2d
+    padding, X = _configure_padding_for_ts_conv(padding, X, weight)
+    return conv(X, weight, bias=bias, padding=padding, **params)
 
 
 def _configure_input_for_ts_conv(X):
-    if X.dim() > 2:
-        pass
-    elif X.dim() == 2:
-        X = X.view(1, *X.size())
+    if X.dim() == 2:
+        X = X.view(1, *X.shape)
     elif X.dim() == 1:
         X = X.view(1, -1)
     return X
@@ -175,6 +173,17 @@ def _configure_input_for_channel_basis(X):
     X = _configure_input_for_ts_conv(X)
     stack = [X]
     return X, stack
+
+
+def _configure_padding_for_ts_conv(padding, X, weight):
+    if padding == 'final':
+        X = torch.nn.functional.pad(X, (0, weight.size(-1) - 1))
+        padding = (0, 0)
+    if padding == 'initial':
+        X = torch.nn.functional.pad(X, (weight.size(-1) - 1, 0))
+        padding = (0, 0)
+    padding = padding or (0, weight.size(-1) // 2)
+    return padding, X
 
 
 def basischan(X, basis_functions, include_const=False):
@@ -211,7 +220,9 @@ def basischan(X, basis_functions, include_const=False):
     stack = [f(X) for f in basis_functions]
     if include_const:
         stack = [torch.ones_like(X)] + stack
-    return torch.stack(stack, 1)
+    if X.dim() == 3:
+        return torch.stack(stack, 1)
+    return torch.cat(stack, 1)
 
 
 def polychan(X, degree=2, include_const=False):
@@ -251,4 +262,6 @@ def polychan(X, degree=2, include_const=False):
         stack += [stack[-1] * X]
     if include_const:
         stack = [torch.ones_like(X)] + stack
-    return torch.stack(stack, 1)
+    if X.dim() == 3:
+        return torch.stack(stack, 1)
+    return torch.cat(stack, 1)
