@@ -6,13 +6,14 @@ Maximum potential bipartite lattice (MPBL) algorithm.
 """
 import torch
 import numpy as np
-from ..functional import pairedcorr
 from torch.nn.functional import softmax
+from .base import DomainInitialiser
+from ..functional import pairedcorr, delete_diagonal, sym2vec
 
 
 def corr_criterion(orig, recon, u):
     """
-    Selects the compression scheme that maximises the feature-wise
+    Select the compression scheme that maximises the feature-wise
     correlation between the original uncompressed matrix and its
     reconstruction.
     """
@@ -23,7 +24,7 @@ def corr_criterion(orig, recon, u):
 
 def potential_criterion(orig, recon, u):
     """
-    Selects the compression scheme that maximises the transmitted
+    Select the compression scheme that maximises the transmitted
     potential.
     """
     return -torch.sum(u)
@@ -82,15 +83,15 @@ def _mpbl_run(n_in, n_out, potentials_orig, random_init,
     """
     Execute a single run of the MPBL algorithm.
     """
-    candidates = torch.ones(n_in).byte()
+    candidates = torch.ones(n_in, dtype=torch.bool)
     candidates_ids = torch.arange(n_in)
     asgt_u = torch.zeros(n_out)
-    asgt = torch.zeros(n_out, n_in).byte()
+    asgt = torch.zeros((n_out, n_in), dtype=torch.bool)
 
-    potentials = potentials_orig - torch.diag(torch.diag(potentials_orig))
+    potentials = delete_diagonal(potentials_orig)
     for i in range(n_out):
         if torch.sum(candidates) == 0:
-            candidates = torch.ones(n_in).byte()
+            candidates = torch.ones(n_in, dtype=torch.bool)
 
         n_edges = 0
         select = _init_select(candidates, candidates_ids,
@@ -99,14 +100,32 @@ def _mpbl_run(n_in, n_out, potentials_orig, random_init,
 
         while n_edges < n_edges_out:
             if torch.sum(candidates) == 0:
-                candidates = torch.ones(n_in).byte()
+                candidates = torch.ones(n_in, dtype=torch.bool)
             select = _select_edge(candidates, candidates_ids,
                                   potentials, asgt[i, :], temperature)
             n_edges = _update_assignment(asgt, candidates, select, n_edges, i)
         idx = torch.nonzero(asgt[i, :]).squeeze()
         asgt_u[i] = torch.sum(potentials[idx.view(-1, 1), idx])
         potentials[idx.view(-1, 1), idx] /= attenuation
-    return asgt.float(), asgt_u
+    return asgt.to(dtype=torch.float), asgt_u
+
+
+def _mpbl_eval(criterion, asgt, objective, n_edges_in, n_edges_out,
+               asgt_u, crit_u=float('inf'), max_asgt=None):
+    """
+    Evaluate a single run of the MPBL algorithm.
+    """
+    # TODO: this normalisation is incorrect. It approximately works for the
+    # correlation criterion but will break for others.
+    compressed = (asgt[0] / n_edges_out[0]) @ (objective @
+        (asgt[1] / n_edges_out[1]).t())
+    recon = (asgt[0] / n_edges_in[0]).t() @ (
+        compressed @ (asgt[1] / n_edges_in[1]))
+    u = criterion(objective, recon, asgt_u)
+    if u < crit_u:
+        crit_u = u
+        max_asgt = asgt
+    return u, crit_u, max_asgt
 
 
 def maximum_potential_bipartite_lattice(potentials, n_out, order, iters=100,
@@ -181,12 +200,14 @@ def maximum_potential_bipartite_lattice(potentials, n_out, order, iters=100,
     """
     if isinstance(potentials, tuple):
         symmetric = False
-        n_in = (potentials[0].size(0), potentials[0].size(1))
+        n_in = (potentials[0].size(0), potentials[1].size(0))
         potentials_orig = (potentials[0].clone(), potentials[1].clone())
-        n_edges_allowed = [order * np.lcm(i, o) for i, o in zip(n_in, n_out)]
+        n_edges_allowed = [order * np.lcm(i, o)
+                           for i, o in zip(n_in, n_out)]
         n_edges_out = [a // o for a, o in zip(n_edges_allowed, n_out)]
         n_edges_in = [a // i for a, i in zip(n_edges_allowed, n_in)]
-        max_asgt = [torch.ones(n_out[0], n_in[0]), torch.ones(n_out[1], n_in[1])]
+        max_asgt = [torch.ones((n_out[0], n_in[0])),
+                    torch.ones((n_out[1], n_in[1]))]
         U_prop = (None, None)
         crit_u = [float('inf'), float('inf')]
     else:
@@ -205,40 +226,37 @@ def maximum_potential_bipartite_lattice(potentials, n_out, order, iters=100,
         objective = potentials_orig
     for _ in range(iters):
         if symmetric:
-            asgt, asgt_u = _mpbl_run(n_in, n_out, potentials_orig, random_init,
-                                     n_edges_out, temperature, attenuation)
-            # TODO: this normalisation is incorrect
-            compressed = (asgt / n_edges_out) @ (
-                (asgt / n_edges_out) @ objective).t()
-            recon = (asgt / n_edges_in).t() @ (compressed @ (asgt / n_edges_in))
-            u = criterion(objective, recon, asgt_u)
-            if u < crit_u:
-                crit_u = u
-                max_asgt = asgt
+            asgt, asgt_u = _mpbl_run(n_in, n_out, potentials_orig,
+                                     random_init, n_edges_out,
+                                     temperature, attenuation)
+            u, crit_u, max_asgt = _mpbl_eval(
+                asgt=(asgt, asgt),
+                criterion=criterion, objective=objective,
+                n_edges_in=(n_edges_in, n_edges_in),
+                n_edges_out=(n_edges_out, n_edges_out),
+                asgt_u=asgt_u, crit_u=crit_u, max_asgt=max_asgt
+            )
         else:
             asgt, asgt_u = _mpbl_run(n_in[0], n_out[0], potentials_orig[0],
                                      random_init, n_edges_out[0],
                                      temperature, attenuation)
-            compressed = ((asgt / n_edges_out[0]) @ objective
-                @ (max_asgt[1] / n_edges_out[1]).t())
-            recon = (asgt / n_edges_in[0]).t() @ (
-                compressed @ (max_asgt[1] / n_edges_in[1]))
-            u = criterion(objective, recon, asgt_u)
-            if u < crit_u[0]:
-                crit_u[0] = u
-                max_asgt[0] = asgt
+            u, crit_u[0], max_asgt = _mpbl_eval(
+                asgt=(asgt, max_asgt[1]),
+                criterion=criterion, objective=objective,
+                n_edges_in=n_edges_in, n_edges_out=n_edges_out,
+                asgt_u=asgt_u, crit_u=crit_u[0], max_asgt=max_asgt
+            )
             asgt, asgt_u = _mpbl_run(n_in[1], n_out[1], potentials_orig[1],
                                      random_init, n_edges_out[1],
                                      temperature, attenuation)
-            compressed = ((max_asgt[0] / n_edges_out[0]) @ objective
-                @ (asgt / n_edges_out[1]).t())
-            recon = (max_asgt[0] / n_edges_in[0]).t() @ (
-                compressed @ (asgt / n_edges_in[1]))
-            u = criterion(objective, recon, asgt_u)
-            if u < crit_u[1]:
-                crit_u[1] = u
-                max_asgt[1] = asgt
+            u, crit_u[1], max_asgt = _mpbl_eval(
+                asgt=(max_asgt[0], asgt),
+                criterion=criterion, objective=objective,
+                n_edges_in=n_edges_in, n_edges_out=n_edges_out,
+                asgt_u=asgt_u, crit_u=crit_u[1], max_asgt=max_asgt
+            )
     if symmetric:
+        max_asgt = max_asgt[0]
         U_prop = propagate_potentials(potentials_orig, max_asgt)
     else:
         U_prop = (propagate_potentials(potentials_orig[0], max_asgt[0]),
