@@ -176,6 +176,101 @@ class QCPredict(Module):
         return final_conv
 
 
+class BOLDPredict(Module):
+    """
+    ``QCPredict`` running in reverse.
+    """
+    def __init__(
+        self,
+        n_ts,
+        basis_functions=None,
+        n_response_functions=20,
+        response_function_len=15,
+        n_t_response_functions=20,
+        t_response_function_len=15,
+        n_intermediate_layers=0,
+        intermediate_pattern_len=15,
+        n_qc=1,
+        init_rf=None,
+        init_rft=None,
+        init_lin=None,
+        init_interm=None
+    ):
+        super().__init__()
+        #TODO: thresholds are not exactly relus in response distribution
+        default_init = lambda x: torch.nn.init.kaiming_uniform_(
+            x, nonlinearity='relu')
+        self.basis_functions = basis_functions or [lambda x : x]
+        self.weight = ParameterDict({
+            'rf' : Parameter(torch.empty(
+                n_response_functions,
+                n_qc * len(self.basis_functions),
+                1,
+                response_function_len)),
+            'rft' : Parameter(torch.empty(
+                n_qc * len(self.basis_functions),
+                n_t_response_functions,
+                1,
+                t_response_function_len)),
+            'lin' : Parameter(torch.empty(
+                n_ts, (n_response_functions + n_t_response_functions))),
+            'thresh_rf' : Parameter(torch.empty(
+                (n_response_functions + n_t_response_functions),
+                1, 1)),
+        })
+        intermediate_weight = {}
+        for l in range(n_intermediate_layers):
+            intermediate_weight[f'weight_{l:04}'] = Parameter(torch.empty(
+                (n_response_functions + n_t_response_functions),
+                (n_response_functions + n_t_response_functions),
+                1,
+                intermediate_pattern_len
+            ))
+            intermediate_weight[f'thresh_{l:04}'] = Parameter(torch.empty(
+                (n_response_functions + n_t_response_functions), 1, 1
+            ))
+        self.weight.update(intermediate_weight)
+        self.n_intermediate_layers = n_intermediate_layers
+        self.init_rf = init_rf or default_init
+        self.init_rft = init_rft or default_init
+        self.init_lin = init_lin or default_init
+        self.init_interm = init_interm or default_init
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.init_rf(self.weight['rf'])
+        self.init_rft(self.weight['rft'])
+        self.init_lin(self.weight['lin'])
+        torch.nn.init.normal_(self.weight['thresh_rf'], 0.01)
+        for l in range(self.n_intermediate_layers):
+            self.init_interm(self.weight[f'weight_{l:04}'])
+            torch.nn.init.normal_(self.weight[f'thresh_{l:04}'], 0.01)
+
+    def forward(self, x):
+        x = basischan(
+            x, basis_functions=self.basis_functions, include_const=False)
+        n, c, h, w = x.shape
+        x = x.view(n, c * h, 1, w)
+        rf_conv = tsconv2d(
+            x, weight=self.weight['rf'], padding='final')
+        rft_conv = tsconv2d(
+            x, conv=torch.nn.functional.conv_transpose2d,
+            weight=self.weight['rft'])[:, :, :, :x.shape[-1]]
+        rf_conv = torch.cat((rf_conv, rft_conv), axis=1)
+        out = threshold(rf_conv, self.weight['thresh_rf'])
+
+        for l in range(self.n_intermediate_layers):
+            out_l = threshold(out, self.weight[f'thresh_{l:04}'])
+            out_l = tsconv2d(out_l, weight=self.weight[f'weight_{l:04}'],
+                             padding='final')
+            out = out + out_l
+
+        remapped = (
+            self.weight['lin'] @ out.transpose(-2, -3)
+        )
+        return remapped
+
+
 class LinearCombinationSelector(Linear):
     r"""
     Model selection as a linear combination.
