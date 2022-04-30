@@ -9,6 +9,8 @@ import math
 from torch.nn.init import calculate_gain
 
 
+# We need to go back and check these imported inits at some point -- they
+# are relics from an older era.
 def sparse_kaiming_uniform_(tensor, mask=None, a=0, mode='fan_in',
                             nonlinearity='leaky_relu'):
     """
@@ -17,10 +19,11 @@ def sparse_kaiming_uniform_(tensor, mask=None, a=0, mode='fan_in',
     """
     if mask is None:
         mask = tensor
-    fan = {}
     pathways = (mask != 0)
-    fan['fan_in'] = pathways.sum(1).float().mean()
-    fan['fan_out'] = pathways.sum(0).float().mean()
+    fan = {
+        'fan_in' : pathways.sum(1).float().mean()
+        'fan_out' : pathways.sum(0).float().mean()
+    }
     gain = calculate_gain(nonlinearity, a)
     std = gain / math.sqrt(fan[mode])
     # Calculate uniform bounds from standard deviation

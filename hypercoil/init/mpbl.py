@@ -379,6 +379,13 @@ class BipartiteLatticeInit(DomainInitialiser):
         else:
             self.objective = -objective
 
+    def sign_vector(self):
+        base = torch.ones((self.n_lattices * self.channel_multiplier, 1, 1))
+        if self.sign == '+':
+            return base
+        elif self.sign == '-':
+            return -base
+
     def __call__(self, tensor, mask):
         assert tensor.shape == mask.shape, (
             'Tensor and mask shapes must match')
@@ -392,11 +399,12 @@ class BipartiteLatticeInit(DomainInitialiser):
         recon = torch.empty((0, tensor.shape[-1], tensor.shape[-1]))
         for i in range(self.n_lattices):
             if self.residualise and (i != 0):
-                compressed = max_asgt @ orig @ max_asgt.T
+                compressed = max_asgt @ self.potentials @ max_asgt.T
                 recon = torch.cat(
                     (
                         recon,
-                        (max_asgt.T @ compressed @ max_asgt).unsqueeze(0)
+                        (max_asgt.T @ compressed @ max_asgt).mean(
+                            0, keepdim=True)
                     ),
                     dim=0)
                 scale = torch.linalg.lstsq(
