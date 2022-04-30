@@ -147,6 +147,12 @@ def polyconv2d(X, weight, include_const=False, bias=None,
 
 def tsconv2d(X, weight, bias=None, padding=None, **params):
     X = _configure_input_for_ts_conv(X)
+    if padding == 'final':
+        X = torch.nn.functional.pad(X, (0, weight.size(-1) - 1))
+        padding = (0, 0)
+    if padding == 'initial':
+        X = torch.nn.functional.pad(X, (weight.size(-1) - 1, 0))
+        padding = (0, 0)
     padding = padding or (0, weight.size(-1) // 2)
     return torch.conv2d(X, weight, bias=bias, padding=padding, **params)
 
