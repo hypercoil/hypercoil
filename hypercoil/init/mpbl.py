@@ -318,3 +318,115 @@ def maximum_potential_bipartite_lattice_autoselect_order(
     idx = np.argmin(compression_error)
     order = orders[idx]
     return omax_asgt[idx], omax_u[idx], oU_prop[idx], order, compression_error
+
+
+class BipartiteLatticeInit(DomainInitialiser):
+    def __init__(self, n_out, order,
+                 potentials=None, objective=None,
+                 n_lattices=1, residualise=False, svd=False,
+                 channel_multiplier=1, sign='+',
+                 iters=10, temperature=0,
+                 random_init=True, attenuation=2,
+                 next=None, prev=None, domain=None):
+        self.n_out = n_out
+        self.order = order
+        self.iters = iters
+        self.n_lattices = n_lattices
+        self.residualise = residualise
+        self.svd = svd
+        self.channel_multiplier = channel_multiplier
+        self.sign = sign
+        self.temperature = temperature
+        self.random_init = random_init
+        self.attenuation = attenuation
+        self.set_next(next)
+        if prev is not None:
+            other.set_next(self)
+        if potentials is not None:
+            self.set_potentials(potentials)
+        if objective is not None:
+            self.set_objective(objective)
+        else:
+            self.objective = None
+        super(BipartiteLatticeInit, self).__init__(init=None, domain=domain)
+
+    def set_next(self, other):
+        self.next = other
+
+    def set_potentials(self, potentials, sign='+'):
+        if self.svd:
+            potential_vec = sym2vec(potentials)
+            _, _, v = torch.svd(potential_vec)
+            v = v.t()[:self.n_lattices]
+            for i, vec in enumerate(v):
+                if (self.sign == '+' and
+                    pairedcorr(vec, potential_vec).sum() < 0):
+                    v[i] = -vec
+                if (self.sign == '-' and
+                    pairedcorr(vec, potential_vec).sum() > 0):
+                    v[i] = -vec
+            potentials = vec2sym(v)
+        if isinstance(potentials, torch.Tensor) and (potentials.dim() == 2):
+            potentials = [potentials] * self.n_lattices
+        if sign == self.sign:
+            self.potentials = potentials
+        else:
+            self.potentials = [-p for p in potentials]
+
+    def set_objective(self, objective, sign='+'):
+        if sign == self.sign:
+            self.objective = objective
+        else:
+            self.objective = -objective
+
+    def __call__(self, tensor, mask):
+        assert tensor.shape == mask.shape, (
+            'Tensor and mask shapes must match')
+        if tensor.dim() > 2:
+            assert tensor.shape[-3] == (
+                self.n_lattices * self.channel_multiplier), (
+                'Tensor dimension does not match lattice count')
+        if self.residualise and self.svd:
+            raise ValueError('Cannot set both `residualise` and `svd`')
+        U_prop = []
+        recon = torch.empty((0, tensor.shape[-1], tensor.shape[-1]))
+        for i in range(self.n_lattices):
+            if self.residualise and (i != 0):
+                compressed = max_asgt @ orig @ max_asgt.T
+                recon = torch.cat(
+                    (
+                        recon,
+                        (max_asgt.T @ compressed @ max_asgt).unsqueeze(0)
+                    ),
+                    dim=0)
+                scale = torch.linalg.lstsq(
+                    sym2vec(recon).view(i, -1).transpose(-2, -1),
+                    sym2vec(self.potentials[0]).view(-1, 1)
+                ).solution
+                potentials = self.potentials[0] - (
+                    recon.transpose(0, -1) @ scale).squeeze()
+            else:
+                potentials = self.potentials[i]
+            max_asgt, _, u_prop = maximum_potential_bipartite_lattice(
+                potentials=potentials,
+                n_out=self.n_out,
+                order=self.order,
+                iters=self.iters,
+                temperature=self.temperature,
+                random_init=self.random_init,
+                attenuation=self.attenuation,
+                objective=self.objective,
+                criterion=corr_criterion
+            )
+            U_prop += [u_prop]
+            with torch.no_grad():
+                if tensor.dim() > 2:
+                    begin = i * self.channel_multiplier
+                    end = begin + self.channel_multiplier
+                    tensor[begin:end] = self.domain.preimage(max_asgt)
+                    mask[begin:end] = max_asgt
+                else:
+                    tensor[:] = self.domain.preimage(max_asgt)
+                    mask[:] = max_asgt
+        if self.next is not None:
+            self.next.set_potentials(U_prop, sign=self.sign)
