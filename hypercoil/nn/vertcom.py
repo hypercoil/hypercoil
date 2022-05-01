@@ -8,6 +8,7 @@ import torch
 from torch import nn
 from torch.nn import init, Parameter
 from ..init.mpbl import BipartiteLatticeInit
+from ..functional.matrix import delete_diagonal
 
 
 class VerticalCompression(nn.Module):
@@ -76,8 +77,16 @@ class VerticalCompression(nn.Module):
                          torch.numel(self.mask)).item()
 
     def extra_repr(self):
-        return ('in_features={}, out_features={}, sparsity={:.4}'
-            ).format(self.in_features, self.out_features, self.sparsity)
+        if self.initialised:
+            s = ('compression=({}, {}), out_channels={}, sparsity={:.4}'
+                ).format(self.in_features, self.out_features,
+                         self.out_channels, self.sparsity)
+        else:
+            s = ('uninitialised=True, compression=({}, {}), out_channels={}'
+                ).format(self.in_features, self.out_features,
+                         self.out_channels)
+        return s
+
 
     def forward(self, input):
         if not self.initialised:
@@ -90,6 +99,7 @@ class VerticalCompression(nn.Module):
             input=input,
             row_compressor=(self.mask * self.C),
             renormalise=self.renormalise,
+            remove_diagonal=True,
             fold_channels=self.fold_channels,
             sign=self.sign
         )
@@ -97,7 +107,8 @@ class VerticalCompression(nn.Module):
 
 ##TODO: move to `functional` at some point.
 def vertical_compression(input, row_compressor, col_compressor=None,
-                         renormalise=True, fold_channels=True, sign=None):
+                         renormalise=True, remove_diagonal=False,
+                         fold_channels=True, sign=None):
     r"""
     Vertically compress a matrix or matrix stack of dimensions
     :math:``H_{in} \times W_{in} \rightarrow H_{out} \times W_{out}``.
@@ -116,10 +127,14 @@ def vertical_compression(input, row_compressor, col_compressor=None,
         matrix of dimension W_out x W_in. If this is None, then symmetry is
         assumed: the column compressor and row compressor are the same.
     """
+    if delete_diagonal:
+        input = delete_diagonal(input)
     input = input.unsqueeze(-3)
     if col_compressor is None:
         col_compressor = row_compressor
     compressed = (row_compressor @ input) @ col_compressor.transpose(-2, -1)
+    if remove_diagonal:
+        compressed = delete_diagonal(compressed)
     if sign is not None:
         compressed = sign * compressed
     if renormalise:
