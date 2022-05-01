@@ -22,8 +22,9 @@ class VerticalCompression(nn.Module):
     __constants__ = ['in_features', 'out_features']
 
     def __init__(self, in_features, out_features, init, renormalise=True,
-                 fold_channels=True, device=None, dtype=None, learnable=True):
+                 fold_channels=True, learnable=True, device=None, dtype=None):
         super(VerticalCompression, self).__init__()
+        factory_kwargs = {'device': device, 'dtype': dtype}
         self.in_features = in_features
         self.out_features = out_features
         self.initialised = False
@@ -40,12 +41,11 @@ class VerticalCompression(nn.Module):
             dtype=dtype, device=device))
         self.mask = Parameter(torch.empty(
             (self.out_channels, self.out_features, self.in_features),
-            dtype=torch.bool),
-        requires_grad=False)
+            dtype=torch.bool
+        ), requires_grad=False)
         self.sign = Parameter(torch.empty(
-            (self.out_channels, 1, 1),
-            dtype=dtype, device=device),
-        requires_grad=False)
+            (self.out_channels, 1, 1), **factory_kwargs
+        ), requires_grad=False)
         if not learnable:
             self.C.requires_grad = False
         self.init = init

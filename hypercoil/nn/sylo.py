@@ -56,6 +56,34 @@ class Sylo(nn.Module):
         This option is not available for nonsquare matrices or bipartite
         graphs. Note that the parameter count doubles if this is False.
         Default: True
+    coupling: None, '+', '-', 'split', 'learnable', 'learnable_all'
+        Coupling parameter when expanding outer-product template banks.
+        * A value of ``None`` disables the coupling parameter.
+        * ``'+'`` is equivalent to ``None``, fixing coupling to positive 1.
+          For ``symmetry=True``, this enforces positive semidefinite
+          templates.
+        * ``'-'`` fixes coupling parameters to negative 1. For
+          ``symmetry=True``, this enforces negative semidefinite templates.
+        * ``'split'`` splits channels such that approximately an equal number
+          have coupling parameters fixed to +1 and -1. For ``symmetry=True``,
+          this splits channels among positive and negative semidefinite
+          templates. This option can also be useful when imposing a unilateral
+          normed penalty to favour nonnegative weights, as the template bank
+          can simultaneously satisfy the soft nonnegativity constraint and
+          respond with positive activations to features of either sign,
+          enabling these activations to survive downstream rectifiers.
+        * A float value in (0, 1) is just like ``split`` but fixes the
+          fraction of negative parameters to approximately the specified
+          value.
+        * Similarly, an int value fixes the number of negative output channels
+          to the specified value.
+        * ``'learnable'`` sets the diagonal terms of the coupling parameter
+          (the coupling between vector 0 of the left generator and vector 0
+          of the right generator, for instance, but not between vector 0 of
+          the left generator and vector 1 of the right generator) to be
+          learnable.
+        * ``'learnable_all'`` sets all terms of the coupling parameter to be
+        learnable.
     similarity: function
         Definition of the similarity metric. This must be a function whose
         inputs and outputs are:
@@ -85,7 +113,8 @@ class Sylo(nn.Module):
     __constants__ = ['in_channels', 'out_channels', 'H', 'W', 'rank', 'bias']
 
     def __init__(self, in_channels, out_channels, dim, rank=1, bias=True,
-                 symmetry=True, similarity=crosshair_similarity,
+                 symmetry=True, coupling=None,
+                 similarity=crosshair_similarity,
                  delete_diagonal=False, init=None, device=None, dtype=None):
         super(Sylo, self).__init__()
         factory_kwargs = {'device': device, 'dtype': dtype}
@@ -111,19 +140,20 @@ class Sylo(nn.Module):
         self.init = init
 
         self.weight_L = Parameter(torch.empty(
-            out_channels, in_channels, H, rank, **factory_kwargs
+            (out_channels, in_channels, H, rank), **factory_kwargs
         ))
         if symmetry is True:
             self.weight_R = self.weight_L
         else:
             self.weight_R = Parameter(torch.empty(
-                out_channels, in_channels, W, rank, **factory_kwargs
+                (out_channels, in_channels, W, rank), **factory_kwargs
             ))
 
         if bias:
             self.bias = Parameter(torch.empty(out_channels, **factory_kwargs))
         else:
             self.register_parameter('bias', None)
+        self._cfg_coupling(coupling, factory_kwargs)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -133,6 +163,35 @@ class Sylo(nn.Module):
             fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight_L)
             bound = 1 / math.sqrt(fan_in)
             init.uniform_(self.bias, -bound, bound)
+
+    def _cfg_coupling(self, coupling, factory_kwargs):
+        if coupling == 'split':
+            coupling = self.out_channels // 2
+        elif isinstance(coupling, float):
+            coupling = int(self.out_channels * coupling)
+        if coupling is None or coupling == '+':
+            self.coupling = None
+        elif coupling == '-':
+            self.coupling = Parameter(-torch.ones(
+                (self.out_channels, self.in_channels, self.rank, 1),
+                **factory_kwargs
+            ), requires_grad=False)
+        elif isinstance(coupling, int):
+            self.coupling = Parameter(torch.ones(
+                (self.out_channels, self.in_channels, self.rank, 1),
+                **factory_kwargs
+            ), requires_grad=False)
+            self.coupling[:coupling] *= -1
+        elif coupling == 'learnable':
+            self.coupling = Parameter(torch.randn(
+                (self.out_channels, self.in_channels, self.rank, 1),
+                **factory_kwargs
+            ))
+        elif coupling == 'learnable_all':
+            self.coupling = Parameter(torch.randn(
+                (self.out_channels, self.in_channels, self.rank, self.rank),
+                **factory_kwargs
+            ))
 
     def __repr__(self):
         s = '{}(dim={}, in_channels={}, out_channels={}, rank={}'.format(
@@ -150,8 +209,14 @@ class Sylo(nn.Module):
         return s
 
     def forward(self, input):
-        out = sylo(input, self.weight_L, self.weight_R,
-                   self.bias, self.symmetry, self.similarity)
+        out = sylo(
+            X=input,
+            L=self.weight_L,
+            R=self.weight_R,
+            C=self.coupling,
+            bias=self.bias,
+            symmetry=self.symmetry,
+            similarity=self.similarity)
         if self.delete_diagonal:
             return delete_diagonal(out)
         return out
@@ -199,7 +264,8 @@ class SyloResBlock(nn.Module):
             channels,
             dim,
             rank=3,
-            symmetry='cross'
+            symmetry='cross',
+            coupling='split'
         )
         if recombine:
             self.recombine2 = Recombinator(
@@ -214,7 +280,8 @@ class SyloResBlock(nn.Module):
             channels,
             dim,
             rank=3,
-            symmetry='cross'
+            symmetry='cross',
+            coupling='split'
         )
         if recombine:
             self.recombine3 = Recombinator(
@@ -313,7 +380,8 @@ class SyloResNetScaffold(nn.Module):
                 in_dim,
                 rank=1,
                 bias=False,
-                symmetry='cross'
+                symmetry='cross',
+                coupling='split'
             )]
         self.sylo1 = nn.ModuleList(sylo_in)
         self.norm1 = norm_layer(channel_sequence[0])
