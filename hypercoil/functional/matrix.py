@@ -172,6 +172,12 @@ def expand_outer(L, R=None, C=None, symmetry=None):
     R : Tensor or None (default None)
         Right generator of a low-rank matrix (:math:`L R^\intercal`). If this
         is None, then the output matrix is symmetric :math:`L L^\intercal`.
+    C : Tensor or None (default None)
+        Coupling term. If this is specified, each outer product expansion is
+        modulated by a corresponding coefficient in the coupling matrix.
+        Providing a vector is equivalent to providing a diagonal coupling
+        matrix. This term can, for instance, be used to toggle between
+        positive and negative semidefinite outputs.
     symmetry : ``'cross'``, ``'skew'``, or other (default None)
         Symmetry constraint imposed on the generated low-rank template matrix.
 
