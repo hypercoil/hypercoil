@@ -13,6 +13,7 @@ from torch.nn import init, Parameter
 from functools import partial
 from ..functional import sylo, crosshair_similarity, delete_diagonal
 from ..init.sylo import sylo_init_
+from ..init.mpbl import BipartiteLatticeInit
 from ..nn import Recombinator
 
 
@@ -187,6 +188,8 @@ class SyloResBlock(nn.Module):
                     out_channels=channels,
                     bias=False
                 )
+            else:
+                self.recombine1 = None
         else:
             self.recombine1 = None
         self.norm1 = norm_layer(channels)
@@ -260,7 +263,7 @@ class SyloBottleneck(nn.Module):
         raise NotImplementedError('Bottleneck analogy is incomplete')
 
 
-class SyloResNet(nn.Module):
+class SyloResNetScaffold(nn.Module):
     def __init__(
         self,
         in_dim,
@@ -353,3 +356,84 @@ class SyloResNet(nn.Module):
         for i, l in enumerate(self.layers):
             x = l(x)
         return x
+
+
+class SyloResNet(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 in_dim,
+                 dim_sequence,
+                 channel_sequence,
+                 block_sequence,
+                 lattice_order_sequence,
+                 n_lattices,
+                 channel_multiplier=1,
+                 compression_init='svd',
+                 recombine=True,
+                 norm_layer=None,
+                 nlin=None,
+                 block=SyloResBlock,
+                 potentials=None):
+        super().__init__()
+        init_arg = [{}]
+        if init == 'svd':
+            init_arg = [{'svd' : True}]
+        elif init == 'resid':
+            init_arg = [{'residualise' : True}]
+        init_arg += [{} for _ in order_sequence[1:]]
+
+        self._compression_specs = [
+            BipartiteLatticeInit(channel_multiplier=channel_multiplier,
+                                 n_lattices=n_lattices,
+                                 n_out=n_out,
+                                 order=order,
+                                 **init)
+            for n_out, order, init in zip(
+                dim_sequence,
+                lattice_order_sequence,
+                init_arg
+        )]
+
+        for i, j in zip(self._compression_specs[:-1],
+                        self._compression_specs[1:]):
+            i.next = j
+        if potentials is not None:
+            self.set_potentials(potentials)
+
+        all_dim_sequence = (
+            [in_dim] + list(dim_sequence))
+        self._compressions = [
+            VerticalCompression(
+                init=spec,
+                in_features=_in,
+                out_features=_out
+            )
+            for spec, (_in, _out) in
+            zip(self._compression_specs,
+                zip(all_dim_sequence[:-1],
+                    all_dim_sequence[1:]))
+        ]
+
+        self.model = SyloResNetScaffold(
+            in_dim=in_dim,
+            in_channels=in_channels,
+            dim_sequence=dim_sequence,
+            channel_sequence=channel_sequence,
+            block_sequence=block_sequence,
+            block=block,
+            recombine=recombine,
+            norm_layer=norm_layer,
+            nlin=nlin,
+            compressions=self._compressions
+        )
+
+    def set_potentials(self, potentials):
+        self._compression_specs[0].set_potentials(cor)
+        try:
+            for c in self._compressions:
+                c.reset_parameters()
+        except AttributeError:
+            pass
+
+    def forward(self, x):
+        return self.model(x)
