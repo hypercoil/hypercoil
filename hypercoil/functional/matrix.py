@@ -145,7 +145,7 @@ def spd(X, eps=1e-6, method='eig'):
         return symmetric(Q @ torch.diag_embed(L) @ Q.transpose(-1, -2))
 
 
-def expand_outer(L, R=None, symmetry=None):
+def expand_outer(L, R=None, C=None, symmetry=None):
     r"""
     Multiply out a left and a right generator matrix as an outer product.
 
@@ -160,6 +160,8 @@ def expand_outer(L, R=None, symmetry=None):
                     preceding dimensions.
                 **R :** :math:`(*, W, rank)`
                     W denotes the width of the expanded matrix.
+                **C :** :math:`(*, rank, rank)`
+                    As above.
                 **Output :** :math:`(*, H, W)`
                     As above.
 
@@ -188,7 +190,12 @@ def expand_outer(L, R=None, symmetry=None):
         L = L.unsqueeze(-1)
     if R is None:
         R = L
-    output = L @ R.transpose(-2, -1)
+    if C is None:
+        output = L @ R.transpose(-2, -1)
+    elif C.shape[-1] == C.shape[-2] == L.shape[-1]:
+        output = L @ C @ R.transpose(-2, -1)
+    elif C.shape[-1] == 1:
+        output = L @ (C * R.transpose(-2, -1))
     #TODO: Unit tests are not hitting this conditional...
     if symmetry == 'cross' or symmetry == 'skew':
         return symmetric(output, skew=(symmetry == 'skew'))
