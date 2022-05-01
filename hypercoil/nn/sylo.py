@@ -10,8 +10,10 @@ import math
 import torch
 from torch import nn
 from torch.nn import init, Parameter
+from functools import partial
 from ..functional import sylo, crosshair_similarity, delete_diagonal
 from ..init.sylo import sylo_init_
+from ..nn import Recombinator
 
 
 class Sylo(nn.Module):
@@ -157,7 +159,7 @@ class Sylo(nn.Module):
 class SyloResBlock(nn.Module):
     """
     Sylo-based residual block by convolutional analogy. Patterned after
-    torchvision's `BasicBlock`. Restructured to follow principles from
+    torchvision's ``BasicBlock``. Restructured to follow principles from
     He et al. 2016, 'Identity Mappings in Deep Residual Networks'.
     Vertical compression module handles both stride-over-vertices and
     downsampling. It precedes all other operations and the specified dimension
@@ -167,46 +169,77 @@ class SyloResBlock(nn.Module):
         self,
         dim,
         in_channels,
-        out_channels,
+        channels,
+        nlin=None,
+        recombine=True,
         norm_layer=None,
         compression=None
     ):
         super().__init__()
         norm_layer = norm_layer or nn.BatchNorm2d
-        self.bn1 = norm_layer(in_channels)
-        self.relu = nn.ReLU(inplace=True)
-        self.sylo1 = Sylo(
-            in_channels,
-            out_channels,
-            dim,
-            rank=3,
-            bias=False,
-            symmetry='cross'
-        )
-        self.bn2 = norm_layer(out_channels)
-        self.sylo2 = Sylo(
-            out_channels,
-            out_channels,
-            dim,
-            rank=3,
-            bias=False,
-            symmetry='cross'
-        )
+        nlin = nlin or partial(nn.ReLU, inplace=True)
         self.compression = compression
+        if compression is not None:
+            compression_out = compression.out_channels * in_channels
+            if compression_out != channels:
+                self.recombine1 = Recombinator(
+                    in_channels=compression_out,
+                    out_channels=channels,
+                    bias=False
+                )
+        else:
+            self.recombine1 = None
+        self.norm1 = norm_layer(channels)
+        self.nlin = nlin(inplace=True)
+        self.sylo1 = Sylo(
+            channels,
+            channels,
+            dim,
+            rank=3,
+            symmetry='cross'
+        )
+        if recombine:
+            self.recombine2 = Recombinator(
+                in_channels=channels,
+                out_channels=channels
+            )
+        else:
+            self.recombine2 = None
+        self.norm2 = norm_layer(channels)
+        self.sylo2 = Sylo(
+            channels,
+            channels,
+            dim,
+            rank=3,
+            symmetry='cross'
+        )
+        if recombine:
+            self.recombine3 = Recombinator(
+                in_channels=channels,
+                out_channels=channels
+            )
+        else:
+            self.recombine2 = None
 
     def forward(self, X):
         if self.compression is not None:
             X = self.compression(X)
+        if self.recombine1 is not None:
+            X = self.recombine1(X)
         identity = X
 
-        out = self.bn1(X)
-        out = self.relu(out)
+        out = self.norm1(X)
+        out = self.nlin(out)
         out = self.sylo1(out)
-        out = self.bn2(out)
-        out  =self.relu(out)
+        if self.recombine2 is not None:
+            out = self.recombine2(out)
+        out = self.norm2(out)
+        out = self.nlin(out)
         out = self.sylo2(out)
+        if self.recombine3 is not None:
+            out = self.recombine3(out)
 
-        out += identity
+        out = out + identity
         return out
 
 
@@ -215,38 +248,108 @@ class SyloBottleneck(nn.Module):
         self,
         dim,
         in_channels,
-        out_channels,
+        channels,
+        nlin=None,
+        recombine=True,
         norm_layer=None,
         compression=None
     ):
         super().__init__()
         norm_layer = norm_layer or nn.BatchNorm2d
+        nlin = nlin or partial(nn.ReLU, inplace=True)
         raise NotImplementedError('Bottleneck analogy is incomplete')
 
 
 class SyloResNet(nn.Module):
     def __init__(
         self,
-        dim,
+        in_dim,
         in_channels,
+        dim_sequence=None,
         channel_sequence=(16, 32, 64, 128),
+        block_sequence=(33, 33, 33, 33),
         block=SyloResBlock,
+        recombine=True,
         norm_layer=None,
+        nlin=None,
         compressions=None
     ):
         super().__init__()
         norm_layer = norm_layer or nn.BatchNorm2d
+        nlin = nlin or partial(nn.ReLU, inplace=True)
+        dim_sequence = dim_sequence or (
+            in_dim // 2,
+            in_dim // 4,
+            in_dim // 8,
+            in_dim // 16)
+        in_channel_sequence = (
+            [channel_sequence[0]] + list(channel_sequence[:-1]))
+        #if compressions is not None:
+        #    multipliers = [v.out_channels for v in compressions]
+        #    out_channel_sequence = [None for _ in multipliers]
+        #    for i, (c, m) in enumerate(zip(in_channel_sequence, multipliers)):
+        #        assert c / m == c // m, (
+        #            f'Number of block channels {c} must be an even multiple '
+        #            f'of compression channel amplification factor {m}')
+        #        out_channel_sequence[i] = c // m
+        compressions = compressions or [None for _ in dim_sequence]
         self._norm_layer = norm_layer
+        self._nlin = nlin
 
         self.channel_sequence = channel_sequence
         # TODO: revisit after adding channel groups to sylo
 
-        # TODO: enable community group
-        self.sylo1 = Sylo(
-            in_channels,
-            channel_sequence[0],
-            dim,
-            rank=1,
-            bias=False,
-            symmetry='cross'
-        )
+        sylo_in = []
+        if isinstance(in_channels, int):
+            in_channels = [(in_channels, channel_sequence[0])]
+        for i, (c_in, c_out) in enumerate(in_channels):
+            sylo_in += [Sylo(
+                c_in,
+                c_out,
+                in_dim,
+                rank=1,
+                bias=False,
+                symmetry='cross'
+            )]
+        self.sylo1 = nn.ModuleList(sylo_in)
+        self.norm1 = norm_layer(channel_sequence[0])
+        self.nlin = nlin()
+        layers = [self._make_layer(block, i, c, b, d, v)
+                  for i, c, b, d, v in zip(in_channel_sequence,
+                                           channel_sequence,
+                                           block_sequence,
+                                           dim_sequence,
+                                           compressions)]
+        self.layers = nn.ModuleList(layers)
+
+    def _make_layer(self, block, in_channels,
+                    channels, blocks, dim, compression):
+        norm_layer = self._norm_layer
+        nlin = self._nlin
+
+        layers = []
+        layers.append(block(
+            dim=dim,
+            in_channels=in_channels,
+            channels=channels,
+            norm_layer=norm_layer,
+            compression=compression
+        ))
+        for _ in range(1, blocks):
+            layers.append(block(
+                dim=dim,
+                in_channels=channels,
+                channels=channels,
+                norm_layer=norm_layer,
+                compression=None
+            ))
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = [s(x) for s in self.sylo1]
+        x = torch.cat(x, -3)
+        x = self.norm1(x)
+        x = self.nlin(x)
+        for i, l in enumerate(self.layers):
+            x = l(x)
+        return x
