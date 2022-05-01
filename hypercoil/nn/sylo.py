@@ -171,8 +171,8 @@ class SyloResBlock(nn.Module):
         dim,
         in_channels,
         channels,
-        nlin=None,
         recombine=True,
+        nlin=None,
         norm_layer=None,
         compression=None
     ):
@@ -252,8 +252,8 @@ class SyloBottleneck(nn.Module):
         dim,
         in_channels,
         channels,
-        nlin=None,
         recombine=True,
+        nlin=None,
         norm_layer=None,
         compression=None
     ):
@@ -298,6 +298,7 @@ class SyloResNetScaffold(nn.Module):
         compressions = compressions or [None for _ in dim_sequence]
         self._norm_layer = norm_layer
         self._nlin = nlin
+        self._recombine = recombine
 
         self.channel_sequence = channel_sequence
         # TODO: revisit after adding channel groups to sylo
@@ -327,6 +328,7 @@ class SyloResNetScaffold(nn.Module):
 
     def _make_layer(self, block, in_channels,
                     channels, blocks, dim, compression):
+        recombine = self._recombine
         norm_layer = self._norm_layer
         nlin = self._nlin
 
@@ -335,6 +337,8 @@ class SyloResNetScaffold(nn.Module):
             dim=dim,
             in_channels=in_channels,
             channels=channels,
+            recombine=recombine,
+            nlin=nlin,
             norm_layer=norm_layer,
             compression=compression
         ))
@@ -343,6 +347,8 @@ class SyloResNetScaffold(nn.Module):
                 dim=dim,
                 in_channels=channels,
                 channels=channels,
+                recombine=recombine,
+                nlin=nlin,
                 norm_layer=norm_layer,
                 compression=None
             ))
