@@ -81,13 +81,19 @@ class Recombinator(nn.Module):
             s += ', bias=False'
         return s
 
-    def forward(self, input):
-        return recombine(input, self.weight, self.bias)
+    def forward(self, input, query=None):
+        return recombine(
+            input=input,
+            mixture=self.weight,
+            bias=self.bias,
+            query=query
+        )
 
 
 # TODO: Move to functional if we decide to keep this instead of just using 1x1
-def recombine(input, mixture, bias=None):
-    """Create a new mixture of the input feature maps.
+def recombine(input, mixture, query=None, bias=None):
+    """
+    Create a new mixture of the input feature maps.
 
     Parameters
     ----------
@@ -95,10 +101,17 @@ def recombine(input, mixture, bias=None):
         Stack of input matrices or feature maps.
     mixture: Tensor (C_out x C_in)
         Mixture matrix or recombinator.
+    query: Tensor (N x C_in x C_in)
+        If provided, the mixture is recomputed as the dot product similarity
+        between each mixture vector and each query vector, and the softmax of
+        the result is used to form convex combinations of inputs.
     bias: Tensor (C_in)
         Bias term to apply after recombining.
     """
+    if query is not None:
+        mixture = mixture @ query
+        mixture = torch.softmax(mixture, -1).unsqueeze(-3)
     output = (mixture @ input.transpose(1, 2)).transpose(1, 2)
     if bias is not None:
-        output += bias.view(1, -1, 1, 1)
+        output = output + bias.view(1, -1, 1, 1)
     return output
