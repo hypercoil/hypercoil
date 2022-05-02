@@ -120,8 +120,11 @@ def cone_project_spd(input, reference, recondition=0):
     ref_sr = symsqrt(reference, recondition)
     # Note that we must use the much slower torch.matrix_exp for stability.
     cone = ref_sr @ torch.matrix_exp(input) @ ref_sr
-    # Note that we undo the reconditioning to ensure that this is a well-formed
-    # inverse of `tangent_project_spd`.
+    # Note that we undo the reconditioning to ensure that this is a
+    # well-formed inverse of `tangent_project_spd`.
+    # Update: this is not even the case anymore since we switched to
+    # eigenspace reconditioning as the default.
+    #TODO: revisit this, maybe.
     if recondition > 0:
         cone = 1 / (1 - recondition) * (
             cone - recondition *
