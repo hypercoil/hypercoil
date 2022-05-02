@@ -348,7 +348,7 @@ class SyloResBlock(nn.Module):
         else:
             self.recombine2 = None
 
-    def forward(self, X):
+    def forward(self, X, query=None):
         if self.compression is not None:
             X = self.compression(X)
         if self.recombine1 is not None:
@@ -359,12 +359,18 @@ class SyloResBlock(nn.Module):
         out = self.nlin(out)
         out = self.sylo1(out)
         if self.recombine2 is not None:
-            out = self.recombine2(out)
+            if query is None:
+                out = self.recombine2(out)
+            else:
+                out = self.recombine2(out, query=query[0])
         out = self.norm2(out)
         out = self.nlin(out)
         out = self.sylo2(out)
         if self.recombine3 is not None:
-            out = self.recombine3(out)
+            if query is None:
+                out = self.recombine3(out)
+            else:
+                out = self.recombine3(out, query=query[1])
 
         out = out + identity
         return out
@@ -485,15 +491,21 @@ class SyloResNetScaffold(nn.Module):
                 norm_layer=norm_layer,
                 compression=None
             ))
-        return nn.Sequential(*layers)
+        return nn.ModuleList(layers)
 
-    def forward(self, x):
+    def forward(self, x, query=None):
         x = [s(x) for s in self.sylo1.values()]
         x = torch.cat(x, -3)
         x = self.norm1(x)
         x = self.nlin(x)
-        for i, l in enumerate(self.layers):
-            x = l(x)
+        q_idx = 0
+        for l in self.layers:
+            for block in l:
+                if query is None:
+                    x = block(x)
+                else:
+                    x = block(x, query=query[q_idx:(q_idx + 2)])
+                    q_idx += 2
         return x
 
 
@@ -576,5 +588,5 @@ class SyloResNet(nn.Module):
         except AttributeError:
             pass
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, x, query=None):
+        return self.model(x, query=query)

@@ -91,7 +91,8 @@ class Recombinator(nn.Module):
 
 
 # TODO: Move to functional if we decide to keep this instead of just using 1x1
-def recombine(input, mixture, query=None, bias=None):
+def recombine(input, mixture, query=None,
+              query_L=None, query_R=None, bias=None):
     """
     Create a new mixture of the input feature maps.
 
@@ -108,6 +109,12 @@ def recombine(input, mixture, query=None, bias=None):
     bias: Tensor (C_in)
         Bias term to apply after recombining.
     """
+    if query_L is not None:
+        mixture = mixture @ query_L
+        if query_R is None:
+            query_R = query_L
+        mixture = mixture @ query_R.transpose(-1, -2)
+        mixture = torch.softmax(mixture, -1).unsqueeze(-3)
     if query is not None:
         mixture = mixture @ query
         mixture = torch.softmax(mixture, -1).unsqueeze(-3)
