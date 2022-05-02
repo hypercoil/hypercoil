@@ -48,3 +48,6 @@ from .svm import (
 from .sylo import (
     Sylo
 )
+from .window import (
+    WindowAmplifier
+)
