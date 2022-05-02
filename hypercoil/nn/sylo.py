@@ -222,6 +222,63 @@ class Sylo(nn.Module):
         return out
 
 
+class SyloNetworkScaffold(nn.Module):
+    def __init__(
+        self,
+        dim_sequence,
+        channel_sequence,
+        recombine=True,
+        norm_layer=None,
+        nlin=None,
+        compressions=None,
+    ):
+        super().__init__()
+        nlin = nlin or partial(nn.ReLU, inplace=True)
+        norm_layer = norm_layer or torch.nn.Identity
+        compressions = compressions or [None]
+        channels_io = zip(channel_sequence[:-1], channel_sequence[1:])
+        dim_io = zip(dim_sequence[:-1], dim_sequence[1:])
+        layers = []
+        c_idx = 0
+        for (in_channels, out_channels), (in_dim, out_dim) in zip(
+            channels_io, dim_io):
+            layers += [Sylo(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                dim=in_dim,
+                rank=1,
+                bias=True,
+                symmetry='cross',
+                coupling='split'
+            )]
+            if recombine:
+                layers += [Recombinator(
+                    in_channels=out_channels,
+                    out_channels=out_channels,
+                    bias=False
+                )]
+            layers += [norm_layer(out_channels)]
+            if in_dim != out_dim:
+                layers += [compressions[c_idx]]
+                c_idx += 1
+        self._norm_layer = type(norm_layer(0))
+        self.layers = nn.ModuleList(layers)
+        self.nlin = nlin()
+
+    def forward(self, input, query=None):
+        query_idx = 0
+        x = input
+        for l in self.layers:
+            if isinstance(l, Recombinator) and query is not None:
+                x = l(x, query=query[query_idx])
+                query_idx += 1
+            else:
+                x = l(x)
+            if isinstance(l, self._norm_layer):
+                x = self.nlin(x)
+        return x
+
+
 class SyloResBlock(nn.Module):
     """
     Sylo-based residual block by convolutional analogy. Patterned after
