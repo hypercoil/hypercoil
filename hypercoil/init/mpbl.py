@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from torch.nn.functional import softmax
 from .base import DomainInitialiser
-from ..functional import pairedcorr, delete_diagonal, sym2vec
+from ..functional import pairedcorr, delete_diagonal, sym2vec, vec2sym
 
 
 def corr_criterion(orig, recon, u):

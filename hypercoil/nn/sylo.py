@@ -342,7 +342,8 @@ class SyloResNetScaffold(nn.Module):
         recombine=True,
         norm_layer=None,
         nlin=None,
-        compressions=None
+        compressions=None,
+        community_dim=0
     ):
         super().__init__()
         norm_layer = norm_layer or nn.BatchNorm2d
@@ -370,20 +371,27 @@ class SyloResNetScaffold(nn.Module):
         self.channel_sequence = channel_sequence
         # TODO: revisit after adding channel groups to sylo
 
-        sylo_in = []
-        if isinstance(in_channels, int):
-            in_channels = [(in_channels, channel_sequence[0])]
-        for i, (c_in, c_out) in enumerate(in_channels):
-            sylo_in += [Sylo(
-                c_in,
-                c_out,
+        out_channels = channel_sequence[0]
+        sylo_in = {'main': Sylo(
+            in_channels,
+            (out_channels - community_dim),
+            in_dim,
+            rank=1,
+            bias=False,
+            symmetry='cross',
+            coupling='split'
+        )}
+        if community_dim > 0:
+            sylo_in.update({'community': Sylo(
+                in_channels,
+                community_dim,
                 in_dim,
                 rank=1,
                 bias=False,
-                symmetry='cross',
-                coupling='split'
-            )]
-        self.sylo1 = nn.ModuleList(sylo_in)
+                symmetry=True,
+                coupling='+'
+            )})
+        self.sylo1 = nn.ModuleDict(sylo_in)
         self.norm1 = norm_layer(channel_sequence[0])
         self.nlin = nlin()
         layers = [self._make_layer(block, i, c, b, d, v)
@@ -423,7 +431,7 @@ class SyloResNetScaffold(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = [s(x) for s in self.sylo1]
+        x = [s(x) for s in self.sylo1.values()]
         x = torch.cat(x, -3)
         x = self.norm1(x)
         x = self.nlin(x)
@@ -447,6 +455,7 @@ class SyloResNet(nn.Module):
                  norm_layer=None,
                  nlin=None,
                  block=SyloResBlock,
+                 community_dim=0,
                  potentials=None):
         super().__init__()
         init_arg = [{}]
@@ -498,7 +507,8 @@ class SyloResNet(nn.Module):
             recombine=recombine,
             norm_layer=norm_layer,
             nlin=nlin,
-            compressions=self._compressions
+            compressions=self._compressions,
+            community_dim=community_dim
         )
 
     def set_potentials(self, potentials):
