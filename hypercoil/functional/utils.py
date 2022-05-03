@@ -64,7 +64,10 @@ def wmean(input, weight, dim=None, keepdim=False):
 
 # torch is actually very, very good at doing this. Looks like we might have
 # miscellaneous utilities.
-def threshold(input, threshold, dead=0):
+# It's not even continuous, let alone differentiable. Let's not use this.
+def threshold(input, threshold, dead=0, leak=0):
     if not isinstance(dead, torch.Tensor):
         dead = torch.tensor(dead, dtype=input.dtype, device=input.device)
-    return torch.where(input > threshold, input, dead)
+    if leak == 0:
+        return torch.where(input > threshold, input, dead)
+    return torch.where(input > threshold, input, dead + leak * input)

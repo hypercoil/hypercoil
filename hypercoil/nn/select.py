@@ -8,6 +8,7 @@ Modules supporting model selection, as for denoising/confound regression.
 """
 import torch
 from torch.nn import Module, Linear, Parameter, ParameterDict
+from torch.nn.functional import leaky_relu
 from functools import partial
 from ..functional.domain import Logit
 from ..functional import basischan, basisconv2d, tsconv2d, threshold
@@ -30,7 +31,8 @@ class ResponseFunctionLinearSelector(Module):
         n_response_functions=10,
         response_function_len=9,
         init_lin=None,
-        init_conv=None
+        init_conv=None,
+        leak=0
     ):
         super().__init__()
         n_columns = n_columns * (1 + n_response_functions)
@@ -55,6 +57,7 @@ class ResponseFunctionLinearSelector(Module):
         self.init_lin = init_lin
         self.init_conv = init_conv
         self.basis_functions = basis_functions
+        self.leak = leak
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -71,7 +74,7 @@ class ResponseFunctionLinearSelector(Module):
             bias=None,
             padding=None)
         rf_conv = rf_conv - self.weight['thresh']
-        rf_conv = torch.relu(rf_conv)
+        rf_conv = leaky_relu(rf_conv, negative_slope=self.leak)
         rf_conv = rf_conv + self.weight['thresh']
         n, c, h, w = rf_conv.shape
         all_functions = torch.cat((
@@ -94,7 +97,8 @@ class QCPredict(Module):
         n_qc=1,
         init_rf=None,
         init_global=None,
-        init_final=None
+        init_final=None,
+        leak=0.05
     ):
         super().__init__()
         default_init = lambda x: torch.nn.init.kaiming_uniform_(
@@ -126,6 +130,7 @@ class QCPredict(Module):
         self.init_global = init_global or default_init
         self.init_final = init_final or default_init
         self.basis_functions = basis_functions or [lambda x : x]
+        self.leak = leak
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -142,7 +147,7 @@ class QCPredict(Module):
             weight=weight,
             bias=None,
             padding=None)
-        return threshold(conv_out, threshold=thresh)
+        return leaky_relu(conv_out - thresh, negative_slope=self.leak)
 
     def forward(self, x):
         rf_conv = self.conv_and_thresh(
@@ -194,7 +199,8 @@ class BOLDPredict(Module):
         init_rf=None,
         init_rft=None,
         init_lin=None,
-        init_interm=None
+        init_interm=None,
+        leak=0.05
     ):
         super().__init__()
         #TODO: thresholds are not exactly relus in response distribution
@@ -235,6 +241,7 @@ class BOLDPredict(Module):
         self.init_rft = init_rft or default_init
         self.init_lin = init_lin or default_init
         self.init_interm = init_interm or default_init
+        self.leak = leak
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -257,10 +264,12 @@ class BOLDPredict(Module):
             x, conv=torch.nn.functional.conv_transpose2d,
             weight=self.weight['rft'])[:, :, :, :x.shape[-1]]
         rf_conv = torch.cat((rf_conv, rft_conv), axis=1)
-        out = threshold(rf_conv, self.weight['thresh_rf'])
+        out = leaky_relu(rf_conv - self.weight['thresh_rf'],
+                         negative_slope=self.leak)
 
         for l in range(self.n_intermediate_layers):
-            out_l = threshold(out, self.weight[f'thresh_{l:04}'])
+            out_l = leaky_relu(out - self.weight[f'thresh_{l:04}'],
+                               negative_slope=self.leak)
             out_l = tsconv2d(out_l, weight=self.weight[f'weight_{l:04}'],
                              padding='final')
             out = out + out_l
