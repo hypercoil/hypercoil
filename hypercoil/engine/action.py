@@ -148,8 +148,11 @@ class RecordLoss(SentryAction):
     def propagate(self, sentry, received):
         name = received['NAME']
         sentry.epoch_buffer[name] += [received['LOSS']]
-        sentry.epoch_buffer[f'{name}_norm'] += (
-            [received['LOSS'] / received['NU']])
+        try:
+            sentry.epoch_buffer[f'{name}_norm'] += (
+                [received['LOSS'] / received['NU']])
+        except ZeroDivisionError:
+            sentry.epoch_buffer[f'{name}_norm'] += [0]
 
 
 class ArchiveLoss(SentryAction):
