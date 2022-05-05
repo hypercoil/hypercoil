@@ -6,6 +6,7 @@ Model Selection
 ~~~~~~~~~~~~~~~
 Modules supporting model selection, as for denoising/confound regression.
 """
+import math
 import torch
 from torch.nn import Module, Linear, Parameter, ParameterDict
 from torch.nn.functional import leaky_relu
@@ -32,9 +33,13 @@ class ResponseFunctionLinearSelector(Module):
         response_function_len=9,
         init_lin=None,
         init_conv=None,
-        leak=0
+        leak=0.001,
+        softmax=True,
+        device=None,
+        dtype=None
     ):
         super().__init__()
+        factory_kwargs = {'device': device, 'dtype': dtype}
         n_columns = n_columns * (1 + n_response_functions)
         if basis_functions is None:
             basis_functions = [lambda x : x]
@@ -48,16 +53,27 @@ class ResponseFunctionLinearSelector(Module):
                 n_response_functions,
                 len(basis_functions),
                 1,
-                response_function_len)),
+                response_function_len,
+                **factory_kwargs)),
             'lin' : Parameter(torch.empty(
-                model_dim, n_columns)),
+                model_dim, n_columns,
+                **factory_kwargs)),
             'thresh' : Parameter(torch.empty(
-                n_response_functions, 1, 1))
+                n_response_functions, 1, 1,
+                **factory_kwargs))
         })
+        self.model_dim = model_dim
+        self.n_columns = n_columns
+        self.n_response_functions = n_response_functions
         self.init_lin = init_lin
         self.init_conv = init_conv
         self.basis_functions = basis_functions
         self.leak = leak
+        if softmax:
+            self.nlin = (
+                lambda x: torch.softmax(x / math.sqrt(x.shape[-1]), dim=-1))
+        else:
+            self.nlin = torch.nn.Identity()
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -66,6 +82,8 @@ class ResponseFunctionLinearSelector(Module):
         torch.nn.init.normal_(self.weight['thresh'], 0.05)
 
     def forward(self, x):
+        if self.n_response_functions == 0:
+            return self.nlin(self.weight['lin']) @ x
         rf_conv = basisconv2d(
             X=x,
             weight=self.weight['rf'],
@@ -81,7 +99,7 @@ class ResponseFunctionLinearSelector(Module):
             x,
             rf_conv.view(n, c * h, w)
         ), axis=-2)
-        return self.weight['lin'] @ all_functions
+        return self.nlin(self.weight['lin']) @ all_functions
 
 
 class QCPredict(Module):
