@@ -18,13 +18,15 @@ def hybrid_interpolate(
     map_to_kernel=None,
     oversampling_frequency=8,
     maximum_frequency=1,
-    frequency_thresh=0.3
+    frequency_thresh=0.3,
+    handle_fail='orig'
 ):
     batch_size = data.shape[0]
     ##TODO
     # Right now, we're using the first weighted interpolation only for
     # determining the frames where spectral interpolation should be applied.
     # This seems rather wasteful.
+    #print(torch.where(torch.isnan(data)))
     rec = weighted_interpolate(
         data=data,
         mask=mask,
@@ -32,6 +34,7 @@ def hybrid_interpolate(
         max_stage=max_weighted_stage,
         map_to_kernel=None
     )
+    #print(torch.where(torch.isnan(rec)))
     spec_mask = ~torch.isnan(rec).sum(-2).to(torch.bool)
     rec = spectral_interpolate(
         data=data,
@@ -39,8 +42,12 @@ def hybrid_interpolate(
         oversampling_frequency=oversampling_frequency,
         maximum_frequency=maximum_frequency,
         sampling_period=1,
-        thresh=frequency_thresh
+        thresh=frequency_thresh,
+        handle_fail=handle_fail
     )
+    mask = mask.squeeze()
+    if mask.dim() == 1:
+        mask = mask.unsqueeze(0)
     final_mask = (
         mask.view(batch_size, 1, 1, -1) +
         ~spec_mask.view(batch_size, 1, 1,-1)).to(torch.bool)
@@ -53,6 +60,14 @@ def hybrid_interpolate(
         max_stage=None,
         map_to_kernel=None
     )
+    if handle_fail == 'orig':
+        rec = torch.where(final_mask, final_data, rec)
+        rec = torch.where(torch.isnan(rec), data, rec)
+        if torch.any(torch.isnan(rec)):
+            print(torch.where(torch.isnan(rec)))
+            print(torch.where(torch.isnan(data)))
+            assert 0
+        return rec
     return torch.where(final_mask, final_data, rec)
 
 
@@ -77,7 +92,12 @@ def weighted_interpolate(
         )
     cur_stage = 1
     rec = data
-    mask = mask.view(batch_size, 1, 1, -1)
+    if mask.dim() == 2:
+        mask = mask.view(batch_size, 1, 1, -1)
+    elif mask.dim() == 3:
+        mask = mask.unsqueeze(1)
+    elif mask.dim() > 4:
+        mask = mask.squeeze()
     rec_mask = mask
     while cur_stage < max_stage:
         kernel = map_to_kernel(cur_stage).view(1, 1, 1, -1)
@@ -111,6 +131,8 @@ def reconstruct_weighted(data, mask, kernel, stage):
         stride=1,
         padding=(0, stage)
     )
+    #if torch.any(wt.sum(0))
+    if torch.all(torch.isnan(data)): assert 0
     return val / wt
 
 
@@ -120,7 +142,8 @@ def spectral_interpolate(
     oversampling_frequency=8,
     maximum_frequency=1,
     sampling_period=1,
-    thresh=0
+    thresh=0,
+    handle_fail='raise'
 ):
     """
     Spectral interpolation based on basis function projection.
@@ -205,6 +228,17 @@ def spectral_interpolate(
                 )
         except InterpolationError:
             continue
+        except RuntimeError:
+            ##TODO: this is a critical unit test.
+            # We need a principled way of handling different data cases, such
+            # all missing (which can and will occur under windowing conditions)
+            if handle_fail == 'orig':
+                #print('Disaster!')
+                #print(recon[i].shape, tsr.shape)
+                recon[i] = tsr
+                continue
+            else:
+                raise RuntimeError('The dataset provided likely has no seen time points')
         recon[i] = _interpolate_spectral(
             data=apply_mask(tsr, msk, -1),
             sine_basis=sin_basis,

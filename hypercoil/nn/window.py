@@ -49,6 +49,7 @@ class WindowAmplifier(Module):
         return windows
 
     def forward(self, data):
+        ## TODO: enable automask to exclude nan frames
         if isinstance(data, torch.Tensor):
             data = [data]
         avail = self._get_data_dim(data[0])
