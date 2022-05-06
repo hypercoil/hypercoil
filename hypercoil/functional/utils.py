@@ -62,6 +62,22 @@ def wmean(input, weight, dim=None, keepdim=False):
     return wtd.sum(dim, keepdim=keepdim) / weight.sum(dim, keepdim=keepdim)
 
 
+def selfwmean(input, dim=None, keepdim=False, gradpath='input', softmax=True):
+    """
+    Self-weighted mean reducing function. Completely untested. Will break and
+    probably kill you in the process.
+    """
+    i = input.clone()
+    w = input.clone()
+    if softmax:
+        w = torch.softmax(w)
+    if gradpath == 'input':
+        w = w.detach()
+    elif gradpath == 'weight':
+        i = i.detach()
+    return wmean(input=i, weight=w, keepdim=keepdim, gradpath=gradpath)
+
+
 # torch is actually very, very good at doing this. Looks like we might have
 # miscellaneous utilities.
 # It's not even continuous, let alone differentiable. Let's not use this.
