@@ -57,13 +57,14 @@ class QCFCPlot(Sentry):
             'z': coors_surf[:, 2]
         })
         return nodes_surf
-    
+
     def threshold_edges(self, edges, n, significance):
+        edges = edges.cpu()
         thresh = auto_tol(batch_size=n, significance=significance)
         thresholded = edges.numpy()
         thresholded[np.abs(edges) <= thresh] = 0
         return thresholded
-    
+
     def fit_line(self, df):
         predictors = np.stack([
             df.distance,
@@ -85,10 +86,10 @@ class QCFCPlot(Sentry):
         nodes_surf = self.get_vol_coordinates(self.module)
         dist = pdist(nodes_surf.values)
         vec = pd.DataFrame({
-            'qcfc' : sym2vec(qcfc.detach()).numpy(),
-            'distance' : dist
+            'qcfc' : sym2vec(qcfc.cpu().detach()).numpy().squeeze(),
+            'distance' : dist.squeeze()
         })
-        
+
         fig = plt.figure(figsize=(25, 8))
         ax = fig.add_subplot(131, projection='3d')
 
