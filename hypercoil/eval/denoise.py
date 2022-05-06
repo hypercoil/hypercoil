@@ -30,7 +30,7 @@ class VarianceExplained:
 
 class QCFCEdgewise:
     def __call__(self, fc, qc):
-        return qcfc_loss(FC=sym2vec(fc), QC=qc)
+        return qcfc_loss(FC=sym2vec(fc), QC=qc, tol=0, abs=False)
 
 
 class DenoisingEval:
@@ -84,19 +84,18 @@ class DenoisingEval:
                 names=self.confound_names
             )
         if self.qcfc:
-            qcfc = self.qcfc(connectomes, qc)
+            qcfc = self.qcfc(connectomes, qc).squeeze()
             if self.plotter:
                 n = connectomes.size(0)
                 self.plotter(
                     qcfc=vec2sym(qcfc),
                     n=n,
                     significance=self.significance,
-                    save=f'{save}.svg'
+                    save=f'{save}.png'
                 )
             thresh = auto_tol(batch_size=n, significance=self.significance)
             self.results['qcfc'] = {
-                'number_sig_edges' : (qcfc > thresh).sum(),
-                'abs_med_corr' : qcfc.abs().median(),
-                'edges' : qcfc.tolist()
+                'number_sig_edges' : (qcfc > thresh).sum().item(),
+                'abs_med_corr' : qcfc.abs().median().item(),
+                'edges' : qcfc.squeeze().tolist()
             }
-            print(self.results)
