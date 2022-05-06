@@ -76,7 +76,6 @@ def batch_corr(X, N, tol=0, tol_sig=0.1, abs=True):
         X.transpose(0, -1).reshape(-1, batch_size),
         N
     )
-    print(batchcorr.max(), batchcorr.min())
     if tol == 'auto':
         tol = auto_tol(batch_size, significance=tol_sig,
                        dtype=batchcorr.dtype, device=batchcorr.device)
@@ -86,7 +85,6 @@ def batch_corr(X, N, tol=0, tol_sig=0.1, abs=True):
             torch.tensor(0, dtype=batchcorr.dtype, device=batchcorr.device)
         )
     else:
-        print('not bad')
         return torch.sign(batchcorr) * torch.maximum(
             batchcorr.abs() - tol,
             torch.tensor(0, dtype=batchcorr.dtype, device=batchcorr.device)

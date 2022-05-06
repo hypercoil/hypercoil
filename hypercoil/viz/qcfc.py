@@ -113,8 +113,9 @@ class QCFCPlot(Sentry):
                           edges=(10 * thresholded))
 
         ax = fig.add_subplot(142)
+        # using blue for positive to match overall appearance
         sns.heatmap(
-            thresholded, center=0, square=True,
+            -thresholded, center=0, square=True,
             vmin=-0.4, vmax=0.4, cbar=False,
             xticklabels=False, yticklabels=False
         )
@@ -128,7 +129,7 @@ class QCFCPlot(Sentry):
         )
         axlabel_params = {
             'size': 'xx-large',
-            'fontfamily': ('Futura', 'sans-serif'),
+            'fontfamily': ('FuturaAeterna', 'Futura', 'sans-serif'),
         }
         annot_params = {
             'xycoords': 'axes fraction',
