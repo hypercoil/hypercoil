@@ -40,7 +40,7 @@ def auto_tol(batch_size, significance=0.1, tails=2, dtype=None, device=None):
     )
 
 
-def batch_corr(X, N, tol=0, tol_sig=0.1):
+def batch_corr(X, N, tol=0, tol_sig=0.1, abs=True):
     """
     Correlation over the batch dimension.
 
@@ -58,6 +58,10 @@ def batch_corr(X, N, tol=0, tol_sig=0.1):
     tol_sig : float in (0, 1)
         Significance level for correlation tolerance. Used only if ``tol`` is
         set to ``'auto'``.
+    abs : bool (default True)
+        Use the absolute value of correlations. If this is being used as a loss
+        function, the model's weights will thus be updated to shrink all
+        batchwise correlations toward zero.
 
     Returns
     -------
@@ -72,13 +76,21 @@ def batch_corr(X, N, tol=0, tol_sig=0.1):
         X.transpose(0, -1).reshape(-1, batch_size),
         N
     )
+    print(batchcorr.max(), batchcorr.min())
     if tol == 'auto':
         tol = auto_tol(batch_size, significance=tol_sig,
                        dtype=batchcorr.dtype, device=batchcorr.device)
-    return torch.maximum(
-        batchcorr.abs() - tol,
-        torch.tensor(0, dtype=batchcorr.dtype, device=batchcorr.device)
-    )
+    if abs:
+        return torch.maximum(
+            batchcorr.abs() - tol,
+            torch.tensor(0, dtype=batchcorr.dtype, device=batchcorr.device)
+        )
+    else:
+        print('not bad')
+        return torch.sign(batchcorr) * torch.maximum(
+            batchcorr.abs() - tol,
+            torch.tensor(0, dtype=batchcorr.dtype, device=batchcorr.device)
+        )
 
 
 class BatchCorrelation(ReducingLoss):
@@ -135,7 +147,7 @@ class BatchCorrelation(ReducingLoss):
         return super().forward(X=data, N=measure)
 
 
-def qcfc_loss(FC, QC, tol=0, tol_sig=0.1):
+def qcfc_loss(FC, QC, tol=0, tol_sig=0.1, abs=True):
     """
     Edgewise QC-FC correlation.
 
@@ -167,7 +179,7 @@ def qcfc_loss(FC, QC, tol=0, tol_sig=0.1):
         correlations back, you will have to add ``tol`` to any nonzero
         correlations.
     """
-    return batch_corr(X=FC, N=QC, tol=tol, tol_sig=tol_sig)
+    return batch_corr(X=FC, N=QC, tol=tol, tol_sig=tol_sig, abs=abs)
 
 
 class QCFC(BatchCorrelation):
