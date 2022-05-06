@@ -90,11 +90,12 @@ class QCFCPlot(Sentry):
             'distance' : dist.squeeze()
         })
 
-        fig = plt.figure(figsize=(25, 8))
-        ax = fig.add_subplot(131, projection='3d')
+        fig = plt.figure(figsize=(33, 8))
+        ax = fig.add_subplot(141, projection='3d')
 
         thresholded = self.threshold_edges(
-            qcfc.detach().clone(), n=n, significance=significance)
+            qcfc.squeeze().detach().clone(), n=n, significance=significance)
+        #print((thresholded > 0).sum(), thresholded.shape)
 
         netplotbrain.plot(template='MNI152NLin2009cAsym',
                           templatestyle='surface',
@@ -109,7 +110,16 @@ class QCFCPlot(Sentry):
                           nodescale=100,
                           nodealpha=0.9,
                           edgealpha=0.7,
-                          edges=(10 * thresholded ** 2))
+                          edges=(10 * thresholded))
+
+        ax = fig.add_subplot(142)
+        sns.heatmap(
+            thresholded, center=0, square=True,
+            vmin=-0.4, vmax=0.4, cbar=False,
+            xticklabels=False, yticklabels=False
+        )
+        plt.xticks([])
+        plt.yticks([])
 
         box = dict(
             boxstyle="round,pad=0.3",
@@ -129,7 +139,7 @@ class QCFCPlot(Sentry):
             **axlabel_params
         }
 
-        ax = fig.add_subplot(132)
+        ax = fig.add_subplot(143)
         mincorr, maxcorr = vec.qcfc.min(), vec.qcfc.max()
         mindist, maxdist = vec.distance.min(), vec.distance.max()
         sns.kdeplot(
@@ -155,7 +165,7 @@ class QCFCPlot(Sentry):
         plt.xlabel('Correlations', **axlabel_params)
         plt.axvline(0, color='black', linewidth=4)
 
-        ax = fig.add_subplot(133)
+        ax = fig.add_subplot(144)
         fit_x, fit_y = self.fit_line(vec)
         sns.kdeplot(
             data=vec, x='distance', y='qcfc',
