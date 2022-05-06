@@ -7,6 +7,9 @@ Denoising model evaluation
 Evaluation of a proposed denoising model on (previously unseen) data.
 """
 import torch
+import templateflow.api as tflow
+from hypercoil.nn import AtlasLinear
+from hypercoil.init import CortexSubcortexCIfTIAtlas
 from hypercoil.functional import pairedcorr, sym2vec, vec2sym
 from hypercoil.loss.batchcorr import qcfc_loss, auto_tol
 from hypercoil.viz.qcfc import QCFCPlot
@@ -34,6 +37,7 @@ class DenoisingEval:
     def __init__(
         self, confound_names, evaluate_qcfc=True, evaluate_varexp=True,
         plot_result=True, atlas=None, significance=0.05):
+        self.confound_names = confound_names
         if evaluate_varexp:
             self.varexp = VarianceExplained()
         else:
@@ -43,13 +47,33 @@ class DenoisingEval:
         else:
             self.qcfc = False
         if plot_result:
-            self.plotter = QCFCPlot()
-            self.atlas = atlas
+            self.atlas = self.cfg_atlas(atlas)
+            self.plotter = QCFCPlot(self.atlas)
             self.significance = significance
         else:
             self.plotter = False
 
         self.results = {}
+
+    def cfg_atlas(self, atlas_path):
+        ##TODO: hard coding surface here for now.
+        atlas = CortexSubcortexCIfTIAtlas(
+            ref_pointer=atlas_path,
+            mask_L=tflow.get(
+                template='fsLR',
+                hemi='L',
+                desc='nomedialwall',
+                density='32k'),
+            mask_R=tflow.get(
+                template='fsLR',
+                hemi='R',
+                desc='nomedialwall',
+                density='32k'),
+            clear_cache=False,
+            dtype=torch.float
+        )
+        lin = AtlasLinear(atlas)
+        return lin
 
     def evaluate(self, connectomes, model, confounds, qc, save=None):
         ##TODO: enable partial regression
@@ -67,7 +91,7 @@ class DenoisingEval:
                     qcfc=vec2sym(qcfc),
                     n=n,
                     significance=self.significance,
-                    save=save
+                    save=f'{save}.svg'
                 )
             thresh = auto_tol(batch_size=n, significance=self.significance)
             self.results['qcfc'] = {
@@ -75,3 +99,4 @@ class DenoisingEval:
                 'abs_med_corr' : qcfc.abs().median(),
                 'edges' : qcfc.tolist()
             }
+            print(self.results)
