@@ -122,3 +122,30 @@ def recombine(input, mixture, query=None,
     if bias is not None:
         output = output + bias.view(1, -1, 1, 1)
     return output
+
+
+class QueryEncoder(nn.Module):
+    """
+    Query encoder for recombinators.
+    """
+    def __init__(self, num_embeddings, embedding_dim, noise_dim=0):
+        super().__init__()
+        self.embedding = torch.nn.Embedding(
+            num_embeddings=num_embeddings,
+            embedding_dim=embedding_dim
+        )
+        self.noise_dim = noise_dim
+
+    def reset_parameters(self):
+        with torch.no_grad():
+            torch.nn.init.normal_(self.embedding.weight)
+
+    def forward(self, x, skip_embedding=False):
+        n = x.size(0)
+        if not skip_embedding:
+            x = self.embedding(x)
+        if self.noise_dim > 0:
+            noise = torch.randn(n, self.noise_dim)
+            x = torch.cat((x, noise), -1)
+        e = x
+        return e
