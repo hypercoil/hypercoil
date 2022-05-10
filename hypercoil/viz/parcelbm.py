@@ -12,9 +12,9 @@ CLI usage example:
 viz/parcelbm.py \
     -r /tmp/connhomogeneity/ \
     -p 'null:desc-spatialnull*.json' \
-    -p 'gwMRF:desc-schaefer*.json' \
     -p 'MMP:desc-glasser*.json' \
     -p 'boundary map:desc-gordon*.json' \
+    -p 'gwMRF:desc-schaefer*.json' \
     -o /tmp/test.png
 """
 import click
@@ -26,6 +26,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import patches
 from hypercoil.engine import Sentry
+
+
+KDE_CMAP = sns.cubehelix_palette(
+    start=0.45, rot=0.3, dark=0, light=.3, reverse=True, as_cmap=True
+)
 
 
 class AtlasBenchmarkPlotter(Sentry):
@@ -107,7 +112,7 @@ class AtlasBenchmarkPlotter(Sentry):
         self.atlases[name] = df
 
     def plot_adjusted(self, name, benchmark_data, ax, max_x, max_y,
-                      min_y, l, colour, theta=None, xfm=np.log):
+                      min_y, l, colour, style=None, theta=None, xfm=np.log):
         # null *must* be first for this to work.
         if name == 'null':
             theta = self.fit_curve(
@@ -123,7 +128,7 @@ class AtlasBenchmarkPlotter(Sentry):
             sns.kdeplot(
                 ax=ax, x='sizes', y=f'{self.key}_adj',
                 levels=20, thresh=0, fill=True,
-                data=benchmark_data)
+                data=benchmark_data, cmap=KDE_CMAP)
             name = 'Null model'
             fit_min = 0.1
         else:
@@ -149,7 +154,7 @@ class AtlasBenchmarkPlotter(Sentry):
             minimum=fit_min,
             xfm=xfm)
         fit_y_adj = self.adjust_points(theta=theta, xfm=xfm, x=fit_x, y=fit_y)
-        ax.plot(fit_x, fit_y_adj, c=colour)
+        ax.plot(fit_x, fit_y_adj, c=colour, ls=style, linewidth=3)
         l[name] = patches.Patch(color=colour, label=name)
         return max_x, max_y, min_y, l, theta
 
@@ -162,12 +167,17 @@ class AtlasBenchmarkPlotter(Sentry):
         max_y = -float('inf')
         theta = None
         ##TODO: not gonna work with more than 5 now
-        colours = ['#FF9966', '#66FF66', '#66DDFF', 'purple', 'red']
+        colours = ['#FF99CC', '#DD77FF', '#66DDFF', '#66FF66', 'red', ]
+        styles = [(0, (3, 1, 1, 1, 1, 1)),
+                  'dashdot', 'dashed',
+                  'dotted', 'solid']
         for name, path in pathdef.items():
             try:
                 colour = colours.pop()
+                style = styles.pop()
             except IndexError:
                 colour = None
+                style=None
             self.add_atlas_set(
                 root=root,
                 name=name,
@@ -178,13 +188,13 @@ class AtlasBenchmarkPlotter(Sentry):
             if adjusted:
                 max_x, max_y, min_y, l, theta = self.plot_adjusted(
                     name, benchmark_data, ax, max_x, max_y, min_y, l,
-                    xfm=xfm, theta=theta, colour=colour)
+                    xfm=xfm, theta=theta, colour=colour, style=style)
                 continue
             if name == 'null':
                 sns.kdeplot(
                     ax=ax, x='sizes', y=self.key,
                     levels=20, thresh=0, fill=True,
-                    data=benchmark_data)
+                    data=benchmark_data, cmap=KDE_CMAP)
                 name = 'Null model'
                 fit_min = 0.1
             else:
@@ -205,7 +215,7 @@ class AtlasBenchmarkPlotter(Sentry):
             max_x = max(max_x, benchmark_data['sizes'].max())
             max_y = max(max_y, benchmark_data[self.key].max())
             ax.plot(*self.fit_curve(benchmark_data, minimum=fit_min, xfm=xfm),
-                    c=colour)
+                    c=colour, ls=style, linewidth=3)
             l[name] = patches.Patch(color=colour, label=name)
 
         ax.set_xscale('log')
