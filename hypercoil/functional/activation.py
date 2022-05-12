@@ -223,6 +223,32 @@ def amplitude_atanh(input):
     return complex_recompose(torch.atanh(ampl), phase)
 
 
+def _corrnorm_factor(input):
+    factor = torch.diagonal(input, dim1=-2, dim2=-1)
+    factor = (-torch.sign(factor) *
+              torch.sqrt(torch.abs(factor))).unsqueeze(-1)
+    factor = (factor @ factor.transpose(-1, -2) +
+              torch.finfo(input.dtype).eps)
+    return factor
+
+
+def corrnorm(input, factor=None, gradpath='both'):
+    r"""
+    Correlation normalisation activation function.
+    """
+    if isinstance(factor, torch.Tensor):
+        return input / factor
+    elif factor is not None:
+        factor = (factor[0] @ factor[1].transpose(-1, -2) +
+                  torch.finfo(input.dtype).eps)
+    elif gradpath == 'input':
+        with torch.no_grad():
+            factor = _corrnorm_factor(input)
+    else:
+        factor = _corrnorm_factor(input)
+    return input / factor
+
+
 def complex_decompose(complex):
     """
     Decompose a complex-valued tensor into amplitude and phase components.
