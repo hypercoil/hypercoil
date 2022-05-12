@@ -13,15 +13,15 @@ from .base import ReducingLoss
 def js_divergence(P, Q):
     M = 0.5 * (P + Q)
     M_log = M.log()
-    return (kl_div(P.log(), M_log, reduction='none', log_target=True) +
-            kl_div(Q.log(), M_log, reduction='none', log_target=True)) / 0.5
+    return (kl_div(M_log, P.log(), reduction='none', log_target=True) +
+            kl_div(M_log, Q.log(), reduction='none', log_target=True)) / 0.5
 
 
 def js_divergence_logit(P, Q):
     M = 0.5 * (torch.softmax(P, -1) + torch.softmax(Q, -1))
     M_log = M.log()
-    return (kl_div(P, M_log, reduction='none', log_target=True) +
-            kl_div(Q, M_log, reduction='none', log_target=True)) / 0.5
+    return (kl_div(M_log, P, reduction='none', log_target=True) +
+            kl_div(M_log, Q, reduction='none', log_target=True)) / 0.5
 
 
 class JSDivergence(ReducingLoss):
