@@ -139,7 +139,7 @@ class ModularityLoss(Loss):
     def __init__(self, nu, affiliation_xfm=None, exclude_diag=True, gamma=1,
                  null=girvan_newman_null, normalise_modularity=True,
                  normalise_coaffiliation=True, directed=False, sign='+',
-                 name=None, **params):
+                 reduction=None, name=None, **params):
         super(ModularityLoss, self).__init__(nu=nu)
         if affiliation_xfm is None:
             affiliation_xfm = lambda x: x
@@ -153,6 +153,7 @@ class ModularityLoss(Loss):
         self.sign = sign
         self.name = name
         self.params = params
+        self.reduction = reduction or torch.mean
 
     def forward(self, A, C, C_o=None, L=None):
         r"""
@@ -200,6 +201,7 @@ class ModularityLoss(Loss):
             sign=self.sign,
             **self.params
         ).squeeze()
+        out = self.reduction(out)
         message = {
             'NAME': self.name,
             'LOSS': out.clone().detach().item(),
