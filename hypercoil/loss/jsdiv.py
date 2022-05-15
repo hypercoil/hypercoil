@@ -26,7 +26,8 @@ def js_divergence_logit(P, Q):
 
 class JSDivergence(ReducingLoss):
     def __init__(self, nu=1, reduction=None, name=None):
-        super(JSDivergence).__init__(
+        reduction = reduction or torch.mean
+        super().__init__(
             nu=nu,
             reduction=reduction,
             loss=js_divergence,
@@ -36,7 +37,8 @@ class JSDivergence(ReducingLoss):
 
 class JSDivergenceSoftmax(ReducingLoss):
     def __init__(self, nu=1, reduction=None, name=None):
-        super(JSDivergence).__init__(
+        reduction = reduction or torch.mean
+        super().__init__(
             nu=nu,
             reduction=reduction,
             loss=js_divergence_logit,
