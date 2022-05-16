@@ -14,7 +14,8 @@ from functools import partial
 from ..functional import sylo, crosshair_similarity, delete_diagonal
 from ..init.sylo import sylo_init_
 from ..init.mpbl import BipartiteLatticeInit
-from ..nn import Recombinator
+from .recombinator import Recombinator
+from .vertcom import VerticalCompression
 
 
 class Sylo(nn.Module):
@@ -315,7 +316,7 @@ class SyloResBlock(nn.Module):
         else:
             self.recombine1 = None
         self.norm1 = norm_layer(channels)
-        self.nlin = nlin(inplace=True)
+        self.nlin = nlin()
         self.sylo1 = Sylo(
             channels,
             channels,
@@ -532,7 +533,7 @@ class SyloResNet(nn.Module):
             init_arg = [{'svd' : True}]
         elif init == 'resid':
             init_arg = [{'residualise' : True}]
-        init_arg += [{} for _ in order_sequence[1:]]
+        init_arg += [{} for _ in lattice_order_sequence[1:]]
 
         self._compression_specs = [
             BipartiteLatticeInit(channel_multiplier=channel_multiplier,
@@ -549,8 +550,6 @@ class SyloResNet(nn.Module):
         for i, j in zip(self._compression_specs[:-1],
                         self._compression_specs[1:]):
             i.next = j
-        if potentials is not None:
-            self.set_potentials(potentials)
 
         all_dim_sequence = (
             [in_dim] + list(dim_sequence))
@@ -565,6 +564,8 @@ class SyloResNet(nn.Module):
                 zip(all_dim_sequence[:-1],
                     all_dim_sequence[1:]))
         ]
+        if potentials is not None:
+            self.set_potentials(potentials)
 
         self.model = SyloResNetScaffold(
             in_dim=in_dim,
@@ -581,7 +582,7 @@ class SyloResNet(nn.Module):
         )
 
     def set_potentials(self, potentials):
-        self._compression_specs[0].set_potentials(cor)
+        self._compression_specs[0].set_potentials(potentials)
         try:
             for c in self._compressions:
                 c.reset_parameters()

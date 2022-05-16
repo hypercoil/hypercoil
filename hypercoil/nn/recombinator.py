@@ -131,12 +131,23 @@ class QueryEncoder(nn.Module):
     """
     def __init__(self, num_embeddings, embedding_dim, query_dim,
                  common_layer_dim, specific_layer_dim, nlin=None,
-                 progressive_specificity=False, rank='full', noise_dim=0):
+                 progressive_specificity=False, rank='full', noise_dim=0,
+                 device=None, dtype=None):
         super().__init__()
-        self.embedding = torch.nn.Embedding(
-            num_embeddings=num_embeddings,
-            embedding_dim=embedding_dim
-        )
+        factory_kwargs = {'device': device, 'dtype': dtype}
+        if isinstance(num_embeddings, int):
+            num_embeddings = [num_embeddings]
+        if isinstance(embedding_dim, int):
+            embedding_dim = [embedding_dim for _ in num_embeddings]
+        embedding = []
+        for count, dim in zip(num_embeddings, embedding_dim):
+            embedding += [torch.nn.Embedding(
+                num_embeddings=count,
+                embedding_dim=dim,
+                **factory_kwargs
+            )]
+        embedding_dim = sum(embedding_dim)
+        self.embedding = torch.nn.ModuleList(embedding)
         self.noise_dim = noise_dim
         self.rank = rank
         self.nlin = nlin or torch.nn.ReLU(inplace=True)
@@ -144,7 +155,7 @@ class QueryEncoder(nn.Module):
         common_dims = [embedding_dim + noise_dim, *common_layer_dim]
         specific_in_dim = common_dims[-1]
         self.common_layers = torch.nn.ModuleList([
-            torch.nn.Linear(i, o) for i, o
+            torch.nn.Linear(i, o, **factory_kwargs) for i, o
             in zip(common_dims[:-1], common_dims[1:])
         ])
         specific_layers = []
@@ -152,7 +163,7 @@ class QueryEncoder(nn.Module):
         for q_dim in query_dim:
             specific_dims = [specific_in_dim, *specific_layer_dim]
             s_layers = [
-                torch.nn.Linear(i, o) for i, o
+                torch.nn.Linear(i, o, **factory_kwargs) for i, o
                 in zip(specific_dims[:-1], specific_dims[1:])
             ]
             q_layers = self._cfg_query_module(q_dim, specific_dims[-1])
@@ -181,10 +192,14 @@ class QueryEncoder(nn.Module):
 
     def forward(self, x, skip_embedding=False, embedding_only=False):
         if not skip_embedding:
-            x = self.embedding(x)
-        if self.noise_dim > 0:
-            noise = torch.randn(*x.shape[:-1], self.noise_dim)
-            x = torch.cat((x, noise), -1)
+            if isinstance(x, torch.Tensor):
+                x = [x]
+            x = torch.cat([
+                self.embedding[i](x[i]) for i in range(len(x))
+            ], -1)
+            if self.noise_dim > 0:
+                noise = torch.randn(*x.shape[:-1], self.noise_dim)
+                x = torch.cat((x, noise), -1)
         e = x
         if embedding_only:
             return e
@@ -192,7 +207,8 @@ class QueryEncoder(nn.Module):
             x = l(x)
             x = self.nlin(x)
         queries = []
-        for query_axis, query_out in zip(self.specific_layers, self.query_layers):
+        for query_axis, query_out in zip(
+            self.specific_layers, self.query_layers):
             q = x
             for l in query_axis:
                 q = l(q)
@@ -201,7 +217,8 @@ class QueryEncoder(nn.Module):
                 x = q
             if self.rank == 'full':
                 q = query_out[0](q)
-                q_dim = torch.sqrt(q.shape[-1].long())
+                q_dim = torch.sqrt(
+                    torch.tensor(q.shape[-1])).long().item()
                 q = self._conform_query_dim(q, q_dim)
             else:
                 q_L, q_R = [l(q) for l in query_out]
