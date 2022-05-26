@@ -26,6 +26,7 @@ class VerticalCompression(nn.Module):
                  forward_operation='compress'):
         super(VerticalCompression, self).__init__()
         factory_kwargs = {'device': device, 'dtype': dtype}
+        self.factory_kwargs = factory_kwargs
         self.in_features = in_features
         self.out_features = out_features
         self.initialised = False
@@ -39,10 +40,10 @@ class VerticalCompression(nn.Module):
         self.out_channels = sum(self._out_channels)
         self.C = Parameter(torch.empty(
             (self.out_channels, self.out_features, self.in_features),
-            dtype=dtype, device=device))
+            **factory_kwargs))
         self.mask = Parameter(torch.empty(
             (self.out_channels, self.out_features, self.in_features),
-            dtype=torch.bool
+            dtype=torch.bool, device=device
         ), requires_grad=False)
         self.sign = Parameter(torch.empty(
             (self.out_channels, 1, 1), **factory_kwargs
@@ -57,13 +58,16 @@ class VerticalCompression(nn.Module):
 
     def reset_parameters(self):
         try:
+            factory_kwargs = self.factory_kwargs
             start = 0
             for init, n_ch in zip(self.init, self._out_channels):
                 end = start + n_ch
                 tsr, msk = (
-                    torch.empty((n_ch, self.out_features, self.in_features)),
                     torch.empty((n_ch, self.out_features, self.in_features),
-                                dtype=torch.bool)
+                                **factory_kwargs),
+                    torch.empty((n_ch, self.out_features, self.in_features),
+                                dtype=torch.bool,
+                                device=factory_kwargs['device'])
                 )
                 init(tsr, msk)
                 with torch.no_grad():

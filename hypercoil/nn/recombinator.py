@@ -198,7 +198,9 @@ class QueryEncoder(nn.Module):
                 self.embedding[i](x[i]) for i in range(len(x))
             ], -1)
             if self.noise_dim > 0:
-                noise = torch.randn(*x.shape[:-1], self.noise_dim)
+                noise = torch.randn(
+                    *x.shape[:-1], self.noise_dim,
+                    dtype=x.dtype, device=x.device)
                 x = torch.cat((x, noise), -1)
         e = x
         if embedding_only:
