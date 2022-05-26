@@ -154,7 +154,10 @@ def gen_collate(
 
 
 def extend_and_bind(tensors, axis=0, out=None):
-    tensors = extend_to_max_size(tensors)
+    if isinstance(tensors[0], list):
+        tensors = extend_to_max_size(*tensors)
+    else:
+        tensors = extend_to_max_size(tensors)
     size_1 = [t.size(axis) == 1 for t in tensors]
     if all(size_1):
         return torch.cat(tensors, dim=axis, out=out)
