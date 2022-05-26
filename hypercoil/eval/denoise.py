@@ -44,12 +44,12 @@ class DenoisingEval:
             self.varexp = False
         if evaluate_qcfc:
             self.qcfc = QCFCEdgewise()
+            self.significance = significance
         else:
             self.qcfc = False
         if plot_result:
             self.atlas = self.cfg_atlas(atlas)
             self.plotter = QCFCPlot(self.atlas)
-            self.significance = significance
         else:
             self.plotter = False
 
@@ -85,8 +85,8 @@ class DenoisingEval:
             )
         if self.qcfc:
             qcfc = self.qcfc(connectomes, qc).squeeze()
+            n = connectomes.size(0)
             if self.plotter:
-                n = connectomes.size(0)
                 self.plotter(
                     qcfc=vec2sym(qcfc),
                     n=n,
