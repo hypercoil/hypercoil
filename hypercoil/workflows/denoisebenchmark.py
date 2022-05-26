@@ -12,6 +12,7 @@ import click
 import json
 import torch
 import pathlib
+import pandas as pd
 import webdataset as wds
 from functools import partial
 from hypercoil.data.collate import (
@@ -35,6 +36,9 @@ from hypercoil.nn import (
 confounds_path = '/tmp/confounds/sub-{}_ses-{}_run-{}.pt'
 confounds_path_orig = '/mnt/andromeda/Data/HCP_S1200/data/{}/MNINonLinear/Results/rfMRI_REST{}_{}/Confound_Regressors.tsv'
 
+cols = ['framewise_displacement', 'std_dvars']
+dtype = torch.float
+save_dev = 'cpu'
 
 #TODO: implement a way of getting these from expansions in the formula module
 # because this is terrible and hideous
@@ -185,7 +189,7 @@ def _select_model(spec, confounds, names, device, gs_augment=True):
     if spec not in BASELINE_MODELS:
         ##TODO: we'll want this to be more flexible instead of hard coding
         # the current rudimentary model.
-        state_dict = torch.load(spec)
+        state_dict = torch.load(spec, map_location=device)
         model_dim, _ = state_dict['weight.lin'].shape
         n_response_functions, _, _, response_function_len = state_dict['weight.rf'].shape
         ##TODO: hard codes here are gonna be a major problem someday if we
