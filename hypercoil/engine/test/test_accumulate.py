@@ -163,7 +163,7 @@ class TestAccumulator:
         assert gradchk.max() < 2e-3
 
     def test_acc_line(self):
-        #TODO: we've seed some larger errors than the limit of tolerance with
+        #TODO: we've seen some larger errors than the limit of tolerance with
         # other seeds. Include a warning about this utility.
         torch.manual_seed(0)
         W = torch.rand(10, 50, dtype=torch.double)
@@ -268,101 +268,6 @@ class TestAccumulator:
             (ref - attempt).abs() /
             torch.maximum(ref.abs(), attempt.abs())
         )
-        """
-        print(ref.ravel()[torch.argsort(gradchk.ravel(),
-            descending=True)])
-        print(attempt.ravel()[torch.argsort(gradchk.ravel(),
-            descending=True)])
-        print(gradchk.ravel()[torch.argsort(gradchk.ravel(),
-            descending=True)])
-        """
-        assert gradchk.max() < 5e-3
-
-    def test_acc_line_rec(self):
-        #TODO: we've seed some larger errors than the limit of tolerance with
-        # other seeds. Include a warning about this utility.
-        torch.manual_seed(0)
-        W = torch.rand(10, 50, dtype=torch.double)
-        W.requires_grad = True
-        T = torch.rand(20, 50, 45, dtype=torch.double)
-
-        W2 = torch.rand(10, 10, dtype=torch.double)
-        W3 = torch.rand(45, 5, dtype=torch.double)
-        W2.requires_grad = True
-        W3.requires_grad = True
-
-        loss = (lambda x, y: (x ** 2).sum())
-
-        def accfn_W(weight, input, acc, out=[], terminate=False):
-            fwd = AccumulatingFunction.apply
-            bwd = lambda grad_output, grad_local: (grad_output @ grad_local,)
-            argmap = argmap=(lambda t: ModelArgument(x=t))
-            return fwd(
-                acc,
-                bwd,
-                argmap,
-                input,
-                out,
-                terminate,
-                weight
-            )
-
-        def model_grad(x, *args, **kwargs):
-            return ModelArgument(
-                weight=x.transpose(-1, -2)
-            )
-
-        dpl = wds.DataPipeline(
-            lambda: iter(T),
-            wds.map(lambda t: {'input' : t})
-        )
-        origin = Origin(pipeline=dpl, lines='bypass')
-        aline = _AccumulineRecursive(
-            model=lambda x: torch.softmax(W, -2) @ x,
-            params={'weight' : torch.softmax(W, -2)},
-            origin=origin,
-            accfn=accfn_W,
-            gradient=model_grad,
-            cfx_fields='input',
-            retain_dims=(-1, -2),
-            throughput=4,
-            batch_size=20,
-            verbose=False,
-        )
-        pool = DataPool()
-        repool = DataPool(release_size=20, lines='bypass')
-        repool2 = DataPool(lines='bypass')
-        origin.connect_downstream(repool)
-        repool.connect_downstream(repool2)
-        aline.connect_downstream(pool)
-        aline(line='accumuline')
-        out = pool.pool[None]
-        out = out[0][0]
-        Y = torch.tanh(out)
-        Y = W2 @ out @ W3
-        l = loss(Y, torch.zeros_like(Y))
-        l.backward()
-
-        attempt = W.grad.clone()
-
-        W.grad.zero_()
-        W2.grad.zero_()
-        W3.grad.zero_()
-
-        out = torch.softmax(W, -2) @ T
-        out.retain_grad()
-        Y = torch.tanh(out)
-        Y = W2 @ out @ W3
-        l = loss(Y, torch.zeros_like(Y))
-        l.backward()
-
-        ref = W.grad.clone()
-
-        gradchk = (
-            (ref - attempt).abs() /
-            torch.maximum(ref.abs(), attempt.abs())
-        )
-        #print(ref, attempt)
         """
         print(ref.ravel()[torch.argsort(gradchk.ravel(),
             descending=True)])

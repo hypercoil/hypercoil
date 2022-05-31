@@ -100,7 +100,7 @@ class TestGeometricVerticalCompression:
             n_groups=n_groups,
             walk_weights=walk_weights
         )
-        CCCT = compression_block_tensor(CCC, dtype=torch.half)
+        CCCT = compression_block_tensor(CCC)
         for (i, j) in list(edges)[:100]:
             k = i % n_groups
             i = i // n_groups
