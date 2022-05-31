@@ -18,7 +18,8 @@ from .action import (
     Convey,
     CountBatches,
     BatchRelease,
-    ConfluxRelease
+    ConfluxRelease,
+    ResetOnEpoch
 )
 
 

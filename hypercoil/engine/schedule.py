@@ -10,7 +10,7 @@ as the program learns.
 import torch
 from functools import partial
 from collections.abc import Iterable
-from .sentry import Sentry
+from .sentry import Sentry, SentryModule
 from .action import (
     StepScheduler,
     LossStepScheduler,

@@ -341,7 +341,7 @@ class BipartiteLatticeInit(DomainInitialiser):
         self.attenuation = attenuation
         self.set_next(next)
         if prev is not None:
-            other.set_next(self)
+            prev.set_next(self)
         if potentials is not None:
             self.set_potentials(potentials)
         if objective is not None:
@@ -397,15 +397,14 @@ class BipartiteLatticeInit(DomainInitialiser):
             raise ValueError('Cannot set both `residualise` and `svd`')
         U_prop = []
         recon = torch.empty((0, tensor.shape[-1], tensor.shape[-1]))
+        max_asgt = None
         for i in range(self.n_lattices):
             if self.residualise and (i != 0):
                 compressed = max_asgt @ self.potentials @ max_asgt.T
                 recon = torch.cat(
-                    (
-                        recon,
-                        (max_asgt.T @ compressed @ max_asgt).mean(
-                            0, keepdim=True)
-                    ),
+                    (recon,
+                    (max_asgt.T @ compressed @ max_asgt).mean(
+                        0, keepdim=True)),
                     dim=0)
                 scale = torch.linalg.lstsq(
                     sym2vec(recon).view(i, -1).transpose(-2, -1),

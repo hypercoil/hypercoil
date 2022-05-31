@@ -7,7 +7,7 @@ Triggered actions
 Actions for sentry objects to perform in response to a detected trigger.
 """
 import torch
-from .sentry import SentryAction
+from .sentry import SentryAction, Epochs
 
 
 class StepScheduler(SentryAction):

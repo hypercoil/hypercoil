@@ -21,7 +21,7 @@ def sparse_kaiming_uniform_(tensor, mask=None, a=0, mode='fan_in',
         mask = tensor
     pathways = (mask != 0)
     fan = {
-        'fan_in' : pathways.sum(1).float().mean()
+        'fan_in' : pathways.sum(1).float().mean(),
         'fan_out' : pathways.sum(0).float().mean()
     }
     gain = calculate_gain(nonlinearity, a)

@@ -156,7 +156,7 @@ def loss_cfg(max_epoch, resume_epoch,
     return epochs, loss
 
 
-def get_confs(keys):
+def get_confs(keys, dtype, save_dev):
     basenames = [d.split('/')[-1] for d in keys]
     subs = [b.split('_')[0].split('-')[-1] for b in basenames]
     sess = [b.split('_')[2].split('-')[-1] for b in basenames]
@@ -176,10 +176,10 @@ def get_confs(keys):
     return confs
 
 
-def ingest_data(dl, wndw, device):
+def ingest_data(dl, wndw, device, dtype, save_dev):
     n = Normalise()
     data = next(dl)
-    qc = get_confs(data['__key__'])[:, 0]
+    qc = get_confs(data['__key__'], dtype, save_dev)[:, 0]
     bold = n(data['images'])
     confounds = n(data['confounds'])
     nanmask = (torch.isnan(bold).sum(-2) == 0)
@@ -218,7 +218,7 @@ def run_loop(
     symbimodal_nu, jsdiv_nu,
     atlas_ref, atlas_plot, results,
     max_epoch, resume_epoch, log_interval,
-    cmap, device, loop_name=None):
+    cmap, device, dtype, save_dev, loop_name=None):
 
     cov_init = DirichletInit(
         n_classes=n_channels,
@@ -278,7 +278,8 @@ def run_loop(
         iter_dl = iter(dl)
         print(f'\n[ Epoch {epoch} ]')
         for _ in range(batches_per_epoch):
-            bold, confounds, qc, nanmask = ingest_data(iter_dl, wndw, device)
+            bold, confounds, qc, nanmask = ingest_data(
+                iter_dl, wndw, device, dtype, save_dev)
 
             denoised = preprocess(bold, confounds, nanmask, interpol, bpfft, selector)
             time_by_time = cov(denoised.transpose(-2, -1)) * discount_matrix
@@ -450,7 +451,8 @@ def main(n_channels):
         symbimodal_nu=symbimodal_nu, jsdiv_nu=jsdiv_nu,
         atlas_ref=atlas_ref, atlas_plot=atlas_plot, results=results,
         max_epoch=max_epoch, resume_epoch=None, log_interval=log_interval,
-        device=device, loop_name='train', cmap=network_cmap
+        device=device, dtype=dtype, save_dev=save_dev,
+        loop_name='train', cmap=network_cmap
     )
     del dl
     torch.cuda.empty_cache()
@@ -466,7 +468,8 @@ def main(n_channels):
         symbimodal_nu=symbimodal_nu, jsdiv_nu=jsdiv_nu,
         atlas_ref=atlas_ref, atlas_plot=atlas_plot, results=results,
         max_epoch=max_epoch, resume_epoch=None, log_interval=log_interval,
-        device=device, loop_name='val', cmap=network_cmap
+        device=device, dtype=dtype, save_dev=save_dev,
+        loop_name='val', cmap=network_cmap
     )
 
     torch.save(cov_train.state_dict(), f'{results}/loop-train_final.pt')
