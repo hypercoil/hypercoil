@@ -2,7 +2,13 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Functional interfaces
+Functional interfaces.
+
+Functionals and neural network modules (in
+:doc:`hypercoil.nn <nn>`
+) constitute the elementary atoms of a differentiable program or
+computational graph. All operations are composable and differentiable
+unless explicitly specified.
 """
 from .cmass import (
     cmass_coor
