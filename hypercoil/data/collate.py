@@ -72,12 +72,14 @@ def gen_collate(
     elem_type = type(elem)
     if isinstance(elem, torch.Tensor):
         out = None
+        """
         if torch.utils.data.get_worker_info() is not None:
             # If we're in a background process, concatenate directly into a
             # shared memory tensor to avoid an extra copy
             numel = sum([x.numel() for x in batch])
             storage = elem.storage()._new_shared(numel)
             out = elem.new(storage).resize_(len(batch), *list(elem.size()))
+        """
         return concat(batch, concat_axis, out=out)
     elif elem_type.__module__ == 'numpy' and elem_type.__name__ != 'str_' \
             and elem_type.__name__ != 'string_':
@@ -152,7 +154,10 @@ def gen_collate(
 
 
 def extend_and_bind(tensors, axis=0, out=None):
-    tensors = extend_to_max_size(tensors)
+    if isinstance(tensors[0], list):
+        tensors = extend_to_max_size(*tensors)
+    else:
+        tensors = extend_to_max_size(tensors)
     size_1 = [t.size(axis) == 1 for t in tensors]
     if all(size_1):
         return torch.cat(tensors, dim=axis, out=out)

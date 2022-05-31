@@ -3,8 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Differentiable functional connectivity
-======================================
+Differentiable programming for brain mapping
+============================================
+
+The ``hypercoil`` software library includes tools for writing fully differentiable programs for use in brain mapping. At the current stage of development, most basic components of the functional connectivity software stack are available.
 
 .. toctree::
    :maxdepth: 1

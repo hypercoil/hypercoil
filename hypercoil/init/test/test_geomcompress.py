@@ -5,17 +5,18 @@
 Unit tests for geometric vertical compressions
 """
 import pytest
+import torch
 import numpy as np
 import nibabel as nb
 import templateflow.api as tflow
-from torch import half
 from hypercoil.init.geomcompress import (
     construct_adjacency_matrix,
     construct_group_matrices,
     compression_matrix,
     compressions_from_gifti,
     compression_block_tensor,
-    edges_from_tri_mesh
+    edges_from_tri_mesh,
+    mask_coo_tensor_along_axis
 )
 
 
@@ -73,6 +74,15 @@ class TestGeometricVerticalCompression:
         ]).T
         assert np.all(C0 == ref)
 
+        tensor = compression_block_tensor((C0, C1), dtype=torch.float)
+        mask = (torch.rand(10) > 0.5)
+        masked_tensor = mask_coo_tensor_along_axis(
+            tensor=tensor, mask=mask, mask_axis=-2
+        )
+        ref = tensor.to_dense()[:, mask]
+        out = masked_tensor.to_dense()
+        assert torch.all(out == ref)
+
     def test_gifti(self):
         n_groups = 10
         walk_weights = [1, 0.25, 0.05, 0.01, 0.001]
@@ -90,10 +100,26 @@ class TestGeometricVerticalCompression:
             n_groups=n_groups,
             walk_weights=walk_weights
         )
-        CCCT = compression_block_tensor(CCC, dtype=half)
+        CCCT = compression_block_tensor(CCC)
         for (i, j) in list(edges)[:100]:
-            print(i, j)
             k = i % n_groups
             i = i // n_groups
             assert CCC[k][j, i] == CCCT[k, j, i]
             assert CCCT[k, j, i] >= 0.25
+
+        """
+        # Too slow and too large to test here without some decimation or
+        # preprocessing. Testing masking for the small case instead.
+        mask_path = tflow.get(
+            template='fsLR',
+            desc='nomedialwall',
+            density='32k',
+            suffix='dparc',
+            hemi='L'
+        )
+        mask = nb.load(mask_path).darrays[0].data.astype('bool')
+        mask = torch.tensor(mask)
+        masked_tensor = mask_coo_tensor_along_axis(
+            tensor=CCCT, mask=mask, mask_axis=-2
+        )
+        """

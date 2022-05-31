@@ -4,13 +4,18 @@
 """
 Neural network modules
 """
-from .atlas import AtlasLinear
+from .atlas import AtlasLinear, AtlasAccumuline
 from .cov import(
     UnaryCovariance, UnaryCovarianceTW, UnaryCovarianceUW,
     BinaryCovariance, BinaryCovarianceTW, BinaryCovarianceUW
 )
 from .freqfilter import (
     FrequencyDomainFilter
+)
+from .interpolate import (
+    SpectralInterpolate,
+    WeightedInterpolate,
+    HybridInterpolate
 )
 from .iirfilter import (
     IIRFilter,
@@ -25,6 +30,12 @@ from .recombinator import (
 from .resid import (
     Residualise
 )
+from .select import (
+    ResponseFunctionLinearSelector,
+    QCPredict,
+    LinearCombinationSelector,
+    EliminationSelector
+)
 from .semidefinite import(
     TangentProject, BatchTangentProject
 )
@@ -36,4 +47,7 @@ from .svm import (
 )
 from .sylo import (
     Sylo
+)
+from .window import (
+    WindowAmplifier
 )

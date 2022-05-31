@@ -1,5 +1,5 @@
-Data transform functions
-~~~~~~~~~~~~~~~~~~~~~~~~
+``functional``: Data transform functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: hypercoil.data.functional
 

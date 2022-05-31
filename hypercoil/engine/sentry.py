@@ -9,8 +9,7 @@ Elementary sentry objects and actions.
 import torch
 from torch.nn import Module
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
-from functools import partial
+from collections.abc import Iterator, Mapping
 
 
 class Sentry:
@@ -18,6 +17,7 @@ class Sentry:
         self.listeners = []
         self.listening = []
         self.actions = []
+        self.message = SentryMessage()
 
     def register_sentry(self, sentry):
         if sentry not in self.listeners:
@@ -55,14 +55,75 @@ class SentryModule(Module, Sentry):
         self.listeners = []
         self.listening = []
         self.actions = []
+        self.message = SentryMessage()
+
+
+class SentryMessage(Mapping):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.content = {}
+        self.content.update(kwargs)
+
+    def __setitem__(self, k, v):
+        self.__setattr__(k, v)
+
+    def __getitem__(self, k):
+        return self.content[k]
+
+    def __delitem__(self, k):
+        del self.content[k]
+
+    def __len__(self):
+        return len(self.content)
+
+    def __iter__(self):
+        return iter(self.content)
+
+    def _fmt_tsr_repr(self, tsr):
+        return f'<tensor of dimension {tuple(tsr.shape)}>'
+
+    def __repr__(self):
+        s = f'{type(self).__name__}('
+        for k, v in self.items():
+            if isinstance(v, torch.Tensor):
+                v = self._fmt_tsr_repr(v)
+            elif isinstance(v, list):
+                v = f'<list with {len(v)} elements>'
+            elif isinstance(v, tuple):
+                fmt = [self._fmt_tsr_repr(i)
+                       if isinstance(i, torch.Tensor)
+                       else i for i in v]
+                v = f'({fmt})'
+            s += f'\n    {k} : {v}'
+        s += ')'
+        return s
+
+    def clear(self):
+        self.content = {}
+
+    def reset(self):
+        self.clear()
+
+    def update(self, *args, **kwargs):
+        for k, v in args:
+            self.content[k] = v
+        self.content.update(**kwargs)
+
+    def transmit(self):
+        return self.content
 
 
 class SentryAction(ABC):
     def __init__(self, trigger):
         self.trigger = trigger
         self.sentries = []
+        self.message = SentryMessage()
 
     def __call__(self, message):
+        if self.trigger is None:
+            for sentry in self.sentries:
+                self.propagate(sentry, message)
+            return
         received = {t: message.get(t) for t in self.trigger}
         if None not in received.values():
             for sentry in self.sentries:
@@ -82,108 +143,20 @@ class SentryAction(ABC):
         pass
 
 
-class PropagateMultiplierFromTransform(SentryAction):
-    def __init__(self, transform):
-        super().__init__(trigger=['EPOCH'])
-        self.transform = transform
-
-
-class PropagateMultiplierFromEpochTransform(
-    PropagateMultiplierFromTransform
-):
-    def propagate(self, sentry, received):
-        message = {'NU': self.transform(received['EPOCH'])}
-        for s in sentry.listeners:
-            s._listen(message)
-
-
-class PropagateMultiplierFromRecursiveTransform(
-    PropagateMultiplierFromTransform
-):
-    def propagate(self, sentry, received):
-        for s in sentry.listeners:
-            message = {'NU': self.transform(s.nu)}
-            s._listen(message)
-
-
-class UpdateMultiplier(SentryAction):
-    def __init__(self):
-        super().__init__(trigger=['NU'])
-
-    def propagate(self, sentry, received):
-        sentry.nu = received['NU']
-
-
-class RecordLoss(SentryAction):
-    def __init__(self):
-        super().__init__(trigger=['LOSS', 'NAME', 'NU'])
-
-    def propagate(self, sentry, received):
-        name = received['NAME']
-        sentry.epoch_buffer[name] += [received['LOSS']]
-        sentry.epoch_buffer[f'{name}_norm'] += (
-            [received['LOSS'] / received['NU']])
-
-
-class ArchiveLoss(SentryAction):
-    def __init__(self):
-        super().__init__(trigger=['EPOCH'])
-
-    def propagate(self, sentry, received):
-        staging = {}
-        for loss, record in sentry.epoch_buffer.items():
-            if len(record) == 0:
-                continue
-            staging[loss] = sum(record) / len(record)
-            sentry.epoch_buffer[loss] = []
-        if len(staging) == 0:
-            return
-        for loss, archive in sentry.archive.items():
-            new = staging.get(loss, float('nan'))
-            sentry.archive[loss] += [new]
-
-
-class ModuleReport(SentryAction):
-    def __init__(self, report_interval, save_root=None,
-                 save_format='.png', *args, **kwargs):
-        super().__init__(trigger=['EPOCH'])
-        self.report_interval = report_interval
-        self.save_root = save_root
-        self.save_format = save_format
-        self.args = args
-        self.kwargs = kwargs
-
-    def propagate(self, sentry, received):
-        if received % self.report_interval == 0:
-            #TODO: we might need to revisit this save scheme for compatibility
-            # with multi-output reporters
-            if self.save_root is not None:
-                save = (
-                    f'{self.save_root}_epoch-{received:09}{self.save_format}'
-                )
-            else:
-                save = None
-            try:
-                sentry(*self.args, save=save, **self.kwargs)
-            except TypeError: #save repeated or invalid as argument
-                sentry(*self.args, **self.kwargs)
-
-    def _register_trigger(self, sentry):
-        epochs_check = [isinstance(i, Epochs) for i in sentry.listening]
-        if not any(epochs_check):
-            sentry.actions.remove(self)
-            raise ValueError(
-                'Cannot register reporter action to a sentry that is not '
-                'listening to epochs. Register the sentry to an epochs '
-                'instance first.'
-            )
-
-
 class Epochs(Sentry, Iterator):
     def __init__(self, max_epoch):
         self.cur_epoch = -1
         self.max_epoch = max_epoch
         super().__init__()
+
+    def reset(self):
+        self.cur_epoch = -1
+
+    def set(self, epoch):
+        self.cur_epoch = epoch
+
+    def set_max(self, epoch):
+        self.max_epoch = epoch
 
     def __iter__(self):
         return self
@@ -192,82 +165,7 @@ class Epochs(Sentry, Iterator):
         self.cur_epoch += 1
         if self.cur_epoch >= self.max_epoch:
             raise StopIteration
-        message = {'EPOCH' : self.cur_epoch}
+        self.message.update(('EPOCH', self.cur_epoch))
         for s in self.listeners:
-            s._listen(message)
+            s._listen(self.message)
         return self.cur_epoch
-
-
-class SchedulerSentry(Sentry):
-    def __init__(self, epochs, base=1):
-        super().__init__()
-        self.base = base
-        epochs.register_sentry(self)
-
-
-class MultiplierSchedule(SchedulerSentry):
-    def __init__(self, epochs, transform, base=1):
-        super().__init__(epochs=epochs, base=base)
-        self.register_action(
-            PropagateMultiplierFromEpochTransform(transform=transform))
-
-
-class MultiplierRecursiveSchedule(SchedulerSentry):
-    def __init__(self, epochs, transform, base=1):
-        super().__init__(epochs=epochs, base=base)
-        self.register_action(
-            PropagateMultiplierFromRecursiveTransform(transform=transform))
-
-
-class MultiplierSigmoidSchedule(MultiplierSchedule):
-    def __init__(self, epochs, transitions, base=1):
-        cur = base
-        for k, v in transitions.items():
-            transitions[k] = (cur, v)
-            cur = v
-        transform = partial(MultiplierSigmoidSchedule.get_transform,
-                            transitions=transitions)
-        super().__init__(
-            epochs=epochs,
-            transform=transform,
-            base=base
-        )
-
-    @staticmethod
-    def get_transform(e, transitions):
-        for ((begin_epoch, end_epoch),
-             (begin_nu, end_nu)) in transitions.items():
-            if e < begin_epoch:
-                return begin_nu
-            elif e < end_epoch:
-                x_scale = (end_epoch - begin_epoch)
-                y_scale = (end_nu - begin_nu)
-                x = torch.tensor(e - (begin_epoch + x_scale / 2) + 0.5)
-                y = begin_nu
-                return y_scale * torch.sigmoid(x).item() + y
-        return end_nu
-
-
-class LossArchive(Sentry):
-    def __init__(self, epochs):
-        super().__init__()
-        self.archive = {}
-        self.epoch_buffer = {}
-        self.register_action(RecordLoss())
-        self.register_action(ArchiveLoss())
-        epochs.register_sentry(self)
-
-    def _register_trigger(self, sentry):
-        #TODO: explicitly check for Loss when we separate implementations
-        # from base classes.
-        if isinstance(sentry, SentryModule):
-            self.archive[sentry.name] = []
-            self.archive[f'{sentry.name}_norm'] = []
-            self.epoch_buffer[sentry.name] = []
-            self.epoch_buffer[f'{sentry.name}_norm'] = []
-
-    def get(self, name, normalised=False):
-        if normalised:
-            return self.archive[f'{name}_norm']
-        else:
-            return self.archive[name]

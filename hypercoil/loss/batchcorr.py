@@ -40,31 +40,35 @@ def auto_tol(batch_size, significance=0.1, tails=2, dtype=None, device=None):
     )
 
 
-def batch_corr(X, N, tol=0, tol_sig=0.1):
+def batch_corr(X, N, tol=0, tol_sig=0.1, abs=True):
     """
     Correlation over the batch dimension.
 
     Parameters
     ----------
     X : tensor
-        Tensor block containing measures to be correlated with those in `N`.
+        Tensor block containing measures to be correlated with those in ``N``.
     N : tensor
-        Vector of measures with which the measures in `X` are to be
+        Vector of measures with which the measures in ``X`` are to be
         correlated.
-    tol : nonnegative float or `'auto'` (default 0)
-        Tolerance for correlations. Only correlation values above `tol` are
-        counted. If this is set to `'auto'`, a tolerance is computed for the
-        batch size given the significance level in `tol_sig`.
+    tol : nonnegative float or ``'auto'`` (default 0)
+        Tolerance for correlations. Only correlation values above ``tol`` are
+        counted. If this is set to ``'auto'``, a tolerance is computed for the
+        batch size given the significance level in ``tol_sig``.
     tol_sig : float in (0, 1)
-        Significance level for correlation tolerance. Used only if `tol` is
-        set to `'auto'`.
+        Significance level for correlation tolerance. Used only if ``tol`` is
+        set to ``'auto'``.
+    abs : bool (default True)
+        Use the absolute value of correlations. If this is being used as a loss
+        function, the model's weights will thus be updated to shrink all
+        batchwise correlations toward zero.
 
     Returns
     -------
     tensor
-        Absolute correlation of each vector in `X` with `N`, after
+        Absolute correlation of each vector in ``X`` with ``N``, after
         thresholding at `tol`. Note that, if you want the original
-        correlations back, you will have to add `tol` to any nonzero
+        correlations back, you will have to add ``tol`` to any nonzero
         correlations.
     """
     batch_size = X.shape[0]
@@ -75,10 +79,16 @@ def batch_corr(X, N, tol=0, tol_sig=0.1):
     if tol == 'auto':
         tol = auto_tol(batch_size, significance=tol_sig,
                        dtype=batchcorr.dtype, device=batchcorr.device)
-    return torch.maximum(
-        batchcorr.abs() - tol,
-        torch.tensor(0, dtype=batchcorr.dtype, device=batchcorr.device)
-    )
+    if abs:
+        return torch.maximum(
+            batchcorr.abs() - tol,
+            torch.tensor(0, dtype=batchcorr.dtype, device=batchcorr.device)
+        )
+    else:
+        return torch.sign(batchcorr) * torch.maximum(
+            batchcorr.abs() - tol,
+            torch.tensor(0, dtype=batchcorr.dtype, device=batchcorr.device)
+        )
 
 
 class BatchCorrelation(ReducingLoss):
@@ -89,15 +99,15 @@ class BatchCorrelation(ReducingLoss):
     ----------
     nu : float (default 1)
         Loss function weight multiplier.
-    reduction : callable (default `torch.mean`)
+    reduction : callable (default ``torch.mean``)
         Map from the tensor of batch-wise correlations to a scalar.
-    tol : nonnegative float or `'auto'` (default 0)
-        Tolerance for correlations. Only correlation values above `tol` are
-        counted. If this is set to `'auto'`, a tolerance is computed for the
-        batch size given the significance level in `tol_sig`.
+    tol : nonnegative float or ``'auto'`` (default 0)
+        Tolerance for correlations. Only correlation values above ``tol`` are
+        counted. If this is set to ``'auto'``, a tolerance is computed for the
+        batch size given the significance level in ``tol_sig``.
     tol_sig : float in (0, 1)
         Significance level for correlation tolerance. Used only if `tol` is
-        set to `'auto'`.
+        set to ``'auto'``.
     name : str or None (default None)
         Identifying string for the instantiation of the loss object.
     """
@@ -119,55 +129,55 @@ class BatchCorrelation(ReducingLoss):
         ----------
         data : tensor
             Tensor block containing measures to be correlated with those in
-            `measure`.
+            ``measure``.
         measure : tensor
             Vector of measures (one per batch element) with which the measures
-            in `data` are to be correlated.
+            in ``data`` are to be correlated.
 
         Returns
         -------
         tensor
-            Absolute correlation of each vector in `data` with `measure`,
-            after thresholding according to the loss object's `tol` attribute.
-            Note that, if you want the original correlations back, you will
-            have to add `tol` to any nonzero correlations.
+            Absolute correlation of each vector in ``data`` with ``measure``,
+            after thresholding according to the loss object's ``tol``
+            attribute. Note that, if you want the original correlations back,
+            you will have to add `tol` to any nonzero correlations.
         """
         return super().forward(X=data, N=measure)
 
 
-def qcfc_loss(FC, QC, tol=0, tol_sig=0.1):
+def qcfc_loss(FC, QC, tol=0, tol_sig=0.1, abs=True):
     """
     Edgewise QC-FC correlation.
 
-    Note that this is a thin wrapper around `batch_corr`.
+    Note that this is a thin wrapper around ``batch_corr``.
 
     Parameters
     ----------
     FC : tensor
         Tensor block containing functional connectivity measures (e.g., edge
-        weights) to be correlated with those in `QC`. This could, for
+        weights) to be correlated with those in ``QC``. This could, for
         instance, be a block of connectivity matrices.
     QC : tensor
-        Vector of QC measures with which the measures in `FC` are to be
+        Vector of QC measures with which the measures in ``FC`` are to be
         correlated. This could, for instance, be a vector whose entries
-        measure the relative in-scanner motion of each scan in `FC`.
-    tol : nonnegative float or `'auto'` (default 0)
+        measure the relative in-scanner motion of each scan in ``FC``.
+    tol : nonnegative float or ``'auto'`` (default 0)
         Tolerance for correlations. Only correlation values above `tol` are
-        counted. If this is set to `'auto'`, a tolerance is computed for the
-        batch size given the significance level in `tol_sig`.
+        counted. If this is set to ``'auto'``, a tolerance is computed for the
+        batch size given the significance level in ``tol_sig``.
     tol_sig : float in (0, 1)
-        Significance level for correlation tolerance. Used only if `tol` is
-        set to `'auto'`.
+        Significance level for correlation tolerance. Used only if ``tol`` is
+        set to ``'auto'``.
 
     Returns
     -------
     tensor
-        Absolute correlation of each vector in `FC` with `QC`, after
-        thresholding at `tol`. Note that, if you want the original
-        correlations back, you will have to add `tol` to any nonzero
+        Absolute correlation of each vector in ``FC`` with ``QC``, after
+        thresholding at ``tol``. Note that, if you want the original
+        correlations back, you will have to add ``tol`` to any nonzero
         correlations.
     """
-    return batch_corr(X=FC, N=QC, tol=tol, tol_sig=tol_sig)
+    return batch_corr(X=FC, N=QC, tol=tol, tol_sig=tol_sig, abs=abs)
 
 
 class QCFC(BatchCorrelation):
@@ -175,25 +185,25 @@ class QCFC(BatchCorrelation):
         """
         Edgewise QC-FC correlation.
 
-        Note that this is a thin wrapper around `batch_corr`.
+        Note that this is a thin wrapper around ``batch_corr``.
 
         Parameters
         ----------
         FC : tensor
             Tensor block containing functional connectivity measures (e.g.,
-            edge weights) to be correlated with those in `QC`. This could, for
-            instance, be a block of connectivity matrices.
+            edge weights) to be correlated with those in ``QC``. This could,
+            for instance, be a block of connectivity matrices.
         QC : tensor
-            Vector of QC measures with which the measures in `FC` are to be
+            Vector of QC measures with which the measures in ``FC`` are to be
             correlated. This could, for instance, be a vector whose entries
-            measure the relative in-scanner motion of each scan in `FC`.
+            measure the relative in-scanner motion of each scan in ``FC``.
 
         Returns
         -------
         tensor
-            Absolute correlation of each vector in `FC` with `QC`, after
-            thresholding according to the loss object's `tol` attribute.
+            Absolute correlation of each vector in ``FC`` with ``QC``, after
+            thresholding according to the loss object's ``tol`` attribute.
             Note that, if you want the original correlations back, you will
-            have to add `tol` to any nonzero correlations.
+            have to add ``tol`` to any nonzero correlations.
         """
         return super().forward(data=FC, measure=QC)

@@ -1,5 +1,5 @@
-DataReference
-=============
+``DataReference``
+=================
 
 .. currentmodule:: hypercoil.data.dataref
 

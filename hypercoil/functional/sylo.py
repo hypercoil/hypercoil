@@ -10,7 +10,7 @@ from .matrix import expand_outer
 from .crosssim import crosshair_similarity
 
 
-def sylo(X, L, R=None, bias=None, symmetry=None,
+def sylo(X, L, R=None, C=None, bias=None, symmetry=None,
          similarity=crosshair_similarity):
     r"""
     Sylo transformation of a tensor block.
@@ -36,6 +36,8 @@ def sylo(X, L, R=None, bias=None, symmetry=None,
                     the reference bank.
                 **R :** :math:`(*, C_{out}, C_{in}, W, rank)`
                     As above.
+                **C :** :math:`(*, C_{out}, C_{in}, rank, rank)`
+                    As above.
                 **bias :** :math:`C_{out}`
                     As above.
                 **Output :** :math:`(N, *, C_{out}, H, W)`
@@ -52,6 +54,12 @@ def sylo(X, L, R=None, bias=None, symmetry=None,
         vectors. One way to enforce symmetry and positive semidefiniteness of
         learned templates is by passing the same tensor as `L` and `R`; this is
         the default behaviour.
+    C : Tensor or None (default None)
+        Coupling term. If this is specified, each template in the basis is
+        modulated according to the coefficients in the coupling matrix.
+        Providing a vector is equivalent to providing a diagonal coupling
+        matrix. This term can, for instance, be used to toggle between
+        positive and negative semidefinite templates.
     bias: Tensor
         Bias term to be added to the output.
     symmetry : ``'cross'``, ``'skew'``, or other (default None)
@@ -81,7 +89,7 @@ def sylo(X, L, R=None, bias=None, symmetry=None,
     output : Tensor
         Input subject to a sylo transformation, as parametrised by the weights.
     """
-    W = expand_outer(L, R, symmetry)
+    W = expand_outer(L, R, C=C, symmetry=symmetry)
     output = similarity(X, W)
     if bias is not None:
         output += bias[..., None, None]

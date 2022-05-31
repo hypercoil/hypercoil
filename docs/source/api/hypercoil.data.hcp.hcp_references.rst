@@ -1,5 +1,5 @@
-hcp_references
-==============
+``hcp_references``
+==================
 
 .. currentmodule:: hypercoil.data.hcp
 

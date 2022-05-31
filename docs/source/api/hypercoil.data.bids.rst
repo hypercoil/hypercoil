@@ -1,5 +1,5 @@
-BIDS interfaces
-~~~~~~~~~~~~~~~
+``bids``: BIDS interfaces
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: hypercoil.data.bids
 

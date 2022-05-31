@@ -1,5 +1,5 @@
-fmriprep_references
-===================
+``fmriprep_references``
+=======================
 
 .. currentmodule:: hypercoil.data.bids
 

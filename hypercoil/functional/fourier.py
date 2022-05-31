@@ -6,7 +6,10 @@ Fourier-domain filter
 ~~~~~~~~~~~~~~~~~~~~~
 Convolve the signal via multiplication in the Fourier domain.
 """
+import torch
 import torch.fft
+from .cov import corr
+from .domainbase import complex_decompose
 
 
 def product_filter(X, weight, **params):
@@ -92,4 +95,26 @@ def product_filtfilt(X, weight, **params):
         in the frequency domain.
     """
     X_filt = product_filter(X, weight, **params)
-    return product_filter(X_filt.flip(-1), weight, **params).flip(-1)
+    out = product_filter(X_filt.flip(-1), weight, **params).flip(-1)
+    return out
+
+
+def ampl_phase_corr(
+    X, weight, corr_axes=(0,), cov=corr, **params):
+    """
+    Covariance among frequency bins, amplitude and phase. To run it across the
+    batch and region axes, use
+    ``ampl_phase_corr(X, weight=None, corr_axes=(0, -2))``
+    Be advised: there is no interesting structure here.
+    """
+    n = X.size(-1)
+    Xf = torch.fft.rfft(X, n=n, **params)
+    ampl, phase = complex_decompose(Xf)
+    axes = [True for _ in ampl.shape]
+    for ax in corr_axes:
+        axes[ax] = False
+    shape = [e for i, e in enumerate(ampl.shape) if axes[i]]
+    new_axes = [i - len(corr_axes) for i in range(len(corr_axes))]
+    ampl = torch.moveaxis(ampl, corr_axes, new_axes).reshape(*shape, -1)
+    phase = torch.moveaxis(phase, corr_axes, new_axes).reshape(*shape, -1)
+    return cov(ampl, weight=weight), cov(phase, weight=weight)

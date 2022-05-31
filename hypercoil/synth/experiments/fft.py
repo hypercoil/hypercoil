@@ -27,14 +27,17 @@ from hypercoil.loss import (
     LossApply,
     LossArgument,
     Entropy,
+    MultivariateKurtosis,
     NormedLoss,
     SmoothnessPenalty,
     SymmetricBimodalNorm
 )
 from hypercoil.synth.filter import (
     synthesise_across_bands,
-    plot_frequency_partition
+    plot_frequency_partition,
+    plot_mvkurtosis
 )
+from hypercoil.synth.mix import synthesise_mixture
 from hypercoil.synth.experiments.overfit_plot import overfit_and_plot_progress
 
 
@@ -194,7 +197,6 @@ def frequency_band_identification_experiment(
 def frequency_band_partition_experiment(
     model, opt, loss, max_epoch, X, target, log_interval, save
 ):
-
     losses = []
     for epoch in range(max_epoch):
         corr = model(X)[:-1]
@@ -215,6 +217,129 @@ def frequency_band_partition_experiment(
                 save=f'{save}-{epoch:08}.png'
             )
             close('all')
+
+
+def dynamic_band_identification_experiment(
+    lr=1e-3,
+    seed=None,
+    max_epoch=2501,
+    latent_dim=10,
+    observed_dim=50,
+    time_dim=1000,
+    n_switches=20,
+    mvkurtosis_nu=0.001,
+    smoothness_nu=0.2,
+    symbimodal_nu=0.05,
+    l2_nu=0.25,
+    mvkurtosis_l2=0.01,
+    log_interval=100,
+    save=None
+):
+    assert (time_dim / n_switches == time_dim // n_switches)
+
+    def amplitude(weight):
+        """
+        Accessory function for use by regularisers, so that they can operate
+        specifically on the amplitude of the filter's response curve.
+        """
+        ampl, phase = complex_decompose(weight)
+        return ampl
+
+    bands = [(0.1, 0.2), (0.2, 0.3), (0.4, 0.5), (0.5, 0.6)]
+    if seed is not None:
+        seeds = [seed + i for i in range(len(bands))]
+    else:
+        seeds = [None for _ in bands]
+    seed_offset = len(bands)
+    bands = [synthesise_mixture(
+        observed_dim=observed_dim,
+        latent_dim=latent_dim,
+        time_dim=time_dim,
+        lp=lp,
+        hp=hp,
+        seed=s
+    ) for s, (hp, lp) in zip(seeds, bands)]
+
+    if seed is not None:
+        seeds = [seed + i + seed_offset for i in range(n_switches)]
+    else:
+        seeds = [None for _ in range(n_switches)]
+    dynamic_band = [synthesise_mixture(
+        observed_dim=observed_dim,
+        latent_dim=latent_dim,
+        time_dim=(time_dim // n_switches),
+        lp=0.4,
+        hp=0.3,
+        seed=s
+    ) for s in seeds]
+    dynamic_band = np.concatenate(dynamic_band, -1)
+
+    signal = sum(bands) + dynamic_band
+    signal = signal - signal.mean(-1, keepdims=True)
+    signal = signal / signal.std(-1, keepdims=True)
+
+    freq_dim = time_dim // 2 + 1
+    filter_specs = [FreqFilterSpec(
+        Wn=None, ftype='randn', btype=None,
+        ampl_scale=0.01, phase_scale=0.01
+    )]
+    fftfilter = FrequencyDomainFilter(
+        dim=freq_dim,
+        filter_specs=filter_specs,
+        domain=Identity()
+    )
+
+    loss = LossScheme([
+        LossApply(
+            MultivariateKurtosis(nu=mvkurtosis_nu, l2=mvkurtosis_l2),
+            apply=lambda arg: arg.ts_filtered
+        ),
+        LossScheme([
+            SmoothnessPenalty(nu=smoothness_nu),
+            SymmetricBimodalNorm(nu=symbimodal_nu),
+            NormedLoss(nu=l2_nu)
+        ], apply=lambda arg: amplitude(arg.weight))
+    ])
+
+    X = torch.tensor(signal, dtype=torch.float)
+    opt = torch.optim.Adam(fftfilter.parameters(), lr=lr)
+
+    losses = []
+    for epoch in range(max_epoch):
+        ts_filtered = fftfilter(X)
+        arg = LossArgument(
+            ts_filtered=ts_filtered,
+            weight=fftfilter.weight
+        )
+        loss_epoch = loss(arg, verbose=(epoch % log_interval == 0))
+        loss_epoch.backward()
+        losses += [loss_epoch.detach().item()]
+        if epoch % log_interval == 0:
+            print(f'[ Epoch {epoch} | Total loss : {losses[-1]} ]')
+        opt.step()
+        fftfilter.weight.grad.zero_()
+
+    all_bands = [
+        (0.1, 0.2),
+        (0.2, 0.3),
+        (0.3, 0.4),
+        (0.4, 0.5),
+        (0.5, 0.6)
+    ]
+    test_filter = FrequencyDomainFilter(
+        dim=freq_dim,
+        filter_specs=filter_specs,
+        domain=Identity()
+    )
+    plot_mvkurtosis(
+        fftfilter=test_filter,
+        weight=fftfilter.weight.detach(),
+        input=X,
+        bands=all_bands,
+        nu=mvkurtosis_nu,
+        l2=mvkurtosis_l2,
+        save=save
+    )
 
 
 def main():

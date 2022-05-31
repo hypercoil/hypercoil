@@ -7,7 +7,7 @@ Unit tests for polynomial convolution
 import pytest
 import torch
 from hypercoil.functional import (
-    polyconv2d
+    polyconv2d, basisconv2d
 )
 
 
@@ -38,4 +38,18 @@ class TestPolynomial:
     def test_polyconv2d_cuda(self):
         out = polyconv2d(self.XC, known_filter().cuda())
         ref = self.XC + 0.3 * self.XC ** 2 - 0.1 * self.XC ** 3
+        assert self.approx(out, ref)
+
+    def test_basisconv2d(self):
+        basis = [
+            (lambda x: x ** 1),
+            (lambda x: x ** 2),
+            (lambda x: x ** 3),
+        ]
+        out = basisconv2d(
+            self.X,
+            basis_functions=basis,
+            weight=known_filter()
+        )
+        ref = self.X + 0.3 * self.X ** 2 - 0.1 * self.X ** 3
         assert self.approx(out, ref)

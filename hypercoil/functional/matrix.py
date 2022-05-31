@@ -145,7 +145,7 @@ def spd(X, eps=1e-6, method='eig'):
         return symmetric(Q @ torch.diag_embed(L) @ Q.transpose(-1, -2))
 
 
-def expand_outer(L, R=None, symmetry=None):
+def expand_outer(L, R=None, C=None, symmetry=None):
     r"""
     Multiply out a left and a right generator matrix as an outer product.
 
@@ -160,6 +160,8 @@ def expand_outer(L, R=None, symmetry=None):
                     preceding dimensions.
                 **R :** :math:`(*, W, rank)`
                     W denotes the width of the expanded matrix.
+                **C :** :math:`(*, rank, rank)`
+                    As above.
                 **Output :** :math:`(*, H, W)`
                     As above.
 
@@ -170,6 +172,12 @@ def expand_outer(L, R=None, symmetry=None):
     R : Tensor or None (default None)
         Right generator of a low-rank matrix (:math:`L R^\intercal`). If this
         is None, then the output matrix is symmetric :math:`L L^\intercal`.
+    C : Tensor or None (default None)
+        Coupling term. If this is specified, each outer product expansion is
+        modulated by a corresponding coefficient in the coupling matrix.
+        Providing a vector is equivalent to providing a diagonal coupling
+        matrix. This term can, for instance, be used to toggle between
+        positive and negative semidefinite outputs.
     symmetry : ``'cross'``, ``'skew'``, or other (default None)
         Symmetry constraint imposed on the generated low-rank template matrix.
 
@@ -184,9 +192,16 @@ def expand_outer(L, R=None, symmetry=None):
           for R and L. (This approach also guarantees that the output is
           positive semidefinite.)
     """
+    if L.dim() == 1:
+        L = L.unsqueeze(-1)
     if R is None:
         R = L
-    output = L @ R.transpose(-2, -1)
+    if C is None:
+        output = L @ R.transpose(-2, -1)
+    elif C.shape[-1] == C.shape[-2] == L.shape[-1]:
+        output = L @ C @ R.transpose(-2, -1)
+    elif C.shape[-1] == 1:
+        output = L @ (C * R.transpose(-2, -1))
     #TODO: Unit tests are not hitting this conditional...
     if symmetry == 'cross' or symmetry == 'skew':
         return symmetric(output, skew=(symmetry == 'skew'))

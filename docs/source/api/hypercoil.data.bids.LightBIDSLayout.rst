@@ -1,5 +1,5 @@
-LightBIDSLayout
-===============
+``LightBIDSLayout``
+===================
 
 .. currentmodule:: hypercoil.data.bids
 

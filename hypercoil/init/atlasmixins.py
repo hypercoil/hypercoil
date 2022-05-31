@@ -542,6 +542,26 @@ class _CIfTIReferenceMixin:
         return [a for a in self.axes
                 if isinstance(a, nb.cifti2.cifti2_axes.BrainModelAxis)][0]
 
+    def to_image(self, save=None, maps=None):
+        if maps is None:
+            maps = self.maps
+        offset = 1
+        dataobj = np.zeros_like(self.ref.get_fdata())
+        for k, v in maps.items():
+            n_labels = v.shape[0]
+            mask = self.compartments[k][self.mask].unsqueeze(0).cpu().numpy()
+            data = v.argmax(0).cpu().detach().numpy() + offset
+            dataobj[mask] = data
+            offset += n_labels
+        new_cifti = nb.Cifti2Image(
+            dataobj,
+            header=self.ref.header,
+            nifti_header=self.ref.nifti_header
+        )
+        if save is None:
+            return new_cifti
+        new_cifti.to_filename(save)
+
 
 class _LogicMaskMixin:
     """

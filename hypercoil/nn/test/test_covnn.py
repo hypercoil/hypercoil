@@ -16,6 +16,7 @@ from hypercoil.init.laplace import LaplaceInit
 from hypercoil.functional.noise import (
     DiagonalNoiseSource, DiagonalDropoutSource, BandDropoutSource
 )
+from hypercoil.functional.utils import apply_mask
 from hypercoil.functional.domain import Logit
 
 
@@ -48,6 +49,18 @@ class TestCovNN:
             self.n, estimator=hypercoil.functional.pcorr,
             out_channels=7, noise=self.dns) #, dropout=dds)
         cov(self.X)
+
+    def test_cov_uuw_masked(self):
+        cov = UnaryCovarianceUW(self.n, estimator=hypercoil.functional.corr)
+        mask = torch.randn(self.n) > 0
+        out = cov(self.X, mask=mask)
+        ref = np.stack([np.corrcoef(apply_mask(x, mask, -1)) for x in self.X])
+        assert self.approx(out, ref)
+        mask = torch.randn(4, 1, self.n) > 0
+        out = cov(self.X, mask=mask)
+        ref = np.stack([np.corrcoef(apply_mask(x, m, -1))
+                        for x, m in zip(self.X, mask)])
+        assert self.approx(out, ref)
 
     def test_cov_utw(self):
         cov = UnaryCovarianceTW(self.n, estimator=hypercoil.functional.corr)

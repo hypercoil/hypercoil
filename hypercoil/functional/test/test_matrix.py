@@ -13,6 +13,7 @@ from hypercoil.functional import (
     toeplitz,
     symmetric,
     spd,
+    expand_outer,
     recondition_eigenspaces,
     delete_diagonal,
     sym2vec,
@@ -67,6 +68,15 @@ class TestMatrix:
         out = symmetric(self.Bt)
         ref = out.transpose(-1, -2)
         assert self.approx(out, ref)
+
+    def test_expand_outer(self):
+        L = torch.rand(8, 4, 10, 3)
+        C = -torch.rand(8, 4, 3, 1)
+        out = expand_outer(L, C=C)
+        assert torch.all(out <= 0)
+        C = torch.diag_embed(C.squeeze())
+        out2 = expand_outer(L, C=C)
+        assert torch.allclose(out, out2)
 
     def test_spd(self):
         out = spd(self.Bt)

@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="34.141361mm"
+   height="19.18619mm"
+   viewBox="0 0 34.141362 19.18619"
+   version="1.1"
+   id="svg24108"
+   inkscape:version="1.1.1 (c3084ef, 2021-09-22)"
+   sodipodi:docname="determinant.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview24110"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:zoom="2.1434261"
+     inkscape:cx="0.69981419"
+     inkscape:cy="62.750006"
+     inkscape:window-width="1312"
+     inkscape:window-height="855"
+     inkscape:window-x="45"
+     inkscape:window-y="23"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       type="xygrid"
+       id="grid24228"
+       originx="0.55056998"
+       originy="0.40076901" />
+  </sodipodi:namedview>
+  <defs
+     id="defs24105">
+    <marker
+       style="overflow:visible"
+       id="Arrow1Mend"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow1Mend"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.4,0,0,-0.4,-4,0)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         id="path2638" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker24091"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow1Mend"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.4,0,0,-0.4,-4,0)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         id="path24089" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker24095"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow1Mend"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.4,0,0,-0.4,-4,0)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         id="path24093" />
+    </marker>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-141.5679,-97.567088)">
+    <path
+       style="fill:#687090;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 148.73305,115.16578 3.96875,-7.9375 6.61458,1.32291 -3.96874,7.9375 z"
+       id="path2013"
+       inkscape:export-filename="/Users/rastkociric/Downloads/detparallel.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400"
+       sodipodi:nodetypes="ccccc" />
+    <path
+       style="fill:#9a9fb6;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 159.31639,108.55119 -3.96875,7.9375 11.90625,-3.96875 3.96875,-7.9375 z"
+       id="path2246"
+       inkscape:export-filename="/Users/rastkociric/Downloads/detparallel.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400"
+       sodipodi:nodetypes="ccccc" />
+    <path
+       style="fill:#d3d5df;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 152.7018,107.22828 6.61458,1.32291 11.90625,-3.96875 -6.61458,-1.32291 z"
+       id="path2380"
+       inkscape:export-filename="/Users/rastkociric/Downloads/detparallel.png"
+       inkscape:export-xdpi="400"
+       inkscape:export-ydpi="400" />
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 155.11987,116.30459 8.73734,-17.271792 -0.54639,0.05331 1.46766,-1.51902 -0.35875,2.116667 -0.21137,-0.490889 -8.59614,17.031244 18.34657,-6.13058 -0.29845,-0.43885 2.04892,0.0113 -1.64395,1.26647 v -0.52917 l -18.71767,6.35 -11.64167,-2.38125 0.0985,0.58257 -2.23657,-1.13309 2.48805,-0.24323 -0.29904,0.45441 z"
+       id="path24343"
+       sodipodi:nodetypes="ccccccccccccccccccc" />
+  </g>
+</svg>

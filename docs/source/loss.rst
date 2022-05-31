@@ -1,20 +1,16 @@
-Regularisation and loss
-=======================
+``loss``: Loss and regularisation
+=================================
+
+.. automodule:: hypercoil.loss
 
 .. toctree::
    :maxdepth: 4
 
-.. automodapi:: hypercoil.loss.base
-.. automodapi:: hypercoil.loss.batchcorr
-.. automodapi:: hypercoil.loss.cmass
-.. automodapi:: hypercoil.loss.determinant
-.. automodapi:: hypercoil.loss.dispersion
-.. automodapi:: hypercoil.loss.entropy
-.. automodapi:: hypercoil.loss.equilibrium
-.. automodapi:: hypercoil.loss.hinge
-.. automodapi:: hypercoil.loss.modularity
-.. automodapi:: hypercoil.loss.norm
-.. automodapi:: hypercoil.loss.scheme
-.. automodapi:: hypercoil.loss.secondmoment
-.. automodapi:: hypercoil.loss.smoothness
-.. automodapi:: hypercoil.loss.symbimodal
+   api/hypercoil.loss.cmass.Compactness
+   api/hypercoil.loss.cmass.HemisphericTether
+   api/hypercoil.loss.determinant
+   api/hypercoil.loss.dispersion.VectorDispersion
+   api/hypercoil.loss.entropy
+   api/hypercoil.loss.equilibrium
+   api/hypercoil.loss.modularity.ModularityLoss
+   api/hypercoil.loss.secondmoment

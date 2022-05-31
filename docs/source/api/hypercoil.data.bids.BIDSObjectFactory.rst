@@ -1,5 +1,5 @@
-BIDSObjectFactory
-=================
+``BIDSObjectFactory``
+=====================
 
 .. currentmodule:: hypercoil.data.bids
 

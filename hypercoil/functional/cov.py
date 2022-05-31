@@ -53,12 +53,12 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
         then it must be square, symmetric, and positive semidefinite. In this
         case, diagonal entries again correspond to relative importances, while
         off-diagonal entries indicate coupling factors. For instance, a banded
-        or multi-diagonal tensor can be used to specify inter-temporal coupling
-        for a time series covariance.
+        or multi-diagonal tensor can be used to specify inter-temporal
+        coupling for a time series covariance.
     l2 : nonnegative float (default 0)
-        L2 regularisation term to add to the maximum likelihood estimate of the
-        covariance matrix. This can be set to a positive value to obtain an
-        intermediate for estimating the regularised inverse covariance.
+        L2 regularisation term to add to the maximum likelihood estimate of
+        the covariance matrix. This can be set to a positive value to obtain
+        an intermediate for estimating the regularised inverse covariance.
 
     Returns
     -------
@@ -83,7 +83,9 @@ def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     else:
         sigma = X0 @ weight @ X0.transpose(-1, -2) / fact
     if l2 > 0:
-        sigma += l2 * torch.eye(X.size(-2), dtype=X.dtype, device=X.device)
+        sigma = sigma + l2 * torch.eye(
+            X.size(-2), dtype=X.dtype, device=X.device
+        )
     return sigma
 
 

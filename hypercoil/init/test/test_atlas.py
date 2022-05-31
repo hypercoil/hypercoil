@@ -176,6 +176,12 @@ class TestAtlasInit:
         #assert not torch.allclose(out, out2)
         assert torch.allclose(out2[..., (reorder - 1), :], out)
 
+        results = pkgrf(
+            'hypercoil',
+            'results/'
+        )
+        atlas.to_image(maps=lin.weight, save=f'{results}/atlas_copy.nii')
+
         """
         Let's keep this on CUDA only. It's extremely slow.
         from hypercoil.functional.cov import pairedcorr

@@ -2,7 +2,13 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Functional interfaces
+Functional interfaces.
+
+Functionals and neural network modules (in
+:doc:`hypercoil.nn <nn>`
+) constitute the elementary atoms of a differentiable program or
+computational graph. All operations are composable and differentiable
+unless explicitly specified.
 """
 from .cmass import (
     cmass_coor
@@ -18,12 +24,18 @@ from .crosssim import (
     crosshair_l2_similarity,
     crosshair_cosine_similarity
 )
+from .domainbase import complex_decompose, complex_recompose
 from .fourier import (
     product_filter,
     product_filtfilt
 )
 from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity
+)
+from .interpolate import (
+    hybrid_interpolate,
+    spectral_interpolate,
+    weighted_interpolate
 )
 from .matrix import (
     invert_spd, expand_outer, spd, symmetric,
@@ -37,7 +49,7 @@ from .noise import (
     UnstructuredNoiseSource, UnstructuredDropoutSource
 )
 from .polynomial import (
-    polychan, polyconv2d
+    polychan, polyconv2d, basischan, basisconv2d, tsconv2d
 )
 from .resid import (
     residualise
@@ -54,4 +66,10 @@ from .symmap import (
 from .semidefinite import (
     tangent_project_spd, cone_project_spd, mean_euc_spd, mean_harm_spd,
     mean_logeuc_spd, mean_geom_spd
+)
+from .utils import (
+    conform_mask,
+    apply_mask,
+    wmean,
+    threshold
 )

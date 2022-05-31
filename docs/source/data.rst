@@ -1,5 +1,5 @@
-Data engineering
-================
+``data``: Data engineering
+==========================
 
 .. automodule:: hypercoil.data
 

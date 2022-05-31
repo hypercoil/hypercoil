@@ -1,5 +1,5 @@
-fMRIDataReference
-=================
+``fMRIDataReference``
+=====================
 
 .. currentmodule:: hypercoil.data.neuro
 

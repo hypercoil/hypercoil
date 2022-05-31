@@ -8,12 +8,15 @@ Modules that linearly map voxelwise signals to labelwise signals.
 """
 import torch
 from operator import mul
-from functools import reduce
+from functools import reduce, partial
 from collections import OrderedDict
 from torch.nn import Module, Parameter, ParameterDict
 from torch.distributions import Bernoulli
+from ..engine.accumulate import Accumuline, AccumulatingFunction
+from ..engine.argument import ModelArgument, UnpackingModelArgument
 from ..functional.domain import Identity
 from ..functional.noise import UnstructuredDropoutSource
+from ..functional.utils import apply_mask
 from ..init.atlas import AtlasInit
 
 
@@ -269,3 +272,144 @@ class AtlasLinear(Module):
         s = f'{type(self).__name__}(atlas={self.atlas}, '
         s += f'mask={self.mask_input}, reduce={self.reduction})'
         return s
+
+
+def atlas_backward(atlas, grad_output, *grad_compartments):
+    """
+    Backward pass through the atlas layer. Any domain mapper gradients are not
+    included.
+
+    During the forward pass, compartment-specific local Jacobian matrices must
+    be cached as an iterable whose elements follow the same ordering as the
+    iteration through atlas preweights (parameters).
+    """
+    grad_output = grad_output.squeeze(0)
+    ret = []
+    offset = 0
+    i = 0
+    for name in atlas.preweight.keys():
+        code = atlas.atlas.decoder[name]
+        if not atlas.decode:
+            n_labels = len(code)
+            code = torch.arange(
+                offset,
+                offset + n_labels,
+                dtype=torch.long,
+                device=grad_output.device
+            )
+            offset += n_labels
+        grad_out_compartment = grad_output[code] @ grad_compartments[i]
+        ret += [grad_out_compartment]
+        # indexing seems a little dangerous
+        i += 1
+    return tuple(ret)
+
+
+def atlas_gradient(atlas, input, *args, **kwargs):
+    """
+    Local derivative across the atlas layer, of the output with respect to the
+    weights. For each compartment-specific weight, the local derivative is the
+    transpose of that compartment's time series.
+    """
+    compartment_grads = ModelArgument()
+    for name in atlas.preweight.keys():
+        compartment_ts = atlas.select_compartment(name, input)
+        compartment_grads[name] = compartment_ts.transpose(-1, -2)
+    return compartment_grads
+
+
+def atlas_accfn(atlas, input, acc, argmap=None, out=[], terminate=False):
+    fwd = AccumulatingFunction.apply
+    def bwd(grad_output, *grad_compartments):
+        return atlas_backward(atlas, grad_output, *grad_compartments)
+    if argmap is None: argmap = lambda x: ModelArgument(input=x)
+    params = [atlas.weight[name] for name in atlas.preweight.keys()]
+    return fwd(
+        acc,
+        bwd,
+        argmap,
+        input,
+        out,
+        terminate,
+        *params
+    )
+
+
+class AtlasAccumuline(Accumuline):
+    def __init__(
+        self,
+        atlas,
+        origin,
+        throughput,
+        batch_size,
+        image_key=None,
+        reduction=None,
+        argmap=None,
+        influx=None,
+        efflux=None,
+        lines=None,
+        transmit_filters=None,
+        receive_filters=None,
+        skip_local=False,
+        nonlocal_argmap=None,
+    ):
+        reduction = reduction or 'mean'
+        image_key = image_key or 'images'
+        argmap = argmap or (lambda x: ModelArgument(input=x))
+        gradient = partial(atlas_gradient, atlas=atlas)
+        accfn = partial(atlas_accfn, atlas=atlas, argmap=argmap)
+        local_argmap = self.argmap
+        influx = influx or (
+            lambda arg: UnpackingModelArgument(input=arg.images))
+        super().__init__(
+            model=atlas,
+            accfn=accfn,
+            gradient=gradient,
+            origin=origin,
+            retain_dims=(-1, -2),
+            throughput=throughput,
+            batch_size=batch_size,
+            reduction=reduction,
+            params=None,
+            influx=influx,
+            efflux=efflux,
+            lines=lines,
+            transmit_filters=transmit_filters,
+            receive_filters=receive_filters,
+            skip_local=skip_local,
+            local_argmap=local_argmap,
+            nonlocal_argmap=nonlocal_argmap,
+        )
+        self.coors = {}
+        self.masks = {}
+        self.ref = atlas.atlas
+        self.image_key = image_key
+        for name in self.model.preweight.keys():
+            compartment = self.ref.compartments[name]
+            self.masks[name] = compartment[atlas.mask]
+            self.coors[name] = self.ref.coors[self.masks[name]].t()
+
+    def argmap(self, input, atlas):
+        images = input[self.image_key]
+        # Note that we require a second forward pass to get our arg.
+        # Set skip_local if you don't need it.
+        output = self.model(images)
+        inputs = {
+            name : apply_mask(images, mask, -2)
+            for name, mask in self.masks.items()
+        }
+        inputs = ModelArgument(**inputs)
+        weights = ModelArgument(**self.model.weight)
+        preweights = ModelArgument(**self.model.preweight)
+        coors = ModelArgument(**self.coors)
+        return ModelArgument(
+            input=input,
+            ts=inputs,
+            output=output,
+            preweight=preweights,
+            weight=weights,
+            coor=coors
+        )
+
+    def forward(self):
+        return super().forward(atlas=self.model)

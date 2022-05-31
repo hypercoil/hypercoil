@@ -6,21 +6,79 @@ Diff terminals
 ~~~~~~~~~~~~~~
 Differentiable program terminals. Currently minimal functionality.
 """
-from torch.nn import Module
+from ..functional import conform_mask
+from .conveyance import Conveyance
+from .argument import ModelArgument, UnpackingModelArgument
 
 
-class Terminal(Module):
-    """
-    Right now, this does nothing whatsoever.
-    """
-    def __init__(self, loss, arg_factory=None):
-        super().__init__()
+class Terminal(Conveyance):
+    def __init__(
+        self,
+        loss,
+        args=None,
+        lines=None,
+        influx=None,
+        argbase=None,
+        arg_factory=None,
+        retain_graph=False,
+        receive_filters=None
+    ):
+        super().__init__(
+            lines=lines,
+            transmit_filters=None,
+            receive_filters=receive_filters
+        )
         self.loss = loss
+        self.args = args
+        self.name = self.loss.name
+        self.influx = influx or (lambda x: x)
+        self.argbase = argbase or ModelArgument()
+        self.arg_factory = arg_factory or ModelArgument()
+        self.retain_graph = True
+        self.reset()
 
-    def forward(self, arg):
-        return self.loss(**arg)
+    def _transmit(self, loss_value):
+        from ..loss import LossScheme
+        # This is a terminal. It conveys data no further.
+        if not isinstance(self.loss, LossScheme):
+            self.message.update(
+                ('NAME', self.loss.name),
+                ('LOSS', loss_value.detach().item()),
+                ('NU', self.loss.nu)
+            )
+            for s in self.listeners:
+                s._listen(self.message)
+        self.reset()
+
+    def reset(self):
+        self.message.clear()
+        argtype = type(self.argbase)
+        self.arg = argtype(**self.argbase)
+
+    def release(self):
+        for k, v in self.arg_factory.items():
+            self.arg.update((k, v()))
+        self.arg = self.influx(self.arg)
+        if isinstance(self.arg, UnpackingModelArgument):
+            loss = self.loss(**self.arg)
+        else:
+            loss = self.loss(self.arg)
+        self._transmit(loss)
+        loss.backward(retain_graph=self.retain_graph)
+        return loss
+
+    def forward(self, arg, line=None):
+        input = self._filter_received(arg, line)
+        self.arg.update(**input)
+        for arg in self.args:
+            if arg not in self.arg and arg not in self.arg_factory:
+                return
+        loss = self.release()
+        return loss
 
 
+##TODO: when this extreme development period is over, we need to refactor this
+# and split terminal-dependent functionality from non-dependent.
 class ReactiveTerminal(Terminal):
     """
     Right now, this is just an abstraction to handle salami slicing when the
@@ -32,14 +90,14 @@ class ReactiveTerminal(Terminal):
     """
     def __init__(self, loss, slice_target, slice_axis, max_slice,
                  normalise_by_len=True, pretransforms=None):
-        super().__init__(loss=loss)
+        super().__init__(loss=loss, retain_graph=False)
         self.slice_target = slice_target
         self.slice_axis = slice_axis
         self.max_slice = max_slice
         self.normalise_by_len = normalise_by_len
         self.pretransforms = pretransforms or {}
 
-    def forward(self, arg):
+    def forward(self, arg, axis_mask=None):
         pretransform = {}
         for k in self.pretransforms.keys():
             if k != self.slice_target:
@@ -47,6 +105,15 @@ class ReactiveTerminal(Terminal):
         slice_target = arg.__getitem__(self.slice_target)
         slc = [slice(None) for _ in range(slice_target.dim())]
         total = slice_target.shape[self.slice_axis]
+        if axis_mask is not None:
+            axis_mask = conform_mask(
+                slice_target,
+                axis_mask,
+                self.slice_axis,
+                batch=True
+            )
+            slice_target = slice_target * axis_mask
+            norm_fac = axis_mask.sum()
         begin = 0
         loss = 0
         while begin < total:
@@ -60,12 +127,17 @@ class ReactiveTerminal(Terminal):
                 else:
                     arg.__setitem__(k, v(sliced))
             Y = self.loss(**arg)
-            if self.normalise_by_len:
+            if self.normalise_by_len and axis_mask is not None:
+                mask_sliced = axis_mask[slc]
+                l = mask_sliced.sum()
+                Y = Y * l / norm_fac
+            elif self.normalise_by_len:
                 l = sliced.shape[self.slice_axis]
                 Y = Y * l / total
             loss += Y
             Y.backward()
             begin += self.max_slice
+        self._transmit(loss)
         return loss
 
 
@@ -120,4 +192,5 @@ class ReactiveMultiTerminal(Terminal):
             loss += Y
             Y.backward()
             begin += self.max_slice
+        self._transmit(loss)
         return loss

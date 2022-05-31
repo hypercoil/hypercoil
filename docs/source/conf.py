@@ -70,3 +70,8 @@ html_static_path = ['_static']
 
 #numpydoc_show_class_members = False
 numpydoc_show_inherited_class_members = False
+
+html_logo = "_static/logo.svg"
+html_theme_options = {
+  "show_prev_next": False
+}
