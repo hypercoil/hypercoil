@@ -2,9 +2,15 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Centre of mass
-~~~~~~~~~~~~~~
 Differentiably compute a weight's centre of mass.
+
+Functionality is available that operates on the "intrinsic" mesh grid
+coordinates of a tensor
+(:func:`cmass`, :func:`cmass_reference_displacement_grid`)
+or that takes the last axis of a tensor to correspond
+to different locations and accepts a second argument that indicates explicitly
+the coordinates of each location
+(:func:`cmass_coor`, :func:`diffuse`, :func:`cmass_reference_displacement`).
 """
 import torch
 from functools import partial
@@ -19,13 +25,13 @@ def cmass(X, axes=None, na_rm=False):
     regularise the weight so that its centre of mass is close to a provided
     coordinate.
 
-    Dimension
-    ---------
-    - Input: :math:`(*, k_1, k_2, ..., k_n)`
-      `*` denotes any number of batch and intervening dimensions, and the
-      `k_i`s are dimensions along which the centre of mass is computed
-    - Output: :math:`(*, n)`
-      `n` denotes the number of dimensions of each centre of mass vector
+    :Dimension: **Input :** :math:`(*, k_1, k_2, ..., k_n)`
+                    `*` denotes any number of batch and intervening
+                    dimensions, and the `k_i`s are dimensions along which the
+                    centre of mass is computed
+                **Output :** :math:`(*, n)`
+                    `n` denotes the number of dimensions of each centre of
+                    mass vector
 
     Parameters
     ----------
@@ -50,7 +56,7 @@ def cmass(X, axes=None, na_rm=False):
     -------
     cmass : Tensor
         Centre of mass vectors for each slice from the input tensor. The
-        coordinates are ordered according to the specification in `axes`.
+        coordinates are ordered according to the specification in ``axes``.
     """
     dim = X.size()
     ndim = X.dim()
@@ -77,6 +83,8 @@ def cmass(X, axes=None, na_rm=False):
 def cmass_reference_displacement_grid(weight, refs, axes=None, na_rm=False):
     """
     Displacement of centres of mass from reference points -- grid version.
+
+    See :func:`cmass` for parameter specifications.
     """
     cm = cmass(weight, axes=axes, na_rm=na_rm)
     return cm - refs
@@ -84,8 +92,10 @@ def cmass_reference_displacement_grid(weight, refs, axes=None, na_rm=False):
 
 def cmass_reference_displacement(weight, refs, coor, radius=None):
     """
-    Displacement of centres of mass from reference points -- coordinate
-    version.
+    Displacement of centres of mass from reference points -- explicit
+    coordinate version.
+
+    See :func:`cmass_coor` for parameter specifications.
     """
     cm = cmass_coor(weight, coor, radius=radius)
     return cm - refs
@@ -117,7 +127,8 @@ def cmass_coor(X, coor, radius=None):
     -------
     Tensor
         Tensor containing the coordinates of the centre of mass of each row of
-        input X.
+        input X. Coordinates are ordered as in the second-to-last axis of
+        ``coor``.
     """
     num = (X.unsqueeze(-3) * coor.unsqueeze(-2)).sum(-1)
     denom = X.sum(-1)
@@ -133,7 +144,7 @@ def diffuse(X, coor, norm=2, floor=0, radius=None):
 
     The compactness is defined as
 
-    :math:`\mathbf{1}^\intercal\left(A \circ \left\|C - \frac{C \circ A}{\mathbf{1}^\intercal A} \right\|_{cols} \right)\mathbf{1}`
+    :math:`\mathbf{1}^\intercal\left(A \circ \left\|C - \frac{AC}{A\mathbf{1}} \right\|_{cols} \right)\mathbf{1}`
 
     :Dimension: **Input :** :math:`(*, W, L)`
                     ``*`` denotes any number of preceding dimensions, W

@@ -42,7 +42,7 @@ initialisations). Existing subclasses include
 - :doc:`DirichletInitVolumetricAtlas <hypercoil.init.atlas.DirichletInitVolumetricAtlas>`
   implements a volumetric atlas whose voxel-label annotations are initialised
   as random, i.i.d. samples from a Dirichlet distribution.
-- :doc:`DirichletInitSurfaceAtlas <hypercoil.init.atlas DirichletInitSurfaceAtlas>`
+- :doc:`DirichletInitSurfaceAtlas <hypercoil.init.atlas.DirichletInitSurfaceAtlas>`
   implements a surface-based atlas compartmentalised into left and right
   cerebral cortex and subcortex. Voxel- and vertex-label annotations are
   initialised as random, i.i.d. samples from a Dirichlet distribution.

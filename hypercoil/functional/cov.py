@@ -11,7 +11,7 @@ correlation.
 
 .. note::
     At some point, whatever functionality it is possible to delegate to
-    ``torch`` directly (specifically, ``torch.cov`` and ``torch.corrcoef``)
+    ``torch`` directly (specifically, to ``torch.cov`` and ``torch.corrcoef``)
     will likely be removed or aliased to improve performance.
 """
 import torch
