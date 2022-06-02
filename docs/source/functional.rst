@@ -7,8 +7,8 @@
    :maxdepth: 2
 
    api/hypercoil.functional.activation
-   api/hypercoil.functional.cmass.cmass_coor
-   api/hypercoil.functional.cmass.diffuse
+   api/hypercoil.functional.cmass
    api/hypercoil.functional.cov
-   api/hypercoil.functional.fourier.product_filter
-   api/hypercoil.functional.fourier.product_filtfilt
+   api/hypercoil.functional.fourier
+   api/hypercoil.functional.graph
+   api/hypercoil.functional.interpolate
