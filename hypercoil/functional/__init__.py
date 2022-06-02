@@ -24,7 +24,6 @@ from .crosssim import (
     crosshair_l2_similarity,
     crosshair_cosine_similarity
 )
-from .domainbase import complex_decompose, complex_recompose
 from .fourier import (
     product_filter,
     product_filtfilt
@@ -68,6 +67,8 @@ from .semidefinite import (
     mean_logeuc_spd, mean_geom_spd
 )
 from .utils import (
+    complex_decompose,
+    complex_recompose,
     conform_mask,
     apply_mask,
     wmean,

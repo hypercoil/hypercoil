@@ -9,7 +9,7 @@ Convolve the signal via multiplication in the Fourier domain.
 import torch
 import torch.fft
 from .cov import corr
-from .domainbase import complex_decompose
+from .utils import complex_decompose
 
 
 def product_filter(X, weight, **params):

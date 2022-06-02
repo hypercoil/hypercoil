@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from hypercoil.engine import Sentry
-from hypercoil.functional.domainbase import complex_decompose
+from hypercoil.functional import complex_decompose
 
 
 class StreamPlot(Sentry):

@@ -16,7 +16,7 @@ from .mix import (
     synthesise_mixture,
     mix_data
 )
-from hypercoil.functional.activation import complex_decompose
+from hypercoil.functional import complex_decompose
 
 
 APPROX_ORTHO_THRESH = 0.1
