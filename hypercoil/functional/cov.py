@@ -2,14 +2,24 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Covariance
-~~~~~~~~~~
-Differentiable estimation of covariance and derived measures
+Differentiable estimation of covariance and derived measures.
+
+Functional connectivity is a measure of the statistical relationship between
+(localised) time series signals. It is typically operationalised as some
+derivative of the covariance between the time series, most often the Pearson
+correlation.
+
+.. note::
+    At some point, whatever functionality it is possible to delegate to
+    ``torch`` directly (specifically, ``torch.cov`` and ``torch.corrcoef``)
+    will likely be removed or aliased to improve performance.
 """
 import torch
 from .matrix import invert_spd
 
 
+#TODO: Use `torch.cov` and `torch.corr` where possible now that they have been
+# integrated.
 def cov(X, rowvar=True, bias=False, ddof=None, weight=None, l2=0):
     """
     Empirical covariance of variables in a tensor batch.
@@ -101,7 +111,7 @@ def corr(X, **params):
     entry of the correlation matrix :math:`R \in \mathbb{R}^{n \times n}` is
     defined according to
 
-    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\hat{\Sigma}_{ii} \hat{\Sigma}_{ij}}`
+    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\sqrt{\hat{\Sigma}_{ii}} \sqrt{\hat{\Sigma}_{jj}}}`
     """
     sigma = cov(X, **params)
     fact = corrnorm(sigma)
@@ -208,7 +218,7 @@ def pairedcorr(X, Y, **params):
     paired correlation matrix :math:`R \in \mathbb{R}^{n \times n}`
     is defined according to
 
-    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\hat{\Sigma}_{ii} \hat{\Sigma}_{ij}}`
+    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\sqrt{\hat{\Sigma}_{ii}} \sqrt{\hat{\Sigma}_{jj}}}`
     """
     varX, varY = torch.var(X, -1, keepdim=True), torch.var(Y, -1, keepdim=True)
     fact = torch.sqrt(varX @ varY.transpose(-2, -1))
@@ -221,10 +231,12 @@ def conditionalcov(X, Y, **params):
 
     The conditional covariance is the covariance of one set of variables X
     conditioned on another set of variables Y. The conditional covariance is
-    computed from the covariance A of X , the covariance C of Y, and the
-    covariance B between X and Y. It is defined as the Schur complement of C:
+    computed from the covariance :math:`\Sigma_{XX}` of X ,
+    the covariance :math:`\Sigma_{YY}` of Y, and the
+    covariance :math:`\Sigma_{XY}` between X and Y.
+    It is defined as the Schur complement of :math:`\Sigma_{YY}`:
 
-    :math:`\widetilde{\Sigma} = A - B C^{-1} B^\intercal`
+    :math:`\Sigma_{X|Y} = \Sigma_{XX} - \Sigma_{XY} \Sigma_{YY}^{-1} \Sigma_{XY}^\intercal`
 
     The conditional covariance is equivalent to the covariance of the first set
     of variables after residualising them with respect to the second set of
@@ -293,7 +305,7 @@ def conditionalcorr(X, Y, **params):
     conditional correlation matrix :math:`R \in \mathbb{R}^{n \times n}`
     is defined according to
 
-    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\hat{\Sigma}_{ii} \hat{\Sigma}_{ij}}`
+    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\sqrt{\hat{\Sigma}_{ii}} \sqrt{\hat{\Sigma}_{jj}}}`
     """
     sigma = conditionalcov(X, Y, **params)
     fact = corrnorm(sigma)

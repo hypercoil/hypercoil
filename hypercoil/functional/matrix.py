@@ -331,6 +331,10 @@ def _populate_toeplitz(c, r, obj_shp, dtype=None, device=None):
 
     Thanks to https://github.com/cornellius-gp/gpytorch/blob/master/gpytorch/utils/toeplitz.py
     for ideas toward a faster implementation.
+
+    #TODO: This might be iterating over elements in an order that is almost
+    adversarially bad. Conform it to the gpytorch implementation if the need
+    arises.
     """
     if dtype is None:
         dtype = c.dtype

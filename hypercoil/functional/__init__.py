@@ -5,8 +5,8 @@
 Functional interfaces.
 
 Functionals and neural network modules (in
-:doc:`hypercoil.nn <nn>`
-) constitute the elementary atoms of a differentiable program or
+:doc:`hypercoil.nn <nn>`)
+constitute the elementary atoms of a differentiable program or
 computational graph. All operations are composable and differentiable
 unless explicitly specified.
 """
