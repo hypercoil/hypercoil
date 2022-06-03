@@ -8,7 +8,7 @@ Base initialiser for a module.
 """
 import torch
 from functools import partial
-from ..functional.domainbase import Identity
+from .domainbase import Identity
 
 
 def from_distr_init_(tensor, distr):
@@ -106,7 +106,7 @@ class DomainInitialiser(object):
         preweight and the weight "seen" by the data. It must have a `preimage`
         method that maps values in the weight domain to their preimage under
         the function: the corresponding values in the preweight domain.
-        Examples are provided in `functional.domain`. If no `domain` is
+        Examples are provided in `init.domain`. If no `domain` is
         explicitly specified, `DomainInitialiser` defaults to identity
         (preweight and weight are the same).
     """

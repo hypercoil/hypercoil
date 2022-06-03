@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 import torch
 from hypercoil.nn import FrequencyDomainFilter
-from hypercoil.functional.domain import Identity
+from hypercoil.init.domain import Identity
 from hypercoil.init.freqfilter import (
     FreqFilterSpec,
     freqfilter_init_,

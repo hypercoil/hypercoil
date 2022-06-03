@@ -12,7 +12,7 @@ import numpy as np
 from matplotlib.pyplot import close
 from hypercoil.init import FreqFilterSpec
 from hypercoil.functional import corr, complex_decompose
-from hypercoil.functional.domain import (
+from hypercoil.init.domain import (
     Identity,
     AmplitudeMultiLogit
 )

@@ -9,7 +9,7 @@ Tools for initialising parameters for an IIR filter layer.
 import torch
 from scipy import signal
 from numpy.random import uniform
-from hypercoil.functional.domain import Identity
+from .domain import Identity
 
 
 class IIRFilterSpec(object):

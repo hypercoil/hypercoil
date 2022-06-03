@@ -10,7 +10,7 @@ import torch
 from torch.nn import Module, Parameter
 from itertools import chain
 from ..functional import product_filtfilt
-from ..functional.domain import AmplitudeAtanh, Clip
+from ..init.domain import AmplitudeAtanh, Clip
 from ..init.freqfilter import freqfilter_init_, clamp_init_
 
 
@@ -56,7 +56,7 @@ class FrequencyDomainFilter(Module):
         back. By default, the `product_filtfilt` function is used to ensure a
         zero-phase filter.
     domain : Domain object (default AmplitudeAtanh)
-        A domain object from `hypercoil.functional.domain`, used to specify
+        A domain object from `hypercoil.init.domain`, used to specify
         the domain of the filter spectrum. An `Identity` object yields the
         raw transfer function, while an `AmplitudeAtanh` object transforms
         the amplitudes of each bin by the inverse tanh (atanh) function prior

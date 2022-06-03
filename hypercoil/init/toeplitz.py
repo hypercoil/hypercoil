@@ -10,7 +10,7 @@ import torch
 from functools import partial
 from .base import BaseInitialiser
 from ..functional import toeplitz
-from ..functional.domain import Identity
+from .domain import Identity
 
 
 def toeplitz_init_(tensor, c, r=None, fill_value=0, domain=None):
@@ -44,7 +44,7 @@ def toeplitz_init_(tensor, c, r=None, fill_value=0, domain=None):
         the Atanh domain with default scale constrains the tensor as seen by
         data to the range of the tanh function, (-1, 1). Domain objects can
         be used with compatible modules and are documented further in
-        `hypercoil.functional.domain`. If no domain is specified, the Identity
+        `hypercoil.init.domain`. If no domain is specified, the Identity
         domain is used, which does not apply any transformations or
         constraints.
 

@@ -7,7 +7,7 @@ Unit tests for Dirichlet initialisation
 import pytest
 import torch
 from hypercoil.init.dirichlet import DirichletInit
-from hypercoil.functional.domain import Identity
+from hypercoil.init.domain import Identity
 
 
 class TestDirichletInit:

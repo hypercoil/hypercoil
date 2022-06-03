@@ -45,7 +45,7 @@ from hypercoil.nn import (
     UnaryCovarianceUW
 )
 from hypercoil.data.functional import window_map
-from hypercoil.functional.domain import (
+from hypercoil.init.domain import (
     AmplitudeMultiLogit,
     AmplitudeAtanh
 )

@@ -24,8 +24,8 @@ from hypercoil.engine import (
 )
 from hypercoil.engine.ephemeral import SGDEphemeral
 from hypercoil.functional import corr, sym2vec, vec2sym
-from hypercoil.functional.domainbase import Identity
-from hypercoil.functional.domain import MultiLogit
+from hypercoil.init.domainbase import Identity
+from hypercoil.init.domain import MultiLogit
 from hypercoil.functional.matrix import toeplitz
 from hypercoil.functional.resid import residualise
 from hypercoil.init.atlas import (

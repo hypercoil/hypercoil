@@ -35,7 +35,7 @@ Loss functions using the entropy of a (categorical) distribution.
     certainly undesirable. For this reason, it is recommended that some
     constraint be imposed on the input set when placing a penalty on entropy.
     One possibility is using a
-    :doc:`multi-logit (softmax) domain mapper <hypercoil.functional.domain.MultiLogit>`
+    :doc:`multi-logit (softmax) domain mapper <hypercoil.init.domain.MultiLogit>`
     to first project the input weights onto the probability simplex.
 """
 import torch

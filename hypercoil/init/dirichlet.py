@@ -11,7 +11,7 @@ import torch
 from functools import partial
 from torch.distributions.dirichlet import Dirichlet
 from .base import DomainInitialiser
-from ..functional.domain import MultiLogit
+from .domain import MultiLogit
 
 
 def dirichlet_init_(tensor, distr, axis=-1):
@@ -75,7 +75,7 @@ class DirichletInit(DomainInitialiser):
         the MultiLogit domain constrains slices of the tensor (as seen by
         data) to lie in the appropriate probability simplex. Domain objects
         can be used with compatible modules and are documented further in
-        `hypercoil.functional.domain`. If no domain is specified, the
+        `hypercoil.init.domain`. If no domain is specified, the
         MultiLogit domain is used.
     """
     def __init__(self, n_classes, concentration=None, axis=-1, domain=None):

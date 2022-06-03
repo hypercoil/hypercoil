@@ -99,8 +99,8 @@ from .atlasmixins import (
 from .base import DomainInitialiser
 from .dirichlet import DirichletInit
 from ..functional import UnstructuredNoiseSource
-from ..functional.domainbase import Identity
-from ..functional.domain import MultiLogit
+from .domainbase import Identity
+from .domain import MultiLogit
 
 
 class BaseAtlas(ABC):

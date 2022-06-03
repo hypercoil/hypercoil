@@ -8,8 +8,8 @@ Tools for initialising parameters to emulate the transfer function of a filter.
 """
 import torch
 import math
-from ..functional.domain import AmplitudeAtanh, Clip
-from ..functional.activation import complex_recompose
+from .domain import AmplitudeAtanh, Clip
+from ..functional.utils import complex_recompose
 
 
 class FreqFilterSpec(object):

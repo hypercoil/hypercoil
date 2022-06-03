@@ -8,7 +8,7 @@ Initialise parameters as a set of delta functions, plus Gaussian noise.
 """
 import torch
 from functools import partial
-from ..functional.domain import Identity
+from .domain import Identity
 from .base import BaseInitialiser
 
 
@@ -35,7 +35,7 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
         the Atanh domain with default scale constrains the tensor as seen by
         data to the range of the tanh function, (-1, 1). Domain objects can
         be used with compatible modules and are documented further in
-        `hypercoil.functional.domain`. If no domain is specified, the Identity
+        `hypercoil.init.domain`. If no domain is specified, the Identity
         domain is used, which does not apply any transformations or
         constraints.
 

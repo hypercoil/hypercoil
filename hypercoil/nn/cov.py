@@ -9,7 +9,7 @@ Modules supporting covariance estimation.
 import torch
 from torch.nn import Module, Parameter, init
 from ..functional.activation import laplace
-from ..functional.domain import Identity
+from ..init.domain import Identity
 from ..functional.matrix import toeplitz, expand_outer
 from ..init.base import (
     BaseInitialiser,

@@ -24,7 +24,7 @@ tensor.
     loss could be improved by simply shrinking all weights.) For this reason,
     we can either normalise the loss or situate the parcellation tensor in the
     probability simplex using a
-    :doc:`multi-logit (softmax) domain mapper <hypercoil.functional.domain.MultiLogit>`.
+    :doc:`multi-logit (softmax) domain mapper <hypercoil.init.domain.MultiLogit>`.
 
     The parcel equilibrium attains a minimum when parcels are equal in their
     total weight. It has a trivial and uninteresting minimum where all parcel

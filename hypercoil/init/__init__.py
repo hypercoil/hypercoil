@@ -21,7 +21,7 @@ signals. For the case of the atlas layer, for instance, hard parcels can be
 smoothed (in either Euclidean or
 :doc:`spherical topology <api/hypercoil.functional.sphere>`
 ) or pre-transformed through a
-:doc:`multi-logit <api/hypercoil.functional.domain.MultiLogit>`
+:doc:`multi-logit <api/hypercoil.init.domain.MultiLogit>`
 (softmax) domain transformation to change the properties of the gradients they
 receive.
 
@@ -29,7 +29,7 @@ Also available are more general initialisation schemes for use cases where a
 clean slate is desired as a starting point. For example, a random
 :doc:`Dirichlet initialisation <api/hypercoil.init.dirichlet>`
 , when combined with a
-:doc:`multi-logit domain <api/hypercoil.functional.domain.MultiLogit>`
+:doc:`multi-logit domain <api/hypercoil.init.domain.MultiLogit>`
 , lends columns in a parcellation matrix the intuitive interpretation of
 probability distributions over parcels.
 

@@ -11,7 +11,7 @@ import torch
 from torch.nn import Module, Linear, Parameter, ParameterDict
 from torch.nn.functional import leaky_relu
 from functools import partial
-from ..functional.domain import Logit
+from ..init.domain import Logit
 from ..functional import basischan, basisconv2d, tsconv2d, threshold
 from ..init.dirichlet import DirichletInit
 from ..init.base import (

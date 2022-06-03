@@ -7,7 +7,7 @@ Unit tests for preimage/image mappers
 import pytest
 import numpy as np
 import torch
-from hypercoil.functional.domain import (
+from hypercoil.init.domain import (
     Clip, Normalise, Identity, Linear,
     Logit, MultiLogit, AmplitudeMultiLogit,
     Atanh, AmplitudeAtanh,

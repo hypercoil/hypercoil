@@ -14,7 +14,7 @@ from torch.nn import Module, Parameter, ParameterDict
 from torch.distributions import Bernoulli
 from ..engine.accumulate import Accumuline, AccumulatingFunction
 from ..engine.argument import ModelArgument, UnpackingModelArgument
-from ..functional.domain import Identity
+from ..init.domain import Identity
 from ..functional.noise import UnstructuredDropoutSource
 from ..functional.utils import apply_mask
 from ..init.atlas import AtlasInit
@@ -62,7 +62,7 @@ class AtlasLinear(Module):
         random dropout will be sampled until the criterion is satisfied. Has no
         effect if `spatial_dropout` is zero.
     domain : Domain object (default Identity)
-        A domain object from `hypercoil.functional.domain`, used to specify
+        A domain object from `hypercoil.init.domain`, used to specify
         the domain of the atlas weights. An `Identity` object yields the raw
         atlas weights, while an `Atanh` object constrains weights to (-a, a),
         and a `Logit` object constrains weights to (0, a) by transforming the

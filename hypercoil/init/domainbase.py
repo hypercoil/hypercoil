@@ -8,7 +8,7 @@ Functional image and preimage mappers and supporting utilities.
 """
 import math
 import torch
-from .utils import complex_decompose, complex_recompose
+from ..functional.utils import complex_decompose, complex_recompose
 
 
 class _OutOfDomainHandler(object):

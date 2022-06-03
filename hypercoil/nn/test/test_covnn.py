@@ -17,7 +17,7 @@ from hypercoil.functional.noise import (
     DiagonalNoiseSource, DiagonalDropoutSource, BandDropoutSource
 )
 from hypercoil.functional.utils import apply_mask
-from hypercoil.functional.domain import Logit
+from hypercoil.init.domain import Logit
 
 
 class TestCovNN:
