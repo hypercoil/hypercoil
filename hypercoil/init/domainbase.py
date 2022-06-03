@@ -2,9 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Basic domains
-~~~~~~~~~~~~~
-Functional image and preimage mappers and supporting utilities.
+Functional image and preimage mappers and supporting functionality.
 """
 import math
 import torch
@@ -14,7 +12,7 @@ from ..functional.utils import complex_decompose, complex_recompose
 class _OutOfDomainHandler(object):
     """
     System for evaluating and modifying out-of-domain entries prior to preimage
-    mapping to ensure that `nan` values are not introduced.
+    mapping to ensure that ``nan`` values are not introduced.
     """
     def __repr__(self):
         return f'{type(self).__name__}()'
@@ -81,13 +79,13 @@ class Normalise(_OutOfDomainHandler):
     the tensor will be edited, and a single extreme outlier can destroy the
     variance in the dataset. If you are considering using this because most of
     the data you expect to see will be outside of the prescribed domain,
-    consider using a different domain first (for instance, using the `scale`
+    consider using a different domain first (for instance, using the ``scale``
     parameter to accommodate a larger feasible interval).
 
     The normalisation procedure works by mapping the original range of
-    observations, [obs_min, obs_max], to
-    [max(obs_min, lbound), min(obs_max, ubound)] while preserving relative
-    distances between observations.
+    observations, [``obs_min``, ``obs_max``], to
+    [max(``obs_min``, ``lbound``), min(``obs_max``, ``ubound``)] while
+    preserving relative distances between observations.
     """
     def apply(self, x, bound, axis=None):
         """
@@ -160,7 +158,7 @@ class _Domain(torch.nn.Module):
         purposes: avoiding infinities when the tensor's values include the
         supremum or infimum of an asymptotic function and restricting parameter
         values to a range where the gradient has not vanished.
-    handler : _OutOfDomainHandler object (default Clip)
+    handler : _OutOfDomainHandler object (default :class:`Clip`)
         Object specifying a method for handling out-of-domain entries.
     """
     def __init__(self, loc=0, scale=1, bound=None, limits=None, handler=None):

@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Domains
-~~~~~~~
 Functional image and preimage mappers.
 """
 import torch
@@ -28,10 +26,10 @@ class Atanh(_Domain):
     limits : (float min, float max) (default -3, 3)
         Minimum and maximum values in the preimage itself. Used for two
         purposes: avoiding infinities when the tensor's values include the
-        supremum or infimum of an asymptotic function (i.e., -`scale` or
-        `scale`) and restricting parameter values to a range where the
+        supremum or infimum of an asymptotic function (i.e., -``scale`` or
+        ``scale``) and restricting parameter values to a range where the
         gradient has not vanished.
-    handler : _OutOfDomainHandler object (default Clip)
+    handler : _OutOfDomainHandler object (default :doc:`Clip <hypercoil.init.domainbase.Clip>`)
         Object specifying a method for handling out-of-domain entries.
     """
     def __init__(self, scale=1, handler=None, limits=(-3, 3)):
@@ -58,10 +56,10 @@ class AmplitudeAtanh(_PhaseAmplitudeDomain, Atanh):
     limits : (float min, float max) (default -3, 3)
         Minimum and maximum values in the preimage itself. Used for two
         purposes: avoiding infinities when the tensor's values include the
-        supremum or infimum of an asymptotic function (i.e., `scale`) and
+        supremum or infimum of an asymptotic function (i.e., ``scale``) and
         restricting parameter values to a range where the gradient has not
         vanished.
-    handler : _OutOfDomainHandler object (default Clip)
+    handler : _OutOfDomainHandler object (default :doc:`Clip <hypercoil.init.domainbase.Clip>`)
         Object specifying a method for handling out-of-domain entries.
     """
     pass
@@ -81,10 +79,10 @@ class Logit(_Domain):
     limits : (float min, float max) (default -4.5, 4.5)
         Minimum and maximum values in the preimage itself. Used for two
         purposes: avoiding infinities when the tensor's values include the
-        supremum or infimum of an asymptotic function (i.e., 0 or `scale`) and
-        restricting parameter values to a range where the gradient has not
+        supremum or infimum of an asymptotic function (i.e., 0 or ``scale``)
+        and restricting parameter values to a range where the gradient has not
         vanished.
-    handler : _OutOfDomainHandler object (default Clip)
+    handler : _OutOfDomainHandler object (default :doc:`Clip <hypercoil.init.domainbase.Clip>`)
         Object specifying a method for handling out-of-domain entries.
     """
     def __init__(self, scale=1, loc=None, handler=None, limits=(-4.5, 4.5)):
@@ -97,6 +95,7 @@ class Logit(_Domain):
         self.image_map = torch.sigmoid
 
 
+#TODO: add temperature parameter
 class MultiLogit(_Domain):
     """
     Softmax domain mapper. Maps between a multinomial logit space and
@@ -105,7 +104,7 @@ class MultiLogit(_Domain):
     The forward function is a softmax. Note that the softmax function does
     not have a unique inverse; here we use the elementwise natural logarithm
     as an 'inverse'. For a relatively well-behaved map, use together with
-    `init.dirichlet.DirichletInit`
+    :doc:`Dirichlet initialisation <init.dirichlet.DirichletInit>`.
 
     Parameters
     ----------
@@ -114,14 +113,14 @@ class MultiLogit(_Domain):
         probability simplex.
     minim : nonnegative float (default 1e-3)
         Before it is mapped to its preimage, an input is bounded to the closed
-        interval [`minim`, 1 - `minim`]. This serves two purposes: avoiding
-        infinities when the tensor's values include the supremum or infimum
-        (0 and 1) and restricting parameter values to a range where the
-        gradient has not vanished.
+        interval [``minim``, 1 - ``minim``]. This serves two purposes:
+        avoiding infinities when the tensor's values include the supremum or
+        infimum (0 and 1) and restricting parameter values to a range where
+        the gradient has not vanished.
     smoothing : nonnegative float (default 0)
         For use in preimage mapping. Increasing the smoothing will result in
         a higher-entropy / more equiprobable image.
-    handler : _OutOfDomainHandler object (default Clip)
+    handler : _OutOfDomainHandler object (default :doc:`Clip <hypercoil.init.domainbase.Clip>`)
         Object specifying a method for handling out-of-domain entries.
     """
     def __init__(self, axis=-1, minim=1e-3, smoothing=0, handler=None):
@@ -149,11 +148,11 @@ class AmplitudeMultiLogit(_PhaseAmplitudeDomain, MultiLogit):
         probability simplex.
     minim : nonnegative float (default 1e-3)
         Before it is mapped to its preimage, an input's amplitude is bounded
-        to the closed interval [`minim`, 1 - `minim`]. This serves two
+        to the closed interval [``minim``, 1 - ``minim``]. This serves two
         purposes: avoiding infinities when the tensor's amplitudes include the
         supremum or infimum (0 and 1) and restricting parameter values to a
         range where the gradient has not vanished.
-    handler : _OutOfDomainHandler object (default Clip)
+    handler : _OutOfDomainHandler object (default :doc:`Clip <hypercoil.init.domainbase.Clip>`)
         Object specifying a method for handling out-of-domain entries.
     """
     pass
@@ -167,7 +166,7 @@ class NullOptionMultiLogit(_Domain):
 
     The forward function is a softmax followed by deletion of the null option.
     Note that this function does not even come close to having a unique
-    inverse; the `preimage_map` should really only be used for initialising
+    inverse; the ``preimage_map`` should really only be used for initialising
     weights in this domain.
 
     Parameters
@@ -177,14 +176,14 @@ class NullOptionMultiLogit(_Domain):
         probability simplex.
     minim : nonnegative float (default 1e-4)
         Before it is mapped to its preimage, a (normalised) input is bounded
-        to the closed interval [`minim`, 1 - `minim`]. This serves two
+        to the closed interval [``minim``, 1 - ``minim``]. This serves two
         purposes: avoiding infinities when the tensor's values include the
         supremum or infimum (0 and 1) and restricting parameter values to a
         range where the gradient has not vanished.
     buffer : nonnegative float (default 1e-4)
         Buffer added when computing the normalisation. Serves a similar
-        purpose to `minim`. TODO: add a formula here...
-    handler : _OutOfDomainHandler object (default Clip)
+        purpose to ``minim``. TODO: add a formula here...
+    handler : _OutOfDomainHandler object (default :doc:`Clip <hypercoil.init.domainbase.Clip>`)
         Object specifying a method for handling out-of-domain entries.
     """
     def __init__(self, axis=-1, minim=1e-4, buffer=1e-4, handler=None):
@@ -244,11 +243,11 @@ class ANOML(_PhaseAmplitudeDomain, NullOptionMultiLogit):
         probability simplex.
     minim : nonnegative float (default 1e-3)
         Before it is mapped to its preimage, a (normalised) input's amplitude
-        is bounded to the closed interval [`minim`, 1 - `minim`]. This serves
-        two purposes: avoiding infinities when the tensor's amplitudes include
-        the supremum or infimum (0 and 1) and restricting parameter values to
-        a range where the gradient has not vanished.
-    handler : _OutOfDomainHandler object (default Clip)
+        is bounded to the closed interval [``minim``, 1 - ``minim``]. This
+        serves two purposes: avoiding infinities when the tensor's amplitudes
+        include the supremum or infimum (0 and 1) and restricting parameter
+        values to a range where the gradient has not vanished.
+    handler : _OutOfDomainHandler object (default :doc:`Clip <hypercoil.init.domainbase.Clip>`)
         Object specifying a method for handling out-of-domain entries.
     """
     def __init__(self, axis=-1, minim=1e-4, buffer=1e-4, handler=None):
