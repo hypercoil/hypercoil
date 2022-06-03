@@ -93,3 +93,25 @@ from .freqfilter import (
 from .iirfilter import (
     IIRFilterSpec
 )
+from .laplace import (
+    laplace_init_,
+    LaplaceInit
+)
+from .mpbl import (
+    BipartiteLatticeInit
+)
+from .semidefinite import (
+    tangency_init_,
+    TangencyInit,
+    SPDEuclideanMean,
+    SPDHarmonicMean,
+    SPDLogEuclideanMean,
+    SPDGeometricMean
+)
+from .sylo import (
+    sylo_init_
+)
+from .toeplitz import (
+    toeplitz_init_,
+    ToeplitzInit
+)
