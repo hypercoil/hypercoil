@@ -11,6 +11,19 @@ def residualise(Y, X, driver='gelsd', rowvar=True):
     r"""
     Residualise a tensor block via ordinary linear least squares.
 
+    .. warning::
+        In some cases, we have found that the least-squares fit returned is
+        incorrect for reasons that are not clear. (Incorrect results are
+        returned by
+        ``torch.linalg.lstsq``, although correct results are returned if
+        ``torch.linalg.pinv`` is used instead.) Verify that results are
+        reasonable when using this operation.
+
+    .. note::
+        The :doc:`conditional covariance <hypercoil.functional.cov.conditionalcov>`
+        or :doc:`conditional correlation <hypercoil.functional.cov.conditionalcorr>`
+        may be used instead where appropriate.
+
     :Dimension: **Input Y :** :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
                     N denotes batch size, `*` denotes any number of
                     intervening dimensions, :math:`C_Y` denotes number of data
@@ -37,8 +50,6 @@ def residualise(Y, X, driver='gelsd', rowvar=True):
         Indicates that the last axis of the input tensor is the observation
         axis and the penultimate axis is the variable axis. If False, then this
         relationship is transposed.
-
-    Use `conditionalcorr` if possible.
     """
     if rowvar:
         X_in = X.transpose(-1, -2)

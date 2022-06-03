@@ -54,7 +54,12 @@ from .resid import (
     residualise
 )
 from .sphere import (
-    spherical_geodesic
+    spherical_geodesic,
+    sphere_to_normals,
+    sphere_to_latlong,
+    spatial_conv,
+    spherical_conv,
+    euclidean_conv,
 )
 from .sylo import (
     sylo

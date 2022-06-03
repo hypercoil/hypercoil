@@ -2,10 +2,12 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Positive semidefinite cone
-~~~~~~~~~~~~~~~~~~~~~~~~~~
 Differentiable projection from the positive semidefinite cone into a proper
 subspace tangent to the Riemann manifold.
+
+.. warning::
+    Nearly all operations here, as currently implemented, exhibit numerical
+    instability in both forward and backward passes.
 """
 import torch
 from . import symmap, symlog, symexp, symsqrt, invert_spd, spd
@@ -71,7 +73,7 @@ def cone_project_spd(input, reference, recondition=0):
     Project a batch of symmetric matrices from a tangent subspace into the
     positive semidefinite cone.
 
-    Given a tangency point :math:`\Omega`, each input :math:`\Theta` is
+    Given a tangency point :math:`\Omega`, each input :math:`\vec{\Theta}` is
     projected as:
 
     :math:`\Theta = \Omega^{1/2} \exp \vec{\Theta} \Omega^{1/2}`

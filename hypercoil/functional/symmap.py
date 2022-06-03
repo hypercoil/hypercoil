@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Symmetric matrix operations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Differentiable computation of matrix logarithm, exponential, and square root.
 For use with symmetric (typically positive semidefinite) matrices.
 """
@@ -14,6 +12,12 @@ from . import symmetric, recondition_eigenspaces
 #TODO: Look here more closely:
 # https://github.com/pytorch/pytorch/issues/25481
 # regarding limitations and more efficient implementations
+
+
+#TODO: Let's think about overhauling SPD operations using
+# https://geoopt.readthedocs.io/en/latest/index.html
+# We could also ideally replace the domain mapper system with
+# manifold-aware optimisers.
 
 
 def symmap(input, map, spd=True, psi=0,
@@ -41,11 +45,11 @@ def symmap(input, map, spd=True, psi=0,
         semidefinite; guards against numerical rounding errors and ensures all
         eigenvalues are nonnegative.
     psi : float in [0, 1]
-        Conditioning factor to promote positive definiteness. If this is in
-        (0, 1],
-    recondition : 'convexcombination' or 'eigenspaces' (default 'eigenspaces')
+        Conditioning factor to promote positive definiteness.
+    recondition : ``'convexcombination'`` or ``'eigenspaces'`` (default ``'eigenspaces'``)
         Method for reconditioning.
-        - `'convexcombination'` denotes that the original input will be
+
+        - ``'convexcombination'`` denotes that the original input will be
           replaced with a convex combination of the input and an identity
           matrix.
 
@@ -53,7 +57,8 @@ def symmap(input, map, spd=True, psi=0,
 
           A suitable :math:`\psi` can be used to ensure that all eigenvalues
           are positive.
-        - `'eigenspaces'` denotes that noise will be added to the original
+
+        - ``'eigenspaces'`` denotes that noise will be added to the original
           input along the diagonal.
 
           :math:`\widetilde{X} = X + \psi I - \xi I`
@@ -68,8 +73,8 @@ def symmap(input, map, spd=True, psi=0,
         due to numerical errors in the decomposition, should be truncated to
         zero. Note that you should not do this if you wish to differentiate
         through this operation, or if you require the input to be positive
-        definite. For these use cases, consider using the `psi` and
-        `recondition` parameters.
+        definite. For these use cases, consider using the ``psi`` and
+        ``recondition`` parameters.
 
     Returns
     -------
@@ -99,6 +104,7 @@ def symmap(input, map, spd=True, psi=0,
     return symmetric(Q @ Lmap @ Q.transpose(-1, -2))
 
 
+#TODO: change symlog and symsqrt to support either reconditioning method.
 def symlog(input, recondition=0):
     r"""
     Matrix logarithm of a batch of symmetric, positive definite matrices.
@@ -110,7 +116,7 @@ def symlog(input, recondition=0):
 
     Note that this will be infeasible for singular or non-positive definite
     matrices. To guard against the infeasible case, consider specifying a
-    `recondition` parameter.
+    ``recondition`` parameter.
 
     :Dimension: **Input :** :math:`(N, *, D, D)`
                     N denotes batch size, ``*`` denotes any number of
@@ -124,15 +130,16 @@ def symlog(input, recondition=0):
     input : Tensor
         Batch of symmetric tensors to transform using the matrix logarithm.
     recondition : float in [0, 1]
-        Conditioning factor to promote positive definiteness. If this is in
-        (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix (with the conditioning factor
-        :math:`\psi`).
+        Conditioning factor to promote positive definiteness and nondegenerate
+        eigenvalues. If this is in (0, 1], the original input will be replaced
+        with
 
-        :math:`\hat{X} = (1 - \psi) X + \psi I`
+        :math:`\widetilde{X} = X + \psi I - \xi I`
 
-        A suitable value can be used to ensure that all eigenvalues are
-        positive and therefore guarantee that the matrix is in the domain.
+        where each element of :math:`\xi` is independently sampled uniformly
+        from :math:`(0, \psi)`. A suitable value can be used to ensure that
+        all eigenvalues are positive and therefore guarantee that the matrix
+        is in the domain.
 
     Returns
     -------
@@ -186,7 +193,7 @@ def symsqrt(input, recondition=0):
 
     Note that this will be infeasible for matrices with negative eigenvalues,
     and potentially singular matrices due to numerical rounding errors. To
-    guard against the infeasible case, consider specifying a `recondition`
+    guard against the infeasible case, consider specifying a ``recondition``
     parameter.
 
     :Dimension: **Input :** :math:`(N, *, D, D)`
@@ -201,15 +208,17 @@ def symsqrt(input, recondition=0):
     input : Tensor
         Batch of symmetric tensors to transform using the matrix square root.
     recondition : float in [0, 1]
-        Conditioning factor to promote positive definiteness. If this is in
-        (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix (with the conditioning factor
-        :math:`\psi`).
+    recondition : float in [0, 1]
+        Conditioning factor to promote positive definiteness and nondegenerate
+        eigenvalues. If this is in (0, 1], the original input will be replaced
+        with
 
-        :math:`\hat{X} = (1 - \psi) X + \psi I`
+        :math:`\widetilde{X} = X + \psi I - \xi I`
 
-        A suitable value can be used to ensure that all eigenvalues are
-        nonnegative and therefore guarantee that the matrix is in the domain.
+        where each element of :math:`\xi` is independently sampled uniformly
+        from :math:`(0, \psi)`. A suitable value can be used to ensure that
+        all eigenvalues are positive and therefore guarantee that the matrix
+        is in the domain.
 
     Returns
     -------
