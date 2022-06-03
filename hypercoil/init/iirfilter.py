@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-IIR filter initialisation
-~~~~~~~~~~~~~~~~~~~~~~~~~
 Tools for initialising parameters for an IIR filter layer.
 """
 import torch
@@ -13,6 +11,41 @@ from .domain import Identity
 
 
 class IIRFilterSpec(object):
+    """
+    Specification for filter coefficients for recursive IIR filter classes.
+
+    Parameters
+    ----------
+    Wn : float or tuple(float, float)
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass cutoff
+        and the second entry specifying the low-pass frequency. This should be
+        specified relative to the Nyquist frequency if ``fs`` is not provided,
+        and should be in the same units as ``fs`` if it is provided.
+    N : int or Tensor (default 1)
+        Filter order.
+    ftype : one of (``'butter'``, ``'cheby1'``, ``'cheby2'``, ``'ellip'``, ``'bessel'``, ``'kuznetsov'``)
+        Filter class to initialise: Butterworth, Chebyshev I, Chebyshev II,
+        elliptic, or Bessel-Thompson.
+
+        .. note::
+            To initialise an ideal filter, use a
+            :doc:`frequency product filter <hypercoil.init.freqfilter>`
+            instead.
+    btype : ``'bandpass'`` (default) or ``'bandstop'`` or ``'lowpass'`` or ``'highpass'``
+        Filter pass-band to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+    rp : float (default 0.1)
+        Pass-band ripple. Used only for Chebyshev I and elliptic filters.
+    rs : float (default 20)
+        Stop-band ripple. Used only for Chebyshev II and elliptic filters.
+    norm : ``'phase'`` or ``'mag'`` or ``'delay'`` (default ``'phase'``)
+        Critical frequency normalisation. Consult the ``scipy.signal.bessel``
+        documentation for details.
+    """
     def __init__(self, Wn=None, N=1, ftype='butter', btype='bandpass', fs=None,
                  rp=0.1, rs=20, norm='phase'):
         self.Wn = Wn
@@ -73,6 +106,8 @@ def iirfilter_coefs(iirfilter, N, Wn, btype='bandpass', fs=None,
     ]
 
 
+#TODO: this is not correctly implemented. See
+# https://dafx2020.mdw.ac.at/proceedings/papers/DAFx2020_paper_52.pdf
 def kuznetsov_init(N, btype='bandpass'):
     multiplier = 1
     if btype in ('bandpass', 'bandstop'):

@@ -86,7 +86,9 @@ from .dirichlet import (
     DirichletInit
 )
 from .freqfilter import (
-    FreqFilterSpec
+    FreqFilterSpec,
+    freqfilter_init_,
+    clamp_init_
 )
 from .iirfilter import (
     IIRFilterSpec
