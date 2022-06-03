@@ -10,6 +10,12 @@ To attain its objective, this software library implements neuroimage processing 
 
 ### Status
 
+![continuous integration](https://github.com/rciric/hypercoil/actions/workflows/ci.yml/badge.svg)
+
+![continuous integration (documentation)](https://github.com/rciric/hypercoil/actions/workflows/doc.yml/badge.svg)
+
+[![codecov](https://codecov.io/gh/rciric/hypercoil/branch/main/graph/badge.svg?token=FVJVK6AFQG)](https://codecov.io/gh/rciric/hypercoil)
+
 Due to extremely rapid development in April and May 2022, substantial technical debt has accumulated. The next week or two will begin to mitigate this; if you happen across this, or come here from the preprint/poster, we'd suggest checking back in a few days. Operability of the `hypercoil` library varies by submodule.
 
 * Please read docstrings: if a docstring indicates that a function isn't ready for use, or if the docstring is missing altogether, that's a good sign that it will be very important to extensively check that behaviour matches expectations.
