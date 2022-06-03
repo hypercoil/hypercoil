@@ -25,6 +25,22 @@ def js_divergence_logit(P, Q):
 
 
 class JSDivergence(ReducingLoss):
+    """
+    Jensen-Shannon divergence, applied to probabilities.
+
+    Use :class:`SoftmaxJSDivergence` for the logit version.
+
+    Parameters
+    ----------
+    nu : float (default 1)
+        Loss function weight multiplier.
+    reduction : callable (default ``torch.mean``)
+        Map from a tensor of arbitrary dimension to a scalar. The vector of
+        JS divergences computed for each distribution is passed into
+        ``reduction`` to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
+    """
     def __init__(self, nu=1, reduction=None, name=None):
         reduction = reduction or torch.mean
         super().__init__(
@@ -35,7 +51,23 @@ class JSDivergence(ReducingLoss):
         )
 
 
-class JSDivergenceSoftmax(ReducingLoss):
+class SoftmaxJSDivergence(ReducingLoss):
+    """
+    Jensen-Shannon divergence, applied to logits.
+
+    Use :class:`JSDivergence` for the probability version.
+
+    Parameters
+    ----------
+    nu : float (default 1)
+        Loss function weight multiplier.
+    reduction : callable (default ``torch.mean``)
+        Map from a tensor of arbitrary dimension to a scalar. The vector of
+        JS divergences computed for each distribution is passed into
+        ``reduction`` to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
+    """
     def __init__(self, nu=1, reduction=None, name=None):
         reduction = reduction or torch.mean
         super().__init__(

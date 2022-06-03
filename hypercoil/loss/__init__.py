@@ -62,7 +62,7 @@ from .hinge import (
 )
 from .jsdiv import (
     JSDivergence,
-    JSDivergenceSoftmax
+    SoftmaxJSDivergence
 )
 from .modularity import (
     ModularityLoss

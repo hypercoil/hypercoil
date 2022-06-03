@@ -25,6 +25,28 @@ def multivariate_kurtosis(ts, l2=0, dimensional_scaling=False):
 
 
 class MultivariateKurtosis(ReducingLoss):
+    """
+    Multivariate kurtosis following Mardia, as used by Laumann and colleagues.
+
+    Parameters
+    ----------
+    nu : float (default 1)
+        Loss function weight multiplier.
+    l2 : float (default 0)
+        L2 regularisation multiplier when computing the precision matrix.
+    dimensional_scaling : bool (default False)
+        The expected multivariate kurtosis for a normally distributed,
+        stationary process of infinite duration with d channels (or variables)
+        is :math:`d (d + 2)`. Setting this to true normalises for the process
+        dimension by dividing the obtained kurtosis by :math:`d (d + 2)`. This
+        has no effect in determining the optimum.
+    reduction : callable (default ``torch.mean``)
+        Map from a tensor of arbitrary dimension to a scalar. The vector of
+        computed multivariate kurtosis values is passed into ``reduction`` to
+        return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
+    """
     def __init__(self, nu=1, l2=0, dimensional_scaling=False,
                  reduction=None, name=None):
         reduction = reduction or torch.mean

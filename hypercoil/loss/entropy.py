@@ -80,9 +80,9 @@ class Entropy(ReducingLoss):
     axis : int (default -1)
         Vectors along the specified axis should correspond to the
         probabilities that parameterise a single categorical distribution.
-    reduction : callable (default `torch.mean`)
+    reduction : callable (default ``torch.mean``)
         Map from a tensor of arbitrary dimension to a scalar. The vector of
-        entropies computed for each distribution is passed into `reduction`
+        entropies computed for each distribution is passed into ``reduction``
         to return a scalar.
     name : str or None (default None)
         Identifying string for the instantiation of the loss object.
@@ -116,9 +116,9 @@ class SoftmaxEntropy(ReducingLoss):
     axis : int (default -1)
         Vectors along the specified axis should correspond to the logits
         that parameterise a single categorical distribution.
-    reduction : callable (default `torch.mean`)
+    reduction : callable (default ``torch.mean``)
         Map from a tensor of arbitrary dimension to a scalar. The vector of
-        entropies computed for each distribution is passed into `reduction`
+        entropies computed for each distribution is passed into ``reduction``
         to return a scalar.
     name : str or None (default None)
         Identifying string for the instantiation of the loss object.

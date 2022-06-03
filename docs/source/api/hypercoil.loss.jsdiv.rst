@@ -1,4 +1,4 @@
-``JSDivergence`` and ``JSDivergenceSoftmax``
+``JSDivergence`` and ``SoftmaxJSDivergence``
 ============================================
 
 .. automodule:: hypercoil.loss.jsdiv
@@ -14,10 +14,10 @@
    .. automethod:: register_sentry
    .. automethod:: register_action
 
-``JSDivergenceSoftmax``
+``SoftmaxJSDivergence``
 ***********************
 
-.. autoclass:: JSDivergenceSoftmax
+.. autoclass:: SoftmaxJSDivergence
 
    .. rubric:: Methods Documentation
 
