@@ -2,9 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Basis function convolution
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-Functions supporting basis function convolution of time series and other data.
+Functions supporting convolution of time series and other data.
 """
 import torch
 
@@ -26,8 +24,8 @@ def basisconv2d(X, weight, basis_functions, include_const=False, bias=None,
                     :math:`C_o` denotes number of output channels, K denotes
                     number of input channels (equivalent to the maximum degree
                     of the polynomial), and R < obs denotes the number of
-                    observations viewed at once (i.e., in a single convolutional
-                    window)
+                    observations viewed at once (i.e., in a single
+                    convolutional window)
                 **Output :** :math:`(N, C_o, *, C, obs)`
                     As above.
 
@@ -98,8 +96,8 @@ def polyconv2d(X, weight, include_const=False, bias=None,
                     :math:`C_o` denotes number of output channels, K denotes
                     number of input channels (equivalent to the maximum degree
                     of the polynomial), and R < obs denotes the number of
-                    observations viewed at once (i.e., in a single convolutional
-                    window)
+                    observations viewed at once (i.e., in a single
+                    convolutional window)
                 **Output :** :math:`(N, C_o, *, C, obs)`
                     As above.
 
@@ -150,6 +148,9 @@ def polyconv2d(X, weight, include_const=False, bias=None,
 
 
 def tsconv2d(X, weight, bias=None, padding=None, conv=None, **params):
+    """
+    Convolve time series data.
+    """
     X = _configure_input_for_ts_conv(X)
     if conv is None:
         conv = torch.conv2d

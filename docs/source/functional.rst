@@ -18,4 +18,5 @@
    api/hypercoil.functional.sphere
    api/hypercoil.functional.sylo
    api/hypercoil.functional.symmap
+   api/hypercoil.functional.tsconv
    api/hypercoil.functional.utils

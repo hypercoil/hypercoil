@@ -47,9 +47,6 @@ from .noise import (
     LowRankNoiseSource, BandDropoutSource,
     UnstructuredNoiseSource, UnstructuredDropoutSource
 )
-from .polynomial import (
-    polychan, polyconv2d, basischan, basisconv2d, tsconv2d
-)
 from .resid import (
     residualise
 )
@@ -70,6 +67,9 @@ from .symmap import (
 from .semidefinite import (
     tangent_project_spd, cone_project_spd, mean_euc_spd, mean_harm_spd,
     mean_logeuc_spd, mean_geom_spd
+)
+from .tsconv import (
+    polychan, polyconv2d, basischan, basisconv2d, tsconv2d
 )
 from .utils import (
     complex_decompose,
