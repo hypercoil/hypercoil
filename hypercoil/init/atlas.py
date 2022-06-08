@@ -98,7 +98,7 @@ from .atlasmixins import (
 )
 from .base import DomainInitialiser
 from .dirichlet import DirichletInit
-from ..functional import UnstructuredNoiseSource
+from ..engine.noise import UnstructuredNoiseSource
 from .domainbase import Identity
 from .domain import MultiLogit
 

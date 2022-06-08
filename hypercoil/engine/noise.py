@@ -9,7 +9,7 @@ Additive and multiplicative noise sources.
 import math
 import torch
 from abc import ABC, abstractmethod
-from .matrix import toeplitz
+from ..functional.matrix import toeplitz
 
 
 class _IIDSource(torch.nn.Module, ABC):

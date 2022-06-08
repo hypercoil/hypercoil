@@ -8,7 +8,7 @@ Modules that inject symmetric positive (semi)definite noise.
 """
 import torch
 from torch.nn import Module, Parameter, init
-from ..functional import SPSDNoiseSource
+from ..engine.noise import SPSDNoiseSource
 from ..functional.cov import corrnorm
 
 

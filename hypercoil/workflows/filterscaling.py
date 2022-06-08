@@ -50,7 +50,7 @@ from hypercoil.init.domain import (
     AmplitudeAtanh
 )
 from hypercoil.init.freqfilter import FreqFilterSpec
-from hypercoil.functional.noise import UnstructuredDropoutSource
+from hypercoil.engine.noise import UnstructuredDropoutSource
 from hypercoil.viz.filter import StreamPlot
 
 

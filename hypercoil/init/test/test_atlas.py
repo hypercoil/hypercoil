@@ -29,7 +29,7 @@ from hypercoil.init.atlasmixins import (
     MaskNegation,
     MaskIntersection
 )
-from hypercoil.functional.noise import UnstructuredDropoutSource
+from hypercoil.engine.noise import UnstructuredDropoutSource
 
 
 class TestAtlasInit:

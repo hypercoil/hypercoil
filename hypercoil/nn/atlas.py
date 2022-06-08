@@ -13,7 +13,7 @@ from torch.distributions import Bernoulli
 from ..engine.accumulate import Accumuline, AccumulatingFunction
 from ..engine.argument import ModelArgument, UnpackingModelArgument
 from ..init.domain import Identity
-from ..functional.noise import UnstructuredDropoutSource
+from ..engine.noise import UnstructuredDropoutSource
 from ..functional.utils import apply_mask
 from ..init.atlas import AtlasInit
 

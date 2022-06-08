@@ -10,8 +10,8 @@ from functools import partial
 from .base import DomainInitialiser
 from ..functional import (
     mean_euc_spd, mean_harm_spd, mean_logeuc_spd, mean_geom_spd,
-    SPSDNoiseSource
 )
+from ..engine.noise import SPSDNoiseSource
 
 
 def mean_block_spd(mean_specs, data):

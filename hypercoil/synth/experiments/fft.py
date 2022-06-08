@@ -16,7 +16,7 @@ from hypercoil.init.domain import (
     Identity,
     AmplitudeMultiLogit
 )
-from hypercoil.functional.noise import UnstructuredDropoutSource
+from hypercoil.engine.noise import UnstructuredDropoutSource
 from hypercoil.nn import (
     FrequencyDomainFilter,
     UnaryCovarianceUW

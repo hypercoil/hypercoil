@@ -25,6 +25,12 @@ from .conveyance import (
     Conflux,
     DataPool
 )
+from .noise import (
+    DiagonalNoiseSource, SPSDNoiseSource,
+    DiagonalDropoutSource, SPSDDropoutSource,
+    LowRankNoiseSource, BandDropoutSource,
+    UnstructuredNoiseSource, UnstructuredDropoutSource
+)
 from .report import (
     LossArchive,
 )

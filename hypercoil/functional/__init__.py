@@ -41,12 +41,6 @@ from .matrix import (
     delete_diagonal, recondition_eigenspaces, toeplitz,
     sym2vec, vec2sym, squareform
 )
-from .noise import (
-    DiagonalNoiseSource, SPSDNoiseSource,
-    DiagonalDropoutSource, SPSDDropoutSource,
-    LowRankNoiseSource, BandDropoutSource,
-    UnstructuredNoiseSource, UnstructuredDropoutSource
-)
 from .resid import (
     residualise
 )
