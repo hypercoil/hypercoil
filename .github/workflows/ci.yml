@@ -47,7 +47,6 @@ jobs:
       run: |
         python -m pip install pytest-cov
         pytest --sims --ci --cov-report xml:coverage.xml --cov=hypercoil
-        coverage run -m pytest --sims --ci
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
