@@ -70,7 +70,6 @@ class Spec(object):
 
 class DTDF(Module):
     def __init__(self, spec, device=None, dtype=None):
-        raise NotImplementedError
         super(DTDF, self).__init__()
         factory_kwargs = {'device': device, 'dtype': dtype}
         self.factory_kwargs = factory_kwargs
