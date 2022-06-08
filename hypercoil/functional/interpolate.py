@@ -2,9 +2,8 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Interpolation
-~~~~~~~~~~~~~
-Methods for interpolating unseen or censored frames.
+Methods for interpolating, extrapolating, and imputing unseen or censored
+frames.
 """
 import torch
 from functools import partial
@@ -21,6 +20,74 @@ def hybrid_interpolate(
     frequency_thresh=0.3,
     handle_fail='orig'
 ):
+    """
+    Interpolate unseen time frames using a hybrid approach that combines
+    :func:`weighted <weighted_interpolate>` and
+    :func:`spectral <spectral_interpolate>`
+    methods.
+
+    Hybrid interpolation uses the :func:`weighted <weighted_interpolate>`
+    method for unseen frames that are no more than ``max_weighted_stage``
+    frames away from a seen frame, and the
+    :func:`spectral <spectral_interpolate>` method otherwise.
+    (More specifically, if ``map_to_kernel`` is set, it uses the weighted
+    approach if the weighted approach successfully imputes using the kernel
+    returned when the argument to ``map_to_kernel`` is
+    ``max_weighted_stage``.) Imputation proceeds as follows:
+
+    * Unseen frames are divided into two groups according to the approach that
+      will be used for imputation.
+    * Spectral interpolation is applied using the seen time frames.
+    * Weighted interpolation is applied using the seen time frames, together
+      with the frames interpolated using the spectral method.
+
+    Parameters
+    ----------
+    data : tensor
+        Time series data.
+    mask : boolean tensor
+        Boolean tensor indicating whether the value in each frame of the input
+        time series is observed. ``True`` indicates that the original data are
+        "good" or observed, while ``False`` indicates that they are "bad" or
+        missing and flags them for interpolation.
+    max_weighted_stage : int or None (default 3)
+        The final stage of weighted interpolation. The meaning of this is
+        governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
+        argument is otherwise specified, it sets the maximum size of a boxcar
+        window for averaging. By default, a maximum stage of 3 is specified
+        for weighted interpolation; any unseen frames that cannot be imputed
+        using this maximum are instead imputed using the spectral approach.
+    map_to_kernel : callable(int -> tensor)
+        A function that uses the integer value of the current stage to create
+        a convolutional kernel for weighting of neighbours. By default, a
+        boxcar window that includes the current frame, together with ``stage``
+        frames in each of the forward and backward directions, is returned.
+    oversampling_frequency : float (default 8)
+        Determines the number of frequency bins to use when estimating the
+        sine and cosine spectra in spectral interpolation. 1 indicates that
+        the number of bins should be the same as in a Fourier transform,
+        while larger values indicate that frequency bins should be
+        oversampled.
+    maximum_frequency : float (default 1)
+        Maximum frequency bin to consider in the spectral fit, as a fraction
+        of Nyquist.
+    frequency_thresh : float (default 0.3)
+        Because of the non-orthogonality of the basis functions, spurious
+        variance will often be captured in the spectral estimates. To control
+        this spurious variance, all frequency bins whose estimates are less
+        than ``thresh``, as a fraction of the maximum estimate across all
+        bins, are set to 0.
+    handle_fail : ``'raise'`` or ``'orig'`` (default ``'orig'``)
+        Specifies behaviour if the interpolation fails (which typically occurs
+        if every frame is labelled as unseen). ``'raise'`` raises an
+        exception, while ``'orig'`` returns values from the input time series
+        for any frames that are still missing after interpolation.
+
+    Returns
+    -------
+    tensor
+        Input dataset with missing frames imputed.
+    """
     batch_size = data.shape[0]
     ##TODO
     # Right now, we're using the first weighted interpolation only for
@@ -64,9 +131,9 @@ def hybrid_interpolate(
         rec = torch.where(final_mask, final_data, rec)
         rec = torch.where(torch.isnan(rec), data, rec)
         if torch.any(torch.isnan(rec)):
-            print(torch.where(torch.isnan(rec)))
-            print(torch.where(torch.isnan(data)))
-            assert 0
+            raise InterpolationError(
+                'Data are still missing after interpolation. This typically '
+                'occurs when all input data are NaN-valued.')
         return rec
     return torch.where(final_mask, final_data, rec)
 
@@ -80,6 +147,47 @@ def weighted_interpolate(
 ):
     """
     Interpolate unseen time frames as a weighted average of neighbours.
+
+    Interpolation proceeds iteratively over progressively longer window sizes.
+    It first defines a convolutional weighting/window kernel for the current
+    window size, and then sets the values of unseen time frames to the
+    convolution of seen time frames with this kernel, and marks those time
+    frames as seen for the next iteration. Iteration proceeds either until the
+    specified maximum stage or until every unseen frame is imputed.
+
+    Parameters
+    ----------
+    data : tensor
+        Time series data.
+    mask : boolean tensor
+        Boolean tensor indicating whether the value in each frame of the input
+        time series is observed. ``True`` indicates that the original data are
+        "good" or observed, while ``False`` indicates that they are "bad" or
+        missing and flags them for interpolation.
+    start_stage : int
+        The first stage of weighted interpolation. The meaning of this is
+        governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
+        argument is otherwise specified, it sets the initial size of a boxcar
+        window for averaging. (A value of 1 corresponds to averaging over the
+        current frame, together with 1 frame in each of the forward and
+        reverse directions.)
+    max_stage : int or None (default None)
+        The final stage of weighted interpolation. The meaning of this is
+        governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
+        argument is otherwise specified, it sets the maximum size of a boxcar
+        window for averaging. By default, no maximum size is specified, and
+        iteration proceeds until every unseen time point is imputed.
+    map_to_kernel : callable(int -> tensor)
+        A function that uses the integer value of the current stage to create
+        a convolutional kernel for weighting of neighbours. By default, a
+        boxcar window that includes the current frame, together with ``stage``
+        frames in each of the forward and backward directions, is returned.
+
+    Returns
+    -------
+    tensor
+        Input dataset with missing frames imputed using the specified weighted
+        average.
     """
     batch_size = data.shape[0]
     if max_stage is None:

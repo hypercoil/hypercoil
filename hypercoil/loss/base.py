@@ -45,6 +45,7 @@ class Loss(SentryModule):
         return f'[ν = {self.nu}]{self.name}'
 
 
+#TODO: add examples of how to use this.
 class LossApply(SentryModule):
     """
     Callable loss function wrapper that composes the loss with a selector or
@@ -56,10 +57,11 @@ class LossApply(SentryModule):
         Loss function to apply.
     apply : callable
         Callable that pretransforms the input to the loss. This can be used
-        as a selector, so that different entries in a `LossScheme` are applied
+        as a selector, so that different entries in a
+        :doc:`LossScheme <hypercoil.loss.scheme.LossScheme>` are applied
         to different combinations of weights, inputs, and outputs. One use
-        case is filtering the inputs to a `LossScheme` and forwarding only the
-        ones relevant to the loss function at hand.
+        case is filtering the inputs to a ``LossScheme`` and forwarding only
+        the ones relevant to the loss function at hand.
     """
     def __init__(self, loss, apply=None):
         super(LossApply, self).__init__()
@@ -78,6 +80,9 @@ class LossApply(SentryModule):
         self.loss.register_action(action)
 
     def forward(self, *args, **kwargs):
+        """
+        Evaluate the loss applied to the output of the ``apply`` operation.
+        """
         applied = self.apply(*args, **kwargs)
         if isinstance(applied, UnpackingLossArgument):
             return self.loss(**applied)
@@ -98,7 +103,7 @@ class ReducingLoss(Loss):
         Loss function weight multiplier.
     reduction : callable
         Map from a tensor of arbitrary dimension to a scalar. The output of
-        `loss` is passed into `reduction` to return a scalar.
+        ``loss`` is passed into ``reduction`` to return a scalar.
     loss : callable
         Objective criterion, which might not always return a scalar output.
     name : str or None (default None)
@@ -113,6 +118,10 @@ class ReducingLoss(Loss):
         self.name = name
 
     def forward(self, *args, **kwargs):
+        """
+        Evaluate the loss function, and communicate the results to any
+        listening sentry objects.
+        """
         out = self.nu * self.reduction(self.loss(*args, **kwargs))
         self.message.update(
             ('NAME', self.name),

@@ -2,13 +2,11 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Initialiser
-~~~~~~~~~~~
-Base initialiser for a module.
+Base initialisers for module parameters.
 """
 import torch
 from functools import partial
-from ..functional.domainbase import Identity
+from .domainbase import Identity
 
 
 def from_distr_init_(tensor, distr):
@@ -35,7 +33,7 @@ def uniform_init_(tensor, min=0, max=1):
     Populate a tensor with values uniformly sampled i.i.d. from a specified
     interval. The tensor is updated in place.
 
-    This is a convenience wrapper around `from_distr_init_`.
+    This is a convenience wrapper around ``from_distr_init_``.
 
     Parameters
     ----------
@@ -88,7 +86,7 @@ class DomainInitialiser(object):
     than initialising the preweight; this class provides a convenient way to
     do so.
 
-    A `DomainInitialiser` is callable with a single required argument: a
+    A ``DomainInitialiser`` is callable with a single required argument: a
     tensor to be initialised following the specified initialisation scheme.
 
     Parameters
@@ -97,17 +95,19 @@ class DomainInitialiser(object):
         A python callable that takes as its single required parameter the
         tensor that is to be initialised; the callable should, when called,
         initialise the tensor in place. Callables with additional arguments
-        can be constrained using `partial` from `functools` or an appropriate
-        lambda function. If no `init` is explicitly specified,
-        `DomainInitialiser` defaults to a uniform initialisation in the
+        can be constrained using ``partial`` from ``functools`` or an
+        appropriate lambda function. If no `init` is explicitly specified,
+        ``DomainInitialiser`` defaults to a uniform initialisation in the
         interval (0, 1).
     domain : Domain object
         A representation of the function used to map between the learnable
-        preweight and the weight "seen" by the data. It must have a `preimage`
-        method that maps values in the weight domain to their preimage under
-        the function: the corresponding values in the preweight domain.
-        Examples are provided in `functional.domain`. If no `domain` is
-        explicitly specified, `DomainInitialiser` defaults to identity
+        preweight and the weight "seen" by the data. It must have a
+        ``preimage`` method that maps values in the weight domain to their
+        preimage under the function: the corresponding values in the preweight
+        domain. Examples are provided in
+        :doc:`init.domain <hypercoil.init.domain>`.
+        If no ``domain`` is
+        explicitly specified, ``DomainInitialiser`` defaults to identity
         (preweight and weight are the same).
     """
     def __init__(self, init=None, domain=None):
@@ -130,9 +130,9 @@ class BaseInitialiser(DomainInitialiser):
         A python callable that takes as its single required parameter the
         tensor that is to be initialised; the callable should, when called,
         initialise the tensor in place. Callables with additional arguments
-        can be constrained using `partial` from `functools` or an appropriate
-        lambda function. If no `init` is explicitly specified,
-        `BaseInitialiser` defaults to a uniform initialisation in the
+        can be constrained using ``partial`` from ``functools`` or an
+        appropriate lambda function. If no ``init`` is explicitly specified,
+        ``BaseInitialiser`` defaults to a uniform initialisation in the
         interval (0, 1).
     """
     def __init__(self, init=None):
@@ -145,6 +145,12 @@ class BaseInitialiser(DomainInitialiser):
 
 
 class DistributionInitialiser(DomainInitialiser):
+    """
+    Parameter initialiser from a distribution.
+
+    See :func:`from_distr_init_` and :class:`DomainInitialiser` for argument
+    details.
+    """
     def __init__(self, distr, domain=None):
         self.distr = distr
         init = partial(from_distr_init_, distr=self.distr)
@@ -155,6 +161,12 @@ class DistributionInitialiser(DomainInitialiser):
 
 
 class ConstantInitialiser(DomainInitialiser):
+    """
+    Initialise a parameter to a constant value throughout.
+
+    See :func:`constant_init_` and :class:`DomainInitialiser` for argument
+    details.
+    """
     def __init__(self, value=1, domain=None):
         init = partial(constant_init_, value=value)
         super(ConstantInitialiser, self).__init__(

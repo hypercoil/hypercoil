@@ -2,14 +2,12 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Laplace initialisation
-~~~~~~~~~~~~~~~~~~~~~~
 Initialise parameters to match a double exponential function.
 """
 import torch
 from functools import reduce, partial
 from .base import BaseInitialiser
-from ..functional.domain import Identity
+from .domain import Identity
 
 
 def laplace_init_(tensor, loc=None, width=None, norm=None,
@@ -30,12 +28,13 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
     width : iterable or None (default None)
         Decay rate of the double exponential along each array axis. If None,
         this will be set to 1 isotropically. If this is very large, the result
-        will approximate a delta function at the specified `loc`.
-    norm : 'max', 'sum', or None (default None)
+        will approximate a delta function at the specified ``loc``.
+    norm : ``'max'``, ``'sum'``, or None (default None)
         Normalisation to apply to the output.
-        - 'max' divides the output by its maximum value such that the largest
-          value in the initialised tensor is exactly 1.
-        - 'sum' divides the output by its sum such that all entries in the
+
+        - ``'max'`` divides the output by its maximum value such that the
+          largest value in the initialised tensor is exactly 1.
+        - ``'sum'`` divides the output by its sum such that all entries in the
           initialised tensor sum to 1.
         - None indicates that the output should not be normalised.
     var : float
@@ -45,13 +44,15 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
         List of axes across which a double exponential is not computed. Instead
         the double exponential computed across the remaining axes is broadcast
         across the excluded axes.
-    domain : Domain object (default Identity)
+    domain : Domain object (default :doc:`Identity <hypercoil.init.domainbase.Identity>`)
         Used in conjunction with an activation function to constrain or
         transform the values of the initialised tensor. For instance, using
-        the Atanh domain with default scale constrains the tensor as seen by
+        the :doc:`Atanh <hypercoil.init.domain.Atanh>`
+        domain with default scale constrains the tensor as seen by
         data to the range of the tanh function, (-1, 1). Domain objects can
         be used with compatible modules and are documented further in
-        `hypercoil.functional.domain`. If no domain is specified, the Identity
+        :doc:`hypercoil.init.domain <hypercoil.init.domain>`.
+        If no domain is specified, the Identity
         domain is used, which does not apply any transformations or
         constraints.
 
@@ -93,6 +94,14 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
 
 
 class LaplaceInit(BaseInitialiser):
+    """
+    Double exponential initialisation.
+
+    Initialise a tensor such that its values are interpolated by a
+    multidimensional double exponential function, :math:`e^{-|x|}`.
+
+    See :func:`laplace_init_` for argument details.
+    """
     def __init__(self, loc=None, width=None, norm=None,
                  var=0.02, excl_axis=None, domain=None):
         init = partial(laplace_init_, loc=loc, width=width, norm=norm,

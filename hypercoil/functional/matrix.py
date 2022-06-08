@@ -331,6 +331,10 @@ def _populate_toeplitz(c, r, obj_shp, dtype=None, device=None):
 
     Thanks to https://github.com/cornellius-gp/gpytorch/blob/master/gpytorch/utils/toeplitz.py
     for ideas toward a faster implementation.
+
+    #TODO: This might be iterating over elements in an order that is almost
+    adversarially bad. Conform it to the gpytorch implementation if the need
+    arises.
     """
     if dtype is None:
         dtype = c.dtype
@@ -445,6 +449,10 @@ def squareform(X):
     """
     Convert between symmetric matrix and vector forms.
 
+    .. warning::
+        Unlike numpy or matlab implementations, this does not verify a
+        conformant input.
+
     Parameters
     ----------
     X : tensor
@@ -454,14 +462,10 @@ def squareform(X):
     Returns
     -------
     tensor
-        If the input block is in square matrix form, returns it in vector
-        form. If the input block is in vector form, returns it in square
-        matrix form.
-
-    Notes
-    -----
-    Unlike numpy or matlab implementations, this does not verify a conformant
-    input.
+        If the input block is in square matrix form, returns it
+        :doc:`in vector form <hypercoil.functional.matrix.sym2vec>`.
+        If the input block is in vector form, returns it
+        :doc:`in square matrix form <hypercoil.functional.matrix.vec2sym>`.
     """
     if (X.shape[-2] == X.shape[-1]
         and torch.allclose(X, X.transpose(-1, -2))):

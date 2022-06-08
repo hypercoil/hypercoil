@@ -105,6 +105,7 @@ class BatchCorrelation(ReducingLoss):
         Tolerance for correlations. Only correlation values above ``tol`` are
         counted. If this is set to ``'auto'``, a tolerance is computed for the
         batch size given the significance level in ``tol_sig``.
+        (See :func:`auto_tol`.)
     tol_sig : float in (0, 1)
         Significance level for correlation tolerance. Used only if `tol` is
         set to ``'auto'``.
@@ -185,7 +186,7 @@ class QCFC(BatchCorrelation):
         """
         Edgewise QC-FC correlation.
 
-        Note that this is a thin wrapper around ``batch_corr``.
+        Note that this is a thin wrapper around :class:`BatchCorrelation`.
 
         Parameters
         ----------

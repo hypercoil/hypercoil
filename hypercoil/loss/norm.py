@@ -5,7 +5,9 @@
 Normed penalty
 ~~~~~~~~~~~~~~
 Generalised module for applying a normed penalty to the weight parameter
-of a module.
+of a module. Note that this is currently configured to use vector norms
+(so the 2-norm will be the Frobenius norm for a matrix rather than its
+largest singular value).
 """
 import torch
 from torch.linalg import vector_norm as pnorm
@@ -28,24 +30,29 @@ class NormedLoss(ReducingLoss):
     """
     Generalised module for computing losses based on the norm of a tensor.
 
+    .. note::
+        Note that this is currently configured to use vector norms (so the
+        2-norm will be the Frobenius norm for a matrix rather than its
+        largest singular value).
+
     Parameters
     ----------
     nu : float
         Loss function weight multiplier.
     p : float (default 2)
-        Norm order. p=1 corresponds to the Manhattan L1 norm, p=2 corresponds
-        to the Euclidean L2 norm, etc.
+        Norm order. ``p=1`` corresponds to the Manhattan L1 norm, ``p=2``
+        corresponds to the Euclidean L2 norm, etc.
     precompose : callable or None (default None)
         Pre-transformation of the input tensor, on whose output the norm is
         computed.
     axis : int, iterable(int), or None (default None)
         Axes defining the slice of the input tensor over which the norm is
         computed. If this is None, then the overall tensor norm is computed.
-    reduction : callable (default `torch.mean`)
+    reduction : callable (default ``torch.mean``)
         Map from a tensor of arbitrary dimension to a scalar. The output of
         the norm operation over the specified axes produces a tensor whose
         extent over remaining axes is unreduced. This output tensor is then
-        passed into `reduction` to return a scalar.
+        passed into ``reduction`` to return a scalar.
     name : str or None (default None)
         Identifying string for the instantiation of the loss object.
     """
@@ -70,30 +77,30 @@ class NormedLoss(ReducingLoss):
 
 class UnilateralNormedLoss(NormedLoss):
     """
-    Unilateral version of `NormedLoss`.
+    Unilateral version of :class:`NormedLoss`.
 
     Any nonpositive weights are not considered in norm computation. To exclude
     weights in a set other than nonpositive numbers from the computation, pass
-    a map from that set into the nonpositive numbers to `precompose`.
+    a map from that set into the nonpositive numbers to ``precompose``.
 
     Parameters
     ----------
     nu : float
         Loss function weight multiplier.
     p : float (default 2)
-        Norm order. p=1 corresponds to the Manhattan L1 norm, p=2 corresponds
-        to the Euclidean L2 norm, etc.
+        Norm order. ``p=1`` corresponds to the Manhattan L1 norm, ``p=2``
+        corresponds to the Euclidean L2 norm, etc.
     precompose : callable or None (default None)
         Pre-transformation of the input tensor, on whose output the unilateral
         norm is computed.
     axis : int, iterable(int), or None (default None)
         Axes defining the slice of the input tensor over which the norm is
         computed. If this is None, then the overall tensor norm is computed.
-    reduction : callable (default `torch.mean`)
+    reduction : callable (default ``torch.mean``)
         Map from a tensor of arbitrary dimension to a scalar. The output of
         the norm operation over the specified axes produces a tensor whose
         extent over remaining axes is unreduced. This output tensor is then
-        passed into `reduction` to return a scalar.
+        passed into ``reduction`` to return a scalar.
     name : str or None (default None)
         Identifying string for the instantiation of the loss object.
     """

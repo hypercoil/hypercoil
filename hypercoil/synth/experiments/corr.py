@@ -11,7 +11,7 @@ import torch
 import numpy as np
 from matplotlib.pyplot import close
 from hypercoil.functional.cov import corr, pairedcorr
-from hypercoil.functional.domain import (
+from hypercoil.init.domain import (
     Identity,
     MultiLogit
 )

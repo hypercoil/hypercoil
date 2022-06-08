@@ -24,7 +24,7 @@ tensor.
     loss could be improved by simply shrinking all weights.) For this reason,
     we can either normalise the loss or situate the parcellation tensor in the
     probability simplex using a
-    :doc:`multi-logit (softmax) domain mapper <hypercoil.functional.domain.MultiLogit>`.
+    :doc:`multi-logit (softmax) domain mapper <hypercoil.init.domain.MultiLogit>`.
 
     The parcel equilibrium attains a minimum when parcels are equal in their
     total weight. It has a trivial and uninteresting minimum where all parcel
@@ -60,9 +60,9 @@ class Equilibrium(ReducingLoss):
     Parcel equilibrium.
 
     The parcel equilibrium is principally designed to operate on parcellation
-    tensors. A parcellation tensor is one whose rows correspond to features
+    tensors. A parcellation tensor is one whose columns correspond to features
     (e.g., voxels, time points, frequency bins, or network nodes) and whose
-    columns correspond to parcels. Element i, j in this tensor accordingly
+    rows correspond to parcels. Element i, j in this tensor accordingly
     indexes the assignment of feature j to parcel i. Examples of parcellation
     tensors might include atlases that map voxels to regions or affiliation
     matrices that map graph vertices to communities. It is often desirable
@@ -108,9 +108,9 @@ class SoftmaxEquilibrium(ReducingLoss):
     Parcel equilibrium, precomposed with a softmax function.
 
     The parcel equilibrium is principally designed to operate on parcellation
-    tensors. A parcellation tensor is one whose rows correspond to features
+    tensors. A parcellation tensor is one whose columns correspond to features
     (e.g., voxels, time points, frequency bins, or network nodes) and whose
-    columns correspond to parcels. Element i, j in this tensor accordingly
+    rows correspond to parcels. Element i, j in this tensor accordingly
     indexes the assignment of feature j to parcel i. Examples of parcellation
     tensors might include atlases that map voxels to regions or affiliation
     matrices that map graph vertices to communities. It is often desirable

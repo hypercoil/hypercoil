@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Hinge Loss
-~~~~~~~~~~
 SVM hinge loss.
 """
 import torch
@@ -19,6 +17,9 @@ def hinge_loss(Y_hat, Y):
 
 
 class HingeLoss(ReducingLoss):
+    """
+    SVM hinge loss.
+    """
     def __init__(self, nu=1, reduction=None, name=None):
         if reduction is None:
             reduction = torch.sum

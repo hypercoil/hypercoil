@@ -79,13 +79,13 @@ class ModularityLoss(Loss):
         function, parameters representing the community affiliation :math:`C`
         and coupling :math:`L` matrices can be pre-transformed. Mapping the
         community affiliation matrix :math:`C` through a
-        :doc:`softmax <hypercoil.functional.domain.MultiLogit>`
+        :doc:`softmax <hypercoil.init.domain.MultiLogit>`
         function along the community axis lends the affiliation matrix the
         intuitive interpretation of distributions over communities, or a
         quantification of the uncertainty of each vertex's community
         assignment. Similarly, the coupling matrix can be pre-transformed
         through a
-        :doc:`sigmoid <hypercoil.functional.domain.Logit>`
+        :doc:`sigmoid <hypercoil.init.domain.Logit>`
         to constrain inter-community couplings to :math:`(0, 1)`.
     .. note::
         Because the community affiliation matrices :math:`C` induce

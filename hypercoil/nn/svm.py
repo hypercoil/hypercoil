@@ -115,6 +115,90 @@ class SigmoidKernel(Kernel):
 
 
 class SVM(torch.nn.Module):
+    r"""
+    A kernelised support vector machine instantiated as a fully
+    differentiable convex optimisation layer.
+
+    .. warning::
+        Do not use this module unless you have a good reason; to enforce DPP
+        compliance and ensure well-formed gradients, some performance
+        sacrifices have been made, and the forward pass quickly becomes
+        prohibitively slow for large problems. A long-term solution would
+        involve finding the analytic derivative through the SVM and
+        implementing a custom backward method while using the ``sklearn``
+        forward. Or, alternatively finding a way to use libSVM as the back end
+        solver.
+
+    Parameters
+    ----------
+    C : positive float (default 1)
+        Regularisation hyperparameter; a smaller value of C increases the
+        strength of the regularisation.
+    kernel : ``'rbf'``, ``'poly'``, ``'linear'``, ``'sigmoid'``, or callable
+        Kernel function. The callable signature should accept either
+        one or two :math:`n \times d` matrices and return a single
+        positive semidefinite :math:`n \times n` matrix (the kernel
+        matrix). By default, a Gaussian kernel (RBF) is used. It is also
+        possible to pass a pre-computed Gram matrix by setting this to
+        ``'precomputed'``.
+    degree : int (default 3)
+        If a polynomial kernel is selected, specifies the maximum order
+        of the polynomial.
+    gamma : float, ``'auto'``, or ``'scale'`` (default ``'scale'``)
+        Kernel coefficient for RBF, polynomial, and sigmoid kernels.
+        ``'scale'`` and ``'auto'`` automatically configure the kernel
+        coefficient based on the input dataset, as in ``sklearn``.
+    coef0 : float (default 0)
+        Bias coefficient for polynomial and sigmoid kernels.
+    class_weight : list or None (default None)
+        Sets the weight of ``C`` to ``C * class_weight[i]`` for class ``i``.
+        Can be used to adjust the fit if classes are unbalanced.
+    verbose : bool (default False)
+        Toggles the verbosity of the solver.
+    decision_function_shape : ``'ovr'``
+        Currently, only one-vs-rest classifiers are available in the
+        multi-class setting.
+    recondition : float (default 0.01)
+        Reconditioning parameter to ensure positiveness and uniqueness of
+        all eigenvalues of the Gram matrix, which is necessary for
+        differentiation but likely sacrifices classification performance.
+        Reconditioning adds nonnegative values to the main diagonal of the
+        Gram matrix, approximately on the order of the largest singular
+        value of the matrix scaled by the provided reconditioning
+        factor.
+    formulate_on_forward_pass : bool (default False)
+        Indicates that the problem should be formulated on every forward
+        pass through the network. This will make the forward pass
+        extremely slow, but is necessary if training with a variable
+        number of observations. If this is false, the model cannot be used
+        unless either the ``formulate`` method is called or both the
+        ``n_observations`` and ``n_classes`` parameters are passed to the
+        constructor.
+    solver : None, ``'ECOS'``, or ``'SCS'`` (default None)
+        Convex solver to use for solving the SVM. By default the decision
+        is passed to the ``diffcp`` package. Note that this is generally
+        incredibly inefficient compared with using a dedicated SVM solver.
+    n_observations : int or None (default None)
+        Number of observations in the training dataset. If not specified,
+        this must be set when calling ``formulate``; otherwise it will be
+        determined automatically during the forward pass.
+    n_classes : int or None (default None)
+        Number of classes in the dataset. If not specified, this must be
+        set when calling ``formulate``; otherwise it will be determined
+        automatically during the forward pass.
+    sample_weight : tensor or None (default None)
+        Weight for each observation. If specified, the value of ``C`` for
+        observation i is scaled to ``C * sample_weight[i]``.
+
+    Notes
+    -----
+        This problem is framed as the dual of a soft-margin SVM. See
+        10:15 here: https://www.youtube.com/watch?v=zzn80wmclnw
+
+        Note that we must introduce the new variable Z below to
+        satisfy the ``cxvpylayers`` disciplined parametric programming
+        requirement.
+    """
     def __init__(
         self,
         C=1.0,
@@ -132,88 +216,6 @@ class SVM(torch.nn.Module):
         n_classes=None,
         sample_weight=None
     ):
-        r"""
-        Initialise a kernelised support vector machine as a fully
-        differentiable convex optimisation layer.
-
-        Do not use this module unless you have a good reason; to enforce DPP
-        compliance and ensure well-formed gradients, some performance
-        sacrifices have been made, and the forward pass quickly becomes
-        prohibitively slow for large problems. A long-term solution would
-        involve finding the analytic derivative through the SVM and
-        implementing a custom backward method while using the sklearn forward.
-        Or, alternatively finding a way to use libSVM as the back end solver.
-
-        Parameters
-        ----------
-        C : positive float (default 1)
-            Regularisation hyperparameter; a smaller value of C increases the
-            strength of the regularisation.
-        kernel : 'rbf', 'poly', 'linear', 'sigmoid', or callable
-            Kernel function. The callable signature should accept either
-            one or two :math:`n \times d` matrices and return a single
-            positive semidefinite :math:`n \times n` matrix (the kernel
-            matrix). By default, a Gaussian kernel (RBF) is used. It is also
-            possible to pass a pre-computed Gram matrix by setting this to
-            'precomputed'.
-        degree : int (default 3)
-            If a polynomial kernel is selected, specifies the maximum order
-            of the polynomial.
-        gamma : float, 'auto', or 'scale' (default 'scale')
-            Kernel coefficient for RBF, polynomial, and sigmoid kernels.
-            'scale' and 'auto' automatically configure the kernel coefficient
-            based on the input dataset, as in sklearn.
-        coef0 : float (default 0)
-            Bias coefficient for polynomial and sigmoid kernels.
-        class_weight : list or None (default None)
-            Sets the weight of C to C * `class_weight[i]` for class i. Can be
-            used to adjust the fit if classes are unbalanced.
-        verbose : bool (default False)
-            Toggles the verbosity of the solver.
-        decision_function_shape : 'ovr'
-            Currently, only one-vs-rest classifiers are available in the
-            multi-class setting.
-        recondition : float (default 0.01)
-            Reconditioning parameter to ensure positiveness and uniqueness of
-            all eigenvalues of the Gram matrix, which is necessary for
-            differentiation but likely sacrifices classification performance.
-            Reconditioning adds nonnegative values to the main diagonal of the
-            Gram matrix, approximately on the order of the largest singular
-            value of the matrix scaled by the provided reconditioning
-            factor.
-        formulate_on_forward_pass : bool (default False)
-            Indicates that the problem should be formulated on every forward
-            pass through the network. This will make the forward pass
-            extremely slow, but is necessary if training with a variable
-            number of observations. If this is false, the model cannot be used
-            unless either the `formulate` method is called or both the
-            `n_observations` and `n_classes` parameters are passed to the
-            constructor.
-        solver : None, 'ECOS', or 'SCS' (default None)
-            Convex solver to use for solving the SVM. By default the decision
-            is passed to the `diffcp` package. Note that this is generally
-            incredibly inefficient compared with using a dedicated SVM solver.
-        n_observations : int or None (default None)
-            Number of observations in the training dataset. If not specified,
-            this must be set when calling `formulate`; otherwise it will be
-            determined automatically during the forward pass.
-        n_classes : int or None (default None)
-            Number of classes in the dataset. If not specified, this must be
-            set when calling `formulate`; otherwise it will be determined
-            automatically during the forward pass.
-        sample_weight : tensor or None (default None)
-            Weight for each observation. If specified, the value of C for
-            observation i is scaled to C * sample_weight[i].
-
-        Notes
-        -----
-            This problem is framed as the dual of a soft-margin SVM. See
-            10:15 here: https://www.youtube.com/watch?v=zzn80wmclnw
-
-            Note that we must introduce the new variable Z below to
-            satisfy the `cxvpylayers` disciplined parametric programming
-            requirement.
-        """
         self.update_params(
             C=C,
             kernel=kernel,
@@ -305,7 +307,7 @@ class SVM(torch.nn.Module):
             10:15 here: https://www.youtube.com/watch?v=zzn80wmclnw
 
             Note that we must introduce the new variable Z below to
-            satisfy the `cxvpylayers` disciplined parametric programming
+            satisfy the ``cxvpylayers`` disciplined parametric programming
             requirement.
         """
         if C is None:
@@ -355,15 +357,15 @@ class SVM(torch.nn.Module):
         ----------
         n_observations : int
             Number of observations in the training dataset. If not specified,
-            this must be set when calling `formulate`; otherwise it will be
+            this must be set when calling ``formulate``; otherwise it will be
             determined automatically during the forward pass.
         n_classes : int
             Number of classes in the dataset. If not specified, this must be
-            set when calling `formulate`; otherwise it will be determined
+            set when calling ``formulate``; otherwise it will be determined
             automatically during the forward pass.
         sample_weight : tensor or None (default None)
-            Weight for each observation. If specified, the value of C for
-            observation i is scaled to C * sample_weight[i].
+            Weight for each observation. If specified, the value of ``C`` for
+            observation ``i`` is scaled to ``C * sample_weight[i]``.
         """
         C = self.C
         if self.class_weight is not None:

@@ -14,7 +14,7 @@ Helper wrappers allow packaging of multiple loss objectives in a single call.
 Each wrapped objective can be selectively applied to a subset of input tensors
 using
 :doc:`LossApply <hypercoil.loss.base.LossApply>`,
-:doc:`LossArgument <hypercoil.loss.base.LossArgument>`, and
+:doc:`LossArgument <hypercoil.engine.argument.ModelArgument>`, and
 :doc:`LossScheme <hypercoil.loss.base.LossScheme>`
 functionality.
 
@@ -59,6 +59,10 @@ from .equilibrium import (
 )
 from .hinge import (
     HingeLoss
+)
+from .jsdiv import (
+    JSDivergence,
+    SoftmaxJSDivergence
 )
 from .modularity import (
     ModularityLoss

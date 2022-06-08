@@ -2,9 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Atlas layer
-~~~~~~~~~~~
-Modules that linearly map voxelwise signals to labelwise signals.
+Modules that map voxelwise signals to labelwise signals.
 """
 import torch
 from operator import mul
@@ -14,12 +12,13 @@ from torch.nn import Module, Parameter, ParameterDict
 from torch.distributions import Bernoulli
 from ..engine.accumulate import Accumuline, AccumulatingFunction
 from ..engine.argument import ModelArgument, UnpackingModelArgument
-from ..functional.domain import Identity
-from ..functional.noise import UnstructuredDropoutSource
+from ..init.domain import Identity
+from ..engine.noise import UnstructuredDropoutSource
 from ..functional.utils import apply_mask
 from ..init.atlas import AtlasInit
 
 
+#TODO: add projection forward mode
 class AtlasLinear(Module):
     r"""
     Time series extraction from an atlas via a linear map.
@@ -37,58 +36,64 @@ class AtlasLinear(Module):
     ----------
     atlas : Atlas object
         A neuroimaging atlas, implemented as an instance of a subclass of
-        `BaseAtlas`. This initialises the atlas labels from which
-        representative time series are extracted.
-    kernel_sigma : float
+        :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`.
+        This initialises the atlas labels from which representative time
+        series are extracted.
+    kernel_sigma : float (default None)
         If this is a float, then a Gaussian smoothing kernel with the
         specified width is applied to each label at initialisation.
-    noise_sigma : float
+    noise_sigma : float (default None)
         If this is a float, then Gaussian noise with the specified standard
         deviation is added to the label at initialisation.
-    mask_input : bool
+    mask_input : bool (default False)
         Indicates that each input contains non-atlas locations and should be
         masked before time series extraction. If True, then the boolean tensor
-        stored in the `mask` field of the `atlas` input is used to subset each
-        input.
+        stored in the ``mask`` field of the ``atlas`` input is used to subset
+        each input.
     spatial_dropout : float in [0, 1) (default 0)
         Probability of dropout for each voxel. If this is nonzero, then during
         training each voxel's weight has some probability of being set to zero,
-        thus discounting the voxel from the time series estimate. In theory,
-        this can perhaps promote learning a weight that is robust to the
-        influence of any single voxel.
+        thus discounting the voxel from the time series estimate.
+        Conjecturally, this can perhaps promote learning a weight that is
+        robust to the influence of any single voxel.
     min_voxels : positive int (default 1)
         Minimum number of voxels that each region must contain after dropout.
         If a random dropout results in fewer remaining voxels, then another
         random dropout will be sampled until the criterion is satisfied. Has no
-        effect if `spatial_dropout` is zero.
-    domain : Domain object (default Identity)
-        A domain object from `hypercoil.functional.domain`, used to specify
-        the domain of the atlas weights. An `Identity` object yields the raw
-        atlas weights, while an `Atanh` object constrains weights to (-a, a),
-        and a `Logit` object constrains weights to (0, a) by transforming the
-        raw weights through a tanh or sigmoid function, respectively. A
-        `MultiLogit` domain mapper lends the atlas an intuitive interpretation
-        as a probabilistic parcellation. Using an appropriate domain can
-        ensure that weights are nonnegative and that they do not grow
-        explosively.
-    reduce : 'mean', 'absmean', 'zscore', 'psc', or 'sum' (default 'mean')
+        effect if ``spatial_dropout`` is zero.
+    domain : Domain object (default ``Identity``)
+        A domain mapper from
+        :doc:`hypercoil.init.domain <hypercoil.init.domain>`, used to specify
+        the domain of the atlas weights. An
+        :doc:`Identity <hypercoil.init.domainbase.Identity>`
+        object yields the raw atlas weights, while an
+        :doc:`Atanh <hypercoil.init.domain.Atanh>` object constrains weights
+        to ``(-a, a)``, and a :doc:`Logit <hypercoil.init.domain.Logit>`
+        object constrains weights to ``(0, a)`` by transforming the raw
+        weights through a tanh or sigmoid function, respectively. A
+        :doc:`MultiLogit <hypercoil.init.domain.MultiLogit>` domain mapper
+        lends the atlas an intuitive interpretation as a probabilistic
+        parcellation. Using an appropriate domain can ensure that weights are
+        nonnegative and that they do not grow explosively.
+    reduce : ``'mean'``, ``'absmean'``, ``'zscore'``, ``'psc'``, or ``'sum'`` (default ``'mean'``)
         Strategy for reducing across voxels and generating a representative
         time series for each label.
-        * `sum`: Weighted sum over voxel time series.
-        * `mean`: Compute the weighted mean over voxel time series.
-        * `absmean`: Compute the weighted mean over voxel time series,
+
+        * ``sum``: Weighted sum over voxel time series.
+        * ``mean``: Compute the weighted mean over voxel time series.
+        * ``absmean``: Compute the weighted mean over voxel time series,
           treating any negative voxel weights as though they were positive.
-        * `zscore`: Transform the sum of time series such that its temporal
+        * ``zscore``: Transform the sum of time series such that its temporal
           mean is 0 and its temporal standard deviation is 1.
-        * `psc`: Transform the time series such that its value indicates the
-          percent signal change from the mean. (untested)
+        * ``psc``: Transform the time series such that its value indicates the
+          percent signal change from the mean. (**untested**))
 
     Attributes
     ----------
     preweight : Tensor :math:`(L, V)`
-        Atlas map in the module's domain. L denotes the number of labels, and V
-        denotes the number of voxels. Identical to `weight` if the domain is
-        Identity.
+        Atlas map in the module's domain. L denotes the number of labels, and
+        V denotes the number of voxels. Identical to ``weight`` if the domain
+        is ``Identity``.
     weight : Tensor :math:`(L, V)`
         Representation of the atlas as a linear map from voxels to labels,
         applied independently to each time point in each input image.
@@ -96,13 +101,13 @@ class AtlasLinear(Module):
         Atlas map after application of spatial dropout or noise. Spatial
         dropout has a chance of randomly removing each voxel from
         consideration when extracting each time series. Spatial dropout
-        is applied only during training. Identical to `weight` if there is no
-        spatial dropout.
+        is applied only during training. Identical to ``weight`` if there is
+        no spatial dropout.
     mask : Tensor :math:`(V)`
         Boolean-valued tensor indicating the voxels that should be included as
         inputs to the atlas transformation.
     coors : Tensor :math:`(V, D)`
-        Spatial coordinates of each location in the atlas
+        Spatial coordinates of each location in the atlas.
     """
     def __init__(
         self,
@@ -336,6 +341,15 @@ def atlas_accfn(atlas, input, acc, argmap=None, out=[], terminate=False):
 
 
 class AtlasAccumuline(Accumuline):
+    """
+    :class:`AtlasLinear` layer with
+    :doc:`Accumuline <hypercoil.engine.accumulate.Accumuline>`
+    functionality for
+    :doc:`local gradient accumulation and rebatching <hypercoil.engine.accumulate>`.
+
+    .. warning::
+        This is untested functionality and it will not work.
+    """
     def __init__(
         self,
         atlas,

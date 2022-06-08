@@ -2,11 +2,10 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Activation functions
-~~~~~~~~~~~~~~~~~~~~
 Additional activation functions for neural network layers.
 """
 import torch
+from .utils import complex_decompose, complex_recompose
 
 
 def laplace(input, loc=0, width=1):
@@ -22,10 +21,9 @@ def laplace(input, loc=0, width=1):
     It is Lipschitz continuous over the reals and differentiable except at its
     centre.
 
-    Dimension
-    ---------
-    As this activation function is applied elementwise, it conserves dimension;
-    the output will be of the same shape as the input.
+    :Dimension: As this activation function is applied elementwise, it
+                conserves dimension; the output will be of the same shape as
+                the input.
 
     Parameters
     ----------
@@ -57,10 +55,9 @@ def expbarrier(input, barrier=1):
     It is Lipschitz continuous over the reals and differentiable except at its
     centre.
 
-    Dimension
-    ---------
-    As this activation function is applied elementwise, it conserves dimension;
-    the output will be of the same shape as the input.
+    :Dimension: As this activation function is applied elementwise, it
+                conserves dimension; the output will be of the same shape as
+                the input.
 
     Parameters
     ----------
@@ -96,10 +93,9 @@ def amplitude_laplace(input, loc=0, width=1):
     and undefined at the origin (the direction is ambiguous and any point in
     the circumference is equally valid).
 
-    Dimension
-    ---------
-    As this activation function is applied elementwise, it conserves dimension;
-    the output will be of the same shape as the input.
+    :Dimension: As this activation function is applied elementwise, it
+                conserves dimension; the output will be of the same shape as
+                the input.
 
     Parameters
     ----------
@@ -133,10 +129,9 @@ def amplitude_expbarrier(input, barrier=1):
     complex plane to the open unit disc: the origin is mapped to itself
     and distant regions of the complex plane are mapped to the circumference.
 
-    Dimension
-    ---------
-    As this activation function is applied elementwise, it conserves dimension;
-    the output will be of the same shape as the input.
+    :Dimension: As this activation function is applied elementwise, it
+                conserves dimension; the output will be of the same shape as
+                the input.
 
     Parameters
     ----------
@@ -170,10 +165,9 @@ def amplitude_tanh(input):
     complex plane to the open unit disc: the origin is mapped to itself
     and distant regions of the complex plane are mapped to the circumference.
 
-    Dimension
-    ---------
-    As this activation function is applied elementwise, it conserves dimension;
-    the output will be of the same shape as the input.
+    :Dimension: As this activation function is applied elementwise, it
+                conserves dimension; the output will be of the same shape as
+                the input.
 
     Parameters
     ----------
@@ -203,10 +197,9 @@ def amplitude_atanh(input):
     open unit disc in the complex plane into the entire complex plane: the
     origin is mapped to itself and the circumference is mapped to infinity.
 
-    Dimension
-    ---------
-    As this activation function is applied elementwise, it conserves dimension;
-    the output will be of the same shape as the input.
+    :Dimension: As this activation function is applied elementwise, it
+                conserves dimension; the output will be of the same shape as
+                the input.
 
     Parameters
     ----------
@@ -235,6 +228,44 @@ def _corrnorm_factor(input):
 def corrnorm(input, factor=None, gradpath='both'):
     r"""
     Correlation normalisation activation function.
+
+    Divide each entry :math:`A_{ij}` of the input matrix :math:`A` by the
+    product of the signed square roots of the corresponding diagonals:
+
+    :math:`\bar{A}_{ij} = A_{ij} \frac{\mathrm{sgn}(A_{ii} A_{jj})}{\sqrt{A_{ii}}\sqrt{A_{jj}} + \epsilon}`
+
+    This default behaviour, which maps a covariance matrix to a Pearson
+    correlation matrix, can be overriden by providing a ``factor`` argument
+    (detailed below). This activation function is also similar to a signed
+    version of the normalisation operation for a graph Laplacian matrix.
+
+    :Dimension: As this activation function is applied elementwise, it
+                conserves dimension; the output will be of the same shape as
+                the input.
+
+    Parameters
+    ----------
+    input : Tensor
+        Tensor to be normalised.
+    factor : Tensor, iterable(Tensor, Tensor), or None (default None)
+        Normalisation factor.
+
+        * If this is not explicitly specified, it follows the default
+          behaviour (division by the product of signed square roots.)
+        * If this is a tensor, ``input`` is directly divided by the
+          provided tensor. This option is provided mostly for compatibility
+          with non-square inputs.
+        * If this is a pair of tensors, then ``input`` is divided by their
+          outer product.
+    gradpath : str ``'input'`` or ``'both'`` (default ``'both'``)
+        If this is set to ``'input'`` and the default normalisation behaviour
+        is used, then gradient will be blocked from flowing backward through
+        the computation of the normalisation factor from the input.
+
+    Returns
+    -------
+    Tensor
+        Normalised input.
     """
     if isinstance(factor, torch.Tensor):
         return input / factor
@@ -247,61 +278,3 @@ def corrnorm(input, factor=None, gradpath='both'):
     else:
         factor = _corrnorm_factor(input)
     return input / factor
-
-
-def complex_decompose(complex):
-    """
-    Decompose a complex-valued tensor into amplitude and phase components.
-
-    Dimension
-    ---------
-    Each output is of the same shape as the input.
-
-    Parameters
-    ----------
-    complex : Tensor
-        Complex-valued tensor.
-
-    Returns
-    -------
-    ampl : Tensor
-        Amplitude of each entry in the input tensor.
-    phase : Tensor
-        Phase of each entry in the input tensor, in radians.
-    """
-    ampl = torch.abs(complex)
-    phase = torch.angle(complex)
-    return ampl, phase
-
-
-def complex_recompose(ampl, phase):
-    """
-    Reconstitute a complex-valed tensor from real-valued tensors denoting its
-    amplitude and its phase.
-
-    Dimension
-    ---------
-    Both inputs must be the same shape (or broadcastable). The output is the
-    same shape as the inputs.
-
-    Parameters
-    ----------
-    ampl : Tensor
-        Real-valued array storing complex number amplitudes.
-    phase : Tensor
-        Real-valued array storing complex number phases in radians.
-
-    Returns
-    -------
-    complex : Tensor
-        Complex numbers formed from the specified amplitudes and phases.
-    """
-    # TODO : update to use the complex exponential when torch enables it...
-    # see here : https://discuss.pytorch.org/t/complex-functions-exp-does- ...
-    # not-support-automatic-differentiation-for-outputs-with-complex-dtype/98039
-    # Supposedly it was updated, but it still isn't working after calling
-    # pip install torch --upgrade
-    # https://github.com/pytorch/pytorch/issues/43349
-    # https://github.com/pytorch/pytorch/pull/47194
-    return ampl * (torch.cos(phase) + 1j * torch.sin(phase))
-    #return ampl * torch.exp(phase * 1j)

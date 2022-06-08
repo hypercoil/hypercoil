@@ -2,14 +2,12 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Fourier-domain filter
-~~~~~~~~~~~~~~~~~~~~~
 Convolve the signal via multiplication in the Fourier domain.
 """
 import torch
 import torch.fft
 from .cov import corr
-from .domainbase import complex_decompose
+from .utils import complex_decompose
 
 
 def product_filter(X, weight, **params):
@@ -36,8 +34,8 @@ def product_filter(X, weight, **params):
         apply different filters to different variables in the input signal
         according to tensor broadcasting rules.
     **params
-        Any additional parameters provided will be passed to `torch.fft.rfft`
-        and `torch.fft.irfft`.
+        Any additional parameters provided will be passed to ``torch.fft.rfft``
+        and ``torch.fft.irfft``.
 
     Returns
     -------
@@ -57,13 +55,12 @@ def product_filtfilt(X, weight, **params):
     frequency domain.
 
     This function operates by first filtering the data and then filtering a
-    time-reversed copy of the filtered data again. Note that this doubles the
-    effective filter order.
+    time-reversed copy of the filtered data again. Note that the effect on the
+    amplitude is quadratic in the filter weight.
 
-    If the `weight` argument is strictly real, then the filter has no phase
-    delay component and it could make sense to simply use `product_filter`
-    depending on the context. (The gradient could still have an imaginary
-    component.)
+    If the ``weight`` argument is strictly real, then the filter has no phase
+    delay component and it could make sense to simply use ``product_filter``
+    depending on the context.
 
     :Dimension: **Input :** :math:`(N, *, obs)`
                     N denotes batch size, ``*`` denotes any number of
@@ -100,7 +97,7 @@ def product_filtfilt(X, weight, **params):
 
 
 def ampl_phase_corr(
-    X, weight, corr_axes=(0,), cov=corr, **params):
+    X, weight=None, corr_axes=(0,), cov=corr, **params):
     """
     Covariance among frequency bins, amplitude and phase. To run it across the
     batch and region axes, use

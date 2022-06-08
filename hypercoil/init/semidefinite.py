@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Positive semidefinite cone
-~~~~~~~~~~~~~~~~~~~~~~~~~~
 Initialise and compute means and mean blocks in the positive semidefinite cone.
 """
 import torch
@@ -12,8 +10,8 @@ from functools import partial
 from .base import DomainInitialiser
 from ..functional import (
     mean_euc_spd, mean_harm_spd, mean_logeuc_spd, mean_geom_spd,
-    SPSDNoiseSource
 )
+from ..engine.noise import SPSDNoiseSource
 
 
 def mean_block_spd(mean_specs, data):
@@ -92,10 +90,11 @@ def tangency_init_(tensor, mean_specs, init_data, std=0):
     ----------
     tensor : Tensor
         Tangency point tensor to initialise to the specified means.
-    mean_specs : list(_SemidefiniteMean objects)
+    mean_specs : list(``_SemidefiniteMean`` objects)
         List of specifications for estimating a measure of central tendency in
-        the positive semidefinite cone. SemidefiniteMean subclasses are found
-        at `hypercoil.init`.
+        the positive semidefinite cone. ``_SemidefiniteMean`` subclasses are
+        found at
+        :doc:`hypercoil.init.semidefinite <hypercoil.init.semidefinite.SemidefiniteMean>`.
     init_data : Tensor
         Input dataset over which each mean is to be estimated.
     std : float
@@ -116,6 +115,12 @@ def tangency_init_(tensor, mean_specs, init_data, std=0):
 
 
 class TangencyInit(DomainInitialiser):
+    """
+    Initialise points of tangency for projection between the positive
+    semidefinite cone and a tangent subspace.
+
+    See :func:`tangency_init_` for argument details.
+    """
     def __init__(self, mean_specs, init_data, std=0, domain=None):
         if domain is not None:
             print('Warning: domain specified. If the domain mapping does not '

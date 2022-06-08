@@ -13,11 +13,11 @@ from hypercoil.nn import (
 )
 from hypercoil.init.base import DistributionInitialiser
 from hypercoil.init.laplace import LaplaceInit
-from hypercoil.functional.noise import (
+from hypercoil.engine.noise import (
     DiagonalNoiseSource, DiagonalDropoutSource, BandDropoutSource
 )
 from hypercoil.functional.utils import apply_mask
-from hypercoil.functional.domain import Logit
+from hypercoil.init.domain import Logit
 
 
 class TestCovNN:

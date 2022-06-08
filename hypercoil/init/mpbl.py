@@ -320,7 +320,83 @@ def maximum_potential_bipartite_lattice_autoselect_order(
     return omax_asgt[idx], omax_u[idx], oU_prop[idx], order, compression_error
 
 
+#TODO: a lot of this is not correctly implemented. Revisit when we work on
+# sylo net.
 class BipartiteLatticeInit(DomainInitialiser):
+    r"""
+    Initialiser for sparse and biregular compression matrices.
+
+    .. warning::
+        Much of this functionality is currently wrong. But then, there isn't
+        really any reason to use this initialiser right now anyway.
+
+    Parameters
+    ----------
+    n_out: int or (int, int)
+        Number of output vertices. Ideally, this should be selected such that
+        there are many common multiples of ``n_out`` and the number of
+        vertices in the input potentials.
+    order: int
+        Lattice order of the bipartition.
+
+        - 1: total number of edges is the least common multiple of ``n_in``
+          and ``n_out``
+        - 2: total number of edges is twice the least common multiple
+    potentials: Tensor or (Tensor, Tensor)
+        Array of potentials to be maximised in the bipartition. This could,
+        for instance, be the mutual information among vertices or the
+        community allegiance matrix.
+
+        Size: :math:`n_{in} \times n_{in}`
+
+        If this is a tuple, then the algorithm will solve two different MPBL
+        problems: one for each tensor. In this case, the first tensor should
+        be of dimension :math:`H_{in} \times H_{in}` and the second should be
+        of dimension :math:`W_{in} \times W_{in}`, where the dimension of the
+        ``objective`` matrix is :math:`H_{in} \times W_{in}`.
+    objective: Tensor
+        Tensor whose reconstruction from vertical compression determines the
+        best bipartite lattice. If none is provided, the algorithm defaults to
+        the input potentials matrix.
+    n_lattices : int
+        Number of unique compression lattices to initialise.
+    residualise : bool
+        If this is true and multiple lattices are specified, the objective for
+        each lattice after the first is residualised with respect to the
+        reconstructed (compressed and then uncompressed) objective tensor.
+    svd : bool
+        If this is true, then the potentials for each succeeding lattice are
+        set using the next principal component of the potentials.
+    channel_multiplier : int
+        Number of outputs for each lattice.
+    sign : ``'+'`` or ``'-'``
+        Initialises the ``sign`` parameter of a vertical compression module.
+    iters : int
+        Number of iterations of the greedy approach to run. Only the result
+        that maximises the final potential will be returned.
+    temperature : float
+        Softmax temperature for selecting the next vertex to fuse.
+        0 deterministically fuses the maximum (default).
+        Infinity fuses randomly.
+    random_init : bool
+        Procedural initialisation. True begins from a random vertex (default).
+        False begins from a vertex connected to the edge with the maximum
+        overall potential.
+    attenuation : int
+        Attenuation factor for the potentials matrix. The potentials joining
+        each vertex set that is compressed into a single new vertex are
+        divided by the attenuation factor. This helps to prevent redundancy in
+        compressed sets.
+    next : None or ``BipartiteLatticeInit`` instance
+        If this is specified, the designated instance receives the compressed
+        potentials as input.
+    prev : None or ``BipartiteLatticeInit`` instance
+        If this is specified, then the current instance is designated as
+        ``next`` for the designated instance.
+    domain : Domain object
+        Used in conjunction with an activation function to constrain or
+        transform the values of the initialised tensor.
+    """
     def __init__(self, n_out, order,
                  potentials=None, objective=None,
                  n_lattices=1, residualise=False, svd=False,

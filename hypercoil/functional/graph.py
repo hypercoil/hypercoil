@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Graph measures
-~~~~~~~~~~~~~~
 Measures on graphs and networks.
 """
 import torch
@@ -85,15 +83,17 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
         maximum modularity to partitions with large communities, while a larger
         value assigns maximum modularity to partitions with many small
         communities.
-    null : callable(A) (default `girvan_newman_null`)
-        Function of A that returns, for each adjacency matrix in the input
-        tensor block, a suitable null model.
+    null : callable(A) (default ``girvan_newman_null``)
+        Function of ``A`` that returns, for each adjacency matrix in the input
+        tensor block, a suitable null model. By default, the
+        :doc:`Girvan-Newman null model <hypercoil.functional.graph.girvan_newman_null>`
+        is used.
     normalise : bool (default False)
         Indicates that the resulting matrix should be normalised by the total
         matrix degree. This may not be necessary for many use cases -- for
         instance, where the arg max of a function of the modularity matrix is
         desired.
-    sign : '+', '-', or None (default '+')
+    sign : ``'+'``, ``'-'``, or None (default ``'+'``)
         Sign of connections to be considered in the modularity.
     **params
         Any additional parameters are passed to the null model.
@@ -155,8 +155,8 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True, normalise=False):
         this is binary-valued, then it reflects a deterministic assignment.
     C_o : Tensor or None (default None)
         Community affiliation of vertices in the sink set. If None, then it is
-        assumed that the source and sink sets are the same, and `C_o` is set
-        equal to `C_i`.
+        assumed that the source and sink sets are the same, and ``C_o`` is set
+        equal to ``C_i``.
     L : Tensor or None (default None)
         The inter-community coupling matrix :math:`\Omega`, mapping the
         probability of affiliation between communities. Each entry
@@ -235,8 +235,8 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
         this is binary-valued, then it reflects a deterministic assignment.
     C_o : Tensor or None (default None)
         Community affiliation of vertices in the sink set. If None, then it is
-        assumed that the source and sink sets are the same, and `C_o` is set
-        equal to `C`.
+        assumed that the source and sink sets are the same, and ``C_o`` is set
+        equal to ``C``.
     L : Tensor or None (default None)
         Probability of affiliation between communities. Each entry
         :math:`L_{ij}` encodes the probability of a vertex in community i
@@ -247,13 +247,15 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
     exclude_diag : bool (default True)
         Indicates that self-links are not factored into the coaffiliation.
     gamma : nonnegative float (default 1)
-        Resolution parameter for the modularity matrix. A smaller value assigns
-        maximum modularity to partitions with large communities, while a larger
-        value assigns maximum modularity to partitions with many small
-        communities.
-    null : callable(A) (default `girvan_newman_null`)
-        Function of A that returns, for each adjacency matrix in the input
-        tensor block, a suitable null model.
+        Resolution parameter for the modularity matrix. A smaller value
+        assigns maximum modularity to partitions with large communities, while
+        a larger value assigns maximum modularity to partitions with many
+        small communities.
+    null : callable(A) (default ``girvan_newman_null``)
+        Function of ``A`` that returns, for each adjacency matrix in the input
+        tensor block, a suitable null model. By default, the
+        :doc:`Girvan-Newman null model <hypercoil.functional.graph.girvan_newman_null>`
+        is used.
     normalise_modularity : bool (default True)
         Indicates that the resulting matrix should be normalised by the total
         matrix degree. This may not be necessary for many use cases -- for
@@ -266,7 +268,7 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
     directed : bool (default False)
         Indicates that the input adjacency matrices should be considered as a
         directed graph.
-    sign : '+', '-', or None (default '+')
+    sign : ``'+'``, ``'-'``, or None (default ``'+'``)
         Sign of connections to be considered in the modularity.
     **params
         Any additional parameters are passed to the null model.

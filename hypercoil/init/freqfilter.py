@@ -2,14 +2,13 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Frequency filter initialisation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Tools for initialising parameters to emulate the transfer function of a filter.
+Tools for initialising parameters to emulate or replicate the transfer
+function of a filter in the frequency domain.
 """
 import torch
 import math
-from ..functional.domain import AmplitudeAtanh, Clip
-from ..functional.activation import complex_recompose
+from .domain import AmplitudeAtanh, Clip
+from ..functional.utils import complex_recompose
 
 
 class FreqFilterSpec(object):
@@ -17,15 +16,16 @@ class FreqFilterSpec(object):
     Specification for an approximate frequency response curve for various
     filter classes.
 
-    Note that this provides only an emulation for IIR filters. For a true
-    differentiable IIR filter, use the IIRFilter layer (when it's
-    operational).
+    .. warning::
+        Note that this provides **only an emulation** for IIR filters. For a
+        true differentiable IIR filter, use the
+        :doc:`IIRFilter <hypercoil.init.iirfilter>`
+        layer (when it's operational).
 
-    Dimension
-    ---------
-    - N : :math:`(F)`
-      F denotes the total number of filters to initialise.
-    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
+    :Dimension: **N :** :math:`(F)`
+                    F denotes the total number of filters to initialise.
+                **Wn :** :math:`(F, 2)` for bandpass or bandstop or
+                :math:`(F)` otherwise
 
     Parameters
     ----------
@@ -33,20 +33,26 @@ class FreqFilterSpec(object):
         Critical or cutoff frequency. If this is a band-pass filter, then this
         should be a tuple, with the first entry specifying the high-pass cutoff
         and the second entry specifying the low-pass frequency. This should be
-        specified relative to the Nyquist frequency if `fs` is not provided,
-        and should be in the same units as `fs` if it is provided. To create
+        specified relative to the Nyquist frequency if ``fs`` is not provided,
+        and should be in the same units as ``fs`` if it is provided. To create
         multiple filters, specify a tensor containing the critical frequencies
         for each filter in a single row.
     N : int or Tensor (default 1)
         Filter order. If this is a tensor, then a separate filter will be
         created for each entry in the tensor. Wn must be shaped to match. Not
         used for ideal filters.
-    ftype : one of ('butter', 'cheby1', 'cheby2', 'ellip',
-                    'bessel', 'ideal', 'randn')
+    ftype : one of (``'butter'``, ``'cheby1'``, ``'cheby2'``, ``'ellip'``, ``'bessel'``, ``'ideal'``, ``'randn'``)
         Filter class to emulate: Butterworth, Chebyshev I, Chebyshev II,
         elliptic, Bessel-Thompson, ideal, or filter weights sampled randomly
         from a normal distribution.
-    btype : 'bandpass' (default) or 'bandstop' or 'lowpass' or 'highpass'
+
+        .. note::
+            Because it cannot be overstated: IIR filter spectra (Butterworth,
+            Chebyshev, elliptic, Bessel) are strictly emulations and do not
+            remotely follow the actual behaviour of the filter. These filters
+            are recursive and cannot be implemented as frequency products. By
+            contrast, the ideal initialisation is exact.
+    btype : ``'bandpass'`` (default) or ``'bandstop'`` or ``'lowpass'`` or ``'highpass'``
         Filter pass-band to emulate: low-pass, high-pass, or band-pass. The
         interpretation of the critical frequency changes depending on the
         filter type.
@@ -56,8 +62,8 @@ class FreqFilterSpec(object):
         Pass-band ripple. Used only for Chebyshev I and elliptic filters.
     rs : float (default 20)
         Stop-band ripple. Used only for Chebyshev II and elliptic filters.
-    norm : 'phase' or 'mag' or 'delay' (default 'phase')
-        Critical frequency normalisation. Consult the `scipy.signal.bessel`
+    norm : ``'phase'`` or ``'mag'`` or ``'delay'`` (default ``'phase'``)
+        Critical frequency normalisation. Consult the ``scipy.signal.bessel``
         documentation for details.
     ampl_loc : float
         If randomly sampling filter weights from a normal distribution, this
@@ -78,13 +84,13 @@ class FreqFilterSpec(object):
     clamps : list(dict)
         Frequencies whose responses should be clampable to particular values.
         Each element of the list is a dictionary corresponding to a single
-        filter; the list should therefore have a length of `F`. Each key/value
-        pair in each dictionary should correspond to a frequency (relative to
-        Nyquist or `fs` if provided) and the clampable response at that
-        frequency. For instance {0.1: 0, 0.5: 1} enables clamping of the
-        frequency bin closest to 0.1 to 0 (full stop) and the bin closest to
-        0.5 to 1 (full pass). Note that the clamp must be applied using the
-        `get_clamps` method.
+        filter; the list should therefore have a length of ``F``. Each
+        key/value pair in each dictionary should correspond to a frequency
+        (relative to Nyquist or ``fs`` if provided) and the clampable response
+        at that frequency. For instance {0.1: 0, 0.5: 1} enables clamping of
+        the frequency bin closest to 0.1 to 0 (full stop) and the bin closest
+        to 0.5 to 1 (full pass). Note that the clamp must be applied using the
+        ``get_clamps`` method.
     bound : float (default 3)
         Maximum tolerable amplitude in the transfer function. Any values in
         excess will be adjusted according to the `ood` option when a spectrum
@@ -93,7 +99,7 @@ class FreqFilterSpec(object):
     Attributes
     ----------
     spectrum : Tensor
-        Populated when the `initialise_spectrum` method is called.
+        Populated when the ``initialise_spectrum`` method is called.
     """
     def __init__(self, Wn=None, N=1, ftype='butter', btype='bandpass', fs=None,
                  rp=0.1, rs=20, norm='phase', ampl_loc=0.5, ampl_scale=0.1,
@@ -131,7 +137,7 @@ class FreqFilterSpec(object):
     def initialise_spectrum(self, worN, domain=None):
         """
         Initialises a frequency spectrum or transfer function approximation
-        for the specified filter with `worN` frequency bins between 0 and
+        for the specified filter with ``worN`` frequency bins between 0 and
         Nyquist, inclusive.
 
         Parameters
@@ -139,18 +145,21 @@ class FreqFilterSpec(object):
         worN : int
             Number of frequency bins between 0 and Nyquist, inclusive.
         domain : Domain object (default AmplitudeAtanh)
-            A domain object from `hypercoil.functional.domain`, used to specify
-            the domain of the output spectrum. An `Identity` object yields the
-            raw transfer function, while an `AmplitudeAtanh` object transforms
-            the amplitudes of each bin by the inverse tanh (atanh) function.
-            This transformation can be useful if the transfer function will be
-            used as a learnable parameter whose amplitude will be transformed
-            by the tanh function, thereby constraining it to [0, 1) and
-            preventing explosive gain.
+            A domain object from
+            :doc:`hypercoil.init.domain <hypercoil.init.domain>`,
+            used to specify the domain of the output spectrum. An
+            :doc:`Identity <hypercoil.init.domain.Identity>`
+            object yields the raw transfer function, while an
+            :doc:`AmplitudeAtanh <hypercoil.init.domain.AmplitudeAtanh>`
+            object transforms the amplitudes of each bin by the inverse tanh
+            (atanh) function. This transformation can be useful if the
+            transfer function will be used as a learnable parameter whose
+            amplitude will be transformed by the tanh function, thereby
+            constraining it to [0, 1) and preventing explosive gain.
 
         Returns
         -------
-        None: the `spectrum` attribute is populated instead.
+        None: the ``spectrum`` attribute is populated instead.
         """
         domain = domain or AmplitudeAtanh(handler=Clip())
         if self.ftype == 'butter':
@@ -244,17 +253,20 @@ def freqfilter_init_(tensor, filter_specs, domain=None):
     Filter transfer function initialisation.
 
     Initialise a tensor such that its values follow or approximate the
-    transfer function of a specified filter. For IIR filters, the transfer
-    function is only an emulation. An IIR filter cannot be represented
-    as a frequency product in this manner. For a true differentiable IIR
-    filter, use the IIRFilter layer. The emulation here is computed as a
-    frequency response curve in scipy.
+    transfer function of a specified filter.
 
-    Dimension
-    ---------
-    - tensor : :math:`(*, F, N)`
-      F denotes the total number of filters to initialise from the provided
-      specs, and N denotes the number of frequency bins.
+    .. warning::
+    For IIR filters, the transfer function is only an emulation. An IIR
+    filter cannot be represented as a frequency product in this manner. For a
+    true differentiable IIR filter, use the
+    :doc:`IIRFilter <hypercoil.init.iirfilter>`
+    layer. The emulation here is computed as a frequency response curve in
+    scipy.
+
+    :Dimension: **tensor :** :math:`(*, F, N)`
+                    F denotes the total number of filters to initialise from
+                    the provided specs, and N denotes the number of frequency
+                    bins.
 
     Parameters
     ----------
@@ -265,17 +277,20 @@ def freqfilter_init_(tensor, filter_specs, domain=None):
         function is strictly real, the gradient will almost certainly not be
         and it is therefore critical that this tensor allow complex values.
     filter_specs : list(FreqFilterSpec)
-        A list of filter specifications implemented as `FreqFilterSpec` objects
-        (`hypercoil.init.FreqFilterSpec`).
-    domain : Domain object (default AmplitudeAtanh)
-        A domain object from `hypercoil.functional.domain`, used to specify
-        the domain of the output spectrum. An `Identity` object yields the
-        raw transfer function, while an `AmplitudeAtanh` object transforms
-        the amplitudes of each bin by the inverse tanh (atanh) function.
-        This transformation can be useful if the initialised tensor will be
-        used as a learnable parameter whose amplitude will be transformed
-        by the tanh function, thereby constraining it to [0, 1) and
-        preventing explosive gain.
+        A list of filter specifications implemented as :class:`FreqFilterSpec`
+        objects.
+    domain : Domain object (default :doc:`AmplitudeAtanh <hypercoil.init.domain.AmplitudeAtanh>`)
+        A domain object from
+        :doc:`hypercoil.init.domain <hypercoil.init.domain>`,
+        used to specify the domain of the output spectrum. An
+        :doc:`Identity <hypercoil.init.domainbase.Identity>`
+        object yields the raw transfer function, while an
+        :doc:`AmplitudeAtanh <hypercoil.init.domain.AmplitudeAtanh>`
+        object transforms the amplitudes of each bin by the inverse tanh
+        (atanh) function. This transformation can be useful if the initialised
+        tensor will be used as a learnable parameter whose amplitude will be
+        transformed by the tanh function, thereby constraining it to [0, 1)
+        and preventing explosive gain.
 
     Returns
     -------
@@ -297,13 +312,12 @@ def clamp_init_(points_tensor, values_tensor, filter_specs):
     transfer function to be clamped and the second contains the clamping
     values.
 
-    Dimension
-    ---------
-    - points_tensor : :math:`(*, F, N)`
-      F denotes the total number of filters to initialise from the provided
-      specs, and N denotes the number of frequency bins.
-    - values_tensor : :math:`(K)`
-      K denotes the total number of values to be clamped.
+    :Dimension: **points_tensor :** :math:`(*, F, N)`
+                    F denotes the total number of filters to initialise from
+                    the provided specs, and N denotes the number of frequency
+                    bins.
+                **values_tensor :** :math:`(K)`
+                    K denotes the total number of values to be clamped.
 
     Parameters
     ----------
@@ -313,8 +327,8 @@ def clamp_init_(points_tensor, values_tensor, filter_specs):
     values_tensor : Tensor
         Tensor containing clamping values to initialise in-place.
     filter_specs : list(FreqFilterSpec)
-        A list of filter specifications implemented as `FreqFilterSpec` objects
-        (`hypercoil.init.FreqFilterSpec`).
+        A list of filter specifications implemented as :class:`FreqFilterSpec`
+        objects.
 
     Returns
     -------

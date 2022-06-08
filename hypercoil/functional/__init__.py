@@ -5,8 +5,8 @@
 Functional interfaces.
 
 Functionals and neural network modules (in
-:doc:`hypercoil.nn <nn>`
-) constitute the elementary atoms of a differentiable program or
+:doc:`hypercoil.nn <nn>`)
+constitute the elementary atoms of a differentiable program or
 computational graph. All operations are composable and differentiable
 unless explicitly specified.
 """
@@ -24,7 +24,6 @@ from .crosssim import (
     crosshair_l2_similarity,
     crosshair_cosine_similarity
 )
-from .domainbase import complex_decompose, complex_recompose
 from .fourier import (
     product_filter,
     product_filtfilt
@@ -42,20 +41,16 @@ from .matrix import (
     delete_diagonal, recondition_eigenspaces, toeplitz,
     sym2vec, vec2sym, squareform
 )
-from .noise import (
-    DiagonalNoiseSource, SPSDNoiseSource,
-    DiagonalDropoutSource, SPSDDropoutSource,
-    LowRankNoiseSource, BandDropoutSource,
-    UnstructuredNoiseSource, UnstructuredDropoutSource
-)
-from .polynomial import (
-    polychan, polyconv2d, basischan, basisconv2d, tsconv2d
-)
 from .resid import (
     residualise
 )
 from .sphere import (
-    spherical_geodesic
+    spherical_geodesic,
+    sphere_to_normals,
+    sphere_to_latlong,
+    spatial_conv,
+    spherical_conv,
+    euclidean_conv,
 )
 from .sylo import (
     sylo
@@ -67,7 +62,12 @@ from .semidefinite import (
     tangent_project_spd, cone_project_spd, mean_euc_spd, mean_harm_spd,
     mean_logeuc_spd, mean_geom_spd
 )
+from .tsconv import (
+    polychan, polyconv2d, basischan, basisconv2d, tsconv2d
+)
 from .utils import (
+    complex_decompose,
+    complex_recompose,
     conform_mask,
     apply_mask,
     wmean,

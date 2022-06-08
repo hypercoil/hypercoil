@@ -26,8 +26,8 @@ from hypercoil.engine import (
     MultiplierCascadeSchedule
 )
 from hypercoil.functional import corr, pairedcorr, sym2vec
-from hypercoil.functional.domainbase import Identity
-from hypercoil.functional.domain import MultiLogit
+from hypercoil.init.domainbase import Identity
+from hypercoil.init.domain import MultiLogit
 from hypercoil.functional.matrix import toeplitz
 from hypercoil.functional.resid import residualise
 from hypercoil.init.atlas import (

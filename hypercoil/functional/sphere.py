@@ -2,14 +2,14 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Spherical convolution
-~~~~~~~~~~~~~~~~~~~~~
-Convolve data on a spherical manifold with an isotropic kernel.
+Operations supporting spherical coordinate systems.
 """
 import torch
 from functools import partial
 
 
+#TODO
+# Create a common functional submodule for similarity kernels.
 def kernel_gaussian(x, scale=1):
     """
     An example of an isotropic kernel. Zero-centered Gaussian kernel with
@@ -113,7 +113,8 @@ def spherical_geodesic(X, Y=None, r=1):
         As X. If a second tensor is not provided, then distances are computed
         between every pair of points in X.
     r : float
-        Radius of the sphere. We could just get this from X or Y, but we don't.
+        Radius of the sphere. We could just get this from X or Y, but we
+        don't.
 
     Returns
     -------
@@ -140,13 +141,10 @@ def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
     r"""
     Convolve data on a manifold with an isotropic kernel.
 
-    This is implemented in pretty much the dumbest possible way, but it works.
-    One day when I am better at maths, I might figure out a more efficient way
-    to do this.
-
     Currently, this works by taking a dataset, a list of coordinates associated
     with each point in the dataset, an isotropic kernel, and a distance metric.
     It proceeds as follows:
+
     1. Using the provided metric, compute the distance between each pair of
        coordinates.
     2. Evaluate the isotropic kernel at each computed distance. Use this value
@@ -210,14 +208,14 @@ def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
 
 def spherical_conv(data, coor, scale=1, r=1, max_bin=10000, truncate=None):
     r"""
-    Convolve data on a 2-sphere with a Gaussian kernel.
+    Convolve data on a 2-sphere with an isotropic Gaussian kernel.
 
     This is implemented in pretty much the dumbest possible way, but it works.
     Here is a likely more efficient method that requires Lie groups or some
     such thing:
     https://openreview.net/pdf?id=Hkbd5xZRb
 
-    Please see `spatial_conv` for implementation details.
+    See :func:`spatial_conv` for implementation details.
 
     :Dimension: **data :** :math:`(*, C, N)`
                     `*` denotes any number of intervening dimensions, `C`
@@ -260,7 +258,7 @@ def spherical_conv(data, coor, scale=1, r=1, max_bin=10000, truncate=None):
 
 def _euc_dist(X, Y=None):
     """
-    Euclidean L2 norm metric, for testing/illustrative purposes only.
+    Euclidean L2 norm metric.
     """
     if not isinstance(Y, torch.Tensor):
         Y = X
@@ -273,6 +271,8 @@ def _euc_dist(X, Y=None):
 def euclidean_conv(data, coor, scale=1, max_bin=10000, truncate=None):
     """
     Spatial convolution using the standard L2 metric and a Gaussian kernel.
+
+    See :func:`spatial_conv` for implementation details.
     """
     kernel = partial(kernel_gaussian, scale=scale)
     return spatial_conv(data=data, coor=coor, kernel=kernel,

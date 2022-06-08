@@ -45,12 +45,12 @@ from hypercoil.nn import (
     UnaryCovarianceUW
 )
 from hypercoil.data.functional import window_map
-from hypercoil.functional.domain import (
+from hypercoil.init.domain import (
     AmplitudeMultiLogit,
     AmplitudeAtanh
 )
 from hypercoil.init.freqfilter import FreqFilterSpec
-from hypercoil.functional.noise import UnstructuredDropoutSource
+from hypercoil.engine.noise import UnstructuredDropoutSource
 from hypercoil.viz.filter import StreamPlot
 
 

@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Symmetric bimodal
-~~~~~~~~~~~~~~~~~
 Symmetric bimodal regularisations using absolute value.
 """
 from torch import mean
@@ -20,7 +18,13 @@ def symmetric_bimodal_distance(weight, modes=(0, 1)):
 
 class SymmetricBimodalNorm(NormedLoss):
     """
-    Loss based on the norm of the minimum distance from either of two modes.
+    Loss based on the norm of the vector of minimum distances from either of
+    two modes.
+
+    .. note::
+        This functionality is retained for backward compatibility with some
+        synthetic data experiments. For most use cases,
+        :class:`SymmetricBimodal` should generally be preferred.
 
     Penalising this quantity can be used to concentrate weights at two modes,
     for instance 0 and 1 or -1 and 1.
@@ -48,7 +52,7 @@ class SymmetricBimodalNorm(NormedLoss):
 
 class SymmetricBimodal(ReducingLoss):
     """
-    Loss based on the norm of the minimum distance from either of two modes.
+    Loss based on the minimum distance from either of two modes.
 
     Penalising this quantity can be used to concentrate weights at two modes,
     for instance 0 and 1 or -1 and 1.

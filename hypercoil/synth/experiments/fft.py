@@ -11,13 +11,12 @@ import torch
 import numpy as np
 from matplotlib.pyplot import close
 from hypercoil.init import FreqFilterSpec
-from hypercoil.functional import corr
-from hypercoil.functional.activation import complex_decompose
-from hypercoil.functional.domain import (
+from hypercoil.functional import corr, complex_decompose
+from hypercoil.init.domain import (
     Identity,
     AmplitudeMultiLogit
 )
-from hypercoil.functional.noise import UnstructuredDropoutSource
+from hypercoil.engine.noise import UnstructuredDropoutSource
 from hypercoil.nn import (
     FrequencyDomainFilter,
     UnaryCovarianceUW

@@ -2,13 +2,11 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Delta-plus initialisation
-~~~~~~~~~~~~~~~~~~~~~~~~~
 Initialise parameters as a set of delta functions, plus Gaussian noise.
 """
 import torch
 from functools import partial
-from ..functional.domain import Identity
+from .domain import Identity
 from .base import BaseInitialiser
 
 
@@ -29,13 +27,14 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
     var : float
         Variance of the Gaussian distribution from which the random noise is
         sampled.
-    domain : Domain object (default Identity)
+    domain : Domain object (default ``Identity``)
         Used in conjunction with an activation function to constrain or
         transform the values of the initialised tensor. For instance, using
         the Atanh domain with default scale constrains the tensor as seen by
         data to the range of the tanh function, (-1, 1). Domain objects can
         be used with compatible modules and are documented further in
-        `hypercoil.functional.domain`. If no domain is specified, the Identity
+        :doc:`hypercoil.init.domain <hypercoil.init.domain>`.
+        If no domain is specified, the ``Identity``
         domain is used, which does not apply any transformations or
         constraints.
 
@@ -59,6 +58,13 @@ def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
 
 
 class DeltaPlusInit(BaseInitialiser):
+    """
+    Delta-plus initialisation.
+
+    Initialise a tensor as a delta function added to Gaussian noise.
+
+    See :func:`deltaplus_init_` for argument details.
+    """
     def __init__(self, loc=None, scale=None, var=0.2, domain=None):
         init = partial(deltaplus_init_, loc=loc, scale=scale,
                        var=var, domain=domain)
