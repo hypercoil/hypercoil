@@ -13,7 +13,7 @@ from ..functional.matrix import expand_outer
 
 
 class Recombinator(nn.Module):
-    """Linear recombinator layer for feature maps. It should also be possible
+    r"""Linear recombinator layer for feature maps. It should also be possible
     to substitute a 1x1 convolutional layer with similar results.
 
     Parameters
@@ -30,15 +30,15 @@ class Recombinator(nn.Module):
     init: dict
         Dictionary of parameters to pass to the Kaiming initialisation
         function.
-        Default: {'nonlinearity': 'linear'}
+        Default: ``{'nonlinearity': 'linear'}``
 
     Attributes
     ----------
     weight: Tensor
         The learnable mixture matrix of the module of shape
-        `in_channels` x `out_channels`.
+        :math:``C_{in} \times C_{out}``.
     bias: Tensor
-        The learnable bias of the module of shape `out_channels`.
+        The learnable bias of the module of shape ``out_channels``.
     """
     __constants__ = ['in_channels', 'out_channels', 'weight', 'bias']
 
@@ -99,15 +99,15 @@ def recombine(input, mixture, query=None,
 
     Parameters
     ----------
-    input: Tensor (N x C_in x H x W)
+    input: Tensor ``(N x C_in x H x W)``
         Stack of input matrices or feature maps.
-    mixture: Tensor (C_out x C_in)
+    mixture: Tensor ``(C_out x C_in)``
         Mixture matrix or recombinator.
-    query: Tensor (N x C_in x C_in)
+    query: Tensor ``(N x C_in x C_in)``
         If provided, the mixture is recomputed as the dot product similarity
         between each mixture vector and each query vector, and the softmax of
         the result is used to form convex combinations of inputs.
-    bias: Tensor (C_in)
+    bias: Tensor ``(C_in)``
         Bias term to apply after recombining.
     """
     if query_L is not None:

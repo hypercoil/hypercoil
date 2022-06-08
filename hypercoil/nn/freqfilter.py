@@ -36,54 +36,61 @@ class FrequencyDomainFilter(Module):
     Parameters
     ----------
     filter_specs : list(FreqFilterSpec)
-        A list of filter specifications implemented as `FreqFilterSpec` objects
-        (`hypercoil.init.FreqFilterSpec`). These determine the filter bank that
-        is applied to the input. Consult the `FreqFilterSpec` documentation for
-        further details.
+        A list of filter specifications implemented as
+        :doc:`FreqFilterSpec <hypercoil.init.FreqFilterSpec>`
+        objects. These determine the filter bank that
+        is applied to the input. Consult the ``FreqFilterSpec`` documentation
+        for further details.
     dim : int or None
         Number of frequency bins. This must be conformant with the time series
         supplied as input. If you are uncertain about the dimension in the
-        frequency domain, it is possible to instead provide the `time_dim`
-        argument (the length of the time series), but either `time_dim` or
-        `dim` (but not both) must be specified.
+        frequency domain, it is possible to instead provide the ``time_dim``
+        argument (the length of the time series), but either ``time_dim`` or
+        ``dim`` (but not both) must be specified.
     time_dim : int or None
-        Number of time points in the input time series. Either `time_dim` or
-        `dim` (but not both) must be specified.
-    filter : callable (default product_filtfilt)
+        Number of time points in the input time series. Either ``time_dim`` or
+        ``dim`` (but not both) must be specified.
+    filter : callable (default ``product_filtfilt``)
         Callable function that takes as its arguments an input time series and
         a set of transfer functions. It transforms the input into the frequency
         domain, multiplies it by the transfer function bank, and transforms it
-        back. By default, the `product_filtfilt` function is used to ensure a
+        back. By default, the ``product_filtfilt`` function is used to ensure a
         zero-phase filter.
-    domain : Domain object (default AmplitudeAtanh)
-        A domain object from `hypercoil.init.domain`, used to specify
-        the domain of the filter spectrum. An `Identity` object yields the
-        raw transfer function, while an `AmplitudeAtanh` object transforms
-        the amplitudes of each bin by the inverse tanh (atanh) function prior
-        to convolution with the input. Using the AmplitudeAtanh domain thereby
-        constrains transfer function amplitudes to [0, 1) and prevents
-        explosive gain.
+    domain : Domain object (default ``AmplitudeAtanh``)
+        A domain object from ``hypercoil.init.domain``, used to specify
+        the domain of the filter spectrum. An
+        :doc:`Identity <hypercoil.init.domainbase.Identity>` object yields the
+        raw transfer function, while an
+        :doc:`AmplitudeAtanh <hypercoil.init.domain.AmplitudeAtanh>` object
+        transforms the amplitudes of each bin by the inverse tanh (atanh)
+        function prior to convolution with the input. Using the
+        ``AmplitudeAtanh`` domain thereby constrains transfer function
+        amplitudes to [0, 1) and prevents explosive gain. An
+        :doc:`AmplitudeMultiLogit <hypercoil.init.domain.AmplitudeMultiLogit>`
+        domain can be used to instantiate and learn a parcellation over
+        frequencies.
 
     Attributes
     ----------
     preweight : Tensor :math:`(F, D)`
         Filter bank transfer functions in the module's domain. F denotes the
-        total number of filters in the bank, and D denotes the dimension of the
-        input dataset in the frequency domain. The weights are initialised to
-        emulate each  of the filters specified in the `filter_specs` parameter
-        following the `freqfilter_init_` function.
+        total number of filters in the bank, and D denotes the dimension of
+        the input dataset in the frequency domain. The weights are initialised
+        to emulate each  of the filters specified in the ``filter_specs``
+        parameter following the ``freqfilter_init_`` function.
     weight : Tensor :math:`(F, D)`
         The transfer function weights as seen by the input dataset in the
-        frequency domain. This entails mapping the weights out of the specified
-        predomain and applying any clamps declared in the input specifications.
+        frequency domain. This entails mapping the weights out of the
+        specified predomain and applying any clamps declared in the input
+        specifications.
     clamp_points : Tensor :math:`(F, D)`
         Boolean-valued tensor mask indexing points in the transfer function
-        that should be clamped to particular values. Any points so indexed will
-        not be learnable. If this is None, then no clamp is applied.
+        that should be clamped to particular values. Any points so indexed
+        will not be learnable. If this is None, then no clamp is applied.
     clamp_values : Tensor :math:`(V)`
-        Tensor containing values to which the transfer functions are clamped. V
-        denotes the total number of values to be clamped across all transfer
-        functions. If this is None, then no clamp is applied.
+        Tensor containing values to which the transfer functions are clamped.
+        `V` denotes the total number of values to be clamped across all
+        transfer functions. If this is None, then no clamp is applied.
     """
     def __init__(self, filter_specs, dim=None, time_dim=None,
                  filter=product_filtfilt, domain=None,

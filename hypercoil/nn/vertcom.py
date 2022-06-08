@@ -16,8 +16,8 @@ class VerticalCompression(nn.Module):
     Compress a graph by fusing vertices. For an adjacency matrix A, this
     layer applies the transform
     :math:`\left(C_{row} A\right) \times C_{col}^{\intercal}` so that an
-    :math:`H_{in} x W_{in}` matrix is mapped to an :math:`H_{out} x W_{out}`
-    matrix.
+    :math:`H_{in} \times W_{in}` matrix is mapped to an
+    :math:`H_{out} \times W_{out}` matrix.
     """
     __constants__ = ['in_features', 'out_features']
 
@@ -138,21 +138,21 @@ def vertical_compression(input, row_compressor, col_compressor=None,
                          fold_channels=True, sign=None):
     r"""
     Vertically compress a matrix or matrix stack of dimensions
-    :math:``H_{in} \times W_{in} \rightarrow H_{out} \times W_{out}``.
+    :math:`H_{in} \times W_{in} \rightarrow H_{out} \times W_{out}`.
 
     Parameters
     ----------
     input: Tensor
         Tensor to be compressed. This can be either a matrix of dimension
-        H_in x W_in or a stack of such matrices, for instance of dimension
-        N x C x H_in x W_in.
+        :math:`H_{in} \times W_{in}` or a stack of such matrices, for
+        instance of dimension :math:`N \times C \times H_{in} \times W_{in}`.
     row_compressor: Tensor
         Compressor for the rows of the input tensor. This should be a matrix
-        of dimension H_out x H_in.
+        of dimension :math:`H_{out} \times H_{in}`.
     col_compressor: Tensor or None
         Compressor for the columns of the input tensor. This should be a
-        matrix of dimension W_out x W_in. If this is None, then symmetry is
-        assumed: the column compressor and row compressor are the same.
+        matrix of dimension :math:`W_{out} \times W_{in}`. If this is None,
+        then symmetry is assumed: the column compressor and row compressor are the same.
     """
     if delete_diagonal:
         input = delete_diagonal(input)

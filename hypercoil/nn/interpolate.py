@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Interpolation
-~~~~~~~~~~~~~
 Modules for performing interpolation.
 """
 import torch
@@ -15,6 +13,10 @@ from ..functional import (
 
 
 class SpectralInterpolate(torch.nn.Module):
+    """
+    :doc:`Spectral interpolation <hypercoil.functional.interpolate.spectral_interpolate>`
+    module.
+    """
     def __init__(
         self,
         oversampling_frequency=8,
@@ -40,6 +42,10 @@ class SpectralInterpolate(torch.nn.Module):
 
 
 class WeightedInterpolate(torch.nn.Module):
+    """
+    :doc:`Weighted interpolation <hypercoil.functional.interpolate.weighted_interpolate>`
+    module.
+    """
     def __init__(
         self,
         start_stage=1,
@@ -62,6 +68,10 @@ class WeightedInterpolate(torch.nn.Module):
 
 
 class HybridInterpolate(torch.nn.Module):
+    """
+    :doc:`Hybrid interpolation <hypercoil.functional.interpolate.hybrid_interpolate>`
+    module.
+    """
     def __init__(
         self,
         max_weighted_stage=3,

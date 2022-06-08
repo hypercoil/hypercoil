@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-IIR filter
-~~~~~~~~~~
 IIR filter implemented as RNN. This follows a close adaptation of:
 https://github.com/boris-kuz/differentiable_iir_filters
 
@@ -11,6 +9,9 @@ If you use this in published work, you must cite:
 
 Kuznetsov B, Parker JD, Esqueda F (2020) Differentiable IIR filters for machine
 learning applications. DAFx2020, Vienna, Austria, September 2020-21.
+
+.. warning::
+    This is not yet implemented.
 """
 import torch
 import numpy as np
@@ -69,6 +70,7 @@ class Spec(object):
 
 class DTDF(Module):
     def __init__(self, spec, device=None, dtype=None):
+        raise NotImplementedError
         super(DTDF, self).__init__()
         factory_kwargs = {'device': device, 'dtype': dtype}
         self.factory_kwargs = factory_kwargs

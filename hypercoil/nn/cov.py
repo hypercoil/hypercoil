@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Covariance
-~~~~~~~~~~
 Modules supporting covariance estimation.
 """
 import torch
@@ -24,11 +22,13 @@ class _Cov(Module):
     """
     Base class for modules that estimate covariance or derived measures.
 
-    `_Cov` provides a common initialisation pattern together with methods for:
+    ``_Cov`` provides a common initialisation pattern together with methods
+    for:
+
     * injecting noise into the weights to regularise them
     * toggling between train and test modes
-    * mapping between the learnable 'preweight' internally stored by the
-      module and the weight that is actually 'seen' by the data where this
+    * mapping between the learnable ``'preweight'`` internally stored by the
+      module and the weight that is actually ``'seen'`` by the data where this
       is necessary
 
     Consult specific implementations for comprehensive documentation.
@@ -55,13 +55,13 @@ class _Cov(Module):
     def inject_noise(self, weight):
         """
         Inject noise into a weight tensor, as determined by the module's
-        `noise` and `dropout` attributes.
+        ``noise`` and ``dropout`` attributes.
 
         Noise injection can be used to regularise the module or to augment
         the dataset by jittering covariance estimates.
 
-        The `noise` attribute controls the distribution of additive noise,
-        while the `dropout` attribute controls the distribution of
+        The ``noise`` attribute controls the distribution of additive noise,
+        while the ``dropout`` attribute controls the distribution of
         multiplicative noise.
         """
         if self.noise is not None:
@@ -72,9 +72,10 @@ class _Cov(Module):
 
     def train(self, mode=True):
         """
-        Toggle the module between training and testing modes. If `mode` is set
-        to `False`, then the module enters testing mode; if it is `True` or
-        not explicitly specified, then the module enters training mode.
+        Toggle the module between training and testing modes. If ``mode`` is
+        set to ``False``, then the module enters testing mode; if it is
+        ``True`` or not explicitly specified, then the module enters training
+        mode.
         """
         super(_Cov, self).train(mode)
         if self.noise is not None:
@@ -120,10 +121,10 @@ class _UnaryCov(_Cov):
     Base class for covariance estimators that operate on a single variable
     tensor.
 
-    `_UnaryCov` extends `_Cov` by providing an implementation of the forward
-    pass through the module, which takes as input a variable tensor and
-    returns the output of the specified covariance estimator, applied to the
-    input tensor.
+    ``_UnaryCov`` extends ``_Cov`` by providing an implementation of the
+    forward pass through the module, which takes as input a variable tensor
+    and returns the output of the specified covariance estimator, applied to
+    the input tensor.
 
     Consult specific implementations for comprehensive documentation.
     """
@@ -152,10 +153,10 @@ class _BinaryCov(_Cov):
     Base class for covariance estimators that operate on a pair of variable
     tensors.
 
-    `_BinaryCov` extends `_Cov` by providing an implementation of the forward
-    pass through the module, which takes as input two variable tensors and
-    returns the output of the specified covariance estimator, applied to the
-    input tensor pair.
+    ``_BinaryCov`` extends ``_Cov`` by providing an implementation of the
+    forward pass through the module, which takes as input two variable tensors
+    and returns the output of the specified covariance estimator, applied to
+    the input tensor pair.
 
     Consult specific implementations for comprehensive documentation.
     """
@@ -186,7 +187,7 @@ class _WeightedCov(_Cov):
     Base class for covariance estimators with a full complement of learnable
     weights.
 
-    `_WeightedCov` extends `_Cov` by providing a default initialisation
+    ``_WeightedCov`` extends ``_Cov`` by providing a default initialisation
     framework for the module's learnable parameters.
 
     Consult specific implementations for comprehensive documentation.
@@ -310,8 +311,8 @@ class _UnweightedCov(_Cov):
     """
     Base class for covariance estimators without learnable parameters.
 
-    `_UnweightedCov` extends `_Cov` by initialising all weights to identity
-    (equivalent to unweighted covariance).
+    ``_UnweightedCov`` extends ``_Cov`` by initialising all weights to
+    identity (equivalent to unweighted covariance).
 
     Consult specific implementations for comprehensive documentation.
     """
@@ -364,23 +365,25 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
+        Covariance estimator, e.g. from
+        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
 
-        - `cov`: Raw empirical covariance.
-        - `corr`: Pearson correlation.
-        - `precision`: Precision.
-        - `partialcorr`: Partial correlation.
+        - :doc:`cov <hypercoil.functional.cov.cov>`: Raw empirical covariance.
+        - :doc:`corr  <hypercoil.functional.cov.corr>`: Pearson correlation.
+        - :doc:`precision  <hypercoil.functional.cov.precision>`: Precision.
+        - :doc:`partialcorr  <hypercoil.functional.cov.partialcorr>`:
+          Partial correlation.
     max_lag : int or None (default 0)
         Maximum lag to include in the weight matrix. If this is not None, the
         structure of the weight matrix is constrained to allow nonzero entries
-        only along diagonals that are a maximum offset of `max_lag` from the
+        only along diagonals that are a maximum offset of ``max_lag`` from the
         main diagonal. The default value of 0 permits weights only along the
         main diagonal.
     out_channels : int (default 1)
-        Number of weight sets `W` to include. For each weight set, the module
-        produces an output channel.
+        Number of weight sets ``W`` to include. For each weight set, the
+        module produces an output channel.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
         axis and the penultimate axis is the variable axis. If False, then
@@ -392,7 +395,7 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
     ddof : int or None (default None)
         Degrees of freedom for normalisation. If this is specified, it
         overrides the normalisation factor automatically determined using the
-        `bias` parameter.
+        ``bias`` parameter.
     l2 : nonnegative float (default 0)
         L2 regularisation term to add to the maximum likelihood estimate of
         the covariance matrix. This can be set to a positive value to obtain
@@ -410,7 +413,7 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
         type of data augmentation (similar to bootstrapped covariance
         estimates).
     init : Initialiser object or None (default None)
-        An initialiser object from `hypercoil.init`, used to specify the
+        An initialiser object from ``hypercoil.init``, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
         function of lag, such that the weights at 0 lag are
@@ -423,11 +426,11 @@ class UnaryCovariance(_UnaryCov, _WeightedCov):
     mask : Tensor :math:`(W, O, O)`
         Boolean-valued tensor indicating the entries of the weight tensor that
         are permitted to take nonzero values. This is determined by the
-        specified `max_lag` parameter at initialisation.
+        specified ``max_lag`` parameter at initialisation.
     preweight : Tensor :math:`(W, O, O)`
         Tensor containing raw internal values of the weights. This is the
         preimage of the weights under any transformation specified in the
-        `init` object, prior to the enforcement of any symmetry constraints.
+        ``init`` object, prior to the enforcement of any symmetry constraints.
         By default, the preweight is thus initialised as the preimage of a
         Toeplitz banded matrix where the weight of each diagonal is set
         according to a double exponential function with a maximum of 1 at the
@@ -467,13 +470,17 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
     stochastic noise and dropout to re-weight observations and regularise the
     model.
 
+    .. warning::
+        Toeplitz-weighted covariance functionality is currently broken; do not
+        use this.
+
     :Dimension: **Input :** :math:`(N, *, C, O)`
-                    N denotes batch size, ``*`` denotes any number of
-                    intervening dimensions, C denotes number of data channels
-                    or variables, O denotes number of time points or
-                    observations per channel
+                    `N` denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, `C` denotes number of data
+                    channels or variables, `O` denotes number of time points
+                    or observations per channel
                 **Output :** :math:`(N, *, W, C, C)`
-                    W denotes number of sets of weights.
+                    `W` denotes number of sets of weights.
 
     Parameters
     ----------
@@ -481,14 +488,16 @@ class UnaryCovarianceTW(_UnaryCov, _ToeplitzWeightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
+        Covariance estimator, e.g. from
+        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
 
-        - `cov`: Raw empirical covariance.
-        - `corr`: Pearson correlation.
-        - `precision`: Precision.
-        - `partialcorr`: Partial correlation.
+        - :doc:`cov <hypercoil.functional.cov.cov>`: Raw empirical covariance.
+        - :doc:`corr  <hypercoil.functional.cov.corr>`: Pearson correlation.
+        - :doc:`precision  <hypercoil.functional.cov.precision>`: Precision.
+        - :doc:`partialcorr  <hypercoil.functional.cov.partialcorr>`:
+          Partial correlation.
     max_lag : int or None (default 0)
         Maximum lag to include in the weight matrix. If this is not None, the
         structure of the weight matrix is constrained to allow nonzero entries
@@ -588,12 +597,12 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
     from the same source data.
 
     :Dimension: **Input :** :math:`(N, *, C, O)`
-                    N denotes batch size, ``*`` denotes any number of
-                    intervening dimensions, C denotes number of data channels
-                    or variables, O denotes number of time points or
-                    observations per channel
+                    `N` denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, `C` denotes number of data
+                    channels or variables, `O` denotes number of time points
+                    or observations per channel
                 **Output :** :math:`(N, *, W, C, C)`
-                    W denotes number of sets of weights.
+                    `W` denotes number of sets of weights.
 
     Parameters
     ----------
@@ -601,14 +610,16 @@ class UnaryCovarianceUW(_UnaryCov, _UnweightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
+        Covariance estimator, e.g. from
+        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
 
-        - `cov`: Raw empirical covariance.
-        - `corr`: Pearson correlation.
-        - `precision`: Precision.
-        - `partialcorr`: Partial correlation.
+        - :doc:`cov <hypercoil.functional.cov.cov>`: Raw empirical covariance.
+        - :doc:`corr  <hypercoil.functional.cov.corr>`: Pearson correlation.
+        - :doc:`precision  <hypercoil.functional.cov.precision>`: Precision.
+        - :doc:`partialcorr  <hypercoil.functional.cov.partialcorr>`:
+          Partial correlation.
     out_channels : int (default 1)
         Number of weight sets `W` to include. For each weight set, the module
         produces an output channel.
@@ -678,15 +689,15 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
     model.
 
     :Dimension: **Input 1:** :math:`(N, *, C_1, O)`
-                    N denotes batch size, ``*`` denotes any number of
+                    `N` denotes batch size, ``*`` denotes any number of
                     intervening dimensions, :math:`C_1` denotes number of data
-                    channels or variables, O denotes number of time points or
-                    observations per channel.
+                    channels or variables, `O` denotes number of time points
+                    or observations per channel.
                 **Input 2:** :math:`(N, *, C_2, O)`
                     :math:`C_2` denotes number of data channels or variables
                     in the second input tensor.
                 **Output :** :math:`(N, *, W, C_{*}, C_{*})`
-                    W denotes number of sets of weights. :math:`C_{*}` can
+                    `W` denotes number of sets of weights. :math:`C_{*}` can
                     denote either :math:`C_1` or :math:`C_2`, depending on the
                     estimator provided. Paired estimators produce one axis of
                     each size, while conditional estimators produce both axes
@@ -698,20 +709,36 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
+        Covariance estimator, e.g. from
+        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
+        estimator must be unary: it should accept a single tensor rather than
+        multiple tensors. Some available options are:
+
+        - :doc:`cov <hypercoil.functional.cov.cov>`: Raw empirical covariance.
+        - :doc:`corr  <hypercoil.functional.cov.corr>`: Pearson correlation.
+        - :doc:`precision  <hypercoil.functional.cov.precision>`: Precision.
+        - :doc:`partialcorr  <hypercoil.functional.cov.partialcorr>`:
+          Partial correlation.
+    estimator : callable
+        Covariance estimator, e.g. from
+        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
         estimator must be binary: it should accept two tensors rather than
         one. Some available options are:
 
-        - `pairedcov`: Empirical covariance between variables in tensor 1 and
-          those in tensor 2.
-        - `pairedcorr`: Pearson correlation between variables in tensor 1 and
-          those in tensor 2.
-        - `conditionalcov`: Covariance between variables in tensor 1 after
-          conditioning on variables in tensor 2. Can be used to control for
-          the effects of confounds and is equivalent to confound regression
-          with the addition of an intercept term.
-        - `conditionalcorr`: Pearson correlation between variables in tensor 1
-          after conditioning on variables in tensor 2.
+        - :doc:`pairedcov <hypercoil.functional.cov.pairedcov>`:
+          Empirical covariance between variables in tensor 1 and those in
+          tensor 2.
+        - :doc:`pairedcorr <hypercoil.functional.cov.pairedcorr>`:
+          Pearson correlation between variables in tensor 1 and those in
+          tensor 2.
+        - :doc:`conditionalcov <hypercoil.functional.cov.conditionalcov>`:
+          Covariance between variables in tensor 1 after conditioning on
+          variables in tensor 2. Can be used to control for the effects of
+          confounds and is equivalent to confound regression with the
+          addition of an intercept term.
+        - :doc:`conditionalcorr <hypercoil.functional.cov.conditionalcorr>`:
+          Pearson correlation between variables in tensor 1 after
+          conditioning on variables in tensor 2.
     max_lag : int or None (default 0)
         Maximum lag to include in the weight matrix. If this is not None, the
         structure of the weight matrix is constrained to allow nonzero entries
@@ -750,7 +777,7 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
         type of data augmentation (similar to bootstrapped covariance
         estimates).
     init : Initialiser object or None (default None)
-        An initialiser object from `hypercoil.init`, used to specify the
+        An initialiser object from ``hypercoil.init``, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
         function of lag, such that the weights at 0 lag are
@@ -763,11 +790,11 @@ class BinaryCovariance(_BinaryCov, _WeightedCov):
     mask : Tensor :math:`(W, O, O)`
         Boolean-valued tensor indicating the entries of the weight tensor that
         are permitted to take nonzero values. This is determined by the
-        specified `max_lag` parameter at initialisation.
+        specified ``max_lag`` parameter at initialisation.
     preweight : Tensor :math:`(W, O, O)`
         Tensor containing raw internal values of the weights. This is the
         preimage of the weights under any transformation specified in the
-        `init` object, prior to the enforcement of any symmetry constraints.
+        ``init`` object, prior to the enforcement of any symmetry constraints.
         By default, the preweight is thus initialised as the preimage of a
         Toeplitz banded matrix where the weight of each diagonal is set
         according to a double exponential function with a maximum of 1 at the
@@ -807,11 +834,15 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
     stochastic noise and dropout to re-weight observations and regularise the
     model.
 
+    .. warning::
+        Toeplitz-weighted covariance functionality is currently broken; do not
+        use this.
+
     :Dimension: **Input 1:** :math:`(N, *, C_1, O)`
-                    N denotes batch size, ``*`` denotes any number of
+                    `N` denotes batch size, ``*`` denotes any number of
                     intervening dimensions, :math:`C_1` denotes number of data
-                    channels or variables, O denotes number of time points or
-                    observations per channel.
+                    channels or variables, `O` denotes number of time points
+                    or observations per channel.
                 **Input 2:** :math:`(N, *, C_2, O)`
                     :math:`C_2` denotes number of data channels or variables
                     in the second input tensor.
@@ -828,24 +859,29 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
+        Covariance estimator, e.g. from
+        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
         estimator must be binary: it should accept two tensors rather than
         one. Some available options are:
 
-        - `pairedcov`: Empirical covariance between variables in tensor 1 and
-          those in tensor 2.
-        - `pairedcorr`: Pearson correlation between variables in tensor 1 and
-          those in tensor 2.
-        - `conditionalcov`: Covariance between variables in tensor 1 after
-          conditioning on variables in tensor 2. Can be used to control for
-          the effects of confounds and is equivalent to confound regression
-          with the addition of an intercept term.
-        - `conditionalcorr`: Pearson correlation between variables in tensor 1
-          after conditioning on variables in tensor 2.
+        - :doc:`pairedcov <hypercoil.functional.cov.pairedcov>`:
+          Empirical covariance between variables in tensor 1 and those in
+          tensor 2.
+        - :doc:`pairedcorr <hypercoil.functional.cov.pairedcorr>`:
+          Pearson correlation between variables in tensor 1 and those in
+          tensor 2.
+        - :doc:`conditionalcov <hypercoil.functional.cov.conditionalcov>`:
+          Covariance between variables in tensor 1 after conditioning on
+          variables in tensor 2. Can be used to control for the effects of
+          confounds and is equivalent to confound regression with the
+          addition of an intercept term.
+        - :doc:`conditionalcorr <hypercoil.functional.cov.conditionalcorr>`:
+          Pearson correlation between variables in tensor 1 after
+          conditioning on variables in tensor 2.
     max_lag : int or None (default 0)
         Maximum lag to include in the weight matrix. If this is not None, the
         structure of the weight matrix is constrained to allow nonzero entries
-        only along diagonals that are a maximum offset of `max_lag` from the
+        only along diagonals that are a maximum offset of ``max_lag`` from the
         main diagonal. The default value of 0 permits weights only along the
         main diagonal.
     out_channels : int (default 1)
@@ -880,7 +916,7 @@ class BinaryCovarianceTW(_BinaryCov, _ToeplitzWeightedCov):
         type of data augmentation (similar to bootstrapped covariance
         estimates).
     init : Initialiser object or None (default None)
-        An initialiser object from `hypercoil.init`, used to specify the
+        An initialiser object from ``hypercoil.init``, used to specify the
         initialisation scheme for the weights. If none is otherwise provided,
         this defaults to initialising weights following a double exponential
         function of lag, such that the weights at 0 lag are
@@ -942,10 +978,10 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
     from the same source data.
 
     :Dimension: **Input 1:** :math:`(N, *, C_1, O)`
-                    N denotes batch size, ``*`` denotes any number of
+                    `N` denotes batch size, ``*`` denotes any number of
                     intervening dimensions, :math:`C_1` denotes number of data
-                    channels or variables, O denotes number of time points or
-                    observations per channel.
+                    channels or variables, `O` denotes number of time points
+                    or observations per channel.
                 **Input 2:** :math:`(N, *, C_2, O)`
                     :math:`C_2` denotes number of data channels or variables
                     in the second input tensor.
@@ -962,20 +998,25 @@ class BinaryCovarianceUW(_BinaryCov, _UnweightedCov):
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
     estimator : callable
-        Covariance estimator, e.g. from `hypercoil.functional.cov`. The
+        Covariance estimator, e.g. from
+        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
         estimator must be binary: it should accept two tensors rather than
         one. Some available options are:
 
-        - `pairedcov`: Empirical covariance between variables in tensor 1 and
-          those in tensor 2.
-        - `pairedcorr`: Pearson correlation between variables in tensor 1 and
-          those in tensor 2.
-        - `conditionalcov`: Covariance between variables in tensor 1 after
-          conditioning on variables in tensor 2. Can be used to control for
-          the effects of confounds and is equivalent to confound regression
-          with the addition of an intercept term.
-        - `conditionalcorr`: Pearson correlation between variables in tensor 1
-          after conditioning on variables in tensor 2.
+        - :doc:`pairedcov <hypercoil.functional.cov.pairedcov>`:
+          Empirical covariance between variables in tensor 1 and those in
+          tensor 2.
+        - :doc:`pairedcorr <hypercoil.functional.cov.pairedcorr>`:
+          Pearson correlation between variables in tensor 1 and those in
+          tensor 2.
+        - :doc:`conditionalcov <hypercoil.functional.cov.conditionalcov>`:
+          Covariance between variables in tensor 1 after conditioning on
+          variables in tensor 2. Can be used to control for the effects of
+          confounds and is equivalent to confound regression with the
+          addition of an intercept term.
+        - :doc:`conditionalcorr <hypercoil.functional.cov.conditionalcorr>`:
+          Pearson correlation between variables in tensor 1 after
+          conditioning on variables in tensor 2.
     out_channels : int (default 1)
         Number of weight sets `W` to include. For each weight set, the module
         produces an output channel.

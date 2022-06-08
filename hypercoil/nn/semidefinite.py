@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Positive semidefinite cone
-~~~~~~~~~~~~~~~~~~~~~~~~~~
 Modules that project data between the positive semidefinite cone proper
 subspaces tangent to the cone.
 """
@@ -78,7 +76,7 @@ class TangentProject(_TangentProject):
                     ``*`` denotes any number of preceding dimensions and N
                     denotes the size of each square symmetric matrix.
                 **Output :** :math:`(*, C, N, N)`
-                    C denotes the number of output channels (points of
+                    `C` denotes the number of output channels (points of
                     tangency).
 
     Parameters
@@ -86,10 +84,11 @@ class TangentProject(_TangentProject):
     init_data : Tensor
         Data sample whose central tendency initialises the reference point of
         tangency.
-    mean_specs : list(`_SemidefiniteMean` object)
+    mean_specs : list(``_SemidefiniteMean`` object)
         Objects encoding a measure of central tendency in the positive
         semidefinite cone. Used to initialise the reference points of
-        tangency.
+        tangency. Selected from
+        :doc:`means on the semidefinite cone <hypercoil.init.semidefinite>`.
     recondition : float in [0, 1]
         Conditioning factor :math:`\psi` to promote positive definiteness. If
         this is in (0, 1], the original input will be replaced with a convex
@@ -181,7 +180,8 @@ class BatchTangentProject(_TangentProject):
     mean_specs : list(_SemidefiniteMean object)
         Objects encoding a measure of central tendency in the positive
         semidefinite cone. Used to initialise the reference points of
-        tangency.
+        tangency. Selected from
+        :doc:`means on the semidefinite cone <hypercoil.init.semidefinite>`.
     recondition : float in [0, 1]
         Conditioning factor :math:`\psi` to promote positive definiteness. If
         this is in (0, 1], the original input will be replaced with a convex
@@ -216,8 +216,8 @@ class BatchTangentProject(_TangentProject):
         the weight (reference point for projection) if the destination is a
         tangent subspace.
 
-        If no `dest` parameter is provided, then the destination manifold will
-        be set to the module's internal default destination attribute.
+        If no ``dest`` parameter is provided, then the destination manifold
+        will be set to the module's internal default destination attribute.
         """
         dest = dest or self.dest
         if dest != 'cone':

@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Sylo
-~~~~
 Sylo ("symmetric low-rank") kernel operator.
 """
 import math
@@ -19,7 +17,7 @@ from .vertcom import VerticalCompression
 
 
 class Sylo(nn.Module):
-    """
+    r"""
     Layer that learns a set of (possibly) symmetric, low-rank representations
     of a dataset.
 
@@ -38,27 +36,29 @@ class Sylo(nn.Module):
         Rank of the templates learned by the sylo module. Default: 1.
     bias: bool
         If True, adds a learnable bias to the output. Default: True
-    symmetry: bool, 'cross', or 'skew'
+    symmetry: bool, ``'cross'``, or ``'skew'`` (default True)
         Symmetry constraints to impose on learnable templates.
-        * If False, no symmetry constraints are placed on the templates learned
-          by the module.
-        * If True, the module is constrained to learn symmetric representations
-          of the graph or matrix: the left and right generators of each
-          template are constrained to be identical.
-        * If 'cross', the module is also constrained to learn symmetric
+
+        * If False, no symmetry constraints are placed on the templates
+          learned by the module.
+        * If True, the module is constrained to learn symmetric
+          representations of the graph or matrix: the left and right
+          generators of each template are constrained to be identical.
+        * If ``'cross'``, the module is also constrained to learn symmetric
           representations of the graph or matrix. However, in this case, the
           left and right generators can be different, and the template is
           defined as the average of the expansion and its transpose:
-          1/2 (L @ R.T + R @ L.T).
-        * If 'skew', the module is constrained to learn skew-symmetric
+          :math:`\frac{1}{2} \left(L R^{\intercal} + R L^{\intercal}\right)`
+        * If ``'skew'``, the module is constrained to learn skew-symmetric
           representations of the graph or matrix. The template is defined as
           the difference between the expansion and its transpose:
-          L @ R.T - R @ L.T
+          :math:`\frac{1}{2} \left(L R^{\intercal} - R L^{\intercal}\right)`
+
         This option is not available for nonsquare matrices or bipartite
         graphs. Note that the parameter count doubles if this is False.
-        Default: True
-    coupling: None, '+', '-', 'split', 'learnable', 'learnable_all'
+    coupling: None, ``'+'``, ``'-'``, ``'split'``, ``'learnable'``, ``'learnable_all'``
         Coupling parameter when expanding outer-product template banks.
+
         * A value of ``None`` disables the coupling parameter.
         * ``'+'`` is equivalent to ``None``, fixing coupling to positive 1.
           For ``symmetry=True``, this enforces positive semidefinite
@@ -88,18 +88,20 @@ class Sylo(nn.Module):
     similarity: function
         Definition of the similarity metric. This must be a function whose
         inputs and outputs are:
-        * input 0: reference matrix (N x C_in x H x W)
-        * input 1: left template generator (C_out x C_in x H x R)
-        * input 2: right template generator (C_out x C_in x H x R)
-        * input 3: symmetry constraint ('cross', 'skew', or other)
-        * output (N x C_out x H x W)
+
+        * input 0: reference matrix ``(N x C_in x H x W)``
+        * input 1: left template generator ``(C_out x C_in x H x R)``
+        * input 2: right template generator ``(C_out x C_in x H x R)``
+        * input 3: symmetry constraint (``'cross'``, ``'skew'``, or other)
+        * output ``(N x C_out x H x W)``
+
         Similarity is computed between each of the N matrices in the first
         input stack and the (low-rank) matrix derived from the outer-product
         expansion of the second and third inputs.
-        Default: `crosshair_similarity`
+        Default: ``crosshair_similarity``
     init: dict
         Dictionary of parameters to pass to the sylo initialisation function.
-        Default: {'nonlinearity': 'relu'}
+        Default: ``{'nonlinearity': 'relu'}``
     delete_diagonal: bool
         Delete the diagonal of the output.
 
@@ -107,9 +109,9 @@ class Sylo(nn.Module):
     ----------
     weight: Tensor
         The learnable weights of the module of shape
-        `out_channels` x `in_channels` x `dim` x `rank`.
+        ``out_channels x in_channels x dim x rank``.
     bias: Tensor
-        The learnable bias of the module of shape `out_channels`.
+        The learnable bias of the module of shape ``out_channels``.
     """
     __constants__ = ['in_channels', 'out_channels', 'H', 'W', 'rank', 'bias']
 
