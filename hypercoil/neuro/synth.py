@@ -6,8 +6,7 @@ Synthesise data matching spectral and covariance properties of a reference.
 """
 import torch
 from ..functional import (
-    complex_decompose,
-    complex_recompose
+    complex_decompose
 )
 from ..data.functional import normalise
 
@@ -68,4 +67,6 @@ def synthesise_from_cov_and_spectrum(spectrum, cov, dtype=None, device=None):
     synth = torch.randn((n_ts, n_obs), dtype=dtype, device=device)
     return match_cov_and_spectrum(
         signal=synth,
+        spectrum=spectrum,
+        cov=cov
     )
