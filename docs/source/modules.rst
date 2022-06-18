@@ -11,5 +11,6 @@ API reference
    functional
    init
    loss
+   neuro
    nn
    viz
