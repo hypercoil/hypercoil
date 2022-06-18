@@ -72,7 +72,8 @@ from .mvkurtosis import (
 )
 from .norm import (
     NormedLoss,
-    UnilateralNormedLoss
+    UnilateralNormedLoss,
+    ConstraintViolation
 )
 from .scheme import (
     LossScheme

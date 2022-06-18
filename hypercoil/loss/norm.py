@@ -12,7 +12,7 @@ largest singular value).
 import torch
 from torch.linalg import vector_norm as pnorm
 from torch.nn import Module
-from functools import partial
+from functools import partial, reduce
 from .base import ReducingLoss
 
 
@@ -113,6 +113,24 @@ class UnilateralNormedLoss(NormedLoss):
             torch.tensor(0, dtype=x.dtype, device=x.device)
         )
         super(UnilateralNormedLoss, self).__init__(
+            nu=nu, p=p, precompose=f, axis=axis,
+            reduction=reduction, name=name
+        )
+
+
+class ConstraintViolation(NormedLoss):
+    def __init__(self, constraints, nu=1, p=2, precompose=None, axis=None,
+                 reduction=None, name=None):
+        if precompose is None:
+            precompose = lambda x: x
+        def f(X):
+            Z = precompose(X)
+            maximum = reduce(torch.maximum, [c(Z) for c in constraints])
+            return torch.maximum(
+                maximum,
+                torch.tensor(0, dtype=Z.dtype, device=Z.device)
+            )
+        super(ConstraintViolation, self).__init__(
             nu=nu, p=p, precompose=f, axis=axis,
             reduction=reduction, name=name
         )
