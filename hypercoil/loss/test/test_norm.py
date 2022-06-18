@@ -9,7 +9,7 @@ import torch
 from hypercoil.loss import (
     NormedLoss,
     UnilateralNormedLoss,
-    #ConstraintViolation
+    ConstraintViolation
 )
 
 
@@ -52,3 +52,44 @@ class TestNormedLosses:
         uL2 = UnilateralNormedLoss(nu=1, p=2)
         assert uL2(X) == torch.tensor(19).sqrt()
         assert uL2(-X) == torch.tensor(7).sqrt()
+
+    def test_constraint_violation(self):
+        X = torch.tensor([
+            [1, -1],
+            [-2, 1],
+            [-1, 2],
+            [0, 0]
+        ], dtype=torch.float)
+
+        constraints = [
+            lambda x: x
+        ]
+        V = ConstraintViolation(nu=1, constraints=constraints, p=1)
+        U = UnilateralNormedLoss(nu=1, p=1)
+        assert V(X) == 4
+        assert V(X) == U(X)
+
+        constraints = [
+            lambda x: x @ torch.tensor([[1.], [1.]])
+        ]
+        V = ConstraintViolation(nu=1, constraints=constraints, p=1)
+        assert V(X) == 1
+
+        constraints = [
+            lambda x: x @ torch.tensor([[0.], [1.]]),
+            lambda x: x @ torch.tensor([[1.], [0.]]),
+        ]
+        V = ConstraintViolation(nu=1, constraints=constraints, p=0)
+        assert V(X) == 3
+
+        constraints = [
+            lambda x: torch.tensor([1., 1., 1., 1.]) @ x,
+        ]
+        V = ConstraintViolation(nu=1, constraints=constraints, p=1)
+        assert V(X) == 2
+
+        constraints = [
+            lambda x: x @ torch.tensor([[-1.], [1.]]),
+        ]
+        V = ConstraintViolation(nu=1, constraints=constraints, p=1)
+        assert V(X) == 6
