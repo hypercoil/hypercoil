@@ -5,9 +5,6 @@
 Synthesise data matching spectral and covariance properties of a reference.
 """
 import torch
-from ..functional import (
-    complex_decompose
-)
 from ..data.functional import normalise
 
 
@@ -45,11 +42,11 @@ def match_spectra(signal, reference, use_mean=False, frequencies=False):
     if not frequencies:
         signal = torch.fft.rfft(signal)
         reference = torch.fft.rfft(reference)
-    ampl_ref, _ = complex_decompose(reference)
+    ampl_ref = reference.abs()
     if use_mean:
         ampl_ref = ampl_ref.mean(0)
     matched = signal * ampl_ref
-    ampl_matched, _ = complex_decompose(matched)
+    ampl_matched = matched.abs()
     matched = matched * ampl_ref.mean() / ampl_matched.mean()
     return torch.fft.irfft(matched)
 
