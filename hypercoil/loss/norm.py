@@ -119,6 +119,44 @@ class UnilateralNormedLoss(NormedLoss):
 
 
 class ConstraintViolation(NormedLoss):
+    """
+    Constraint violation loss.
+
+    This loss uses a set of constraint functions and evaluates them on its
+    input. If a constraint evaluates to 0 or less, then it is considered to
+    be satisfied and no penalty is applied. Otherwise, a
+    :class:`normed penalty <NormedLoss>` is applied in proportion to the
+    maximum violation of any constraint.
+
+    For example, using the constraint ``lambda x : x`` penalises only
+    positive elements (equivalent to :class:`UnilateralNormedLoss`), while
+    ``lambda x: -x`` penalises only negative elements.
+    ``lambda x : tensor([1, 3, 0, -2]) @ x - 2`` applies the specified affine
+    function as a constraint.
+
+    Parameters
+    ----------
+    constraints : iterable(callable)
+        Iterable containing constraint functions.
+    nu : float
+        Loss function weight multiplier.
+    p : float (default 2)
+        Norm order. ``p=1`` corresponds to the Manhattan L1 norm, ``p=2``
+        corresponds to the Euclidean L2 norm, etc.
+    precompose : callable or None (default None)
+        Pre-transformation of the input tensor, on whose output the unilateral
+        norm is computed.
+    axis : int, iterable(int), or None (default None)
+        Axes defining the slice of the input tensor over which the norm is
+        computed. If this is None, then the overall tensor norm is computed.
+    reduction : callable (default ``torch.mean``)
+        Map from a tensor of arbitrary dimension to a scalar. The output of
+        the norm operation over the specified axes produces a tensor whose
+        extent over remaining axes is unreduced. This output tensor is then
+        passed into ``reduction`` to return a scalar.
+    name : str or None (default None)
+        Identifying string for the instantiation of the loss object.
+    """
     def __init__(self, constraints, nu=1, p=2, precompose=None, axis=None,
                  reduction=None, name=None):
         if precompose is None:

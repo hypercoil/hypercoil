@@ -23,6 +23,7 @@
    api/hypercoil.loss.mvkurtosis.MultivariateKurtosis
    api/hypercoil.loss.norm.NormedLoss
    api/hypercoil.loss.norm.UnilateralNormedLoss
+   api/hypercoil.loss.norm.ConstraintViolation
    api/hypercoil.loss.scheme.LossScheme
    api/hypercoil.loss.secondmoment
    api/hypercoil.loss.smoothness.SmoothnessPenalty
