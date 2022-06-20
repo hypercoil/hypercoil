@@ -7,9 +7,11 @@ Unit tests for graph and network measures
 import pytest
 import numpy as np
 import torch
+from scipy.sparse.csgraph import laplacian
 from hypercoil.functional import (
     modularity_matrix,
-    relaxed_modularity
+    relaxed_modularity,
+    graph_laplacian
 )
 from communities.utilities import (
     modularity_matrix as modularity_matrix_ref,
@@ -59,6 +61,17 @@ class TestGraph:
     def test_nonassociative_block(self):
         out = relaxed_modularity(self.Xt, self.Ct,
                                  L=self.Lt, exclude_diag=True) / 2
+
+    def test_laplacian_dense(self):
+        A = torch.diag_embed(torch.ones(9), 1)
+        A[0, :] = 0
+        A = A + A.t()
+        Lref = laplacian(A)
+        L = graph_laplacian(A, normalise=False)
+        assert np.allclose(L, Lref)
+        Lref = laplacian(A.numpy(), normed=True)
+        L = graph_laplacian(A)
+        assert np.allclose(L, Lref)
 
     @pytest.mark.cuda
     def test_modularity_cuda(self):

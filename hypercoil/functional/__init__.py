@@ -29,7 +29,8 @@ from .fourier import (
     product_filtfilt
 )
 from .graph import (
-    girvan_newman_null, modularity_matrix, relaxed_modularity
+    girvan_newman_null, modularity_matrix, relaxed_modularity,
+    graph_laplacian
 )
 from .interpolate import (
     hybrid_interpolate,
