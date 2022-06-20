@@ -157,10 +157,18 @@ class TestMatrix:
         assert torch.allclose(A_fd, A_dd)
         A_fd = fill_diagonal(A, 5)
         assert torch.allclose(A_fd, A_dd + 5 * torch.eye(d))
+
         A.requires_grad = True
         fill_diagonal(3 * A, 4).sum().backward()
         grad_ref = 3. * ~torch.eye(d, dtype=torch.bool)
         assert torch.allclose(A.grad, grad_ref)
+
+        d2 = 3
+        A = torch.rand(3, 1, 4, d, d2)
+        A_fd = fill_diagonal(A, offset=-1, fill=float('nan'))
+        ref = torch.diag_embed(torch.ones(d, dtype=torch.bool), offset=-1)
+        ref = ref[:d, :d2]
+        assert torch.all(torch.isnan(A_fd.sum((0, 1, 2))) == ref)
 
     def test_sym2vec_inversion(self):
         K = symmetric(torch.rand(3, 4, 5, 5))

@@ -255,10 +255,21 @@ def delete_diagonal(A):
     return A * mask
 
 
-def fill_diagonal(A, fill=0):
-    dim = A.shape[-1]
-    mask = torch.eye(dim, device=A.device, dtype=torch.bool)
-    mask = conform_mask(A, mask, axis=(-1, -2))
+def fill_diagonal(A, fill=0, offset=0):
+    """
+    Fill the main diagonal in a block of square matrices. Dimension is
+    inferred from the final axes.
+    """
+    dim = A.shape[-2:]
+    mask = torch.ones(
+        max(dim) - abs(offset),
+        device=A.device,
+        dtype=torch.bool
+    )
+    mask = torch.diag_embed(mask, offset=offset)
+    mask = mask[:dim[0], :dim[1]]
+    #mask = torch.eye(dim, device=A.device, dtype=torch.bool)
+    mask = conform_mask(A, mask, axis=(-2, -1))
     A = A.clone()
     A[mask] = fill
     return A
