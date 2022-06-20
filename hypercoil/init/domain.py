@@ -96,6 +96,33 @@ class Logit(_Domain):
 
 
 class UnitNormSphere(_Domain):
+    """
+    Unit norm sphere domain mapper. Constrain tensor values such that all
+    vectors along a given axis lie on a specified unit norm sphere.
+
+    Note that this will only work for proper convex norms. (It will obviously
+    not work for the L0 norm, for example.)
+
+    Parameters
+    ----------
+    norm : int, str, or tensor
+        Norm order argument passed to ``torch.linalg.vector_norm``. If this is
+        a tensor of symmetric positive semidefinite matrices, then a
+        Mahalanobis-like ellipse norm is computed using those matrices. (No
+        matrix inversion is performed.)
+    axis : int or tuple(int)
+        Axis or axis tuple over which the norm is computed. Every slice along
+        the specified axis or axis tuple of the mapped tensor is normalised
+        so that it has unit norm in the specified norm.
+    scale : float (default 1)
+        Scale of the norm sphere. By default, the unit norm sphere
+        (``scale=1``) is used.
+    loc : float or tensor
+        Location of the centre of the norm sphere. By default, the sphere is
+        centred at the origin (``loc=0``).
+    handler : _OutOfDomainHandler object (default :doc:`Clip <hypercoil.init.domainbase.Clip>`)
+        Object specifying a method for handling out-of-domain entries.
+    """
     def __init__(self, norm=2, axis=-1, use_vector_norm=True,
                  scale=1, loc=0, handler=None):
         super(UnitNormSphere, self).__init__(
