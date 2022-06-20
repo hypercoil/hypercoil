@@ -10,7 +10,7 @@ import torch
 from hypercoil.init.domain import (
     Clip, Normalise, Identity, Linear,
     Logit, MultiLogit, AmplitudeMultiLogit,
-    Atanh, AmplitudeAtanh,
+    Atanh, AmplitudeAtanh, UnitNormSphere,
     NullOptionMultiLogit, ANOML
 )
 
@@ -79,6 +79,19 @@ class TestDomain:
         out = dom.image(self.A)
         ref = self.A * 2
         assert np.allclose(out, ref)
+
+    def test_unitsphere(self):
+        X = torch.randn(4, 8)
+        d = UnitNormSphere()
+        assert np.allclose((d.image(X) ** 2).sum(-1), 1)
+        d = UnitNormSphere(axis=-2)
+        assert np.allclose((d.image(X) ** 2).sum(0), 1)
+        d = UnitNormSphere(norm=1, axis=-2)
+        assert np.allclose(d.image(X).abs().sum(0), 1)
+        d = UnitNormSphere(norm=torch.eye(8))
+        assert np.allclose((d.image(X) ** 2).sum(-1), 1)
+        d = UnitNormSphere(norm=torch.eye(4), axis=-2)
+        assert np.allclose((d.image(X) ** 2).sum(0), 1)
 
     def test_logit(self):
         dom = Logit(scale=2)
