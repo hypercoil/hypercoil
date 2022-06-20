@@ -286,3 +286,28 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
     if not directed:
         return Q / 2
     return Q
+
+
+def degree(W, edge_list=None):
+    if edge_list is not None:
+        raise NotImplementedError
+    return W.sum(-1)
+
+
+def graph_laplacian(W, edge_list=None, normalise=True):
+    #TODO: Use PyG to handle sparse edge lists.
+    if edge_list is not None:
+        raise NotImplementedError
+        return
+    deg = degree(W)
+    D = torch.diag_embed(deg)
+    L = D - W
+    if normalise:
+        norm_fac = torch.where(
+            deg == 0,
+            torch.tensor(1, dtype=W.dtype, device=W.device),
+            1 / deg.sqrt()
+        )
+        L = L * norm_fac
+        L = L * norm_fac.unsqueeze(-1)
+    return L
