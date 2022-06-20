@@ -95,6 +95,38 @@ class Logit(_Domain):
         self.image_map = torch.sigmoid
 
 
+class UnitNormSphere(_Domain):
+    def __init__(self, norm=2, axis=-1, use_vector_norm=True,
+                 scale=1, loc=0, handler=None):
+        super(UnitNormSphere, self).__init__(
+            handler=handler, loc=loc, scale=scale)
+        self.axis = axis
+        preimage_map = lambda x: x
+        if isinstance(norm, torch.Tensor):
+            def ellipse_norm(x, **kwargs):
+                x = x.transpose(-1, axis)
+                shape = x.shape[:-1]
+                norms = x.view(*shape, 1, -1) @ norm @ x.view(*shape, -1, 1)
+                return norms.sqrt().squeeze(-1).transpose(-1, axis)
+            f = ellipse_norm
+        elif use_vector_norm:
+            f = torch.linalg.vector_norm
+        else:
+            raise NotImplementedError(
+                'Correcting for matrix norms is not correctly implemented')
+            f = torch.linalg.norm
+        def image_map(x):
+            n = f(
+                x,
+                ord=norm,
+                dim=self.axis,
+                keepdim=True
+            ) + torch.finfo(x.dtype).eps
+            return x / n
+        self.preimage_map = preimage_map
+        self.image_map = image_map
+
+
 #TODO: add temperature parameter
 class MultiLogit(_Domain):
     """
