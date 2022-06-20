@@ -59,6 +59,7 @@ from .domain import (
     AmplitudeAtanh,
     Logit,
     MultiLogit,
+    UnitNormSphere,
     AmplitudeMultiLogit
 )
 from .atlas import (

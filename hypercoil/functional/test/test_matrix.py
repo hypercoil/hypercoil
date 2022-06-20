@@ -16,6 +16,7 @@ from hypercoil.functional import (
     expand_outer,
     recondition_eigenspaces,
     delete_diagonal,
+    fill_diagonal,
     sym2vec,
     vec2sym,
     squareform
@@ -147,6 +148,19 @@ class TestMatrix:
             ]) for k in K
         ])
         assert np.allclose(out, ref)
+
+    def test_fill_diag(self):
+        d = 6
+        A = torch.rand(2, 2, 2, d, d)
+        A_fd = fill_diagonal(A)
+        A_dd = delete_diagonal(A)
+        assert torch.allclose(A_fd, A_dd)
+        A_fd = fill_diagonal(A, 5)
+        assert torch.allclose(A_fd, A_dd + 5 * torch.eye(d))
+        A.requires_grad = True
+        fill_diagonal(3 * A, 4).sum().backward()
+        grad_ref = 3. * ~torch.eye(d, dtype=torch.bool)
+        assert torch.allclose(A.grad, grad_ref)
 
     def test_sym2vec_inversion(self):
         K = symmetric(torch.rand(3, 4, 5, 5))

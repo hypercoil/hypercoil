@@ -24,7 +24,6 @@ from hypercoil.engine import (
 )
 from hypercoil.functional import conditionalcorr, sym2vec
 from hypercoil.functional.domainbase import Identity
-from hypercoil.functional.utils import conform_mask
 from hypercoil.init.freqfilter import FreqFilterSpec
 from hypercoil.loss import (
     ReducingLoss, QCFC, SoftmaxEntropy, LossScheme, LossApply
