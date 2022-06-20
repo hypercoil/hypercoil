@@ -6,6 +6,7 @@ Special matrix functions.
 """
 import torch
 import math
+from .utils import conform_mask
 
 
 def invert_spd(A, force_invert_singular=True):
@@ -252,6 +253,15 @@ def delete_diagonal(A):
     mask = (~torch.eye(dim, device=A.device, dtype=torch.bool)).to(
         dtype=A.dtype)
     return A * mask
+
+
+def fill_diagonal(A, fill=0):
+    dim = A.shape[-1]
+    mask = torch.eye(dim, device=A.device, dtype=torch.bool)
+    mask = conform_mask(A, mask, axis=(-1, -2))
+    A = A.clone()
+    A[mask] = fill
+    return A
 
 
 def toeplitz(c, r=None, dim=None, fill_value=0, dtype=None, device=None):

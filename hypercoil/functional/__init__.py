@@ -39,8 +39,8 @@ from .interpolate import (
 )
 from .matrix import (
     invert_spd, expand_outer, spd, symmetric,
-    delete_diagonal, recondition_eigenspaces, toeplitz,
-    sym2vec, vec2sym, squareform
+    delete_diagonal, fill_diagonal, recondition_eigenspaces,
+    toeplitz, sym2vec, vec2sym, squareform
 )
 from .resid import (
     residualise
