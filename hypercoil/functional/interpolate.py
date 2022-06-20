@@ -116,13 +116,19 @@ def hybrid_interpolate(
     if mask.dim() == 1:
         mask = mask.unsqueeze(0)
     final_mask = (
-        mask.view(batch_size, 1, 1, -1) +
-        ~spec_mask.view(batch_size, 1, 1,-1)).to(torch.bool)
-    final_mask = (final_mask * ~torch.isnan(rec).sum(-2, keepdim=True)).to(torch.bool)
-    final_data = torch.where(final_mask, rec, data)
+        mask.view(batch_size, -1) +
+        ~spec_mask.view(batch_size, -1)).to(torch.bool)
+    final_mask = (
+        final_mask * ~torch.isnan(rec).squeeze().sum(-2, keepdim=True)
+    ).to(torch.bool).squeeze()
+    final_mask = conform_mask(data, final_mask, axis=-1, batch=True)
+    final_data = torch.where(
+        final_mask,
+        rec,
+        data)
     rec = weighted_interpolate(
         data=final_data,
-        mask=final_mask,
+        mask=final_mask.squeeze(),
         start_stage=1,
         max_stage=None,
         map_to_kernel=None
@@ -200,46 +206,49 @@ def weighted_interpolate(
         )
     cur_stage = 1
     rec = data
-    if mask.dim() == 2:
-        mask = mask.view(batch_size, 1, 1, -1)
-    elif mask.dim() == 3:
-        mask = mask.unsqueeze(1)
-    elif mask.dim() > 4:
-        mask = mask.squeeze()
-    rec_mask = mask
+    orig_mask = conform_mask(rec, mask, axis=-1, batch=True)
+    rec_mask = conform_mask(rec, mask, axis=-1, batch=True)
     while cur_stage < max_stage:
         kernel = map_to_kernel(cur_stage).view(1, 1, 1, -1)
+        #rec_old = rec
         rec = reconstruct_weighted(
             rec,
-            rec_mask.to(dtype=rec.dtype).view(batch_size, 1, 1, -1),
+            rec_mask,
             kernel,
             cur_stage
         )
-        rec_mask = ~torch.isnan(rec.sum((-2, -3), keepdim=True))
-        rec = torch.where(mask, data, rec)
-        rmask = conform_mask(rec, rec_mask, axis=-1, batch=True)
-        rec[~rmask] = 0
+        #rec, rec_mask = _get_data_for_weighted_recon(rec_old, rec, rec_mask)
+        rec, rec_mask = _get_data_for_weighted_recon(data, rec, orig_mask)
         if (~rec_mask).sum() == 0:
             break
         cur_stage += 1
-    rec[~rmask] = float('nan')
+    rec[~rec_mask] = float('nan')
     return rec
 
 
+def _get_data_for_weighted_recon(orig_data, rec_data, mask):
+    data = torch.where(mask, orig_data, rec_data)
+    mask = ~torch.isnan(rec_data.sum((-2, -3)))
+    mask = conform_mask(data, mask, axis=-1, batch=True)
+    data[~mask] = 0
+    return data, mask
+
+
 def reconstruct_weighted(data, mask, kernel, stage):
+    padding = kernel.shape[-1] // 2
+    mask = mask.to(dtype=data.dtype, device=data.device)
     val = torch.conv2d(
         (data * mask),
         kernel,
         stride=1,
-        padding=(0, stage)
+        padding=(0, padding)
     )
     wt = torch.conv2d(
         mask,
         kernel,
         stride=1,
-        padding=(0, stage)
+        padding=(0, padding)
     )
-    #if torch.any(wt.sum(0))
     if torch.all(torch.isnan(data)): assert 0
     return val / wt
 
@@ -355,7 +364,7 @@ def spectral_interpolate(
             all_samples=all_samples,
             thresh=thresh
         )
-    msk = conform_mask(data, tmask, axis=-1, batch=True)
+    msk = conform_mask(data, tmask.squeeze(), axis=-1, batch=True)
     return torch.where(msk, data, recon)
 
 
