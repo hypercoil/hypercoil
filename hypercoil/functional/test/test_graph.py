@@ -7,6 +7,7 @@ Unit tests for graph and network measures
 import pytest
 import numpy as np
 import torch
+from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import laplacian
 from hypercoil.functional import (
     modularity_matrix,
@@ -71,7 +72,29 @@ class TestGraph:
         assert np.allclose(L, Lref)
         Lref = laplacian(A.numpy(), normed=True)
         L = graph_laplacian(A)
-        assert np.allclose(L, Lref)
+        assert np.allclose(L[1:, :], Lref[1:, :])
+        assert np.allclose(torch.diagonal(L), torch.ones(10))
+
+    def test_laplacian_sparse(self):
+        n_nodes = 5
+        W = torch.rand(n_nodes - 2)
+        E = torch.tensor(list(zip(range(1, n_nodes - 1), range(2, n_nodes))))
+        Esym = torch.tensor(list(zip(
+            range(2, n_nodes),
+            range(1, n_nodes - 1))))
+        E = torch.cat((E, Esym))
+        W = torch.cat((W, W))
+
+        L = graph_laplacian(
+            W, edge_index=E.t(),
+            normalise=True)
+        Lref = laplacian(
+            csr_matrix((W, E.t()), (n_nodes, n_nodes)),
+            normed=True)
+
+        L = csr_matrix((L[-1], L[0]), (n_nodes, n_nodes)).todense()
+        assert np.allclose(L[1:, :], Lref.todense()[1:, :])
+        assert np.allclose(np.diag(L), torch.ones(n_nodes))
 
     @pytest.mark.cuda
     def test_modularity_cuda(self):
