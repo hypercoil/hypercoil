@@ -10,3 +10,4 @@
    hypercoil.functional.graph.modularity_matrix
    hypercoil.functional.graph.coaffiliation
    hypercoil.functional.graph.relaxed_modularity
+   hypercoil.functional.graph.graph_laplacian

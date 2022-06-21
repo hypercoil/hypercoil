@@ -296,7 +296,58 @@ def degree(W, edge_index=None):
 
 
 def graph_laplacian(W, edge_index=None, normalise=True, num_nodes=None):
-    #TODO: Use PyG to handle sparse edge lists.
+    r"""
+    Laplacian of a graph.
+
+    Given the diagonal matrix of matrix degrees :math:`D`, the Laplacian
+    :math:`L` of a graph with adjacency matrix :math:`A` is
+
+    :math:`L = D - A`
+
+    For many applications, vertices with large degrees tend to dominate
+    properties of the Laplacian, and it is desirable to normalise the
+    Laplacian before further analysis.
+
+    .. math::
+
+        \widetilde{L} = D^{-\frac{1}{2}} L D^{-\frac{1}{2}}
+
+        \widetilde{L} = I - D^{-\frac{1}{2}} A D^{-\frac{1}{2}}
+
+    .. note::
+
+        For an undirected graph, each edge should be duplicated in the index
+        and weight tensors, with source and target vertices swapped in the
+        index.
+
+    :Dimension: **W :** :math:`(*, N, N)` or :math:`(*, E)`
+                    ``*`` denotes any number of preceding dimensions, N
+                    denotes number of vertices, and E denotes number of edges.
+                    The shape should be :math:`(*, N, N)` if ``edge_index`` is
+                    not provided and :math:`(*, E)` if ``edge_index`` is
+                    provided.
+                **edge_index :** :math:`(*, 2, E)`
+                    As above.
+                **Output :** :math:`(*, N, N)` or tuple(:math:`(*, E)`, :math:`(*, 2, E)`)
+                    As above.
+
+    Parameters
+    ----------
+    W : tensor
+        Edge weight tensor. If ``edge_index`` is not provided, then this
+        should be the graph adjacency matrix; otherwise, it should be a
+        list of weights corresponding to the edges in ``edge_index``.
+    edge_index : ``LongTensor`` or None (default None)
+        List of edges corresponding to the provided weights. Each column
+        contains the index of the source vertex and the index of the target
+        vertex for the corresponding weight in ``W``.
+    normalise : bool (default True)
+        Indicates that the Laplacian should be normalised using the degree
+        matrix.
+    num_nodes : int or None (default None)
+        Number of nodes in the graph, if it is sparse. Forwarded to
+        ``get_laplacian`` in ``torch_geometric``.
+    """
     if edge_index is not None:
         if normalise: norm = 'sym'
         return get_laplacian(
