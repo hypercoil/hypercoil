@@ -37,6 +37,10 @@ jobs:
         python -m pip install nilearn
         python -m pip install setuptools
         python -m pip install communities
+        python -m pip install brainspace
+        python -m pip install torch-scatter -f https://data.pyg.org/whl/torch-1.11.0+cpu.html
+        python -m pip install torch-sparse -f https://data.pyg.org/whl/torch-1.11.0+cpu.html
+        python -m pip install torch-geometric
 
     - name: Lint
       run: |
