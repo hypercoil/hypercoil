@@ -5,6 +5,7 @@
 Measures on graphs and networks.
 """
 import torch
+from torch_geometric.utils import get_laplacian
 from .matrix import delete_diagonal
 
 
@@ -288,17 +289,23 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
     return Q
 
 
-def degree(W, edge_list=None):
-    if edge_list is not None:
+def degree(W, edge_index=None):
+    if edge_index is not None:
         raise NotImplementedError
     return W.sum(-1)
 
 
-def graph_laplacian(W, edge_list=None, normalise=True):
+def graph_laplacian(W, edge_index=None, normalise=True, num_nodes=None):
     #TODO: Use PyG to handle sparse edge lists.
-    if edge_list is not None:
-        raise NotImplementedError
-        return
+    if edge_index is not None:
+        if normalise: norm = 'sym'
+        return get_laplacian(
+            edge_index=edge_index,
+            edge_weight=W,
+            normalization=norm,
+            dtype=W.dtype,
+            num_nodes=num_nodes
+        )
     deg = degree(W)
     D = torch.diag_embed(deg)
     L = D - W
@@ -310,4 +317,5 @@ def graph_laplacian(W, edge_list=None, normalise=True):
         )
         L = L * norm_fac
         L = L * norm_fac.unsqueeze(-1)
+        L.fill_diagonal_(1)
     return L
