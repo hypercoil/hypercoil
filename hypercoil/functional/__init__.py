@@ -38,7 +38,7 @@ from .interpolate import (
     weighted_interpolate
 )
 from .matrix import (
-    invert_spd, expand_outer, spd, symmetric,
+    invert_spd, expand_outer, spd, symmetric, symmetric_sparse,
     delete_diagonal, fill_diagonal, recondition_eigenspaces,
     toeplitz, sym2vec, vec2sym, squareform
 )

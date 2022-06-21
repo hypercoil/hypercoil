@@ -8,10 +8,12 @@ import pytest
 import torch
 import numpy as np
 from scipy.linalg import toeplitz as toeplitz_ref
+from scipy.sparse import csr_matrix
 from hypercoil.functional import (
     invert_spd,
     toeplitz,
     symmetric,
+    symmetric_sparse,
     spd,
     expand_outer,
     recondition_eigenspaces,
@@ -69,6 +71,37 @@ class TestMatrix:
         out = symmetric(self.Bt)
         ref = out.transpose(-1, -2)
         assert self.approx(out, ref)
+
+    def test_symmetric_sparse(self):
+        W = torch.tensor([0.3, -1., -0.1, 0.9])
+        edge_index = torch.tensor([
+            [0, 1, 2, 3],
+            [1, 2, 3, 4]
+        ])
+        W_out, E_out = symmetric_sparse(W, edge_index)
+        out = np.array(csr_matrix((W_out, E_out), (5, 5)).todense())
+        ref = torch.diag_embed(W, offset=1)
+        ref = ref + ref.t()
+        assert np.allclose(out, ref)
+
+        #TODO: This use case makes no sense. Update this test after figuring
+        # out valid uses for batching here (e.g., strictly if edge indices
+        # are the same).
+        W = torch.tensor([
+            [0.3, -1., -0.1, 0.9],
+            [-1, 0, -1, 1]
+        ])
+        edge_index = torch.tensor([
+            [
+                [0, 1, 2, 3],
+                [1, 2, 3, 4]
+            ],
+            [
+                [0, 1, 2, 3],
+                [0, 1, 2, 3]
+            ],
+        ])
+        W_out, E_out = symmetric_sparse(W, edge_index, skew=True)
 
     def test_expand_outer(self):
         L = torch.rand(8, 4, 10, 3)

@@ -83,6 +83,31 @@ def symmetric(X, skew=False, axes=(-2, -1)):
         return (X - X.transpose(*axes)) / 2
 
 
+def symmetric_sparse(W, edge_index, skew=False):
+    """
+    Impose symmetry (undirectedness) on a weight-edge index pair
+    representation of a graph.
+
+    All edges are duplicated and their source and target vertices reversed.
+
+    Parameters
+    ----------
+    W : tensor
+    edge_index : tensor
+    skew : bool (default False)
+    """
+    source = edge_index[..., 0, :]
+    target = edge_index[..., 1, :]
+    #TODO: don't duplicate where source = target.
+    edge_index_mirrored = torch.stack((target, source), -2)
+    if skew:
+        W = torch.cat((W, -W), -1)
+    else:
+        W = torch.cat((W, W), -1)
+    edge_index = torch.cat((edge_index, edge_index_mirrored), -1)
+    return W, edge_index
+
+
 def spd(X, eps=1e-6, method='eig'):
     """
     Impose symmetric positive definiteness on a tensor block.
