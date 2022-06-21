@@ -98,7 +98,8 @@ def symmetric_sparse(W, edge_index, skew=False):
     """
     source = edge_index[..., 0, :]
     target = edge_index[..., 1, :]
-    #TODO: don't duplicate where source = target.
+    #TODO: don't duplicate where source = target. Also generally don't
+    # append an edge if it's already there.
     edge_index_mirrored = torch.stack((target, source), -2)
     if skew:
         W = torch.cat((W, -W), -1)
