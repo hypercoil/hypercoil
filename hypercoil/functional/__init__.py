@@ -13,6 +13,9 @@ unless explicitly specified.
 from .cmass import (
     cmass_coor
 )
+from .connectopy import (
+    laplacian_eigenmaps
+)
 from .cov import (
     cov, corr, partialcorr, pairedcov, conditionalcov, conditionalcorr,
     precision, pairedcorr, covariance, correlation, corrcoef, pcorr, ccov,

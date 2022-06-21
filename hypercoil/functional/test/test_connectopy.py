@@ -35,7 +35,7 @@ class TestConnectopy:
         A = torch.diag_embed(torch.ones(dim - 1), 1)
         A[0, -1] = 1
         A = A + A.t()
-        L, Q = laplacian_eigenmaps(A)
+        Q, L = laplacian_eigenmaps(A)
         Q_ref, L_ref = le_ref(A.numpy())
         self.plot_gradients(
             ref=Q_ref[..., :2].T,

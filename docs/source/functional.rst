@@ -9,6 +9,7 @@
    api/hypercoil.functional.activation
    api/hypercoil.functional.cmass
    api/hypercoil.functional.cov
+   api/hypercoil.functional.connectopy
    api/hypercoil.functional.fourier
    api/hypercoil.functional.graph
    api/hypercoil.functional.interpolate
