@@ -40,6 +40,10 @@ from .interpolate import (
     spectral_interpolate,
     weighted_interpolate
 )
+from .kernel import (
+    linear_kernel, polynomial_kernel, sigmoid_kernel,
+    gaussian_kernel, rbf_kernel
+)
 from .matrix import (
     invert_spd, expand_outer, spd, symmetric, symmetric_sparse,
     delete_diagonal, fill_diagonal, recondition_eigenspaces,
