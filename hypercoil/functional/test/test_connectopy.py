@@ -133,3 +133,18 @@ class TestConnectopy:
             test=Q[..., :2].t(),
             name='diffusion_sparse'
         )
+
+        W.requires_grad = True
+        Q, L = diffusion_mapping(W, E.t(), method='svd')
+        # This eigendecomposition is so degenerate that we should be getting
+        # exploding or NaN-valued gradients.
+        assert W.grad is None
+        Q.sum().backward()
+        assert W.grad is not None
+        assert (torch.isnan(W.grad.max()) or W.grad.max() > 1e5)
+        print(W.grad)
+        self.plot_gradients(
+            ref=Q_ref[..., :2].T,
+            test=Q[..., :2].t().detach(),
+            name='diffusion_sparse_svd'
+        )

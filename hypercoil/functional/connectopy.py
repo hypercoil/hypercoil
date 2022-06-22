@@ -67,6 +67,8 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
     normalise : bool (default True)
         Indicates that the Laplacian should be normalised using the degree
         matrix.
+    method : ``'lobpcg'`` (default) or ``'eigh'``
+        Method for computing the eigendecomposition.
 
     Returns
     -------
@@ -110,9 +112,11 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
 
 
 def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
-                      diffusion_time=0, method='lobpcg'):
+                      diffusion_time=0, method='lobpcg', niter_svd=500):
     """
     This is adapted very closely from ``brainspace``.
+    method : ``'lobpcg'`` (default) or ``'eigh'`` or ``'svd'``
+        Method for computing the eigendecomposition.
     """
     W, _ = _symmetrise(W, edge_index, return_coo=True)
 
@@ -153,16 +157,23 @@ def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
     # and monitor progress.
     # https://github.com/rfeinman/Torch-ARPACK relevant but looks dead,
     # and we need multiple extremal eigenpairs.
-    if edge_index is not None or method == 'lobpcg':
+    if method == 'lobpcg':
         L, Q = torch.lobpcg(
             A=W,
             k=(k + 1),
             largest=True
         )
-    else:
+        print(Q, L)
+        print(Q.shape, L.shape)
+    elif method == 'eigh':
         L, Q = torch.linalg.eigh(W)
         L = L[..., -(k + 1):].flip(-1)
         Q = Q[..., -(k + 1):].flip(-1)
+    elif method == 'svd':
+        Q, L, _ = torch.svd_lowrank(W, q=(k + 1), niter=niter_svd)
+        print(Q, L)
+        print(Q.shape, L.shape)
+        #assert 0
 
     L = L / L[..., 0]
     Q = Q / Q[..., [0]]
