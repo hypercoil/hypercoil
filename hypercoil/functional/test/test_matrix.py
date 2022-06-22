@@ -81,7 +81,7 @@ class TestMatrix:
         W_out, E_out = symmetric_sparse(W, edge_index)
         out = np.array(csr_matrix((W_out, E_out), (5, 5)).todense())
         ref = torch.diag_embed(W, offset=1)
-        ref = ref + ref.t()
+        ref = (ref + ref.t()) / 2
         assert np.allclose(out, ref)
 
         n_edges = 1000
@@ -94,7 +94,7 @@ class TestMatrix:
             ref = np.array(csr_matrix(
                 (W[o], edge_index), (n_vertices, n_vertices)
             ).todense())
-            ref = ref - ref.T
+            ref = (ref - ref.T) / 2
             out = np.array(csr_matrix(
                 (W_out[o], E_out), (n_vertices, n_vertices)
             ).todense())
@@ -113,7 +113,7 @@ class TestMatrix:
             torch.diag_embed(W[..., 4:9])
         )
         ref_out[..., 4, 3] += W[..., -1]
-        ref_out = ref_out - ref_out.transpose(-1, -2)
+        ref_out = (ref_out - ref_out.transpose(-1, -2)) / 2
         W_out, E_out = symmetric_sparse(W, edge_index, skew=True)
         for o in range(2):
             ref = ref_out[o]

@@ -83,7 +83,8 @@ def symmetric(X, skew=False, axes=(-2, -1)):
         return (X - X.transpose(*axes)) / 2
 
 
-def symmetric_sparse(W, edge_index, skew=False, n_vertices=None):
+def symmetric_sparse(W, edge_index, skew=False, n_vertices=None,
+                     divide=True, return_coo=False):
     r"""
     Impose symmetry (undirectedness) on a weight-edge index pair
     representation of a graph.
@@ -143,7 +144,11 @@ def symmetric_sparse(W, edge_index, skew=False, n_vertices=None):
         out = (base + base.transpose(0, 1)).coalesce()
     else:
         out = (base - base.transpose(0, 1)).coalesce()
-    if W.dim() > 1:
+    if divide:
+        out = out / 2
+    if return_coo:
+        return out
+    elif W.dim() > 1:
         return out.values().transpose(-1, 0), out.indices()
     else:
         return out.values(), out.indices()
