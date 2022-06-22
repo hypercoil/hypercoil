@@ -66,8 +66,8 @@ def symmetric(X, skew=False, axes=(-2, -1)):
     X : Tensor
         Input to be symmetrised.
     skew : bool (default False)
-        Indicates whether skew-symmetry (antisymmetry) should be imposed on the
-        input.
+        Indicates whether skew-symmetry (antisymmetry) should be imposed on
+        the input.
     axes : tuple(int, int) (default (-2, -1))
         Axes that delineate the square slices of the input on which symmetry
         is imposed. By default, symmetry is imposed on the last 2 slices.
@@ -83,47 +83,130 @@ def symmetric(X, skew=False, axes=(-2, -1)):
         return (X - X.transpose(*axes)) / 2
 
 
-def symmetric_sparse(W, edge_index, skew=False):
-    """
+def symmetric_sparse(W, edge_index, skew=False, n_vertices=None):
+    r"""
     Impose symmetry (undirectedness) on a weight-edge index pair
     representation of a graph.
 
     All edges are duplicated and their source and target vertices reversed.
 
+    .. note::
+
+        This operation is differentiable with respect to the weight tensor
+        ``W``.
+
+    .. note::
+
+        The weight tensor ``W`` can have any number of batched elements, but
+        all must include the same edges as indexed in ``edge_index``. If
+        certain edges are missing in some of the batched examples but present
+        in others, the missing edges should explicitly be set to 0 in ``W``.
+
+    :Dimension: **W :** :math:`(*, E)`
+                    ``*`` denotes any number of preceding dimensions. E
+                    denotes the number of nonzero edges.
+                **edge_index :** :math:`(2, E)`
+                    As above.
+                **W_out :** :math:`(*, E_{out})`
+                    :math:`E_{out}` denotes the number of nonzero edges after
+                    symmetrisation.
+                **edge_index :** :math:`(2, E_{out})`
+                    As above.
+
     Parameters
     ----------
     W : tensor
-    edge_index : tensor
+        List of weights corresponding to the edges in ``edge_index``
+        (potentially batched).
+    edge_index : ``LongTensor``
+        List of edges corresponding to the provided weights. Each column
+        contains the index of the source vertex and the index of the target
+        vertex for the corresponding weight in ``W``.
     skew : bool (default False)
+        Indicates whether skew-symmetry (antisymmetry) should be imposed on
+        the input.
     """
-    source = edge_index[..., 0, :]
-    target = edge_index[..., 1, :]
-    #TODO: don't duplicate where source = target. Also generally don't
-    # append an edge if it's already there.
-    edge_index_mirrored = torch.stack((target, source), -2)
-    if skew:
-        W = torch.cat((W, -W), -1)
+    if n_vertices is None:
+        n_vertices = edge_index.max() + 1
+    if W.dim() > 1:
+        shape = (n_vertices, n_vertices, *W.shape[:-1])
+        W_in = W.transpose(0, -1)
     else:
-        W = torch.cat((W, W), -1)
-    edge_index = torch.cat((edge_index, edge_index_mirrored), -1)
-    return W, edge_index
+        shape = (n_vertices, n_vertices)
+        W_in = W
+    base = torch.sparse_coo_tensor(
+        edge_index,
+        W_in,
+        shape
+    )
+    if not skew:
+        out = (base + base.transpose(0, 1)).coalesce()
+    else:
+        out = (base - base.transpose(0, 1)).coalesce()
+    if W.dim() > 1:
+        return out.values().transpose(-1, 0), out.indices()
+    else:
+        return out.values(), out.indices()
+
+    edges = set()
+    edge_map = {}
+    # maximum preallocation
+    W_out = torch.empty(
+        (*W.shape[:-1], 2 * W.shape[-1]),
+        dtype=W.dtype, device=W.device
+    )
+
+    for i, edge in enumerate(edge_index.t()):
+        edge = tuple(edge.tolist())
+        edge_sym = (edge[1], edge[0])
+        if edge in edges:
+            edge_map[edge] += [(i, True)]
+        else:
+            edges = edges.union({edge})
+            edge_map[edge] = [(i, True)]
+        if edge[0] == edge[1]:
+            continue
+        elif edge_sym in edges:
+            edge_map[edge_sym] += [(i, False)]
+        else:
+            edges = edges.union({edge_sym})
+            edge_map[edge_sym] = [(i, False)]
+
+    for i, (src, tgt) in enumerate(edges):
+        idx, orig = list(zip(*edge_map[(src, tgt)]))
+        if not skew:
+            W_out[..., i] = W[..., idx].sum(-1)
+        else:
+            idx_pos = [k for j, k in enumerate(idx) if orig[j]]
+            idx_neg = [k for j, k in enumerate(idx) if not orig[j]]
+            W_out[..., i] = W[..., idx_pos].sum(-1) - W[..., idx_neg].sum(-1)
+
+    W_out = W_out[..., :(i + 1)]
+    edges = list(edges)
+    edges.sort()
+    edge_index = torch.tensor(
+        edges,
+        dtype=torch.long,
+        device=edge_index.device
+    ).t()
+    return W_out, edge_index
 
 
 def spd(X, eps=1e-6, method='eig'):
     """
     Impose symmetric positive definiteness on a tensor block.
 
-    Each input matrix is first made symmetric. Next, the symmetrised inputs are
-    decomposed via diagonalisation or SVD. If the inputs are diagonalised, the
-    smallest eigenvalue is identified, and a scaled identity matrix is added to
-    the input such that the smallest eigenvalue of the resulting matrix is no
-    smaller than a specified threshold. If the inputs are decomposed via SVD,
-    then the matrix is reconstituted from the left singular vectors (which are
-    in theory identical to the right singular vectors up to sign for a
-    symmetric matrix) and the absolute values of the eigenvalues. Thus, the
-    maximum reconstruction error is in theory the minimum threshold for
-    diagonalisation and the absolute value of the smallest negative eigenvalue
-    for SVD.
+    Each input matrix is first made symmetric. Next, the symmetrised inputs
+    are decomposed via diagonalisation or SVD. If the inputs are diagonalised,
+    the smallest eigenvalue is identified, and a scaled identity matrix is
+    added to the input such that the smallest eigenvalue of the resulting
+    matrix is no smaller than a specified threshold. If the inputs are
+    decomposed via SVD, then the matrix is reconstituted from the left
+    singular vectors (which are in theory identical to the right singular
+    vectors up to sign for a symmetric matrix) and the absolute values of the
+    eigenvalues. Thus, the maximum reconstruction error is in theory the
+    minimum threshold for diagonalisation and the absolute value of the
+    smallest negative eigenvalue for SVD.
 
     Parameters
     ----------
@@ -139,13 +222,13 @@ def spd(X, eps=1e-6, method='eig'):
         Method used to ensure that all eigenvalues are positive.
 
         - ``eig`` denotes that the input matrices are symmetrised and then
-          diagonalised. The method returns the symmetrised sum of the input and
-          an identity matrix scaled to guarantee no eigenvalue is smaller than
-          `eps`.
+          diagonalised. The method returns the symmetrised sum of the input
+          and an identity matrix scaled to guarantee no eigenvalue is smaller
+          than `eps`.
         - ``svd`` denotes that the input matrices are decomposed via singular
           value decomposition after symmetrisation. The method returns a
-          recomposition of the matrix that treats the left singular vectors and
-          singular values output from SVD as though they were outputs of
+          recomposition of the matrix that treats the left singular vectors
+          and singular values output from SVD as though they were outputs of
           diagonalisation, thereby guaranteeing that no eigenvalue is smaller
           than the least absolute value among all input eigenvalues. Note that
           this margin is occasionally insufficient to avoid numerical error if
@@ -322,9 +405,9 @@ def toeplitz(c, r=None, dim=None, fill_value=0, dtype=None, device=None):
     ----------
     c: Tensor
         Tensor of entries in the first column of each Toeplitz matrix. The
-        first axis corresponds to a single matrix column; additional dimensions
-        correspond to concatenation of Toeplitz matrices into a stack or block
-        tensor.
+        first axis corresponds to a single matrix column; additional
+        dimensions correspond to concatenation of Toeplitz matrices into a
+        stack or block tensor.
     r: Tensor
         Tensor of entries in the first row of each Toeplitz matrix. The first
         axis corresponds to a single matrix row; additional dimensions
@@ -342,9 +425,9 @@ def toeplitz(c, r=None, dim=None, fill_value=0, dtype=None, device=None):
     fill_value: Tensor or float (default 0)
         Specifies the value that should be used to populate the off-diagonals
         of each Toeplitz matrix if the specified row and column elements are
-        extended to conform with the specified `dim`. If this is a tensor, then
-        each entry corresponds to the fill value in a different data channel.
-        Has no effect if `dim` is None.
+        extended to conform with the specified `dim`. If this is a tensor,
+        then each entry corresponds to the fill value in a different data
+        channel. Has no effect if ``dim`` is None.
 
     Returns
     -------
@@ -376,7 +459,9 @@ def _populate_toeplitz(c, r, obj_shp, dtype=None, device=None):
     """
     Populate a block of Toeplitz matrices without any preprocessing.
 
-    Thanks to https://github.com/cornellius-gp/gpytorch/blob/master/gpytorch/utils/toeplitz.py
+    Thanks to
+    https://github.com/cornellius-gp/gpytorch/ ...
+        blob/master/gpytorch/utils/toeplitz.py
     for ideas toward a faster implementation.
 
     #TODO: This might be iterating over elements in an order that is almost
