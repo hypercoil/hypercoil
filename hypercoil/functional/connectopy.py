@@ -33,7 +33,8 @@ def _impose_sign_consistency(Q, k):
     return Q * sgn
 
 
-def laplacian_eigenmaps(W, edge_index=None, k=10, normalise=True):
+def laplacian_eigenmaps(W, edge_index=None, k=10,
+                        normalise=True, method='lobpcg'):
     """
     Manifold coordinates estimated using Laplacian eigenmaps.
 
@@ -86,14 +87,20 @@ def laplacian_eigenmaps(W, edge_index=None, k=10, normalise=True):
     # and monitor progress.
     # https://github.com/rfeinman/Torch-ARPACK relevant but looks dead,
     # and we need multiple extremal eigenpairs.
-    L, Q = torch.lobpcg(
-        A=H,
-        #B=D,
-        k=(k + 1),
-        largest=False
-    )
-    L = L[..., 1:]
-    Q = Q[..., 1:]
+    if edge_index is not None or method == 'lobpcg':
+        L, Q = torch.lobpcg(
+            A=H,
+            #B=D,
+            k=(k + 1),
+            largest=False
+        )
+        L = L[..., 1:]
+        Q = Q[..., 1:]
+    else:
+        L, Q = torch.linalg.eigh(H)
+        L = L[..., 1:(k + 1)]
+        Q = Q[..., 1:(k + 1)]
+
     if normalise:
         D = W.sum(-1, keepdim=True).sqrt()
         Q = Q / D
@@ -102,7 +109,8 @@ def laplacian_eigenmaps(W, edge_index=None, k=10, normalise=True):
     return Q, L
 
 
-def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5, diffusion_time=0):
+def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
+                      diffusion_time=0, method='lobpcg'):
     """
     This is adapted very closely from ``brainspace``.
     """
@@ -145,7 +153,7 @@ def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5, diffusion_time=0):
     # and monitor progress.
     # https://github.com/rfeinman/Torch-ARPACK relevant but looks dead,
     # and we need multiple extremal eigenpairs.
-    if edge_index is not None:
+    if edge_index is not None or method == 'lobpcg':
         L, Q = torch.lobpcg(
             A=W,
             k=(k + 1),

@@ -40,7 +40,7 @@ class TestConnectopy:
         A[0, -1] = 1
         A = A + A.t()
         Q, L = laplacian_eigenmaps(A)
-        Q_ref, L_ref = le_ref(A.numpy())
+        Q_ref, L_ref = le_ref(A.detach().numpy())
         self.plot_gradients(
             ref=Q_ref[..., :2].T,
             test=Q[..., :2].t(),
@@ -49,11 +49,17 @@ class TestConnectopy:
 
     def test_schaefer_eigenmaps(self):
         A = datasets.load_group_fc(parcellation='schaefer')
-        Q, L = laplacian_eigenmaps(torch.tensor(A))
         Q_ref, L_ref = le_ref(A, norm_laplacian=True)
+        A = torch.tensor(A)
+        A.requires_grad = True
+        Q, L = laplacian_eigenmaps(A)
+
+        assert A.grad is None
+        Q.sum().backward()
+        assert A.grad is not None
         self.plot_gradients(
             ref=Q_ref[..., :2].T,
-            test=Q[..., :2].t(),
+            test=Q[..., :2].t().detach(),
             name='eigenmaps_schaefer'
         )
 
@@ -87,22 +93,29 @@ class TestConnectopy:
 
     def test_schaefer_diffusion(self):
         A = datasets.load_group_fc(parcellation='schaefer')
-        Q, L = diffusion_mapping(torch.tensor(A))
+        Q, L = diffusion_mapping(torch.tensor(A), method='eigh')
         Q_ref, L_ref = dm_ref(A)
         self.plot_gradients(
             ref=Q_ref[..., :2].T,
             test=Q[..., :2].t(),
             name='diffusion_schaefer'
         )
+
+        Q_ref, L_ref = dm_ref(A, alpha=1, diffusion_time=10)
+        A = torch.tensor(A)
+        A.requires_grad = True
         Q, L = diffusion_mapping(
-            torch.tensor(A),
+            A,
             alpha=1,
             diffusion_time=10
         )
-        Q_ref, L_ref = dm_ref(A, alpha=1, diffusion_time=10)
+
+        assert A.grad is None
+        Q.sum().backward()
+        assert A.grad is not None
         self.plot_gradients(
             ref=Q_ref[..., :2].T,
-            test=Q[..., :2].t(),
+            test=Q[..., :2].t().detach(),
             name='diffusion_schaefer_param'
         )
 
