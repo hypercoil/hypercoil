@@ -5,6 +5,7 @@
 Parameterised similarity kernels and distance metrics.
 """
 import torch
+from .utils import _conform_vector_weight
 
 
 def _default_gamma(X, gamma):
@@ -18,6 +19,9 @@ def linear_kernel(X0, X1=None, theta=None):
         X1 = X0
     if theta is None:
         return X0 @ X1.transpose(-1, -2)
+    elif theta.dim() == 1 or theta.shape[-1] != theta.shape[-2]:
+        theta = _conform_vector_weight(theta)
+        return (X0 * theta) @ X1.transpose(-1, -2)
     else:
         return X0 @ theta @ X1.transpose(-1, -2)
 

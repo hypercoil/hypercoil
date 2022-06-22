@@ -73,3 +73,30 @@ class TestKernel:
         ref = gk_ref(X, Y, gamma=0.25)
         out = gaussian_kernel(X, Y, sigma=2)
         assert np.allclose(out, ref, atol=1e-5)
+
+    def test_parameterised_kernel(self):
+        X = torch.tensor([
+            [0., 1., 0., 1., 2.],
+            [2., 1., 1., 1., 0.],
+            [0., 0., 0., 0., 0.]
+        ]).t()
+
+        theta = torch.tensor([1., 1., 1.])
+        ref = lk_ref(X)
+        out = linear_kernel(X, theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = torch.tensor([1., 1., 0.])
+        ref = lk_ref(X)
+        out = linear_kernel(X, theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = torch.tensor([1., 0., 0.])
+        ref = (X[:, 0].view(-1, 1) @ X[:, 0].view(1, -1))
+        out = linear_kernel(X, theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = torch.tensor([0., 1., 0.])
+        ref = (X[:, 1].view(-1, 1) @ X[:, 1].view(1, -1))
+        out = linear_kernel(X, theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
