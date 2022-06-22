@@ -166,3 +166,11 @@ def complex_recompose(ampl, phase):
     # https://github.com/pytorch/pytorch/pull/47194
     return ampl * (torch.cos(phase) + 1j * torch.sin(phase))
     #return ampl * torch.exp(phase * 1j)
+
+
+def _conform_vector_weight(weight):
+    if weight.dim() == 1:
+        return weight
+    if weight.shape[-2] != 1:
+        return weight.unsqueeze(-2)
+    return weight

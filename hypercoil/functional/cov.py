@@ -16,6 +16,7 @@ correlation.
 """
 import torch
 from .matrix import invert_spd
+from .utils import _conform_vector_weight
 
 
 #TODO: Use `torch.cov` and `torch.corr` where possible now that they have been
@@ -416,14 +417,6 @@ def _prepare_weight_and_avg(vars, weight=None):
         for V in vars:
             avg += [V.mean(-1, keepdim=True)]
     return weight, w_type, w_sum, avg
-
-
-def _conform_vector_weight(weight):
-    if weight.dim() == 1:
-        return weight
-    if weight.shape[-2] != 1:
-        return weight.unsqueeze(-2)
-    return weight
 
 
 def _prepare_denomfact(w_sum, w_type='matrix', ddof=None,
