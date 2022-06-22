@@ -100,3 +100,24 @@ class TestKernel:
         ref = (X[:, 1].view(-1, 1) @ X[:, 1].view(1, -1))
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
+
+        theta = torch.tensor([0., 1., 0.])
+        ref = (X[:, 1].view(-1, 1) @ X[:, 1].view(1, -1))
+        out = linear_kernel(X, theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = torch.tensor([
+            [1., 0., 0.],
+            [1., 1., 0.]
+        ])
+        ref = np.stack((
+            lk_ref(X),
+            (X[:, 0].view(-1, 1) @ X[:, 0].view(1, -1))
+        ))
+        out = linear_kernel(X, theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = torch.eye(3)
+        ref = lk_ref(X)
+        out = linear_kernel(X, theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
