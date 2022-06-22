@@ -148,49 +148,6 @@ def symmetric_sparse(W, edge_index, skew=False, n_vertices=None):
     else:
         return out.values(), out.indices()
 
-    edges = set()
-    edge_map = {}
-    # maximum preallocation
-    W_out = torch.empty(
-        (*W.shape[:-1], 2 * W.shape[-1]),
-        dtype=W.dtype, device=W.device
-    )
-
-    for i, edge in enumerate(edge_index.t()):
-        edge = tuple(edge.tolist())
-        edge_sym = (edge[1], edge[0])
-        if edge in edges:
-            edge_map[edge] += [(i, True)]
-        else:
-            edges = edges.union({edge})
-            edge_map[edge] = [(i, True)]
-        if edge[0] == edge[1]:
-            continue
-        elif edge_sym in edges:
-            edge_map[edge_sym] += [(i, False)]
-        else:
-            edges = edges.union({edge_sym})
-            edge_map[edge_sym] = [(i, False)]
-
-    for i, (src, tgt) in enumerate(edges):
-        idx, orig = list(zip(*edge_map[(src, tgt)]))
-        if not skew:
-            W_out[..., i] = W[..., idx].sum(-1)
-        else:
-            idx_pos = [k for j, k in enumerate(idx) if orig[j]]
-            idx_neg = [k for j, k in enumerate(idx) if not orig[j]]
-            W_out[..., i] = W[..., idx_pos].sum(-1) - W[..., idx_neg].sum(-1)
-
-    W_out = W_out[..., :(i + 1)]
-    edges = list(edges)
-    edges.sort()
-    edge_index = torch.tensor(
-        edges,
-        dtype=torch.long,
-        device=edge_index.device
-    ).t()
-    return W_out, edge_index
-
 
 def spd(X, eps=1e-6, method='eig'):
     """
