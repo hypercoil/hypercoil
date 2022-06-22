@@ -7,12 +7,14 @@ Unit tests for connectopic gradient mapping.
 import pytest
 import torch
 import matplotlib.pyplot as plt
+from scipy.sparse import csr_matrix
+from brainspace import datasets
+from brainspace.gradient.embedding import(
+    laplacian_eigenmaps as le_ref
+)
 from pkg_resources import resource_filename as pkgrf
 from hypercoil.functional.connectopy import (
     laplacian_eigenmaps
-)
-from brainspace.gradient.embedding import(
-    laplacian_eigenmaps as le_ref
 )
 
 
@@ -41,4 +43,29 @@ class TestConnectopy:
             ref=Q_ref[..., :2].T,
             test=Q[..., :2].t(),
             name='circle'
+        )
+
+    def test_schaefer_eigenmaps(self):
+        A = datasets.load_group_fc(parcellation='schaefer')
+        Q, L = laplacian_eigenmaps(torch.tensor(A))
+        Q_ref, L_ref = le_ref(A, norm_laplacian=True)
+        self.plot_gradients(
+            ref=Q_ref[..., :2].T,
+            test=Q[..., :2].t(),
+            name='schaefer'
+        )
+
+    def test_circle_eigenmaps_sparse(self):
+        dim = 101
+        W = torch.ones(dim, dtype=torch.float)
+        E = list(zip(range(dim - 1), range(1, dim)))
+        E += [(100, 0)]
+        E = torch.tensor(E)
+        Q, L = laplacian_eigenmaps(W, E.t())
+        A = csr_matrix((W, E.t()), (dim, dim))
+        Q_ref, L_ref = le_ref(A, norm_laplacian=True)
+        self.plot_gradients(
+            ref=Q_ref[..., :2].T,
+            test=Q[..., :2].t(),
+            name='sparse'
         )

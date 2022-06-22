@@ -2,7 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Connectopic gradient mapping, based on brainspace.
+Connectopic gradient mapping, based on ``brainspace``.
 """
 import torch
 from .graph import graph_laplacian
@@ -55,6 +55,16 @@ def laplacian_eigenmaps(W, edge_index=None, k=10, normalise=True):
     else:
         W, edge_index = symmetric_sparse(W, edge_index)
     H = graph_laplacian(W, edge_index=edge_index, normalise=normalise)
+    if isinstance(H, tuple):
+        H = torch.sparse_coo_tensor(
+            indices=H[0],
+            values=H[1]
+        )
+    #TODO: LOBPCG is currently not as efficient as it could be. See:
+    # https://github.com/pytorch/pytorch/issues/58828
+    # and monitor progress.
+    # https://github.com/rfeinman/Torch-ARPACK relevant but looks dead,
+    # and we need multiple extremal eigenpairs.
     L, Q = torch.lobpcg(
         A=H,
         #B=D,
