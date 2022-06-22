@@ -35,8 +35,19 @@ def _impose_sign_consistency(Q, k):
 
 def laplacian_eigenmaps(W, edge_index=None, k=10,
                         normalise=True, method='lobpcg'):
-    """
+    r"""
     Manifold coordinates estimated using Laplacian eigenmaps.
+
+    .. warning::
+
+        Laplacian eigenmaps is currently non-differentiable when a sparse
+        input is provided. The extremal eigendecomposition algorithm LOBPCG,
+        which does not currently support gradients for sparse matrices, is
+        used in this case. The diffusion embedding algorithm is potentially
+        differentiable when a sparse input is provided, if SVD is used as
+        the decomposition method. (Consider using diffusion mapping with
+        :math:`\alpha = 0` as a potential workaround if you need this
+        operation to be differentiable.)
 
     :Dimension: **W :** :math:`(*, N, N)` or :math:`(*, E)`
                     ``*`` denotes any number of preceding dimensions, N
@@ -68,7 +79,8 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
         Indicates that the Laplacian should be normalised using the degree
         matrix.
     method : ``'lobpcg'`` (default) or ``'eigh'``
-        Method for computing the eigendecomposition.
+        Method for computing the eigendecomposition. When the input is sparse,
+        ``'lobpcg'`` is always used.
 
     Returns
     -------
@@ -76,6 +88,10 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
         Eigenmaps.
     L : tensor
         Eigenvalues corresponding to eigenmaps.
+
+    See also
+    --------
+    :func:`diffusion_mapping`
     """
     W, edge_index = _symmetrise(W, edge_index)
     H = graph_laplacian(W, edge_index=edge_index, normalise=normalise)
@@ -113,10 +129,70 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
 
 def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
                       diffusion_time=0, method='lobpcg', niter_svd=500):
-    """
-    This is adapted very closely from ``brainspace``.
+    r"""
+    Manifold coordinates estimated using diffusion mapping.
+
+    This functionality is adapted very closely from ``brainspace`` with some
+    minor adaptations for differentiability.
+
+    .. note::
+
+        The anisotropic diffusion parameter determines the kind of diffusion
+        map produced by the algorithm.
+
+        * :math:`\alpha = 0` produces Laplacian eigenmaps, corresponding to a
+          random walk-style diffusion operator.
+        * :math:`\alpha = 0.5` (default) corresponds to Fokker-Planck
+          diffusion.
+        * :math:`\alpha = 1` corresponds to Laplace-Beltrami diffusion.
+
+    :Dimension: **W :** :math:`(*, N, N)` or :math:`(*, E)`
+                    ``*`` denotes any number of preceding dimensions, N
+                    denotes number of vertices, and E denotes number of edges.
+                    The shape should be :math:`(*, N, N)` if ``edge_index`` is
+                    not provided and :math:`(*, E)` if ``edge_index`` is
+                    provided.
+                **edge_index :** :math:`(*, 2, E)`
+                    As above.
+                **Q :** :math:`(*, N, k)`
+                    k denotes the number of diffusion maps.
+                **L :** :math:`(*, k)`
+                    As above.
+
+    Parameters
+    ----------
+    W : tensor
+        Edge weight tensor. If ``edge_index`` is not provided, then this
+        should be the graph adjacency (or affinity) matrix; otherwise, it
+        should be a list of weights corresponding to the edges in
+        ``edge_index``.
+    edge_index : ``LongTensor`` or None (default None)
+        List of edges corresponding to the provided weights. Each column
+        contains the index of the source vertex and the index of the target
+        vertex for the corresponding weight in ``W``.
+    k : int (default 10)
+        Number of eigenmaps to compute.
+    alpha : float :math:`\in [0, 1]` (default 0.5)
+        Anisotropic diffusion parameter.
+    diffusion_time : int (default 0)
+        Diffusion time parameter. A value of 0 indicates that a multi-scale
+        diffusion map should be computed, which considers all valid times
+        (1, 2, 3, etc.).
     method : ``'lobpcg'`` (default) or ``'eigh'`` or ``'svd'``
         Method for computing the eigendecomposition.
+    niter_svd : int (default 500)
+        Number of iterations when low-rank SVD is used as the eigensolver.
+
+    Returns
+    -------
+    Q : tensor
+        Diffusion maps.
+    L : tensor
+        Eigenvalues corresponding to diffusion maps.
+
+    See also
+    --------
+    :func:`laplacian_eigenmaps`
     """
     W, _ = _symmetrise(W, edge_index, return_coo=True)
 

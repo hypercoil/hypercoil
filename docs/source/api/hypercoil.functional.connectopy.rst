@@ -7,3 +7,4 @@
    :maxdepth: 2
 
    hypercoil.functional.connectopy.laplacian_eigenmaps
+   hypercoil.functional.connectopy.diffusion_mapping
