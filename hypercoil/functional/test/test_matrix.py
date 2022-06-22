@@ -84,24 +84,43 @@ class TestMatrix:
         ref = ref + ref.t()
         assert np.allclose(out, ref)
 
-        #TODO: This use case makes no sense. Update this test after figuring
-        # out valid uses for batching here (e.g., strictly if edge indices
-        # are the same).
+        n_edges = 1000
+        n_vertices = 100
+        n_obs = 5
+        edge_index = torch.randint(n_vertices, (2, n_edges))
+        W = torch.randn(n_obs, n_edges)
+        W_out, E_out = symmetric_sparse(W, edge_index, skew=True)
+        for o in range(n_obs):
+            ref = np.array(csr_matrix(
+                (W[o], edge_index), (n_vertices, n_vertices)
+            ).todense())
+            ref = ref - ref.T
+            out = np.array(csr_matrix(
+                (W_out[o], E_out), (n_vertices, n_vertices)
+            ).todense())
+            assert np.allclose(ref, out, atol=1e-6)
+
         W = torch.tensor([
-            [0.3, -1., -0.1, 0.9],
-            [-1, 0, -1, 1]
+            [0.3, -1., -0.1, 0.9, 1, 0, -1, 1, 1, 1],
+            [-1, 0, -1, 1, -1, 1, -1, 1, 1, 0.5]
         ])
         edge_index = torch.tensor([
-            [
-                [0, 1, 2, 3],
-                [1, 2, 3, 4]
-            ],
-            [
-                [0, 1, 2, 3],
-                [0, 1, 2, 3]
-            ],
+            [0, 1, 2, 3, 0, 1, 2, 3, 4, 4],
+            [1, 2, 3, 4, 0, 1, 2, 3, 4, 3]
         ])
+        ref_out = (
+            torch.diag_embed(W[..., :4], offset=1) +
+            torch.diag_embed(W[..., 4:9])
+        )
+        ref_out[..., 4, 3] += W[..., -1]
+        ref_out = ref_out - ref_out.transpose(-1, -2)
         W_out, E_out = symmetric_sparse(W, edge_index, skew=True)
+        for o in range(2):
+            ref = ref_out[o]
+            out = np.array(csr_matrix(
+                (W_out[o], E_out), (5, 5)
+            ).todense())
+            assert np.allclose(ref, out)
 
     def test_expand_outer(self):
         L = torch.rand(8, 4, 10, 3)

@@ -95,7 +95,7 @@ class Compactness(ReducingLoss):
         :math:`A`, the compactness measures the weighted average norm of the
         displacement of each of the weight's entries from its row's centre of
         mass. (The centre of mass is expressed above as
-        :math:`\frac{C \circ A}{\mathbf{1}^\intercal A}`).
+        :math:`\frac{AC}{A\mathbf{1}}`).
 
         .. image:: ../_images/compactloss.gif
             :width: 200
