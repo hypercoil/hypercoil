@@ -5,8 +5,32 @@
 Connectopic gradient mapping, based on ``brainspace``.
 """
 import torch
+from math import sqrt
 from .graph import graph_laplacian
 from .matrix import symmetric, symmetric_sparse
+
+
+def _symmetrise(W, edge_index, return_coo=False):
+    if edge_index is None:
+        W = symmetric(W)
+    elif return_coo:
+        return symmetric_sparse(
+            W, edge_index,
+            divide=False,
+            return_coo=True
+        ), None
+    else:
+        W, edge_index = symmetric_sparse(W, edge_index, divide=False)
+    return W, edge_index
+
+
+def _impose_sign_consistency(Q, k):
+    """
+    Consistent sign for eigenvectors, following ``brainspace`` convention.
+    """
+    with torch.no_grad():
+        sgn = torch.sign(Q[Q.abs().argmax(0), range(k)])
+    return Q * sgn
 
 
 def laplacian_eigenmaps(W, edge_index=None, k=10, normalise=True):
@@ -50,10 +74,7 @@ def laplacian_eigenmaps(W, edge_index=None, k=10, normalise=True):
     L : tensor
         Eigenvalues corresponding to eigenmaps.
     """
-    if edge_index is None:
-        W = symmetric(W)
-    else:
-        W, edge_index = symmetric_sparse(W, edge_index)
+    W, edge_index = _symmetrise(W, edge_index)
     H = graph_laplacian(W, edge_index=edge_index, normalise=normalise)
     if isinstance(H, tuple):
         H = torch.sparse_coo_tensor(
@@ -77,6 +98,74 @@ def laplacian_eigenmaps(W, edge_index=None, k=10, normalise=True):
         D = W.sum(-1, keepdim=True).sqrt()
         Q = Q / D
 
-    # Consistent sign, following brainspace convention.
-    Q = Q * torch.sign(Q[Q.abs().argmax(0), range(k)])
+    Q = _impose_sign_consistency(Q, k)
+    return Q, L
+
+
+def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5, diffusion_time=0):
+    """
+    This is adapted very closely from ``brainspace``.
+    """
+    W, _ = _symmetrise(W, edge_index, return_coo=True)
+
+    if alpha > 0:
+        if edge_index is not None:
+            D = torch.sparse.sum(W, 1).to_dense()
+            D_power = D ** -alpha
+            # Note that the first two dimensions contain sparse matrix slices,
+            # and the last dimension is batch if applicable.
+            row, col = W.indices()
+            values = (
+                D_power[row] *
+                W.values() *
+                D_power[col]
+            )
+            W = torch.sparse_coo_tensor(
+                indices=W.indices(),
+                values=values
+            ).coalesce()
+        else:
+            D = W.sum(axis=-1, keepdim=True)
+            D_power = D ** -alpha
+            W = D_power * W * D_power.transpose(-1, -2)
+
+    if edge_index is not None:
+        D = torch.sparse.sum(W, 1).to_dense()
+        D_power = D[W.indices()[0]] ** -1
+        W = torch.sparse_coo_tensor(
+            indices=W.indices(),
+            values=W.values() * D_power
+        ).coalesce()
+    else:
+        D = W.sum(axis=-1, keepdim=True)
+        W = W * (D ** -1)
+
+    #TODO: LOBPCG is currently not as efficient as it could be. See:
+    # https://github.com/pytorch/pytorch/issues/58828
+    # and monitor progress.
+    # https://github.com/rfeinman/Torch-ARPACK relevant but looks dead,
+    # and we need multiple extremal eigenpairs.
+    if edge_index is not None:
+        L, Q = torch.lobpcg(
+            A=W,
+            k=(k + 1),
+            largest=True
+        )
+    else:
+        L, Q = torch.linalg.eigh(W)
+        L = L[..., -(k + 1):].flip(-1)
+        Q = Q[..., -(k + 1):].flip(-1)
+
+    L = L / L[..., 0]
+    Q = Q / Q[..., [0]]
+    L = L[..., 1:]
+    Q = Q[..., 1:]
+
+    if diffusion_time <= 0:
+        L = L / (1 - L)
+    else:
+        L = L ** diffusion_time
+
+    Q = Q * L.unsqueeze(-2)
+    Q = _impose_sign_consistency(Q, k)
     return Q, L
