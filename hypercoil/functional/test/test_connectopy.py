@@ -93,7 +93,7 @@ class TestConnectopy:
 
     def test_schaefer_diffusion(self):
         A = datasets.load_group_fc(parcellation='schaefer')
-        Q, L = diffusion_mapping(torch.tensor(A), method='eigh')
+        Q, L = diffusion_mapping(torch.tensor(A), solver='eigh')
         Q_ref, L_ref = dm_ref(A)
         self.plot_gradients(
             ref=Q_ref[..., :2].T,
@@ -135,7 +135,7 @@ class TestConnectopy:
         )
 
         W.requires_grad = True
-        Q, L = diffusion_mapping(W, E.t(), method='svd')
+        Q, L = diffusion_mapping(W, E.t(), solver='svd')
         # This eigendecomposition is so degenerate that we should be getting
         # exploding or NaN-valued gradients.
         assert W.grad is None

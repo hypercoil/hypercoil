@@ -34,7 +34,7 @@ def _impose_sign_consistency(Q, k):
 
 
 def laplacian_eigenmaps(W, edge_index=None, k=10,
-                        normalise=True, method='lobpcg'):
+                        normalise=True, solver='lobpcg'):
     r"""
     Manifold coordinates estimated using Laplacian eigenmaps.
 
@@ -44,8 +44,8 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
         input is provided. The extremal eigendecomposition algorithm LOBPCG,
         which does not currently support gradients for sparse matrices, is
         used in this case. The diffusion embedding algorithm is potentially
-        differentiable when a sparse input is provided, if SVD is used as
-        the decomposition method. (Consider using diffusion mapping with
+        differentiable when a sparse input is provided, if the low-rank SVD
+        eigensolver is used. (Consider using diffusion mapping with
         :math:`\alpha = 0` as a potential workaround if you need this
         operation to be differentiable.)
 
@@ -78,7 +78,7 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
     normalise : bool (default True)
         Indicates that the Laplacian should be normalised using the degree
         matrix.
-    method : ``'lobpcg'`` (default) or ``'eigh'``
+    solver : ``'lobpcg'`` (default) or ``'eigh'``
         Method for computing the eigendecomposition. When the input is sparse,
         ``'lobpcg'`` is always used.
 
@@ -105,7 +105,7 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
     # and monitor progress.
     # https://github.com/rfeinman/Torch-ARPACK relevant but looks dead,
     # and we need multiple extremal eigenpairs.
-    if edge_index is not None or method == 'lobpcg':
+    if edge_index is not None or solver == 'lobpcg':
         L, Q = torch.lobpcg(
             A=H,
             #B=D,
@@ -128,7 +128,7 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
 
 
 def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
-                      diffusion_time=0, method='lobpcg', niter_svd=500):
+                      diffusion_time=0, solver='lobpcg', niter_svd=500):
     r"""
     Manifold coordinates estimated using diffusion mapping.
 
@@ -178,7 +178,7 @@ def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
         Diffusion time parameter. A value of 0 indicates that a multi-scale
         diffusion map should be computed, which considers all valid times
         (1, 2, 3, etc.).
-    method : ``'lobpcg'`` (default) or ``'eigh'`` or ``'svd'``
+    solver : ``'lobpcg'`` (default) or ``'eigh'`` or ``'svd'``
         Method for computing the eigendecomposition.
     niter_svd : int (default 500)
         Number of iterations when low-rank SVD is used as the eigensolver.
@@ -233,23 +233,18 @@ def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
     # and monitor progress.
     # https://github.com/rfeinman/Torch-ARPACK relevant but looks dead,
     # and we need multiple extremal eigenpairs.
-    if method == 'lobpcg':
+    if solver == 'lobpcg':
         L, Q = torch.lobpcg(
             A=W,
             k=(k + 1),
             largest=True
         )
-        print(Q, L)
-        print(Q.shape, L.shape)
-    elif method == 'eigh':
+    elif solver == 'eigh':
         L, Q = torch.linalg.eigh(W)
         L = L[..., -(k + 1):].flip(-1)
         Q = Q[..., -(k + 1):].flip(-1)
-    elif method == 'svd':
+    elif solver == 'svd':
         Q, L, _ = torch.svd_lowrank(W, q=(k + 1), niter=niter_svd)
-        print(Q, L)
-        print(Q.shape, L.shape)
-        #assert 0
 
     L = L / L[..., 0]
     Q = Q / Q[..., [0]]
