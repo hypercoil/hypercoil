@@ -169,6 +169,31 @@ def complex_recompose(ampl, phase):
     #return ampl * torch.exp(phase * 1j)
 
 
+def _promote_nnz_dim(values):
+    return values.permute(list(range(values.dim()))[::-1])
+    # slightly faster but not as easy to implement
+    #return values.permute((*list(range(values.dim()))[1:], 0))
+
+
+def _demote_nnz_dim(values):
+    return _promote_nnz_dim(values)
+    #return values.permute((-1, *list(range(values.dim()))[:-1]))
+
+
+def _conform_dims(A_values, B_values):
+    A_shape = A_values.shape[1:]
+    B_shape = B_values.shape[1:]
+    missing_dims = len(A_shape) - len(B_shape)
+    if missing_dims == 0:
+        return A_values, B_values
+    elif missing_dims > 0:
+        B_shape = [1] * missing_dims + list(B_shape)
+        return A_values, B_values.view(-1, *B_shape)
+    else:
+        A_shape = [1] * -missing_dims + list(A_shape)
+        return A_values.view(-1, *A_shape), B_values
+
+
 def sparse_mm(A, B):
     """
     Batched sparse-sparse matrix multiplication.
@@ -201,19 +226,22 @@ def sparse_mm(A, B):
     m = A.shape[0]
     n = B.shape[1]
     k = A.shape[1]
-    assert B.shape[0] == k
-    assert A.dense_dim() == B.dense_dim()
+    assert B.shape[0] == k, (
+        f'Inner matrix dimensions {A.shape[1]} and {B.shape[1]} '
+        'must agree')
+    #assert A.dense_dim() == B.dense_dim()
     A = A.coalesce()
     B = B.coalesce()
     A_values = A.values()
     B_values = B.values()
     A_indices = A.indices()
     B_indices = B.indices()
-    A_values = A_values.permute(list(range(A_values.dim()))[::-1])
-    B_values = B_values.permute(list(range(B_values.dim()))[::-1])
+    A_values, B_values = _conform_dims(A_values, B_values)
+    A_values = _demote_nnz_dim(A_values)
+    B_values = _demote_nnz_dim(B_values)
     out_indices, out_values = _sparse_mm(
         A_indices, A_values, B_indices, B_values, m, k, n)
-    out_values = out_values.permute(list(range(out_values.dim()))[::-1])
+    out_values = _promote_nnz_dim(out_values)
     o = out_values.shape[1:]
     return torch.sparse_coo_tensor(
         indices=out_indices, values=out_values, size=(m, n, *o)
@@ -230,6 +258,15 @@ def _sparse_mm(A_indices, A_values, B_indices, B_values, m, k, n):
         ).coalesce()
         return out.indices(), out.values()
     else:
+        if len(A_values) != len(B_values):
+            if len(A_values) == 1:
+                A_values = [A_values[0]] * len(B_values)
+            elif len(B_values) == 1:
+                B_values = [B_values[0]] * len(A_values)
+            else:
+                raise RuntimeError(
+                    'Dense dimensions of arrays are incompatible: '
+                    f'{A_values.shape} and {B_values.shape}')
         out = [
             _sparse_mm(A_indices, a, B_indices, b, m, k, n)
             for a, b in zip(A_values, B_values)

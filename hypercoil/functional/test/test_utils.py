@@ -112,3 +112,25 @@ class TestUtils:
         )
         out = out.to_dense().permute(-1, -2, -3, 0, 1)
         assert torch.allclose(ref, out)
+
+        # And with broadcasting.
+        W0 = torch.randn(20, 3, 3, 3)
+        E0 = torch.stack((
+            torch.randint(50, (20,)),
+            torch.randint(100, (20,)),
+        ))
+        X = torch.sparse_coo_tensor(E0, W0, size=(50, 100, 3, 3, 3)).coalesce()
+        W1 = torch.randn(20)
+        E1 = torch.stack((
+            torch.randint(100, (20,)),
+            torch.randint(50, (20,)),
+        ))
+        Y = torch.sparse_coo_tensor(E1, W1, size=(100, 50)).coalesce()
+        out = sparse_mm(X, Y)
+        assert out.shape == (50, 50, 3, 3, 3)
+        ref = (
+            X.to_dense().permute(-1, -2, -3, 0, 1) @
+            Y.to_dense()
+        )
+        out = out.to_dense().permute(-1, -2, -3, 0, 1)
+        assert torch.allclose(ref, out)
