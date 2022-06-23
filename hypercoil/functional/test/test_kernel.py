@@ -111,8 +111,8 @@ class TestKernel:
             [1., 1., 0.]
         ])
         ref = np.stack((
+            (X[:, 0].view(-1, 1) @ X[:, 0].view(1, -1)),
             lk_ref(X),
-            (X[:, 0].view(-1, 1) @ X[:, 0].view(1, -1))
         ))
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
@@ -121,3 +121,58 @@ class TestKernel:
         ref = lk_ref(X)
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
+
+    def test_kernel_sparse(self):
+        W = torch.tensor([
+            [0.2, -1.3, 2, 0.1, -4],
+            [4, 4, 0, -2, -6],
+            [0.1, 0., -1, 1, 1]
+        ]).t().requires_grad_(True)
+        E = torch.tensor([
+            [0, 3],
+            [0, 4],
+            [1, 1],
+            [2, 0],
+            [3, 2]
+        ]).t()
+        X = torch.sparse_coo_tensor(E, W, size=(5, 5, 3))
+
+        # unparameterised
+        ref = linear_kernel(
+            torch.permute(X.to_dense(), (-1, 0, 1)),
+        )
+        out = linear_kernel(X).to_dense().permute(-1, 0, 1)
+        assert torch.allclose(ref, out)
+
+        # vector parameter
+        theta = torch.rand(5)
+        ref = linear_kernel(
+            torch.permute(X.to_dense(), (-1, 0, 1)),
+            theta=theta
+        )
+        out = linear_kernel(
+            X, theta=theta
+        ).to_dense().permute(-1, 0, 1)
+        assert torch.allclose(ref, out)
+
+        # multi-vector parameter
+        theta = torch.rand(1, 2, 5)
+        ref = linear_kernel(
+            torch.permute(X.to_dense(), (-1, 0, 1)),
+            theta=theta.view(2, 1, 1, 5)
+        )
+        out = linear_kernel(
+            X, theta=theta
+        ).to_dense().permute(-2, -1, 0, 1)
+        assert torch.allclose(ref, out)
+
+        # matrix parameter
+        theta = torch.randint(2, (3, 5, 5), dtype=torch.float)
+        ref = linear_kernel(
+            torch.permute(X.to_dense(), (-1, 0, 1)),
+            theta=theta.view(3, 1, 5, 5)
+        )
+        out = linear_kernel(
+            X, theta=theta.view(1, 3, 5, 5)
+        ).to_dense().permute(-2, -1, 0, 1)
+        assert torch.allclose(ref, out)
