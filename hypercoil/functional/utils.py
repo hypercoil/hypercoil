@@ -158,7 +158,8 @@ def complex_recompose(ampl, phase):
     # TODO : consider using the complex exponential when torch enables it,
     # depending on the gradient properties
     # see here : https://discuss.pytorch.org/t/complex-functions-exp-does- ...
-    # not-support-automatic-differentiation-for-outputs-with-complex-dtype/98039
+    # not-support-automatic-differentiation-for-outputs-with-complex- ...
+    # dtype/98039
     # Supposedly it was updated, but it still isn't working after calling
     # pip install torch --upgrade
     # (old note, might be working now)
@@ -166,6 +167,88 @@ def complex_recompose(ampl, phase):
     # https://github.com/pytorch/pytorch/pull/47194
     return ampl * (torch.cos(phase) + 1j * torch.sin(phase))
     #return ampl * torch.exp(phase * 1j)
+
+
+def sparse_mm(A, B):
+    """
+    See: https://github.com/rusty1s/pytorch_sparse/issues/147
+    """
+    m = A.shape[0]
+    n = B.shape[1]
+    k = A.shape[1]
+    assert B.shape[0] == k
+    assert A.dense_dim() == B.dense_dim()
+    A = A.coalesce()
+    B = B.coalesce()
+    A_values = A.values()
+    B_values = B.values()
+    A_indices = A.indices()
+    B_indices = B.indices()
+    A_values = A_values.permute(list(range(A_values.dim()))[::-1])
+    B_values = B_values.permute(list(range(B_values.dim()))[::-1])
+    out_indices, out_values = _sparse_mm(
+        A_indices, A_values, B_indices, B_values, m, k, n)
+    out_values = out_values.permute(list(range(out_values.dim()))[::-1])
+    o = out_values.shape[1:]
+    return torch.sparse_coo_tensor(
+        indices=out_indices, values=out_values, size=(m, n, *o)
+    )
+
+
+def _sparse_mm(A_indices, A_values, B_indices, B_values, m, k, n):
+    if A_values.dim() <= 1:
+        out = torch.sparse.mm(
+            torch.sparse_coo_tensor(
+                indices=A_indices, values=A_values, size=(m, k)),
+            torch.sparse_coo_tensor(
+                indices=B_indices, values=B_values, size=(k, n)),
+        ).coalesce()
+        return out.indices(), out.values()
+        #return torch_sparse.spspmm(
+        #    A_indices, A_values, B_indices, B_values, m, k, n)
+    else:
+        out = [
+            _sparse_mm(A_indices, a, B_indices, b, m, k, n)
+            for a, b in zip(A_values, B_values)
+        ]
+        out_indices, out_values = zip(*out)
+        #print(out_indices)
+        #print(out_values)
+        return out_indices[0], torch.stack(out_values)
+
+
+# def sparse_mm(A, B):
+#     """
+#     See: https://github.com/rusty1s/pytorch_sparse/issues/147
+#     """
+#     print(A.shape, B.shape)
+#     assert A.dense_dim() == B.dense_dim()
+#     if A.dense_dim() == 0:
+#         #print(A, B, torch.sparse.mm(A, B))
+#         return torch.sparse.mm(A, B)
+#     else:
+#         A = A.coalesce()
+#         B = B.coalesce()
+#         A_v = A.values().transpose(0, -1)
+#         B_v = B.values().transpose(0, -1)
+#         print('values', A_v.shape, B_v.shape)
+#         out = [
+#             sparse_mm(
+#                 torch.sparse_coo_tensor(
+#                     indices=A.indices(), values=a.transpose(0, -1),
+#                     size=(*A.shape[:A.sparse_dim()], *a.shape[1:])),
+#                 torch.sparse_coo_tensor(
+#                     indices=B.indices(), values=b.transpose(0, -1),
+#                     size=(*B.shape[:B.sparse_dim()], *b.shape[1:]))
+#             ).coalesce()
+#             for a, b in zip(A_v, B_v)
+#         ]
+#         out_values = torch.stack([o.values() for o in out]).transpose(0, -1)
+#         return torch.sparse_coo_tensor(
+#             out[0].indices(),
+#             out_values,
+#             size=(*out[0].size(), out_values.size(-1))
+#         )
 
 
 def _conform_vector_weight(weight):

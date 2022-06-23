@@ -79,5 +79,6 @@ from .utils import (
     conform_mask,
     apply_mask,
     wmean,
-    threshold
+    threshold,
+    sparse_mm
 )
