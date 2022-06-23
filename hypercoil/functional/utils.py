@@ -204,51 +204,13 @@ def _sparse_mm(A_indices, A_values, B_indices, B_values, m, k, n):
                 indices=B_indices, values=B_values, size=(k, n)),
         ).coalesce()
         return out.indices(), out.values()
-        #return torch_sparse.spspmm(
-        #    A_indices, A_values, B_indices, B_values, m, k, n)
     else:
         out = [
             _sparse_mm(A_indices, a, B_indices, b, m, k, n)
             for a, b in zip(A_values, B_values)
         ]
         out_indices, out_values = zip(*out)
-        #print(out_indices)
-        #print(out_values)
         return out_indices[0], torch.stack(out_values)
-
-
-# def sparse_mm(A, B):
-#     """
-#     See: https://github.com/rusty1s/pytorch_sparse/issues/147
-#     """
-#     print(A.shape, B.shape)
-#     assert A.dense_dim() == B.dense_dim()
-#     if A.dense_dim() == 0:
-#         #print(A, B, torch.sparse.mm(A, B))
-#         return torch.sparse.mm(A, B)
-#     else:
-#         A = A.coalesce()
-#         B = B.coalesce()
-#         A_v = A.values().transpose(0, -1)
-#         B_v = B.values().transpose(0, -1)
-#         print('values', A_v.shape, B_v.shape)
-#         out = [
-#             sparse_mm(
-#                 torch.sparse_coo_tensor(
-#                     indices=A.indices(), values=a.transpose(0, -1),
-#                     size=(*A.shape[:A.sparse_dim()], *a.shape[1:])),
-#                 torch.sparse_coo_tensor(
-#                     indices=B.indices(), values=b.transpose(0, -1),
-#                     size=(*B.shape[:B.sparse_dim()], *b.shape[1:]))
-#             ).coalesce()
-#             for a, b in zip(A_v, B_v)
-#         ]
-#         out_values = torch.stack([o.values() for o in out]).transpose(0, -1)
-#         return torch.sparse_coo_tensor(
-#             out[0].indices(),
-#             out_values,
-#             size=(*out[0].size(), out_values.size(-1))
-#         )
 
 
 def _conform_vector_weight(weight):

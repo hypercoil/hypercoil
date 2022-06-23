@@ -7,7 +7,7 @@ Unit tests for utility functions.
 import torch
 import pytest
 from hypercoil.functional import (
-    apply_mask, wmean
+    apply_mask, wmean, sparse_mm
 )
 
 
@@ -65,3 +65,50 @@ class TestUtils:
         mskd = apply_mask(tsr, msk, axis=-3)
         assert torch.all(mskd == tsr[:2])
         assert mskd.shape == (2, 5, 5)
+
+    def test_sparse_mm(self):
+        W = torch.tensor([
+            [0.2, -1.3, 2, 0.1, -4],
+            [4, 4, 0, -2, -6],
+            [0.1, 0., -1, 1, 1]
+        ]).t()
+        E = torch.tensor([
+            [0, 3],
+            [0, 4],
+            [1, 1],
+            [2, 0],
+            [3, 2]
+        ]).t()
+        W.requires_grad = True
+        X = torch.sparse_coo_tensor(E, W, size=(5, 5, 3)).coalesce()
+        Xd = torch.permute(X.to_dense(), (-1, 0, 1))
+        out = torch.permute(
+            sparse_mm(X, X.transpose(0, 1)).to_dense(),
+            (-1, 0, 1)
+        )
+        ref = Xd @ Xd.transpose(-1, -2)
+        assert torch.allclose(ref, out)
+        assert W.grad is None
+        out.sum().backward()
+        assert W.grad is not None
+
+        W0 = torch.randn(20, 3, 3, 3)
+        E0 = torch.stack((
+            torch.randint(50, (20,)),
+            torch.randint(100, (20,)),
+        ))
+        X = torch.sparse_coo_tensor(E0, W0, size=(50, 100, 3, 3, 3)).coalesce()
+        W1 = torch.randn(20, 3, 3, 3)
+        E1 = torch.stack((
+            torch.randint(100, (20,)),
+            torch.randint(50, (20,)),
+        ))
+        Y = torch.sparse_coo_tensor(E1, W1, size=(100, 50, 3, 3, 3)).coalesce()
+        out = sparse_mm(X, Y)
+        assert out.shape == (50, 50, 3, 3, 3)
+        ref = (
+            X.to_dense().permute(-1, -2, -3, 0, 1) @
+            Y.to_dense().permute(-1, -2, -3, 0, 1)
+        )
+        out = out.to_dense().permute(-1, -2, -3, 0, 1)
+        assert torch.allclose(ref, out)
