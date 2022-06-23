@@ -205,7 +205,7 @@ def sparse_mm(A, B):
         ``nnz`` denotes the number of nonzero elements in the tensor. For the
         matrix multiply, array broadcasting can be performed using the
         remaining dense dimensions after the ``nnz`` dimension. For instance,
-        an array ``A`` with dense size (20, 3, 5) can be broadcase with an
+        an array ``A`` with dense size (20, 3, 5) can be broadcast with an
         array ``B`` that has dense size (35, 5) or (17, 1, 1, 5), but not one
         that has dense size (20, 3). (The first dense axis size, ``nnz``, is
         ignored when broadcasting.)
