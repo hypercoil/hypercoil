@@ -13,6 +13,7 @@
    api/hypercoil.functional.fourier
    api/hypercoil.functional.graph
    api/hypercoil.functional.interpolate
+   api/hypercoil.functional.kernel
    api/hypercoil.functional.matrix
    api/hypercoil.functional.resid.residualise
    api/hypercoil.functional.semidefinite

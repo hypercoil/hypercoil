@@ -50,20 +50,53 @@ def _linear_kernel_sparse(X0, X1, theta):
         return sparse_mm(X0, X1.transpose(0, 1))
     elif theta.dim() == 1 or theta.shape[-1] != theta.shape[-2]:
         theta = _embed_params_in_diagonal(theta)
-        #shape = [1 for _ in range(1, values.dim())]
-        #theta = theta.view(-1, *shape)
-        #print(values.shape, theta.shape)
-        #values = values * theta
     else:
         theta = _embed_params_in_sparse(theta)
-    #indices = X0._indices()
-    #X0 = torch.sparse_coo_tensor(
-    #    indices=indices, values=values, size=(X0.size()))
     X0 = sparse_mm(X0, theta)
     return sparse_mm(X0, X1.transpose(0, 1))
 
 
 def linear_kernel(X0, X1=None, theta=None):
+    r"""
+    Compute the parameterised linear kernel between input tensors.
+
+    For tensors :math:`X_0` and :math:`X_1` containing observations in column
+    vectors, the parameterised linear kernel is
+
+    :math:`K_{\theta}(X, Z) = X_0^\intercal \theta X_1`
+
+    :Dimension: **X0 :** :math:`(*, N, P)` or :math:`(N, P, *)`
+                    N denotes number of observations, P denotes number of
+                    features, `*` denotes any number of additional dimensions.
+                    If the input is dense, then the last dimensions should be
+                    N and P; if it is sparse, then the first dimensions should
+                    be N and P.
+                **X1 :** :math:`(*, M, P)` or  :math:`(M, P, *)`
+                    M denotes number of observations.
+                **theta :** :math:`(*, P, P)` or :math:`(*, P)`
+                    As above.
+                **Output :** :math:`(*, M, N)` or :math:`(M, N, *)`
+                    As above.
+
+    Parameters
+    ----------
+    X0 : tensor
+        A feature tensor.
+    X1 : tensor or None
+        Second feature tensor. If not explicitly provided, the kernel of
+        ``X`` with itself is computed.
+    theta : tensor or None
+        Kernel parameter (generally a representation of a positive definite
+        matrix). If not provided, defaults to identity (an unparameterised
+        kernel). If the last two dimensions are the same size, they are used
+        as a matrix parameter; if they are not, the final axis is instead
+        used as the diagonal of the matrix.
+
+    Returns
+    -------
+    tensor
+        Kernel Gram matrix.
+    """
     if X1 is None:
         X1 = X0
     if X0.is_sparse:
@@ -73,6 +106,7 @@ def linear_kernel(X0, X1=None, theta=None):
 
 
 def linear_distance(X0, X1=None, theta=None):
+    """Squared Euclidean (L2) distance."""
     if X1 is None:
         X1 = X0
     D = X0.unsqueeze(-2) - X1.unsqueeze(-3)
