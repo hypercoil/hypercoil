@@ -67,7 +67,7 @@ def linear_kernel(X0, X1=None, theta=None):
 
     :math:`K_{\theta}(X_0, X_1) = X_0^\intercal \theta X_1`
 
-    where :math:`\theta` is tge kernel parameter.
+    where :math:`\theta` is the kernel parameter.
 
     :Dimension: **X0 :** :math:`(*, N, P)` or :math:`(N, P, *)`
                     N denotes number of observations, P denotes number of
