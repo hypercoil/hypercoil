@@ -198,6 +198,18 @@ def sparse_mm(A, B):
     """
     Batched sparse-sparse matrix multiplication.
 
+    .. admonition:: Dimensions and broadcasting
+
+        The dense dimension of each input COO tensor (that is, the dimension
+        of the tensor in ``tensor._values()``) is equal to ``(nnz, *)``, where
+        ``nnz`` denotes the number of nonzero elements in the tensor. For the
+        matrix multiply, array broadcasting can be performed using the
+        remaining dense dimensions after the ``nnz`` dimension. For instance,
+        an array ``A`` with dense size (20, 3, 5) can be broadcase with an
+        array ``B`` that has dense size (35, 5) or (17, 1, 1, 5), but not one
+        that has dense size (20, 3). (The first dense axis size, ``nnz``, is
+        ignored when broadcasting.)
+
     :Dimension: **A :** :math:`(M, K, *)`
                     `*` denotes any number of trailing (dense) dimensions,
                     potentially including a batch dimension. Note that the
