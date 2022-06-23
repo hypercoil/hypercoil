@@ -11,3 +11,4 @@
    hypercoil.functional.utils.wmean
    hypercoil.functional.utils.complex_decompose
    hypercoil.functional.utils.complex_recompose
+   hypercoil.functional.utils.sparse_mm

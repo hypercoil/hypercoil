@@ -171,6 +171,31 @@ def complex_recompose(ampl, phase):
 
 def sparse_mm(A, B):
     """
+    Batched sparse-sparse matrix multiplication.
+
+    :Dimension: **A :** :math:`(M, K, *)`
+                    `*` denotes any number of trailing (dense) dimensions,
+                    potentially including a batch dimension. Note that the
+                    batch dimension must be a dense dimension. M and K denote
+                    the sparse dimensions of the input tensor, corresponding
+                    to the axes of the matrix to be multiplied. Note that the
+                    sparse dimension must be exactly 2.
+                **B :** :math:`(K, N, *)`
+                    N denotes the outer sparse dimension of the second matrix
+                    batch.
+                **Output :** :math:`(M, N, *)`
+                    As above.
+
+    Parameters
+    ----------
+    A, B : sparse COO tensor
+        Tensors to be multiplied.
+
+    Returns
+    -------
+    sparse COO tensor
+        Sparse product of sparse tensors.
+
     See: https://github.com/rusty1s/pytorch_sparse/issues/147
     """
     m = A.shape[0]
