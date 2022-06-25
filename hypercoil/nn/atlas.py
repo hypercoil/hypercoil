@@ -75,7 +75,7 @@ class AtlasLinear(Module):
         lends the atlas an intuitive interpretation as a probabilistic
         parcellation. Using an appropriate domain can ensure that weights are
         nonnegative and that they do not grow explosively.
-    reduce : ``'mean'``, ``'absmean'``, ``'zscore'``, ``'psc'``, or ``'sum'`` (default ``'mean'``)
+    reduction : ``'mean'``, ``'absmean'``, ``'zscore'``, ``'psc'``, or ``'sum'`` (default ``'mean'``)
         Strategy for reducing across voxels and generating a representative
         time series for each label.
 
@@ -87,6 +87,20 @@ class AtlasLinear(Module):
           mean is 0 and its temporal standard deviation is 1.
         * ``psc``: Transform the time series such that its value indicates the
           percent signal change from the mean. (**untested**))
+    forward_mode : ``'map'`` or ``'project'``
+        Strategy for extracting regional time series from parcels.
+
+        * ``'map'``: Simple linear map. Given a compartment atlas
+          :math:`A \in \mathbb{R}^{(L \times V)}`
+          and a vertex-wise or voxel-wise input time series
+          :math:`T_{in} \in \mathbb{R}^{(V \times T)}`, returns
+          :math:`T_{out} = A T_{in}`.
+        * ``'project'``: Projection using a linear least-squares fit. Given a
+          compartment atlas
+          :math:`A \in \mathbb{R}^{(L \times V)}`
+          and a vertex-wise or voxel-wise input time series
+          :math:`T_{in} \in \mathbb{R}^{(V \times T)}`, returns
+          :math:`T_{out} = \min_{X \in \mathbb{R}^{(L \times T)}} \| A^\intercal X - T_{in} \|_F`
 
     Attributes
     ----------
@@ -126,8 +140,10 @@ class AtlasLinear(Module):
         spatial_dropout=0,
         min_voxels=1,
         reduction='mean',
+        forward_mode='map',
         dtype=None,
-        device=None
+        device=None,
+        solver=None
     ):
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(AtlasLinear, self).__init__()
@@ -136,6 +152,7 @@ class AtlasLinear(Module):
         self.mask = self.atlas.mask
         self.mask_input = mask_input
         self.reduction = reduction
+        self.forward_mode = forward_mode
         self.concatenate = concatenate
         self.decode = decode
         self.init = AtlasInit(
@@ -165,6 +182,7 @@ class AtlasLinear(Module):
         self.coors = self.atlas.coors
         self._configure_spatial_dropout(spatial_dropout, min_voxels)
         self.reset_parameters()
+        self.solver = self._select_solver(solver, self.preweight)
 
     def reset_parameters(self):
        self.init(tensor=self.preweight)
@@ -178,6 +196,17 @@ class AtlasLinear(Module):
         else:
             self.dropout = None
         self.min_voxels = min_voxels
+
+    def _select_solver(self, solver, param):
+        # According to torch doc, this shouldn't be necessary.
+        # https://pytorch.org/docs/stable/generated/torch.linalg.lstsq.html
+        if solver is None:
+            device = param[next(iter(param))].device
+            if device.type == 'cuda':
+                solver = 'gels'
+            else:
+                solver = 'gelsy'
+        return solver
 
     @property
     def weight(self):
@@ -201,8 +230,21 @@ class AtlasLinear(Module):
             return weight
         return self.weight
 
+    def compartment_forward(self, input, weight):
+        if self.forward_mode == 'map':
+            return weight @ input
+        elif self.forward_mode == 'project':
+            return torch.linalg.lstsq(
+                weight.transpose(-2, -1),
+                input
+            ).solution
+            #return (
+            #    input.pinverse() @ weight.transpose(-2, -1)
+            #).transpose(-2, -1)
+
     def reduce(self, input, weight):
-        out = weight @ input
+        out = self.compartment_forward(input, weight)
+        print(out.shape)
         if self.reduction == 'mean':
             normfact = weight.sum(-1, keepdim=True)
             return out / normfact
