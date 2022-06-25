@@ -12,7 +12,7 @@ import nibabel as nb
 import templateflow.api as tflow
 import hypercoil
 from pkg_resources import resource_filename as pkgrf
-from nilearn.input_data import NiftiLabelsMasker
+from nilearn.input_data import NiftiLabelsMasker, NiftiMapsMasker
 from hypercoil.nn.atlas import AtlasLinear
 from hypercoil.init.atlas import (
     CortexSubcortexCIfTIAtlas,
@@ -57,7 +57,7 @@ class TestAtlasInit:
 
         img = nb.load(ref_pointer)
         aff = img.affine
-        inp = inp = np.linspace(
+        inp = np.linspace(
             0, 1000, np.prod(img.shape) * 20).reshape(
             20, img.shape[1], img.shape[2], img.shape[0]).swapaxes(0, -1)
         inpT = torch.tensor(inp, dtype=torch.float)
@@ -71,12 +71,14 @@ class TestAtlasInit:
         assert np.allclose(out.detach().numpy(), ref.T)
 
     def test_multivolume_atlas(self):
+        ref_pointer = tflow.get(
+            template='MNI152NLin2009cAsym',
+            atlas='DiFuMo',
+            resolution=2,
+            desc='64dimensions'
+        )
         atlas = MultiVolumetricAtlas(
-            ref_pointer=tflow.get(
-                template='MNI152NLin2009cAsym',
-                atlas='DiFuMo',
-                resolution=2,
-                desc='64dimensions'),
+            ref_pointer=ref_pointer,
             clear_cache=False
         )
         assert atlas.mask.shape[0] == np.prod(atlas.ref.shape[:-1])
@@ -89,6 +91,23 @@ class TestAtlasInit:
         x, y, z = 84, 62, 13
         assert np.all(
             atlas.coors[123 * 104 * x + 104 * y + z].numpy() / 2 == [x, y, z])
+
+        img = nb.load(ref_pointer)
+        aff = img.affine
+        inp = np.linspace(
+            0, 1000, np.prod(img.shape[:3]) * 5).reshape(
+            5, img.shape[1], img.shape[2], img.shape[0]).swapaxes(0, -1)
+        inpT = torch.tensor(inp, dtype=torch.float)
+
+        nil = NiftiMapsMasker(maps_img=str(ref_pointer),
+                              resampling_target=None)
+        ref = nil.fit_transform(nb.Nifti1Image(inp, affine=aff))
+        lin = AtlasLinear(
+            atlas, mask_input=True,
+            forward_mode='project',
+            reduction=None)
+        out = lin(inpT.reshape(-1, 5))
+        assert np.allclose(ref.T, out.detach(), rtol=1e-3)
 
     def test_multifile_atlas(self):
         atlas = MultifileVolumetricAtlas(
