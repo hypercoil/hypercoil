@@ -76,7 +76,7 @@ def match_covariance(signal, reference, cov=False):
     :math:`\frac{1}{n} \mathbf{E}[\mathbf{T} \mathbf{T}^\intercal] = \mathbf{I}`
 
     where :math:`\mathbf{I}` is the identity matrix. This assumption holds
-    _inter alia_ when :math:`\mathbf{T}` is drawn i.i.d. from a standard
+    `inter alia` when :math:`\mathbf{T}` is drawn i.i.d. from a standard
     normal distribution.
 
     .. math::

@@ -1,4 +1,4 @@
-``connectopy``: Connectopic gradients
+``connectopy``: Connectopic manifolds
 =====================================
 
 .. automodule:: hypercoil.functional.connectopy
