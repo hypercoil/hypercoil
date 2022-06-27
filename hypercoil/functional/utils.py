@@ -19,6 +19,7 @@ def conform_mask(tensor, msk, axis, batch=False):
     --------
     :func:`apply_mask`
     """
+    #TODO: require axis to be ordered as in `orient_and_conform`
     if batch and tensor.dim() == 1:
         batch = False
     if isinstance(axis, int):
@@ -296,6 +297,8 @@ def _conform_vector_weight(weight):
 
 
 def orient_and_conform(input, axis, reference=None, dim=None):
+    if isinstance(axis, int):
+        axis = (axis,)
     if dim is None and reference is None:
         raise ValueError('Must specify either `reference` or `dim`')
     elif dim is None:
