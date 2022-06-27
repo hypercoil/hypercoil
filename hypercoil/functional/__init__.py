@@ -34,7 +34,9 @@ from .fourier import (
     analytic_signal,
     hilbert_transform,
     envelope,
-    instantaneous_frequency
+    instantaneous_phase,
+    instantaneous_frequency,
+    env_inst_freq
 )
 from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity,

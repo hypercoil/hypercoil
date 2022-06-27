@@ -147,6 +147,36 @@ def analytic_signal(X, axis=-1, n=None):
     return torch.fft.ifft(Xf * h, axis=axis)
 
 
+def hilbert_transform(X, axis=-1, n=None):
+    return analytic_signal(X=X, axis=axis, n=n).imag
+
+
+def envelope(X, axis=-1, n=None):
+    return analytic_signal(X=X, axis=axis, n=n).abs()
+
+
+def instantaneous_phase(X, axis=-1, n=None):
+    return unwrap(analytic_signal(X=X, axis=axis, n=n).angle())
+
+
+def instantaneous_frequency(X, axis=-1, n=None, fs=1, period=(2 * math.pi)):
+    inst_phase = instantaneous_phase(X=X, axis=axis, n=n).diff(dim=axis)
+    return fs * inst_phase / period
+
+
+def env_inst_freq(X, axis=-1, n=None, fs=1,
+                  period=(2 * math.pi),
+                  return_instantaneous_phase=False):
+    Xa = analytic_signal(X=X, axis=axis, n=n)
+    env = Xa.abs()
+    inst_phase = unwrap(Xa.angle())
+    inst_freq = fs * inst_phase.diff(dim=axis) / period
+    if return_instantaneous_phase:
+        return env, inst_freq, inst_phase
+    else:
+        return env, inst_freq
+
+
 def ampl_phase_corr(
     X, weight=None, corr_axes=(0,), cov=corr, **params):
     """
