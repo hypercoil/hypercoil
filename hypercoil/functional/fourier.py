@@ -7,7 +7,7 @@ Convolve the signal via multiplication in the Fourier domain.
 import torch
 import torch.fft
 from .cov import corr
-from .utils import complex_decompose
+from .utils import complex_decompose, orient_and_conform
 
 
 def product_filter(X, weight, **params):
@@ -94,6 +94,28 @@ def product_filtfilt(X, weight, **params):
     X_filt = product_filter(X, weight, **params)
     out = product_filter(X_filt.flip(-1), weight, **params).flip(-1)
     return out
+
+
+def analytic_signal(X, axis=-1, n=None):
+    if X.is_complex():
+        raise ValueError(
+            'Input for analytic signal must be strictly real')
+
+    Xf = torch.fft.fft(X, n=n, axis=axis)
+    n = n or X.size(axis)
+    h = torch.zeros(n, dtype=X.dtype, device=X.device)
+
+    if n % 2 == 0:
+        h[0] = h[n // 2] = 1
+        h[1:(n // 2)] = 2
+    else:
+        h[0] = 1
+        h[1:((n + 1) // 2)] = 2
+
+    if Xf.dim() >= 1:
+        h = orient_and_conform(h, axis=axis, reference=Xf)
+        print(h.shape, Xf.shape)
+    return torch.fft.ifft(Xf * h, axis=axis)
 
 
 def ampl_phase_corr(

@@ -29,7 +29,8 @@ from .crosssim import (
 )
 from .fourier import (
     product_filter,
-    product_filtfilt
+    product_filtfilt,
+    analytic_signal
 )
 from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity,
