@@ -4,6 +4,7 @@
 """
 Convolve the signal via multiplication in the Fourier domain.
 """
+import math
 import torch
 import torch.fft
 from .cov import corr
@@ -82,8 +83,8 @@ def product_filtfilt(X, weight, **params):
         apply different filters to different variables in the input signal
         according to tensor broadcasting rules.
     **params
-        Any additional parameters provided will be passed to `torch.fft.rfft` and
-        `torch.fft.irfft`.
+        Any additional parameters provided will be passed to `torch.fft.rfft`
+        and `torch.fft.irfft`.
 
     Returns
     -------
@@ -94,6 +95,35 @@ def product_filtfilt(X, weight, **params):
     X_filt = product_filter(X, weight, **params)
     out = product_filter(X_filt.flip(-1), weight, **params).flip(-1)
     return out
+
+
+def unwrap(phase, axis=-1, discont=None, period=(2 * math.pi)):
+    dd = phase.diff(axis=axis)
+    half_period = period / 2
+    if discont is None:
+        discont = half_period
+
+    slice1 = [slice(None, None)] * phase.dim()
+    slice1[axis] = slice(1, None)
+    slice1 = tuple(slice1)
+
+    interval_high = half_period
+    interval_low = -interval_high
+    ddmod = (dd - interval_low) % period + interval_low
+    ddmod = torch.where(
+        (ddmod == interval_low) & (dd > 0),
+        torch.tensor(interval_high, dtype=phase.dtype, device=phase.device),
+        ddmod
+    )
+    phase_correct = ddmod - dd
+    phase_correct = torch.where(
+        dd.abs() < discont,
+        torch.tensor(0, dtype=phase.dtype, device=phase.device),
+        phase_correct
+    )
+    unwrapped_phase = phase.clone()
+    unwrapped_phase[slice1] = phase[slice1] + phase_correct.cumsum(axis)
+    return unwrapped_phase
 
 
 def analytic_signal(X, axis=-1, n=None):
@@ -114,7 +144,6 @@ def analytic_signal(X, axis=-1, n=None):
 
     if Xf.dim() >= 1:
         h = orient_and_conform(h, axis=axis, reference=Xf)
-        print(h.shape, Xf.shape)
     return torch.fft.ifft(Xf * h, axis=axis)
 
 

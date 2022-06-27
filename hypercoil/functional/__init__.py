@@ -30,7 +30,11 @@ from .crosssim import (
 from .fourier import (
     product_filter,
     product_filtfilt,
-    analytic_signal
+    unwrap,
+    analytic_signal,
+    hilbert_transform,
+    envelope,
+    instantaneous_frequency
 )
 from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity,
