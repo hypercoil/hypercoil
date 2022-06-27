@@ -7,10 +7,12 @@ Unit tests for Fourier-domain filtering
 import pytest
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.fft import rfft, irfft
-from scipy.signal import hilbert
+from scipy.signal import hilbert, chirp
 from hypercoil.functional import (
-    product_filter, analytic_signal
+    product_filter, unwrap, analytic_signal,
+    envelope, instantaneous_frequency
 )
 
 
@@ -65,6 +67,29 @@ class TestFourier:
         out = product_filter(self.XtC, wt.cuda()).cpu().numpy()
         ref = self.scipy_product_filter(self.X, w)
         assert self.approx(out, ref)
+
+    def test_unwrap(self):
+        # Replicate the numpy doc examples
+        phase = np.linspace(0, np.pi, num=5)
+        phase[3:] += np.pi
+        ref = np.unwrap(phase)
+        out = unwrap(torch.tensor(phase))
+        assert self.approx(ref, out)
+
+        out = unwrap(torch.tensor([0., 1, 2, -1, 0]), period=4)
+        ref = torch.tensor([0, 1, 2, 3, 4])
+        assert self.approx(ref, out)
+
+        ref = torch.linspace(0, 720, 19) - 180
+        phase = torch.linspace(0, 720, 19) % 360 - 180
+        out = unwrap(phase, period=360)
+        assert self.approx(ref, out)
+
+        phase = torch.randint(20, (10, 10, 10), dtype=torch.float)
+        ref = np.unwrap(phase, axis=-2)
+        out = unwrap(phase, axis=-2)
+        assert (phase - out).abs().max() > 1e-5
+        assert np.allclose(ref, out, atol=1e-5)
 
     def test_hilbert_transform(self):
         out = analytic_signal(self.Xt)
