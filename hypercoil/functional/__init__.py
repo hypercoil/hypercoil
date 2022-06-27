@@ -80,5 +80,6 @@ from .utils import (
     apply_mask,
     wmean,
     threshold,
-    sparse_mm
+    sparse_mm,
+    orient_and_conform
 )

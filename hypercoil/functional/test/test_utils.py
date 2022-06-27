@@ -7,7 +7,7 @@ Unit tests for utility functions.
 import torch
 import pytest
 from hypercoil.functional import (
-    apply_mask, wmean, sparse_mm
+    apply_mask, wmean, sparse_mm, orient_and_conform
 )
 
 
@@ -66,6 +66,7 @@ class TestUtils:
         assert torch.all(mskd == tsr[:2])
         assert mskd.shape == (2, 5, 5)
 
+    #TODO: We absolutely need to test this on CUDA.
     def test_sparse_mm(self):
         W = torch.tensor([
             [0.2, -1.3, 2, 0.1, -4],
@@ -135,4 +136,12 @@ class TestUtils:
         out = out.to_dense().permute(-1, -2, -3, 0, 1)
         assert torch.allclose(ref, out)
 
-    #TODO: We absolutely need to test this on CUDA.
+    def test_orient_and_conform(self):
+        X = torch.rand(3, 7)
+        R = torch.rand(2, 7, 11, 1, 3)
+        out = orient_and_conform(X.transpose(-1, 0), (1, -1), reference=R)
+        ref = X.transpose(-1, -2).unsqueeze(-2).unsqueeze(-2).unsqueeze(0)
+        print(out.shape, ref.shape)
+        print((out - ref).abs().max())
+        assert(out.shape == ref.shape)
+        assert torch.all(out == ref)

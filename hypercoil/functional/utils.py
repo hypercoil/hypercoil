@@ -293,3 +293,20 @@ def _conform_vector_weight(weight):
     if weight.shape[-2] != 1:
         return weight.unsqueeze(-2)
     return weight
+
+
+def orient_and_conform(input, axis, reference=None, dim=None):
+    if dim is None and reference is None:
+        raise ValueError('Must specify either `reference` or `dim`')
+    elif dim is None:
+        dim = reference.dim()
+    assert len(axis) == input.dim(), (
+        'Output orientation axis required for each input dimension')
+    shape = [1] * dim
+    asgn = [0] * dim
+    for size, ax in zip(input.size(), axis):
+        shape[ax] = size
+        assert sum(asgn[ax:]) == 0, (
+            'All axes must be in order. Transpose the input if necessary.')
+        asgn[ax] = 1
+    return input.view(*shape)
