@@ -8,8 +8,9 @@ import pytest
 import torch
 import numpy as np
 from scipy.fft import rfft, irfft
+from scipy.signal import hilbert
 from hypercoil.functional import (
-    product_filter
+    product_filter, analytic_signal
 )
 
 
@@ -64,3 +65,19 @@ class TestFourier:
         out = product_filter(self.XtC, wt.cuda()).cpu().numpy()
         ref = self.scipy_product_filter(self.X, w)
         assert self.approx(out, ref)
+
+    def test_hilbert_transform(self):
+        out = analytic_signal(self.Xt)
+        ref = hilbert(self.X)
+        assert self.approx(out, ref)
+        assert np.allclose(self.Xt, out.real, atol=1e-6)
+
+        X = torch.randn(3, 10, 50, 5)
+        ref = hilbert(X, axis=-2)
+        X.requires_grad = True
+        out = analytic_signal(X, -2)
+        assert np.allclose(out.detach(), ref, atol=1e-6)
+        assert np.allclose(X.detach(), out.real.detach(), atol=1e-6)
+        assert X.grad is None
+        out.imag.sum().backward()
+        assert X.grad is not None
