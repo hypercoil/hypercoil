@@ -13,7 +13,7 @@ from scipy.signal import hilbert, chirp
 from pkg_resources import resource_filename as pkgrf
 from hypercoil.functional import (
     product_filter, unwrap, analytic_signal,
-    envelope, instantaneous_frequency, env_inst_freq
+    envelope, instantaneous_frequency, env_inst
 )
 
 
@@ -141,7 +141,7 @@ class TestFourier:
 
         fig.savefig(f'{self.results}/hilbert_separate.png')
 
-        amplitude_envelope, inst_freq = env_inst_freq(signal, fs=400)
+        amplitude_envelope, inst_freq = env_inst(signal, fs=400)
 
         fig, (ax0, ax1) = plt.subplots(nrows=2)
 

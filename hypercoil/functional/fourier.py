@@ -98,6 +98,43 @@ def product_filtfilt(X, weight, **params):
 
 
 def unwrap(phase, axis=-1, discont=None, period=(2 * math.pi)):
+    r"""
+    Unwrap tensor values, replacing large deltas with their complement.
+
+    The unwrapping procedure first computes the difference between each pair
+    of contiguous values along the specified tensor axis. For each difference
+    that is greater than the maximum specified discontinuity (and half the
+    period), the corresponding array value is replaced by its complement with
+    respect to the period.
+
+    The default case (period of :math:`2\pi`, maximum discontinuity
+    :math:\pi`) corresponds to unwrapping a radian phase such that adjacent
+    differences in the phase tensor obtain a maximum value of :math:`\pi`.
+    This is achieved by adding :math:`2 k \pi` for an appropriate value of k.
+
+    This mostly follows the implementation in ``numpy``.
+
+    Parameters
+    ----------
+    phase : tensor
+        Tensor containing phases, or other values to be unwrapped. Currently,
+        tensors should be cast to some floating-point type before this
+        operation.
+    axis : int (default -1)
+        Axis along which the maximum discontinuity is not be be exceeded after
+        unwrapping.
+    discont : float (default ``period / 2``)
+        Maximum discontinuity between continuous tensor entries along the
+        specified ``axis``. Note that this value can in effect be no smaller
+        than ``period / 2``.
+    period : float (default ``(2 * pi)``)
+        Size of the range over which the input tensor wraps.
+
+    Returns
+    -------
+    tensor
+        Tensor containing unwrapped values.
+    """
     dd = phase.diff(axis=axis)
     half_period = period / 2
     if discont is None:
@@ -127,6 +164,39 @@ def unwrap(phase, axis=-1, discont=None, period=(2 * math.pi)):
 
 
 def analytic_signal(X, axis=-1, n=None):
+    """
+    Compute the analytic signal.
+
+    The analytic signal is a helical representation of the input signal in
+    the complex plane. Its real and imaginary parts are related by the
+    Hilbert transform.  Its properties can be used to quickly derive measures
+    such as a signal envelope and instantaneous measures of frequency and
+    phase.
+
+    Parameters
+    ----------
+    X : tensor
+        Tensor containining real valued signals for which the analytic signal
+        is to be computed.
+    axis : int (default -1)
+        Axis along which the transform is applied.
+    n : int (default None)
+        Number of frequency components; dimension of the Fourier transform.
+        This defaults to the size of the input along the transform axis.
+
+    Output
+    ------
+    tensor
+        Tensor containing complex-valued analytic signals.
+
+    See also
+    --------
+    :func:`hilbert_transform`
+    :func:`envelope`
+    :func:`instantaneous_phase`
+    :func:`instantaneous_frequency`
+    :func:`env_inst`
+    """
     if X.is_complex():
         raise ValueError(
             'Input for analytic signal must be strictly real')
@@ -148,28 +218,188 @@ def analytic_signal(X, axis=-1, n=None):
 
 
 def hilbert_transform(X, axis=-1, n=None):
+    """
+    Hilbert transform of an input signal.
+
+    Parameters
+    ----------
+    X : tensor
+        Input tensor.
+    axis : int (default -1)
+        Axis along which the transform is applied.
+    n : int (default None)
+        Number of frequency components; dimension of the Fourier transform.
+        This defaults to the size of the input along the transform axis.
+
+    Output
+    ------
+    tensor
+        Output tensor.
+
+    See also
+    --------
+    :func:`analytic_signal`
+    :func:`envelope`
+    :func:`instantaneous_phase`
+    :func:`instantaneous_frequency`
+    :func:`env_inst`
+    """
     return analytic_signal(X=X, axis=axis, n=n).imag
 
 
 def envelope(X, axis=-1, n=None):
+    """
+    Envelope of a signal, computed via the analytic signal.
+
+    .. note::
+        If you require the instantaneous phase or frequency in addition to the
+        envelope, :func:`env_inst` will be more efficient.
+
+    Parameters
+    ----------
+    X : tensor
+        Input tensor.
+    axis : int (default -1)
+        Axis along which the transform is applied.
+    n : int (default None)
+        Number of frequency components; dimension of the Fourier transform.
+        This defaults to the size of the input along the transform axis.
+
+    Output
+    ------
+    tensor
+        Output tensor.
+
+    See also
+    --------
+    :func:`analytic_signal`
+    :func:`hilbert_transform`
+    :func:`instantaneous_phase`
+    :func:`instantaneous_frequency`
+    :func:`env_inst`
+    """
     return analytic_signal(X=X, axis=axis, n=n).abs()
 
 
-def instantaneous_phase(X, axis=-1, n=None):
-    return unwrap(analytic_signal(X=X, axis=axis, n=n).angle())
+def instantaneous_phase(X, axis=-1, n=None, period=(2 * math.pi)):
+    """
+    Instantaneous phase of a signal, computed via the analytic signal.
+
+    .. note::
+        If you require the envelope or instantaneous frequency in addition to
+        the instantaneous phase, :func:`env_inst` will be more efficient.
+
+    Parameters
+    ----------
+    X : tensor
+        Input tensor.
+    axis : int (default -1)
+        Axis along which the transform is applied.
+    n : int (default None)
+        Number of frequency components; dimension of the Fourier transform.
+        This defaults to the size of the input along the transform axis.
+    period : float (default ``2 * pi``)
+        Range over which the signal wraps. (See :func:`unwrap`.)
+
+    Output
+    ------
+    tensor
+        Output tensor.
+
+    See also
+    --------
+    :func:`analytic_signal`
+    :func:`hilbert_transform`
+    :func:`envelope`
+    :func:`instantaneous_frequency`
+    :func:`env_inst`
+    """
+    return unwrap(
+        analytic_signal(X=X, axis=axis, n=n).angle(),
+        axis=axis,
+        period=period
+    )
 
 
 def instantaneous_frequency(X, axis=-1, n=None, fs=1, period=(2 * math.pi)):
-    inst_phase = instantaneous_phase(X=X, axis=axis, n=n).diff(dim=axis)
-    return fs * inst_phase / period
+    """
+    Instantaneous frequency of a signal, computed via the analytic signal.
+
+    .. note::
+        If you require the envelope or instantaneous phase in addition to the
+        the instantaneous frequency, :func:`env_inst` will be more efficient.
+
+    Parameters
+    ----------
+    X : tensor
+        Input tensor.
+    axis : int (default -1)
+        Axis along which the transform is applied.
+    n : int (default None)
+        Number of frequency components; dimension of the Fourier transform.
+        This defaults to the size of the input along the transform axis.
+    fs : float (default 1)
+        Sampling frequency.
+    period : float (default ``2 * pi``)
+        Range over which the signal wraps. (See :func:`unwrap`.)
+
+    Output
+    ------
+    tensor
+        Output tensor.
+
+    See also
+    --------
+    :func:`analytic_signal`
+    :func:`hilbert_transform`
+    :func:`envelope`
+    :func:`instantaneous_phase`
+    :func:`env_inst`
+    """
+    inst_phase = instantaneous_phase(X=X, axis=axis, n=n)
+    return fs * inst_phase.diff(dim=axis) / period
 
 
-def env_inst_freq(X, axis=-1, n=None, fs=1,
-                  period=(2 * math.pi),
-                  return_instantaneous_phase=False):
+def env_inst(X, axis=-1, n=None, fs=1,
+             period=(2 * math.pi),
+             return_instantaneous_phase=False):
+    """
+    Compute the analytic signal, and then decompose it into the envelope and
+    instantaneous phase and frequency.
+
+    Parameters
+    ----------
+    X : tensor
+        Input tensor.
+    axis : int (default -1)
+        Axis along which the transform is applied.
+    n : int (default None)
+        Number of frequency components; dimension of the Fourier transform.
+        This defaults to the size of the input along the transform axis.
+    fs : float
+        Sampling frequency.
+    period : float (default ``2 * pi``)
+        Range over which the signal wraps. (See :func:`unwrap`.)
+    return_instantaneous_phase (default False)
+        Indicates that the instantaneous phase should be returned in addition
+        to the instantaneous frequency.
+
+    Output
+    ------
+    tensor
+        Output tensor.
+
+    See also
+    --------
+    :func:`analytic_signal`
+    :func:`hilbert_transform`
+    :func:`envelope`
+    :func:`instantaneous_phase`
+    :func:`instantaneous_frequency`
+    """
     Xa = analytic_signal(X=X, axis=axis, n=n)
     env = Xa.abs()
-    inst_phase = unwrap(Xa.angle())
+    inst_phase = unwrap(Xa.angle(), axis=axis, period=period)
     inst_freq = fs * inst_phase.diff(dim=axis) / period
     if return_instantaneous_phase:
         return env, inst_freq, inst_phase

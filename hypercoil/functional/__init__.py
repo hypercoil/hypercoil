@@ -36,7 +36,7 @@ from .fourier import (
     envelope,
     instantaneous_phase,
     instantaneous_frequency,
-    env_inst_freq
+    env_inst
 )
 from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity,
