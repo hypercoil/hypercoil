@@ -10,9 +10,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.fft import rfft, irfft
 from scipy.signal import hilbert, chirp
+from pkg_resources import resource_filename as pkgrf
 from hypercoil.functional import (
     product_filter, unwrap, analytic_signal,
-    envelope, instantaneous_frequency
+    envelope, instantaneous_frequency, env_inst_freq
 )
 
 
@@ -31,6 +32,11 @@ class TestFourier:
         self.N = 100
         self.X = np.random.rand(7, self.N)
         self.Xt = torch.Tensor(self.X)
+
+        self.results = pkgrf(
+            'hypercoil',
+            'results/'
+        )
 
         if torch.cuda.is_available():
             self.XtC = self.Xt.clone().cuda()
@@ -106,3 +112,47 @@ class TestFourier:
         assert X.grad is None
         out.imag.sum().backward()
         assert X.grad is not None
+
+    def test_hilbert_envelope(self):
+        # replicating the example from the scipy documentation
+        duration = 1.0
+        fs = 400.0
+        samples = int(fs*duration)
+        t = np.arange(samples) / fs
+
+        signal = chirp(t, 20.0, t[-1], 100.0)
+        signal *= (1.0 + 0.5 * np.sin(2.0*np.pi*3.0*t) )
+        signal = torch.tensor(signal)
+
+        amplitude_envelope = envelope(signal)
+        inst_freq = instantaneous_frequency(signal, fs=400)
+
+        fig, (ax0, ax1) = plt.subplots(nrows=2)
+
+        ax0.plot(t, signal, label='signal')
+        ax0.plot(t, amplitude_envelope, label='envelope')
+        ax0.set_xlabel("time in seconds")
+        ax0.legend()
+
+        ax1.plot(t[1:], inst_freq)
+        ax1.set_xlabel("time in seconds")
+        ax1.set_ylim(0.0, 120.0)
+        fig.tight_layout()
+
+        fig.savefig(f'{self.results}/hilbert_separate.png')
+
+        amplitude_envelope, inst_freq = env_inst_freq(signal, fs=400)
+
+        fig, (ax0, ax1) = plt.subplots(nrows=2)
+
+        ax0.plot(t, signal, label='signal')
+        ax0.plot(t, amplitude_envelope, label='envelope')
+        ax0.set_xlabel("time in seconds")
+        ax0.legend()
+
+        ax1.plot(t[1:], inst_freq)
+        ax1.set_xlabel("time in seconds")
+        ax1.set_ylim(0.0, 120.0)
+        fig.tight_layout()
+
+        fig.savefig(f'{self.results}/hilbert_onecall.png')
