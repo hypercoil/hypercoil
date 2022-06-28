@@ -317,6 +317,22 @@ def _rcmul_broadcast(tensor, indices):
     return tensor[indices]
 
 
+def sparse_reciprocal(A):
+    if not A.is_sparse:
+        return A.reciprocal()
+    coalesce_output = A.is_coalesced()
+    values = A._values().reciprocal()
+    values[torch.isnan(values)] = 0
+    out = torch.sparse_coo_tensor(
+        indices=A._indices(),
+        values=values,
+        size=(A.size())
+    )
+    if coalesce_output:
+        return out.coalesce()
+    return out
+
+
 def _conform_vector_weight(weight):
     if weight.dim() == 1:
         return weight
