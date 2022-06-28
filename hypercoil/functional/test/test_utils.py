@@ -7,7 +7,7 @@ Unit tests for utility functions.
 import torch
 import pytest
 from hypercoil.functional import (
-    apply_mask, wmean, sparse_mm, orient_and_conform
+    apply_mask, wmean, sparse_mm, sparse_rcmul, orient_and_conform
 )
 
 
@@ -65,6 +65,20 @@ class TestUtils:
         mskd = apply_mask(tsr, msk, axis=-3)
         assert torch.all(mskd == tsr[:2])
         assert mskd.shape == (2, 5, 5)
+
+    def test_sp_rcmul(self):
+        X = torch.rand(20, 3, 4)
+        E = torch.randint(2, (2, 20))
+        Xs = torch.sparse_coo_tensor(E, X)
+        R = torch.sparse.sum(Xs, 1)
+        C = torch.sparse.sum(Xs, 0)
+        out = sparse_rcmul(Xs, R, C).to_dense()
+        ref = (
+            R.to_dense().unsqueeze(1) *
+            Xs.to_dense() *
+            C.to_dense().unsqueeze(0)
+        )
+        assert torch.allclose(ref, out)
 
     #TODO: We absolutely need to test this on CUDA.
     def test_sparse_mm(self):
