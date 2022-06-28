@@ -11,3 +11,4 @@
    hypercoil.functional.kernel.sigmoid_kernel
    hypercoil.functional.kernel.gaussian_kernel
    hypercoil.functional.kernel.rbf_kernel
+   hypercoil.functional.kernel.cosine_kernel

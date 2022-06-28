@@ -12,3 +12,5 @@
    hypercoil.functional.utils.complex_decompose
    hypercoil.functional.utils.complex_recompose
    hypercoil.functional.utils.sparse_mm
+   hypercoil.functional.utils.sparse_rcmul
+   hypercoil.functional.utils.orient_and_conform

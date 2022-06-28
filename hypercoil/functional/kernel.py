@@ -95,7 +95,7 @@ def _param_norm(X, theta, squared=False):
 
 def linear_kernel(X0, X1=None, theta=None):
     r"""
-    Compute the parameterised linear kernel between input tensors.
+    Parameterised linear kernel between input tensors.
 
     For tensors :math:`X_0` and :math:`X_1` containing observations in column
     vectors, the parameterised linear kernel is
@@ -155,7 +155,7 @@ def linear_distance(X0, X1=None, theta=None):
 
 def polynomial_kernel(X0, X1=None, theta=None, gamma=None, order=3, r=0):
     r"""
-    Compute the parameterised polynomial kernel between input tensors.
+    Parameterised polynomial kernel between input tensors.
 
     For tensors :math:`X_0` and :math:`X_1` containing observations in column
     vectors, the parameterised polynomial kernel is
@@ -212,7 +212,7 @@ def polynomial_kernel(X0, X1=None, theta=None, gamma=None, order=3, r=0):
 
 def sigmoid_kernel(X0, X1=None, theta=None, gamma=None, r=0):
     r"""
-    Compute the parameterised sigmoid kernel between input tensors.
+    Parameterised sigmoid kernel between input tensors.
 
     For tensors :math:`X_0` and :math:`X_1` containing observations in column
     vectors, the parameterised sigmoid kernel is
@@ -266,7 +266,7 @@ def sigmoid_kernel(X0, X1=None, theta=None, gamma=None, r=0):
 
 def gaussian_kernel(X0, X1=None, theta=None, sigma=None):
     r"""
-    Compute the parameterised Gaussian kernel between input tensors.
+    Parameterised Gaussian kernel between input tensors.
 
     For tensors :math:`X_0` and :math:`X_1` containing observations in column
     vectors, the parameterised Gaussian kernel is
@@ -325,7 +325,7 @@ def gaussian_kernel(X0, X1=None, theta=None, sigma=None):
 
 def rbf_kernel(X0, X1=None, theta=None, gamma=None):
     r"""
-    Compute the parameterised RBF kernel between input tensors.
+    Parameterised RBF kernel between input tensors.
 
     For tensors :math:`X_0` and :math:`X_1` containing observations in column
     vectors, the parameterised RBF kernel is
@@ -381,6 +381,55 @@ def rbf_kernel(X0, X1=None, theta=None, gamma=None):
 
 
 def cosine_kernel(X0, X1=None, theta=None):
+    r"""
+    Parameterised cosine kernel between input tensors.
+
+    For tensors :math:`X_0` and :math:`X_1` containing observations in column
+    vectors, the parameterised cosine kernel is
+
+    :math:`K_{\theta}(X_0, X_1) = \frac{X_0^\intercal \theta X_1}{\|X_0\|_\theta \|X_1\|_\theta}`
+
+    where the parameterised norm vector
+
+    :math:`\|A\|_{\theta;i} = \sqrt{A_i^\intercal \theta A_i}`
+
+    is the elementwise square root of the vector of quadratic forms.
+
+    :Dimension: **X0 :** :math:`(*, N, P)` or :math:`(N, P, *)`
+                    N denotes number of observations, P denotes number of
+                    features, `*` denotes any number of additional dimensions.
+                    If the input is dense, then the last dimensions should be
+                    N and P; if it is sparse, then the first dimensions should
+                    be N and P.
+                **X1 :** :math:`(*, M, P)` or  :math:`(M, P, *)`
+                    M denotes number of observations.
+                **theta :** :math:`(*, P, P)` or :math:`(*, P)`
+                    As above.
+                **Output :** :math:`(*, M, N)` or :math:`(M, N, *)`
+                    As above.
+
+    Parameters
+    ----------
+    X0 : tensor
+        A feature tensor.
+    X1 : tensor or None
+        Second feature tensor. If not explicitly provided, the kernel of
+        ``X`` with itself is computed.
+    theta : tensor or None
+        Kernel parameter (generally a representation of a positive definite
+        matrix). If not provided, defaults to identity (an unparameterised
+        kernel). If the last two dimensions are the same size, they are used
+        as a matrix parameter; if they are not, the final axis is instead
+        used as the diagonal of the matrix.
+    gamma : float or None (default None)
+        Scaling coefficient. If not explicitly specified, this is
+        automatically set to :math:`\frac{1}{P}`.
+
+    Returns
+    -------
+    tensor
+        Kernel Gram matrix.
+    """
     if X1 is None:
         X1 = X0
     X0_norm = _param_norm(X0, theta)
@@ -392,4 +441,4 @@ def cosine_kernel(X0, X1=None, theta=None):
             sparse_reciprocal(X0_norm),
             sparse_reciprocal(X1_norm),
         )
-    return num * (1 / X0_norm.unsqueeze(1)) * (1 / X1_norm.unsqueeze(0))
+    return num * (X0_norm.unsqueeze(1) * X1_norm.unsqueeze(0)).reciprocal()

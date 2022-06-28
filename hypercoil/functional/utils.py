@@ -289,6 +289,33 @@ def _sparse_mm(A_indices, A_values, B_indices, B_values, m, k, n):
 
 
 def sparse_rcmul(A, R=None, C=None, coalesce_output=True):
+    """
+    Batchable row- and column-wise multiplication of sparse matrices.
+
+    .. note::
+        Regardless of their form (sparse or dense) at call time, inputs ``R``
+        and ``C`` will be cast to dense by this operation. Either ``R`` or
+        ``C`` or both must be provided as inputs.
+
+    Parameters
+    ----------
+    A : sparse COO tensor
+        Matrix or matrix batch to be multiplied. ``A`` must have exactly 2
+        sparse dimensions and can have any number of dense dimensions.
+    R : tensor (default None)
+        Row-wise multiplier. All elements in row i of input ``A`` are
+        multiplied by the corresponding entry i of ``R``.
+    C : tensor (default None)
+        Column-wise multiplier. All elements in column j of input ``A`` are
+        multiplied by the corresponding entry j of ``C``.
+    coalesce_output : bool (default True)
+        Indicates that the output should be coalesced before it is returned.
+
+    Returns
+    -------
+    sparse COO tensor
+        Product.
+    """
     if R is not None and C is not None:
         R = _rcmul_broadcast(R, A._indices()[0])
         C = _rcmul_broadcast(C, A._indices()[1])
@@ -318,11 +345,17 @@ def _rcmul_broadcast(tensor, indices):
 
 
 def sparse_reciprocal(A):
+    """
+    Reciprocal of nonzero elements in a sparse tensor. Zero-valued elements
+    are mapped back to zero.
+    """
     if not A.is_sparse:
-        return A.reciprocal()
+        out =  A.reciprocal()
+        out[A == 0] = 0
+        return out
     coalesce_output = A.is_coalesced()
     values = A._values().reciprocal()
-    values[torch.isnan(values)] = 0
+    values[A._values() == 0] = 0
     out = torch.sparse_coo_tensor(
         indices=A._indices(),
         values=values,
@@ -342,6 +375,36 @@ def _conform_vector_weight(weight):
 
 
 def orient_and_conform(input, axis, reference=None, dim=None):
+    """
+    Orient an input tensor along a set of axes, and conform its overall
+    dimension to equal that of a reference.
+
+    .. warning::
+
+        If both ``reference`` and ``dim`` are provided, then ``dim`` takes
+        precedence.
+
+    Parameters
+    ----------
+    input : tensor
+        Input tensor.
+    axis : tuple
+        Output axes along which the tensor's input dimensions should be
+        reoriented. This should be an n-tuple, where n is the number of axes
+        in the input tensor.
+    reference : tensor or None
+        Reference tensor. The output is unsqueezed so that its total
+        dimension equals that of the reference. Either a reference or an
+        explicit output dimension (``dim``) must be provided.
+    dim : tuple or None
+        Number of tensor axes in the desired output.
+
+    Returns
+    -------
+    tensor
+        Reoriented tensor with singleton axes appended to conform with the
+        reference number of axes.
+    """
     if isinstance(axis, int):
         axis = (axis,)
     if dim is None and reference is None:
