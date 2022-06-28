@@ -288,6 +288,35 @@ def _sparse_mm(A_indices, A_values, B_indices, B_values, m, k, n):
         return out_indices[0], torch.stack(out_values)
 
 
+def sparse_rcmul(A, R=None, C=None, coalesce_output=True):
+    if R is not None and C is not None:
+        R = _rcmul_broadcast(R, A._indices()[0])
+        C = _rcmul_broadcast(C, A._indices()[1])
+        RC = R * C
+    elif R is not None:
+        RC = _rcmul_broadcast(R, A._indices()[0])
+    elif C is not None:
+        RC = _rcmul_broadcast(C, A._indices()[1])
+    else:
+        raise ValueError(
+            'Must specify either row or column multiplier or both')
+    out_values = A._values() * RC
+    out = torch.sparse_coo_tensor(
+        indices=A._indices(),
+        values=out_values,
+        size=A.size()
+    )
+    if coalesce_output:
+        return out.coalesce()
+    return out
+
+
+def _rcmul_broadcast(tensor, indices):
+    if tensor.is_sparse:
+        tensor = tensor.to_dense()
+    return tensor[indices]
+
+
 def _conform_vector_weight(weight):
     if weight.dim() == 1:
         return weight
