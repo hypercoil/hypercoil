@@ -28,14 +28,9 @@ from .crosssim import (
     crosshair_cosine_similarity
 )
 from .fourier import (
-    product_filter,
-    product_filtfilt,
-    unwrap,
-    analytic_signal,
-    hilbert_transform,
-    envelope,
-    instantaneous_phase,
-    instantaneous_frequency,
+    product_filter, product_filtfilt, unwrap,
+    analytic_signal, hilbert_transform, envelope,
+    instantaneous_phase, instantaneous_frequency,
     env_inst
 )
 from .graph import (
@@ -49,7 +44,7 @@ from .interpolate import (
 )
 from .kernel import (
     linear_kernel, polynomial_kernel, sigmoid_kernel,
-    gaussian_kernel, rbf_kernel
+    gaussian_kernel, rbf_kernel, cosine_kernel
 )
 from .matrix import (
     invert_spd, expand_outer, spd, symmetric, symmetric_sparse,
@@ -88,5 +83,7 @@ from .utils import (
     wmean,
     threshold,
     sparse_mm,
+    sparse_rcmul,
+    sparse_reciprocal,
     orient_and_conform
 )

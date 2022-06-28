@@ -5,7 +5,10 @@
 Parameterised similarity kernels and distance metrics.
 """
 import torch
-from .utils import sparse_mm, _conform_vector_weight, _promote_nnz_dim
+from .utils import (
+    sparse_mm, sparse_rcmul, sparse_reciprocal,
+    _conform_vector_weight, _promote_nnz_dim
+)
 
 
 def _default_gamma(X, gamma):
@@ -27,7 +30,11 @@ def _embed_params_in_diagonal(theta):
 def _embed_params_in_sparse(theta):
     dim = theta.size(-1)
     with torch.no_grad():
-        nzi = theta.abs().sum(list(range(theta.dim() - 2)))
+        dims = list(range(theta.dim() - 2))
+        if dims:
+            nzi = theta.abs().sum(list(range(theta.dim() - 2)))
+        else:
+            nzi = theta.abs()
         indices = torch.stack(torch.where(nzi))
     values = _promote_nnz_dim(theta[..., indices[0], indices[1]])
     return torch.sparse_coo_tensor(
@@ -56,6 +63,34 @@ def _linear_kernel_sparse(X0, X1, theta):
         theta = _embed_params_in_sparse(theta)
     X0 = sparse_mm(X0, theta)
     return sparse_mm(X0, X1.transpose(0, 1))
+
+
+def _param_norm_sparse(X, theta, squared=False):
+    if theta is None:
+        out = torch.sparse.sum(X ** 2, dim=1)
+        if squared:
+            return out
+        return out.sqrt()
+    elif theta.is_sparse:
+        pass
+    elif theta.dim() == 1 or theta.shape[-1] != theta.shape[-2]:
+        theta = _embed_params_in_diagonal(theta)
+    else:
+        theta = _embed_params_in_sparse(theta)
+    sc = (sparse_mm(X, theta) * X)
+    out = torch.sparse.sum(sc, dim=1)
+    if squared:
+        return out
+    return out.sqrt()
+
+
+def _param_norm(X, theta, squared=False):
+    if X.is_sparse:
+        return _param_norm_sparse(X, theta, squared)
+    elif squared:
+        return (X ** 2).sum(-1)
+    else:
+        return X.norm(dim=-1)
 
 
 def linear_kernel(X0, X1=None, theta=None):
@@ -343,3 +378,18 @@ def rbf_kernel(X0, X1=None, theta=None, gamma=None):
     gamma = _default_gamma(X0, gamma)
     K = linear_distance(X0, X1, theta)
     return torch.exp(-gamma * K)
+
+
+def cosine_kernel(X0, X1=None, theta=None):
+    if X1 is None:
+        X1 = X0
+    X0_norm = _param_norm(X0, theta)
+    X1_norm = _param_norm(X1, theta)
+    num = linear_kernel(X0, X1, theta)
+    if num.is_sparse:
+        return sparse_rcmul(
+            num,
+            sparse_reciprocal(X0_norm),
+            sparse_reciprocal(X1_norm),
+        )
+    return num * (1 / X0_norm.unsqueeze(1)) * (1 / X1_norm.unsqueeze(0))
