@@ -12,17 +12,27 @@ from hypercoil.functional import (
     polynomial_kernel,
     gaussian_kernel,
     rbf_kernel,
-    sigmoid_kernel
+    sigmoid_kernel,
+    cosine_kernel
 )
+from hypercoil.functional.kernel import _param_norm
 from sklearn.metrics.pairwise import (
     linear_kernel as lk_ref,
     polynomial_kernel as pk_ref,
     rbf_kernel as gk_ref,
-    sigmoid_kernel as sk_ref
+    sigmoid_kernel as sk_ref,
+    cosine_similarity as ck_ref
 )
 
 
 class TestKernel:
+
+    def random_sparse_input(self, dim, nnz):
+        W = torch.randn(*(nnz, *dim[2:]))
+        r = torch.randint(dim[0], (nnz,))
+        c = torch.randint(dim[1], (nnz,))
+        E = torch.stack((r, c))
+        return torch.sparse_coo_tensor(E, W, size=dim)
 
     def test_linear_kernel(self):
         n, p = 30, 100
@@ -73,6 +83,31 @@ class TestKernel:
         ref = gk_ref(X, Y, gamma=0.25)
         out = gaussian_kernel(X, Y, sigma=2)
         assert np.allclose(out, ref, atol=1e-5)
+
+    def test_norm(self):
+        X = self.random_sparse_input((20, 20, 3), 30)
+        out = _param_norm(X, theta=None).to_dense()
+        ref = X.to_dense().norm(dim=1)
+        assert torch.allclose(out, ref)
+
+    def test_cosine_kernel(self):
+        n, p = 30, 100
+        X = torch.randn(n, p)
+        Y = torch.randn(n, p)
+        ref = ck_ref(X, Y)
+        out = cosine_kernel(X, Y)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        X = self.random_sparse_input((20, 10, 3), 30)
+        Y = self.random_sparse_input((30, 10, 3), 30)
+        out = cosine_kernel(X, Y)
+        ref = np.stack([ck_ref(x, y) for x, y in zip(
+            X.to_dense().permute(-1, 0, 1),
+            Y.to_dense().permute(-1, 0, 1))
+        ], -1)
+        assert out.shape == ref.shape
+        assert out._indices().size(-1) * 3 == (ref != 0).sum()
+        assert np.allclose(ref, out.to_dense())
 
     def test_parameterised_kernel(self):
         X = torch.tensor([
