@@ -86,3 +86,40 @@ class SGDEphemeral(EphemeralMixin, SGD):
             params=params,
             buffers=buffers
         )
+
+
+class AdamEphemeral(EphemeralMixin, Adam):
+    def __init__(self, params, lr=0.001, betas=(0.9, 0.999), eps=1e-08,
+                 weight_decay=0, amsgrad=False, *, maximize=False): #,
+                 #foreach: Optional[bool] = None):
+        super().__init__(
+            params=params,
+            lr=lr,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+            amsgrad = amsgrad,
+            maximize=maximize,
+            #foreach=foreach
+        )
+        self.ephemeral_index = None
+        self.params_ephemeral = {
+            'lr' : lr,
+            'betas' : betas,
+            'eps' : eps,
+            'weight_decay' : weight_decay,
+            'amsgrad' : amsgrad,
+            'maximize' : maximize
+        }
+
+    def load_ephemeral(self, params, step=None,
+                       exp_avg=None, exp_avg_sq=None):
+        buffers = {
+            'step': step,
+            'exp_avg': exp_avg,
+            'exp_avg_sq': exp_avg_sq,
+        }
+        super().load_ephemeral(
+            params=params,
+            buffers=buffers
+        )
