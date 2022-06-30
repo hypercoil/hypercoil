@@ -29,7 +29,7 @@ class TestEphemeralOptim:
 
         (B0 @ A @ X).sum().backward()
         B0_grad = B0.grad.clone()
-        ephemeral_state = sgde.step()
+        ephemeral_state = sgde.step(return_ephemeral_state=True)
         assert not torch.any(B0 == B0_before)
         assert torch.all(ephemeral_state[B0]['momentum_buffer'] == B0_grad)
 
