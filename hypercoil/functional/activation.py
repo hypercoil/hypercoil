@@ -278,3 +278,28 @@ def corrnorm(input, factor=None, gradpath='both'):
     else:
         factor = _corrnorm_factor(input)
     return input / factor
+
+
+def isochor(input, volume=1, max_condition=None, softmax_temp=None):
+    """
+    Volume-normalising activation function for symmetric, positive
+    definite matrices.
+    """
+    L, Q = torch.linalg.eigh(input)
+    if softmax_temp is not None:
+        L = torch.softmax(L / softmax_temp, -1)
+    if max_condition is not None:
+        large = L.amax(-1, keepdim=True)
+        small = L.amin(-1, keepdim=True)
+        psi = (
+            (large - small / max_condition) /
+            ((large - 1) - (small - 1) / max_condition)
+        )
+        psi = torch.relu(psi)
+        #print(psi, L)
+        L = (1 - psi) * L + psi * torch.ones_like(L)
+        #print(L)
+    # L = L / (L.prod(-1, keepdim=True) ** (1 / L.size(-1)))
+    Lnorm = (L.log().sum() * (1 / L.size(-1))).exp()
+    L = L / Lnorm
+    return Q @ (L.unsqueeze(-1) * Q.transpose(-1, -2))

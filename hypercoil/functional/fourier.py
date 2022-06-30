@@ -380,7 +380,7 @@ def env_inst(X, axis=-1, n=None, fs=1,
         Sampling frequency.
     period : float (default ``2 * pi``)
         Range over which the signal wraps. (See :func:`unwrap`.)
-    return_instantaneous_phase (default False)
+    return_instantaneous_phase: bool (default False)
         Indicates that the instantaneous phase should be returned in addition
         to the instantaneous frequency.
 
