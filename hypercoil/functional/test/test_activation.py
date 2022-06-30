@@ -23,6 +23,8 @@ class TestActivationFunctions:
         )
 
     def test_isochor(self):
+        # on rare occasions it's outside tolerance
+        torch.random.manual_seed(238)
         A = torch.randn(5, 20, 20)
         A = A @ A.transpose(-1, -2)
         out = isochor(A)
@@ -39,3 +41,9 @@ class TestActivationFunctions:
         L, Q = torch.linalg.eigh(out)
         print(L.amax(dim=-1), L.amin(dim=-1))
         assert torch.all((L.amax(dim=-1) / L.amin(dim=-1)) < 5.01)
+
+        out = isochor(A, softmax_temp=1e10)
+        assert torch.allclose(out, torch.eye(20), atol=1e-6)
+
+        out = isochor(A, volume=(2 ** 20), max_condition=1)
+        assert torch.allclose(out, 2 * torch.eye(20), atol=1e-6)

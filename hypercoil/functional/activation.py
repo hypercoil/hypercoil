@@ -281,9 +281,34 @@ def corrnorm(input, factor=None, gradpath='both'):
 
 
 def isochor(input, volume=1, max_condition=None, softmax_temp=None):
-    """
+    r"""
     Volume-normalising activation function for symmetric, positive
     definite matrices.
+
+    Parameters
+    ----------
+    input : tensor
+        Tensor containing symmetric, positive definite matrices.
+    volume : float (default 1)
+        Target volume for the normalisation procedure. All output tensors will
+        have this determinant.
+    max_condition : float :math:`\in [1, \infty)` or None (default None)
+        Maximum permissible condition number among output tensors. This can be
+        used to constrain the eccentricity of isochoric ellipsoids. To enforce
+        this maximum, the eigenvalues of the input tensors are replaced with a
+        convex combination of the original eigenvalues and a vector of ones
+        such that the largest eigenvalue is no more than ``max_condition``
+        times the smallest eigenvalue. Note that a ``max_condition`` of 1
+        will always return (a potentially isotropically scaled) identity.
+    softmax_temp : float or None (default None)
+        If this is provided, then the eigenvalues of the input tensor are
+        passed through a softmax with the specified temperature before any
+        other processing.
+
+    Returns
+    -------
+    tensor
+        Volume-normalised tensor.
     """
     L, Q = torch.linalg.eigh(input)
     if softmax_temp is not None:
@@ -296,10 +321,7 @@ def isochor(input, volume=1, max_condition=None, softmax_temp=None):
             ((large - 1) - (small - 1) / max_condition)
         )
         psi = torch.relu(psi)
-        #print(psi, L)
         L = (1 - psi) * L + psi * torch.ones_like(L)
-        #print(L)
-    #L = L / (L.prod(-1, keepdim=True) ** (1 / L.size(-1)))
     Lnorm = ((
         L.log().sum(-1, keepdim=True) -
         torch.tensor(volume, dtype=L.dtype).log()
