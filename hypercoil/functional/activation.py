@@ -299,7 +299,10 @@ def isochor(input, volume=1, max_condition=None, softmax_temp=None):
         #print(psi, L)
         L = (1 - psi) * L + psi * torch.ones_like(L)
         #print(L)
-    # L = L / (L.prod(-1, keepdim=True) ** (1 / L.size(-1)))
-    Lnorm = (L.log().sum() * (1 / L.size(-1))).exp()
+    #L = L / (L.prod(-1, keepdim=True) ** (1 / L.size(-1)))
+    Lnorm = ((
+        L.log().sum(-1, keepdim=True) -
+        torch.tensor(volume, dtype=L.dtype).log()
+    ) * (1 / L.size(-1))).exp()
     L = L / Lnorm
     return Q @ (L.unsqueeze(-1) * Q.transpose(-1, -2))

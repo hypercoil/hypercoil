@@ -10,11 +10,16 @@ constitute the elementary atoms of a differentiable program or
 computational graph. All operations are composable and differentiable
 unless explicitly specified.
 """
+from .activation import (
+    corrnorm,
+    isochor
+)
 from .cmass import (
     cmass_coor
 )
 from .connectopy import (
-    laplacian_eigenmaps
+    laplacian_eigenmaps,
+    diffusion_mapping
 )
 from .cov import (
     cov, corr, partialcorr, pairedcov, conditionalcov, conditionalcorr,

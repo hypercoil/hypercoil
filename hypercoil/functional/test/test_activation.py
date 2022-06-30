@@ -7,7 +7,7 @@ Unit tests for activation functions
 import pytest
 import torch
 from hypercoil.functional import cov, corr
-from hypercoil.functional.activation import corrnorm
+from hypercoil.functional.activation import corrnorm, isochor
 
 
 class TestActivationFunctions:
@@ -21,3 +21,21 @@ class TestActivationFunctions:
             torch.sign(torch.diagonal(B)) ==
             torch.sign(torch.diagonal(corrnorm(B)))
         )
+
+    def test_isochor(self):
+        A = torch.randn(5, 20, 20)
+        A = A @ A.transpose(-1, -2)
+        out = isochor(A)
+        assert torch.allclose(
+            torch.linalg.det(out), torch.tensor(1.), rtol=1e-2)
+
+        out = isochor(A, volume=4)
+        assert torch.allclose(
+            torch.linalg.det(out), torch.tensor(4.), rtol=1e-2)
+
+        out = isochor(A, volume=4, max_condition=5)
+        assert torch.allclose(
+            torch.linalg.det(out), torch.tensor(4.), rtol=1e-2)
+        L, Q = torch.linalg.eigh(out)
+        print(L.amax(dim=-1), L.amin(dim=-1))
+        assert torch.all((L.amax(dim=-1) / L.amin(dim=-1)) < 5.01)
