@@ -239,9 +239,12 @@ def corrnorm(input, factor=None, gradpath='both'):
     (detailed below). This activation function is also similar to a signed
     version of the normalisation operation for a graph Laplacian matrix.
 
-    :Dimension: As this activation function is applied elementwise, it
-                conserves dimension; the output will be of the same shape as
-                the input.
+    :Dimension: **input :** :math:`(*, P, P)`
+                    P denotes the row and column dimensions of the input
+                    matrices. ``*`` denotes any number of additional
+                    dimensions.
+                **output :** :math:`(*, P, P)`
+                    As above.
 
     Parameters
     ----------
@@ -282,8 +285,26 @@ def corrnorm(input, factor=None, gradpath='both'):
 
 def isochor(input, volume=1, max_condition=None, softmax_temp=None):
     r"""
-    Volume-normalising activation function for symmetric, positive
-    definite matrices.
+    Volume-normalising activation function for symmetric, positive definite
+    matrices.
+
+    This activation function first finds the eigendecomposition of each input
+    matrix. The eigenvalues are then each divided by
+    :math:`\sqrt[n]{\frac{v_{in}}{v_{target}}}`
+    to normalise the determinant to
+    :math:`v_{target}`. Before normalisation, there are options to rescale the
+    eigenvalues through a softmax and/or to enforce a maximal condition number
+    for the output tensor. If the input tensors are being used to represent
+    ellipsoids, for instance, this can constrain the eccentricity of those
+    ellipsoids. Finally, the matrix is reconstituted using the original
+    eigenvectors and the rescaled eigenvalues.
+
+    :Dimension: **input :** :math:`(*, P, P)`
+                    P denotes the row and column dimensions of the input
+                    matrices. ``*`` denotes any number of additional
+                    dimensions.
+                **output :** :math:`(*, P, P)`
+                    As above.
 
     Parameters
     ----------
