@@ -10,18 +10,23 @@ from functools import partial
 from .base import ReducingLoss
 
 
-def js_divergence(P, Q):
+def js_divergence(P, Q, axis=-1, keepdim=True):
     M = 0.5 * (P + Q)
     M_log = M.log()
-    return (kl_div(M_log, P.log(), reduction='none', log_target=True) +
-            kl_div(M_log, Q.log(), reduction='none', log_target=True)) / 2
+    div = (kl_div(M_log, P, reduction='none') +
+           kl_div(M_log, Q, reduction='none')) / 2
+    if axis is None:
+        return div
+    return div.sum(dim=axis, keepdim=keepdim)
 
 
-def js_divergence_logit(P, Q):
-    M = 0.5 * (torch.softmax(P, -1) + torch.softmax(Q, -1))
-    M_log = M.log()
-    return (kl_div(M_log, P, reduction='none', log_target=True) +
-            kl_div(M_log, Q, reduction='none', log_target=True)) / 2
+def js_divergence_logit(P, Q, axis=-1, keepdim=True):
+    prob_axis = axis
+    if prob_axis is None:
+        prob_axis = -1
+    P = torch.softmax(P, prob_axis)
+    Q = torch.softmax(Q, prob_axis)
+    return js_divergence(P, Q, axis=axis, keepdim=keepdim)
 
 
 class JSDivergence(ReducingLoss):
@@ -41,12 +46,12 @@ class JSDivergence(ReducingLoss):
     name : str or None (default None)
         Identifying string for the instantiation of the loss object.
     """
-    def __init__(self, nu=1, reduction=None, name=None):
+    def __init__(self, nu=1, axis=-1, reduction=None, name=None):
         reduction = reduction or torch.mean
         super().__init__(
             nu=nu,
             reduction=reduction,
-            loss=js_divergence,
+            loss=partial(js_divergence, axis=axis),
             name=name
         )
 
@@ -68,11 +73,11 @@ class SoftmaxJSDivergence(ReducingLoss):
     name : str or None (default None)
         Identifying string for the instantiation of the loss object.
     """
-    def __init__(self, nu=1, reduction=None, name=None):
+    def __init__(self, nu=1, axis=-1, reduction=None, name=None):
         reduction = reduction or torch.mean
         super().__init__(
             nu=nu,
             reduction=reduction,
-            loss=js_divergence_logit,
+            loss=partial(js_divergence_logit, axis=axis),
             name=name
         )
