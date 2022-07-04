@@ -18,7 +18,6 @@ from ..functional.utils import apply_mask
 from ..init.atlas import AtlasInit
 
 
-#TODO: add projection forward mode
 class AtlasLinear(Module):
     r"""
     Time series extraction from an atlas via a linear map.
@@ -94,13 +93,25 @@ class AtlasLinear(Module):
           :math:`A \in \mathbb{R}^{(L \times V)}`
           and a vertex-wise or voxel-wise input time series
           :math:`T_{in} \in \mathbb{R}^{(V \times T)}`, returns
+
           :math:`T_{out} = A T_{in}`.
         * ``'project'``: Projection using a linear least-squares fit. Given a
           compartment atlas
           :math:`A \in \mathbb{R}^{(L \times V)}`
           and a vertex-wise or voxel-wise input time series
           :math:`T_{in} \in \mathbb{R}^{(V \times T)}`, returns
-          :math:`T_{out} = \min_{X \in \mathbb{R}^{(L \times T)}} \| A^\intercal X - T_{in} \|_F`
+
+          .. math::
+
+            \begin{aligned}
+            T_{out} &= \min_{X \in \mathbb{R}^{(L \times T)}} \| A^\intercal X - T_{in} \|_F
+
+            &= \left(A A^\intercal\right)^{-1} A T_{in}
+            \end{aligned}
+    solver : any valid driver for ``torch.linalg.lstsq``
+        LAPACK/MAGMA driver for least-squares approximation. By default, the
+        ``'gels'`` driver is used if module parameters are on CUDA and the
+        ``'gelsy'`` driver is used if they are on CPU.
 
     Attributes
     ----------
