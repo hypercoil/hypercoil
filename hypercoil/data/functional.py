@@ -279,7 +279,7 @@ def fold(lst, stack):
     return lst[0], stack
 
 
-def extend_to_max_size(tensor_list):
+def extend_to_max_size(tensor_list, fill=float('nan')):
     """
     Extend all tensors in a list until their sizes are equal to the size
     of the largest tensor along each axis. Any new entries created via
@@ -292,21 +292,21 @@ def extend_to_max_size(tensor_list):
         torch.tensor(sizes, dtype=torch.long, device=tensor_list[0].device),
         0
     )
-    return [extend_to_size(t, max_size) for t in tensor_list]
+    return [extend_to_size(t, max_size, fill=fill) for t in tensor_list]
 
 
-def extend_to_size(tensor, size):
+def extend_to_size(tensor, size, fill=float('nan')):
     """
     Extend a tensor in the positive direction until its size matches the
     specification. Any new entries created via extension are marked with
     NaN to denote that they were missing from the input; they can be
     populated by chaining this with a call to `nanfill`.
     """
-    out = torch.empty(
+    out = torch.ones(
         *size,
         dtype=tensor.dtype,
         device=tensor.device
-    ) * float('nan')
+    ) * fill
     #TODO: revisit named tensors when they are stable
     #names = tensor.names
     #tensor = tensor.rename(None)

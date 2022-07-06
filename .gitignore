@@ -142,3 +142,4 @@ cython_debug/
 
 # hypercoil-specific
 hypercoil/results
+hypercoil/neuro/datasets
