@@ -356,7 +356,7 @@ def instantaneous_frequency(X, axis=-1, n=None, fs=1, period=(2 * math.pi)):
     :func:`instantaneous_phase`
     :func:`env_inst`
     """
-    inst_phase = instantaneous_phase(X=X, axis=axis, n=n)
+    inst_phase = instantaneous_phase(X=X, axis=axis, n=n, period=period)
     return fs * inst_phase.diff(dim=axis) / period
 
 
