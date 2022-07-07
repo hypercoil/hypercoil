@@ -73,6 +73,8 @@ class MSCMinimal:
     Minimal version of the Midnight Scan Club dataset.
     """
     #TODO: add option to split by subject or session
+    #TODO: gotta implement DataLoader / torch data compatibility for
+    # parallelisation. or use async.
     def __init__(self, delete_if_exists=False, #all_in_memory=False,
                  shuffle=True, batch_size=1, sub=None, task=None, ses=None,
                  dtype=torch.float, device=None, rms_thresh=None):
@@ -80,6 +82,7 @@ class MSCMinimal:
         self.paths = minimal_msc_all_pointers(
             self.srcdir, sub=sub, task=task, ses=ses)
         self.max = len(self.paths)
+        self.shuffle = shuffle
         self._cfg_iter(shuffle=shuffle)
         self.to_tensor = ToTensor(dtype=dtype, device=device)
         self.rms_thresh = rms_thresh
@@ -93,7 +96,7 @@ class MSCMinimal:
         bold, motion = self.paths[idx]
         bold = pd.read_csv(bold, sep=' ', header=None)
         ret = {
-            '__id__': ds.paths[idx][0].split('/')[-1][:-18],
+            '__id__': self.paths[idx][0].split('/')[-1][:-18],
             'bold': self.to_tensor(bold)
         }
         if self.rms_thresh is not None:
@@ -139,5 +142,5 @@ class MSCMinimal:
         self.idx += self.batch_size
         if self.idx < self.max:
             return self._load_batch()
-        self._cfg_iter()
+        self._cfg_iter(shuffle=self.shuffle)
         raise StopIteration
