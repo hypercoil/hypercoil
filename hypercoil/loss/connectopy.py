@@ -15,6 +15,7 @@ def connectopy_loss(Q, A, dissimilarity=None, D=None, theta=None):
     Connectopy loss, for computing different kinds of connectopic maps.
 
     .. admonition:: Connectopic loss functional
+
         Given an affinity matrix A, the connectopic loss minimises the objective
 
         :math:`\mathbf{1}^\intercal \left( \mathbf{A} \circ S_\theta(\mathbf{Q}) \right) \mathbf{1}`
@@ -59,8 +60,9 @@ def connectopy_loss(Q, A, dissimilarity=None, D=None, theta=None):
     dissimilarity : callable
         Function to compute dissimilarity between latent coordinates induced
         by the proposed connectopies. By default, the square of the L2
-        distance is used.
-    D : tensor or None ()
+        distance is used. The callable must accept ``Q`` and ``theta`` as
+        arguments. (``theta`` may be unused.)
+    D : tensor or None (default None)
         If this argument is provided, then the affinity matrix is first
         transformed as :math:`D A D^\intercal`. For instance, setting D to
         a diagonal matrix whose entries are the reciprocal of the square root
@@ -80,5 +82,4 @@ def connectopy_loss(Q, A, dissimilarity=None, D=None, theta=None):
         dissimilarity = lambda Q, theta: linear_distance(Q, theta=theta)
     if D is not None:
         A = D @ A @ D.t()
-    dissim_arg = theta * Q
-    return (dissimilarity(dissim_arg) * A).sum(-2, -1)
+    return (dissimilarity(Q, theta) * A).sum(-2, -1)

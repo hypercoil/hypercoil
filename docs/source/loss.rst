@@ -13,6 +13,7 @@
    api/hypercoil.loss.batchcorr.QCFC
    api/hypercoil.loss.cmass.Compactness
    api/hypercoil.loss.cmass.HemisphericTether
+   api/hypercoil.loss.connectopy
    api/hypercoil.loss.determinant
    api/hypercoil.loss.dispersion.VectorDispersion
    api/hypercoil.loss.entropy

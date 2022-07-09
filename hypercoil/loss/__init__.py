@@ -40,6 +40,9 @@ from .cmass import (
     CentroidAnchor,
     HemisphericTether
 )
+from .connectopy import (
+    connectopy_loss
+)
 from .determinant import (
     Determinant,
     LogDet,
