@@ -9,6 +9,8 @@ import torch
 from ..functional.utils import complex_decompose, complex_recompose
 
 
+#TODO: consider what is necessary to make these conformant with
+# `torch.nn.utils.parametrizations`
 class _OutOfDomainHandler(object):
     """
     System for evaluating and modifying out-of-domain entries prior to preimage

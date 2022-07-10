@@ -108,7 +108,7 @@ def unwrap(phase, axis=-1, discont=None, period=(2 * math.pi)):
     respect to the period.
 
     The default case (period of :math:`2\pi`, maximum discontinuity
-    :math:\pi`) corresponds to unwrapping a radian phase such that adjacent
+    :math:`\pi`) corresponds to unwrapping a radian phase such that adjacent
     differences in the phase tensor obtain a maximum value of :math:`\pi`.
     This is achieved by adding :math:`2 k \pi` for an appropriate value of k.
 

@@ -12,6 +12,8 @@ from .domainbase import (
 )
 
 
+#TODO: consider what is necessary to make these conformant with
+# `torch.nn.utils.parametrizations`
 class Atanh(_Domain):
     """
     Hyperbolic tangent domain mapper. Constrain tensor values between some
