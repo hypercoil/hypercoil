@@ -126,7 +126,8 @@ class fsLRAtlasParcels(
     fsLRSurfacePlot
 ):
     def __call__(self, cmap=None, views=('lateral', 'medial'), contours=False,
-                 one_fig=False, save=None, figsize=None, **params):
+                 one_fig=False, save=None, figsize=None, scores=None,
+                 **params):
         if figsize is None:
             base_dim = 20
             if one_fig:
@@ -144,18 +145,28 @@ class fsLRAtlasParcels(
             )
             compartment_data[self.module.weight[compartment].sum(0) == 0] = 0
             data[mask] = compartment_data
+        zero_mask = (data == 0)
+        if scores is not None:
+            scores = torch.tensor(scores, device='cpu')
+            data = scores[data - 1] #TODO: use uniques instead
+            data[zero_mask] = 0
         self.data = data[self.cmap_mask['all']].cpu()
-        self.data_lh = data[self.data_mask['cortex_L']].to(torch.long).numpy()
-        self.data_rh = data[self.data_mask['cortex_R']].to(torch.long).numpy()
+        self.data_lh = data[self.data_mask['cortex_L']].cpu().numpy()
+        self.data_rh = data[self.data_mask['cortex_R']].cpu().numpy()
         labels = self.atlas.decoder['_all']
         if cmap is not None:
-            cmap = self._select_cmap(cmap=cmap, labels=labels)
+            try:
+                cmap = self._select_cmap(cmap=cmap, labels=labels)
+                vmin = 1
+                vmax = labels.max()
+            except FileNotFoundError:
+                vlim = scores.abs().max().numpy()
+                vmin = -vlim
+                vmax = vlim
         else:
             cmap = 'gist_ncar'
         self.data = data[self.data_mask['all']].cpu().numpy()
 
-        vmin = 1
-        vmax = labels.max()
         lh, rh = [], []
         if one_fig:
             fig, ax = plt.subplots(
