@@ -12,6 +12,7 @@ import nibabel as nb
 import matplotlib
 import matplotlib.pyplot as plt
 import templateflow.api as tflow
+from nilearn import plotting
 from hypercoil.engine import Sentry
 from hypercoil.functional.cmass import cmass_coor
 from hypercoil.functional.sphere import spherical_geodesic
@@ -124,11 +125,16 @@ class fsLRAtlasParcels(
     _CMapFromSurfMixin,
     fsLRSurfacePlot
 ):
-    def __call__(self, cmap, views=('lateral', 'medial'), save=None):
-        offscreen = False
+    def __call__(self, cmap=None, views=('lateral', 'medial'), contours=False,
+                 one_fig=False, save=None, figsize=None, **params):
+        if figsize is None:
+            base_dim = 20
+            if one_fig:
+                figsize = (base_dim * len(views), base_dim * 2)
+            else:
+                figsize = (base_dim, base_dim * 2)
         if save is not None:
             matplotlib.use('agg')
-            offscreen = True
         data = torch.zeros_like(self.atlas.mask, dtype=torch.long)
         for compartment in ('cortex_L', 'cortex_R'):
             mask = self.atlas.compartments[compartment]
@@ -139,34 +145,91 @@ class fsLRAtlasParcels(
             compartment_data[self.module.weight[compartment].sum(0) == 0] = 0
             data[mask] = compartment_data
         self.data = data[self.cmap_mask['all']].cpu()
+        self.data_lh = data[self.data_mask['cortex_L']].to(torch.long).numpy()
+        self.data_rh = data[self.data_mask['cortex_R']].to(torch.long).numpy()
         labels = self.atlas.decoder['_all']
-        cmap = self._select_cmap(cmap=cmap, labels=labels)
+        if cmap is not None:
+            cmap = self._select_cmap(cmap=cmap, labels=labels)
+        else:
+            cmap = 'gist_ncar'
         self.data = data[self.data_mask['all']].cpu().numpy()
 
-        for view in views:
-            view_args = VIEWS[view]
-            p = surfplot.Plot(
-                surf_lh=self.lh,
-                surf_rh=self.rh,
-                brightness=0.1,
-                **view_args
+        vmin = 1
+        vmax = labels.max()
+        lh, rh = [], []
+        if one_fig:
+            fig, ax = plt.subplots(
+                2, len(views),
+                subplot_kw={'projection': '3d'},
+                figsize=figsize
             )
-            p.offscreen = offscreen
-            p.add_layer(
-                self.data.astype('long')[:self.dim],
+        for i, view in enumerate(views):
+            if one_fig:
+                ax_lh = ax[0][i]
+                ax_rh = ax[1][i]
+            else:
+                fig, ax = plt.subplots(
+                    1, 2,
+                    subplot_kw={'projection': '3d'},
+                    figsize=figsize
+                )
+                ax_lh = ax[0]
+                ax_rh = ax[1]
+            lh_cur = plotting.plot_surf_roi(
+                surf_mesh=str(self.lh),
+                roi_map=self.data_lh,
+                hemi='left',
+                view=view,
+                axes=ax_lh,
                 cmap=cmap,
-                color_range=(1, len(cmap.colors)),
-                cbar=None
+                vmin=vmin,
+                vmax=vmax,
+                **params
             )
-            fig = p.build()
-            fig.set_dpi(200)
-            if save is not None:
+            rh_cur = plotting.plot_surf_roi(
+                surf_mesh=str(self.rh),
+                roi_map=self.data_rh,
+                hemi='right',
+                view=view,
+                axes=ax_rh,
+                cmap=cmap,
+                vmin=vmin,
+                vmax=vmax,
+                **params
+            )
+            if contours:
+                lh_levels = np.unique(self.data_lh)
+                rh_levels = np.unique(self.data_rh)
+                plotting.plot_surf_contours(
+                    surf_mesh=str(self.lh),
+                    roi_map=self.data_lh,
+                    axes=ax_lh,
+                    levels=lh_levels,
+                    labels=[None for _ in lh_levels],
+                    colors=['k' for _ in lh_levels],
+                )
+                plotting.plot_surf_contours(
+                    surf_mesh=str(self.rh),
+                    roi_map=self.data_rh,
+                    axes=ax_rh,
+                    levels=rh_levels,
+                    labels=[None for _ in rh_levels],
+                    colors=['#00000033' for _ in rh_levels],
+                )
+            if not one_fig:
+                lh += [lh_cur]
+                rh += [rh_cur]
+            if save is not None and not one_fig:
                 plt.savefig(f'{save}_view-{view}.png',
-                            dpi=1000,
                             bbox_inches='tight')
                 plt.close('all')
-            else:
-                fig.show()
+        if save is not None and one_fig:
+            plt.savefig(f'{save}.png',
+                        bbox_inches='tight')
+        elif one_fig:
+            return fig, cmap
+        else:
+            return lh, rh, cmap
 
 
 class fsLRAtlasMaps(fsLRSurfacePlot):

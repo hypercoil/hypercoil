@@ -64,11 +64,13 @@ class TestSurfaceVisualisations:
         plotter(
             cmap=self.modal_cmap,
             views=all_views,
+            contours=True,
             save=f'{results}/parcellation_cmap-modal'
         )
         plotter(
             cmap=self.network_cmap,
             views=all_views,
+            one_fig=True,
             save=f'{results}/parcellation_cmap-network'
         )
 
