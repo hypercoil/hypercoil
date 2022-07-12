@@ -233,6 +233,14 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                 ax[i, j].set_xticks([])
                 ax[i, j].set_yticks([])
                 ax[i, j].set_title(f'Node {name}')
+            index += 1
+            while True:
+                i = index // nodes_per_row
+                j = index % nodes_per_row
+                if j == 0:
+                    break
+                ax[i, j].axis('off')
+                index += 1
 
             if save:
                 plt.tight_layout()
@@ -245,7 +253,7 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                 fig.show()
             batch_index += 1
 
-    def __call__(self, cmap='Blues', color_range=(0, 1), select_nodes=None,
+    def __call__(self, cmap='Purples', color_range=(0, 1), select_nodes=None,
                  max_per_batch=21, stop_batch=None, save=None):
         offscreen = False
         if save is not None:
