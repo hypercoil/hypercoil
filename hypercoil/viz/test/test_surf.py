@@ -86,6 +86,5 @@ class TestSurfaceVisualisations:
         )
         plotter = fsLRAtlasMaps(self.lin)
         plotter(save=f'{results}/parcellation_maps', stop_batch=1)
-        plotter = fsLRAtlasMaps(self.lin)
-        plotter(save=f'{results}/parcellation_maps',
-                nodes=[1, 3, 9, 221, 235])
+        plotter(save=f'{results}/parcellation_maps_selected',
+                select_nodes=[1, 3, 9, 221, 235])

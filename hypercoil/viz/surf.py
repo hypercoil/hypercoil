@@ -245,16 +245,22 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
                 fig.show()
             batch_index += 1
 
-    def __call__(self, cmap='Blues', color_range=(0, 1), nodes=None,
+    def __call__(self, cmap='Blues', color_range=(0, 1), select_nodes=None,
                  max_per_batch=21, stop_batch=None, save=None):
         offscreen = False
         if save is not None:
             matplotlib.use('agg')
             offscreen = True
+        if select_nodes is None:
+            select_nodes = self.atlas.decoder['_all'].unique()
+            figs = [None for _ in range(self.atlas.decoder['_all'].max() + 1)]
         figs = [None for _ in range(self.atlas.decoder['_all'].max() + 1)]
         for compartment in ('cortex_L', 'cortex_R'):
-            map = self.module.weight[compartment]
             decoder = self.atlas.decoder[compartment]
+            nodes = torch.tensor([
+                i for i, n in enumerate(decoder) if n in select_nodes
+                ], dtype=torch.long, device='cpu')
+            map = self.module.weight[compartment][nodes]
             compartment_mask = self.atlas.compartments[compartment]
             coor = self.atlas.coors[compartment_mask[self.atlas.mask]].t()
             cmasses = cmass_coor(map, coor, radius=100)
@@ -269,7 +275,9 @@ class fsLRAtlasMaps(fsLRSurfacePlot):
             elif compartment == 'cortex_R':
                 surf_lh = None
                 surf_rh = self.rh
-            for node, views, name in zip(map, closest_poles, decoder):
+            for (id, node, views) in zip(
+                nodes, map, closest_poles):
+                name = decoder[id]
                 data = torch.zeros_like(
                     self.atlas.mask,
                     dtype=map.dtype
