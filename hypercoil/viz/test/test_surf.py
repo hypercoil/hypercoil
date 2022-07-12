@@ -49,6 +49,7 @@ class TestSurfaceVisualisations:
             'viz/resources/cmap_network.nii'
         )
 
+    @pytest.mark.ci_unsupported
     def test_parcellation_plotter(self):
         all_views = (
             'dorsal', 'ventral',
@@ -63,32 +64,18 @@ class TestSurfaceVisualisations:
         plotter(
             cmap=self.modal_cmap,
             views=all_views,
-            contours=True,
             save=f'{results}/parcellation_cmap-modal'
         )
         plotter(
             cmap=self.network_cmap,
             views=all_views,
-            one_fig=True,
             save=f'{results}/parcellation_cmap-network'
         )
-
-    def test_roistats_plotter(self):
-        views = (
-            'lateral', 'medial',
-        )
-        results = pkgrf(
-            'hypercoil',
-            'results/'
-        )
-        plotter = fsLRAtlasParcels(self.lin)
         plotter(
             cmap='RdBu_r',
-            views=views,
-            one_fig=True,
-            contours=True,
-            save=f'{results}/parcellation_desc-randomstats',
-            scores=torch.randn(400)
+            views=all_views,
+            scores=torch.randn(400),
+            save=f'{results}/parcellation_desc-randomstats'
         )
 
     @pytest.mark.ci_unsupported
@@ -99,3 +86,6 @@ class TestSurfaceVisualisations:
         )
         plotter = fsLRAtlasMaps(self.lin)
         plotter(save=f'{results}/parcellation_maps', stop_batch=1)
+        plotter = fsLRAtlasMaps(self.lin)
+        plotter(save=f'{results}/parcellation_maps',
+                nodes=[1, 3, 9, 221, 235])
