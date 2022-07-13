@@ -83,16 +83,17 @@ class MSCMinimal:
             self.srcdir, sub=sub, task=task, ses=ses)
         self.max = len(self.paths)
         self.shuffle = shuffle
-        self._cfg_iter(shuffle=shuffle)
         self.to_tensor = ToTensor(dtype=dtype, device=device)
         self.rms_thresh = rms_thresh
         self.batch_size = batch_size
-        self.idx = -self.batch_size
+        self._cfg_iter(shuffle=shuffle)
 
     def _load_single(self, idx):
         # As of now, we force all proposed indices into the valid range
-        if idx > self.max:
+        if idx >= self.max:
             idx = random.randint(0, self.max - 1)
+        else:
+            idx = self.idxmap[idx]
         bold, motion = self.paths[idx]
         bold = pd.read_csv(bold, sep=' ', header=None)
         ret = {
@@ -112,7 +113,7 @@ class MSCMinimal:
         start = self.idx
         end = start + self.batch_size
         batch_list = [
-            self._load_single(self.idxmap[idx])
+            self._load_single(idx)
             for idx in range(start, end)
         ]
         batch = {}
@@ -122,14 +123,16 @@ class MSCMinimal:
                 [e['bold'] for e in batch_list],
                 fill=0),
         0)
-        batch['tmask'] = torch.stack(
-            extend_to_max_size(
-                [e['tmask'] for e in batch_list],
-                fill=False),
-        0)
+        if self.rms_thresh is not None:
+            batch['tmask'] = torch.stack(
+                extend_to_max_size(
+                    [e['tmask'] for e in batch_list],
+                    fill=False),
+            0)
         return batch
 
     def _cfg_iter(self, shuffle):
+        self.idx = -self.batch_size
         idxmap = list(range(self.max))
         if shuffle:
             random.shuffle(idxmap)
