@@ -125,7 +125,7 @@ class fsLRAtlasParcels(
     fsLRSurfacePlot
 ):
     def __call__(self, cmap, views=('lateral', 'medial'), save=None,
-                 scores=None):
+                 scores=None, positive_only=False):
         offscreen = False
         if save is not None:
             matplotlib.use('agg')
@@ -155,7 +155,10 @@ class fsLRAtlasParcels(
                 vmax = labels.max()
             except FileNotFoundError:
                 vlim = data.abs().max().numpy()
-                vmin = -vlim
+                if positive_only:
+                    vmin = 0
+                else:
+                    vmin = -vlim
                 vmax = vlim
         else:
             cmap = 'gist_ncar'
