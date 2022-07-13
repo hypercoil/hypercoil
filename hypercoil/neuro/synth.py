@@ -65,9 +65,11 @@ def match_covariance(signal, reference, cov=False):
 
     .. math::
 
-        \Sigma = Q \Lambda Q^\intercal
+        \begin{aligned}
+        \Sigma &= Q \Lambda Q^\intercal
 
-        \widetilde{\mathbf{T}} = Q \Lambda^{\frac{1}{2}} \mathbf{T}
+        \widetilde{\mathbf{T}} &= Q \Lambda^{\frac{1}{2}} \mathbf{T}
+        \end{aligned}
 
     The basic assumption of the procedure is that the input time series
     :math:`\mathbf{T}` (containing :math:`n` observations) is drawn from a
@@ -81,13 +83,17 @@ def match_covariance(signal, reference, cov=False):
 
     .. math::
 
-        \frac{1}{n} \mathbf{E}[\widetilde{\mathbf{T}} \widetilde{\mathbf{T}}^\intercal]
+        \begin{aligned}
+        \frac{1}{n} \mathbf{E}[\widetilde{\mathbf{T}}
+        \widetilde{\mathbf{T}}^\intercal]
+        &= \frac{1}{n} \mathbf{E}[Q \Lambda^{\frac{1}{2}} \mathbf{T}
+        \mathbf{T}^\intercal \Lambda^{\frac{1}{2}} Q^\intercal]
 
-        = \frac{1}{n} \mathbf{E}[Q \Lambda^{\frac{1}{2}} \mathbf{T} \mathbf{T}^\intercal \Lambda^{\frac{1}{2}} Q^\intercal]
+        &= Q \Lambda^{\frac{1}{2}} \left(\frac{1}{n} \mathbf{E}[\mathbf{T}
+        \mathbf{T}^\intercal] \right) \Lambda^{\frac{1}{2}} Q^\intercal
 
-        = Q \Lambda^{\frac{1}{2}} \left(\frac{1}{n} \mathbf{E}[\mathbf{T} \mathbf{T}^\intercal] \right) \Lambda^{\frac{1}{2}} Q^\intercal
-
-        = Q \Lambda Q^\intercal = \Sigma
+        &= Q \Lambda Q^\intercal = \Sigma
+        \end{aligned}
 
     :Dimension: **signal :** :math:`(D, N)`
                     D denotes dimension of the multivariate signal and N
