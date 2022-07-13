@@ -7,10 +7,13 @@ Connectopic Loss Functional
 Basic, minimal implementation of the connectopic loss functional.
 """
 import torch
+from functools import partial
+from .base import ReducingLoss
 from ..functional.kernel import linear_distance
 
 
-def connectopy_loss(Q, A, dissimilarity=None, D=None, theta=None):
+def connectopy_loss(Q, A, dissimilarity=None, affinity=None,
+                    D=None, theta=None, omega=None):
     r"""
     Connectopy loss, for computing different kinds of connectopic maps.
 
@@ -62,6 +65,10 @@ def connectopy_loss(Q, A, dissimilarity=None, D=None, theta=None):
         by the proposed connectopies. By default, the square of the L2
         distance is used. The callable must accept ``Q`` and ``theta`` as
         arguments. (``theta`` may be unused.)
+    affinity : callable or None (default None)
+        If an affinity function is provided, then the image of argument A
+        under this function is the affinity matrix. Otherwise, argument A is
+        the affinity matrix.
     D : tensor or None (default None)
         If this argument is provided, then the affinity matrix is first
         transformed as :math:`D A D^\intercal`. For instance, setting D to
@@ -74,12 +81,32 @@ def connectopy_loss(Q, A, dissimilarity=None, D=None, theta=None):
         second-to-last has a weight of 2, and so on. This is used to encourage
         the last column to correspond to the least important eigenmap and the
         first column to correspond to the most important eigenmap.
+    omega : tensor, float, or None (default None)
+        Optional parameterisation of the affinity function, if one is
+        provided.
     """
     if theta is None:
         n_vecs = Q.size(-1)
         theta = torch.arange(n_vecs, 0, -1, dtype=Q.dtype, device=Q.device)
     if dissimilarity is None:
         dissimilarity = lambda Q, theta: linear_distance(Q, theta=theta)
+    if affinity is not None:
+        A = affinity(A, omega=omega)
     if D is not None:
         A = D @ A @ D.t()
-    return (dissimilarity(Q, theta) * A).sum(-2, -1)
+    return (dissimilarity(Q, theta) * A).sum((-2, -1))
+
+
+class Connectopy(ReducingLoss):
+    def __init__(self, dissimilarity, affinity=None,
+                 nu=1, reduction=None, name=None):
+        if reduction is None:
+            reduction = torch.mean
+        self.dissimilarity = dissimilarity
+        self.affinity = affinity
+        loss = partial(
+            connectopy_loss,
+            dissimilarity=dissimilarity,
+            affinity=affinity
+        )
+        super().__init__(nu=nu, reduction=reduction, loss=loss, name=name)

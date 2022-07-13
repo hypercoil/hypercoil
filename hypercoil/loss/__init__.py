@@ -41,7 +41,8 @@ from .cmass import (
     HemisphericTether
 )
 from .connectopy import (
-    connectopy_loss
+    connectopy_loss,
+    Connectopy
 )
 from .determinant import (
     Determinant,
