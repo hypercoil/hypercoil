@@ -9,11 +9,23 @@ subspace tangent to the Riemann manifold.
     Nearly all operations here, as currently implemented, exhibit numerical
     instability in both forward and backward passes.
 """
-import torch
-from . import symmap, symlog, symexp, symsqrt, invert_spd, spd
+import jax.numpy as jnp
+from typing import Literal, Optional, Sequence, Union
+from . import symmap, symlog, symexp, symsqrt, spd
+from hypercoil.functional.symmap import document_symmetric_map
+from hypercoil.functional.utils import Tensor
 
 
-def tangent_project_spd(input, reference, recondition=0):
+@document_symmetric_map
+def tangent_project_spd(
+    input: Tensor,
+    reference: Tensor,
+    psi: float = 0,
+    key: Optional[Tensor] = None,
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    fill_nans: bool = True,
+    truncate_eigenvalues: bool = False,
+) -> Tensor:
     r"""
     Project a batch of symmetric matrices from the positive semidefinite cone
     into a tangent subspace.
@@ -21,9 +33,9 @@ def tangent_project_spd(input, reference, recondition=0):
     Given a tangency point :math:`\Omega`, each input :math:`\Theta` is
     projected as:
 
-    :math:`\vec{\Theta} = \log \Omega^{-1/2} \Theta \Omega^{-1/2}`
+    :math:`\vec{{\Theta}} = \log \Omega^{{-1/2}} \Theta \Omega^{{-1/2}}`
 
-    where :math:`\Omega^{-1/2}` denotes the inverse matrix square root of
+    where :math:`\Omega^{{-1/2}}` denotes the inverse matrix square root of
     :math:`\Omega` and :math:`\log` denotes the matrix-argument logarithm.
 
     :Dimension: **Input :** :math:`(N, *, D, D)`
@@ -44,16 +56,7 @@ def tangent_project_spd(input, reference, recondition=0):
         Point of tangency. This is an element of the positive semidefinite
         cone at which the projection occurs. It should be representative of
         the sample being projected (for instance, some form of mean).
-    recondition : float in [0, 1]
-        Conditioning factor to promote positive definiteness. If this is in
-        (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix (with the conditioning factor
-        :math:`\psi`).
-
-        :math:`\hat{X} = (1 - \psi) X + \psi I`
-
-        A suitable value can be used to ensure that all eigenvalues are
-        positive and therefore guarantee that the matrix is in the domain.
+    {param_spec}
 
     Returns
     -------
@@ -64,22 +67,43 @@ def tangent_project_spd(input, reference, recondition=0):
     --------
     cone_project_spd: The inverse projection, into the semidefinite cone.
     """
-    ref_sri = symmap(reference, torch.rsqrt, psi=recondition)
-    return symlog(ref_sri @ input @ ref_sri, recondition)
+    ref_sri = symmap(
+        reference, lambda x: x ** -0.5,
+        psi=psi, key=key, recondition=recondition,
+        fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
+    return symlog(
+        ref_sri @ input @ ref_sri,
+        psi=psi, key=key, recondition=recondition,
+        fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
 
 
-def cone_project_spd(input, reference, recondition=0):
+@document_symmetric_map
+def cone_project_spd(
+    input: Tensor,
+    reference: Tensor,
+    psi: float = 0,
+    key: Optional[Tensor] = None,
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    fill_nans: bool = True,
+    truncate_eigenvalues: bool = False,
+) -> Tensor:
     r"""
     Project a batch of symmetric matrices from a tangent subspace into the
     positive semidefinite cone.
 
-    Given a tangency point :math:`\Omega`, each input :math:`\vec{\Theta}` is
+    Given a tangency point :math:`\Omega`, each input :math:`\vec{{\Theta}}` is
     projected as:
 
-    :math:`\Theta = \Omega^{1/2} \exp \vec{\Theta} \Omega^{1/2}`
+    :math:`\Theta = \Omega^{{1/2}} \exp \vec{{\Theta}} \Omega^{{1/2}}`
 
-    where :math:`\Omega^{1/2}` denotes the matrix square root of :math:`\Omega`
+    where :math:`\Omega^{{1/2}}` denotes the matrix square root of :math:`\Omega`
     and :math:`\exp` denotes the matrix-argument exponential.
+
+    .. warning::
+        If the tangency point is not in the positive semidefinite cone, the
+        result is undefined unless reconditioning is used. If reconditioning
+        is necessary, however, ``cone_project_spd`` is not guaranteed to be
+        a well-formed inverse of ``tangent_project_spd``.
 
     :Dimension: **Input :** :math:`(N, *, D, D)`
                     N denotes batch size, ``*`` denotes any number of
@@ -98,16 +122,7 @@ def cone_project_spd(input, reference, recondition=0):
         Point of tangency. This is an element of the positive semidefinite
         cone at which the projection occurs. It should be representative of
         the sample being projected (for instance, some form of mean).
-    recondition : float in [0, 1]
-        Conditioning factor to promote positive definiteness. If this is in
-        (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix (with the conditioning factor
-        :math:`\psi`).
-
-        :math:`\hat{X} = (1 - \psi) X + \psi I`
-
-        A suitable value can be used to ensure that all eigenvalues are
-        positive and therefore guarantee that the matrix is in the domain.
+    {param_spec}
 
     Returns
     -------
@@ -119,22 +134,21 @@ def cone_project_spd(input, reference, recondition=0):
     --------
     tangent_project_spd: The inverse projection, into a tangent subspace.
     """
-    ref_sr = symsqrt(reference, recondition)
-    # Note that we must use the much slower torch.matrix_exp for stability.
-    cone = ref_sr @ torch.matrix_exp(input) @ ref_sr
-    # Note that we undo the reconditioning to ensure that this is a
-    # well-formed inverse of `tangent_project_spd`.
-    # Update: this is not even the case anymore since we switched to
-    # eigenspace reconditioning as the default.
-    #TODO: revisit this, maybe.
-    if recondition > 0:
-        cone = 1 / (1 - recondition) * (
-            cone - recondition *
-            torch.eye(input.size(-1), dtype=input.dtype, device=input.device))
+    ref_sr = symsqrt(
+        reference,
+        psi=psi, key=key, recondition=recondition,
+        fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
+    cone = ref_sr @ symexp(input) @ ref_sr
+    # Note that we do not undo the reconditioning, and so the map is not
+    # a well-formed inverse of the tangent_project_spd map if the input is not
+    # positive definite to begin with.
     return spd(cone)
 
 
-def mean_euc_spd(input, axis=0):
+def mean_euc_spd(
+    input: Tensor,
+    axis: Union[int, Sequence[int]] = 0,
+) -> Tensor:
     r"""
     Batch-wise Euclidean mean of tensors in the positive semidefinite cone.
 
@@ -171,7 +185,11 @@ def mean_euc_spd(input, axis=0):
     return input.mean(axis)
 
 
-def mean_harm_spd(input, axis=0):
+def mean_harm_spd(
+    input: Tensor,
+    axis: Union[int, Sequence[int]] = 0,
+    require_nonsingular: bool = True
+) -> Tensor:
     r"""
     Batch-wise harmonic mean of tensors in the positive semidefinite cone.
 
@@ -191,25 +209,39 @@ def mean_harm_spd(input, axis=0):
     ----------
     input : Tensor
         Batch of matrices over which the harmonic mean is to be computed.
-    axis : int
+    axis : int (default 0)
         Axis or axes over which the mean is computed.
+    require_nonsingular : bool (default True)
+        Indicates that the input matrix must be nonsingular. If this is
+        False, then the Moore-Penrose pseudoinverse is computed instead of
+        the inverse.
 
     Returns
     -------
     output : Tensor
         Harmonic mean of the input batch.
     """
-    return invert_spd(invert_spd(input).mean(axis))
+    inverse = jnp.linalg.inv if require_nonsingular else jnp.linalg.pinv
+    return inverse(inverse(input).mean(axis))
 
 
-def mean_logeuc_spd(input, axis=0):
+@document_symmetric_map
+def mean_logeuc_spd(
+    input: Tensor,
+    axis: Union[int, Sequence[int]] = 0,
+    psi: float = 0,
+    key: Optional[Tensor] = None,
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    fill_nans: bool = True,
+    truncate_eigenvalues: bool = False,
+) -> Tensor:
     r"""
     Batch-wise log-Euclidean mean of tensors in the positive semidefinite cone.
 
     The log-Euclidean mean is computed as the matrix exponential of the mean of
     matrix logarithms.
 
-    :math:`\bar{X} = \exp \left(\frac{1}{N}\sum_{i=1}^N \log X_{i}\right)`
+    :math:`\bar{{X}} = \exp \left(\frac{{1}}{{N}}\sum_{{i=1}}^N \log X_{{i}}\right)`
 
     :Dimension: **Input :** :math:`(N, *, D, D)`
                     N denotes batch size, ``*`` denotes any number of
@@ -224,16 +256,33 @@ def mean_logeuc_spd(input, axis=0):
         Batch of matrices over which the log-Euclidean mean is to be computed.
     axis : int
         Axis or axes over which the mean is computed.
+    {param_spec}
 
     Returns
     -------
     output : Tensor
         Log-Euclidean mean of the input batch.
     """
-    return symexp(symlog(input).mean(axis))
+    return symexp(symlog(
+        input, psi=psi, key=key, recondition=recondition,
+        fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues
+    ).mean(axis))
 
 
-def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10, axis=0):
+#TODO: Reformulate this as an optimiser / descent algorithm. Implement
+#      the gradient using the implicit function theorem if possible.
+@document_symmetric_map
+def mean_geom_spd(
+    input: Tensor,
+    axis: Union[int, Sequence[int]] = 0,
+    eps: float = 1e-6,
+    max_iter: int = 10,
+    psi: float = 0,
+    key: Optional[Tensor] = None,
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    fill_nans: bool = True,
+    truncate_eigenvalues: bool = False,
+) -> Tensor:
     r"""
     Batch-wise geometric mean of tensors in the positive semidefinite cone.
 
@@ -266,24 +315,14 @@ def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10, axis=0):
     ----------
     input : Tensor
         Batch of matrices over which the geometric mean is to be computed.
-    recondition : float in [0, 1]
-        Conditioning factor to promote positive definiteness. If this is in
-        (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix (with the conditioning factor
-        :math:`\psi`).
-
-        :math:`\bar{X} = \hat{X} = (1 - \psi) X + \psi I`
-
-        A suitable value can be used to ensure that all eigenvalues are
-        positive and therefore guarantee that the matrix is in the domain of
-        projection operations.
+    axis : int
+        Axis or axes over which the mean is computed.
     eps : float
         The minimum value of the Frobenius norm required for convergence.
     max_iter : nonnegative int
         The maximum number of iterations of gradient descent to run before
         termination.
-    axis : int
-        Axis or axes over which the mean is computed.
+    {param_spec}
 
     Returns
     -------
@@ -291,18 +330,23 @@ def mean_geom_spd(input, recondition=0, eps=1e-6, max_iter=10, axis=0):
         Geometric mean of the input batch.
     """
     ref = mean_euc_spd(input, axis)
-    for i in range(max_iter):
-        tan = tangent_project_spd(input, ref, recondition)
+    for _ in range(max_iter):
+        tan = tangent_project_spd(
+            input, ref, psi=psi, key=key, recondition=recondition,
+            fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
         reftan = tan.mean(axis)
         ref_old = ref
-        ref = cone_project_spd(reftan, ref, recondition)
-        if torch.all(torch.norm(ref, dim=(-1, -2)) < eps):
+        ref = cone_project_spd(
+            reftan, ref, psi=psi, key=key, recondition=recondition,
+            fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
+        if jnp.all(jnp.linalg.norm(ref - ref_old, ord='fro', axis=(-1, -2)) < eps):
             break
     return ref
 
 
+#TODO: marking this as an experimental function
 def mean_kullback_spd(input, alpha, recondition=0):
     S = symsqrt(mean_euc_spd(input), recondition)
-    R = symmap(mean_euc_spd(input), torch.rsqrt, psi=recondition)
+    R = symmap(mean_euc_spd(input), lambda X: X ** -0.5, psi=recondition)
     T = R @ mean_harm_spd(input) @ R
-    return S @ symmap(T, lambda X: torch.pow(X, alpha)) @ S
+    return S @ symmap(T, lambda X: jnp.power(X, alpha)) @ S
