@@ -6,10 +6,88 @@ A hideous, disorganised group of utility functions. Hopefully someday they
 can disappear altogether or be moved elsewhere, but for now they exist, a sad
 blemish.
 """
+import jax.numpy as jnp
 import torch
+from jax import vmap
+from jax.tree_util import tree_map, tree_reduce
+from functools import partial, reduce
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 
-def conform_mask(tensor, msk, axis, batch=False):
+#TODO: replace with jaxtyping at some point
+Tensor = Any
+PyTree = Any
+
+
+def _conform_vector_weight(weight: Tensor) -> Tensor:
+    if weight.ndim == 1:
+        return weight
+    if weight.shape[-2] != 1:
+        return weight[..., None, :]
+    return weight
+
+
+# def apply_vmap_over_outer(
+#     x: PyTree,
+#     f: Callable,
+#     f_dim: int
+# ) -> Tensor:
+#     """
+#     Apply a tensor-valued function to the outer dimensions of a tensor.
+#     """
+#     return reduce(
+#         lambda x, g: g(x),
+#         [partial(vmap, in_axes=i, out_axes=i)
+#          for i in range(0, x.ndim - f_dim)],
+#         f
+#     )(x)
+
+
+def _dim_or_none(x, i):
+    proposal = i + x
+    if proposal < 0:
+        return None
+    return proposal
+
+
+def apply_vmap_over_outer(
+    x: PyTree,
+    f: Callable,
+    f_dim: int
+) -> Tensor:
+    """
+    Apply a tensor-valued function to the outer dimensions of a tensor.
+    """
+    ndim = tree_map(lambda x: x.ndim - f_dim - 1, x)
+    ndmax = tree_reduce(max, ndim)
+    #print([(
+    #    tree_map(partial(_dim_or_none, i=i - ndmax), ndim), i)
+    #    for i in range(0, ndmax + 1)
+    #])
+    return reduce(
+        lambda x, g: g(x),
+        [partial(
+            vmap,
+            in_axes=tree_map(partial(_dim_or_none, i=i - ndmax), ndim),
+            out_axes=i
+        ) for i in range(0, ndmax + 1)],
+        f
+    )(*x)
+
+
+def vmap_over_outer(f: Callable, f_dim: int) -> Callable:
+    """
+    Transform a function to apply to the outer dimensions of a tensor.
+    """
+    return partial(apply_vmap_over_outer, f=f, f_dim=f_dim)
+
+
+def conform_mask(
+    tensor: Tensor,
+    mask: Tensor,
+    axis: Sequence[int],
+    batch=False
+) -> Tensor:
     """
     Conform a mask or weight for elementwise applying to a tensor.
 
@@ -19,63 +97,120 @@ def conform_mask(tensor, msk, axis, batch=False):
     --------
     :func:`apply_mask`
     """
-    #TODO: require axis to be ordered as in `orient_and_conform`
-    if batch and tensor.dim() == 1:
+    #TODO: require axis to be ordered as in `orient_and_conform`.
+    # Ideally, we should create a common underlying function for
+    # the shared parts of both operations (i.e., identifying
+    # aligning vs. expanding axes).
+    if batch and tensor.ndim == 1:
         batch = False
     if isinstance(axis, int):
         if not batch:
             shape_pfx = tensor.shape[:axis]
-            msk = msk.tile(*shape_pfx, 1)
-            return msk
+            mask = jnp.tile(mask, (*shape_pfx, 1))
+            return mask
         axis = (axis,)
     if batch:
         axis = (0, *axis)
-    msk = msk.squeeze()
+    # TODO: this feels like it will produce unexpected behaviour.
+    mask = mask.squeeze()
     tile = list(tensor.shape)
-    shape = [1 for _ in range(tensor.dim())]
+    shape = [1 for _ in range(tensor.ndim)]
     for i, ax in enumerate(axis):
         tile[ax] = 1
-        shape[ax] = msk.shape[i]
-    msk = msk.view(*shape).tile(*tile)
-    return msk
+        shape[ax] = mask.shape[i]
+    mask = jnp.tile(mask.reshape(*shape), tile)
+    return mask
 
 
-def apply_mask(tensor, msk, axis):
+def apply_mask(
+    tensor: Tensor,
+    msk: Tensor,
+    axis: int,
+) -> Tensor:
     """
     Mask a tensor along an axis.
+
+    .. warning::
+
+        This function will only work if the mask is one-dimensional. For
+        multi-dimensional masks, use :func:`conform_mask`.
+
+    .. warning::
+
+        Use of this function is strongly discouraged. It is incompatible with
+        `jax.jit`.
 
     See also
     --------
     :func:`conform_mask`
+    :func:`mask_tensor`
     """
     shape_pfx = tensor.shape[:axis]
     if axis == -1:
         shape_sfx = ()
     else:
         shape_sfx = tensor.shape[(axis + 1):]
-    msk = msk.tile(*shape_pfx, 1)
-    return tensor[msk].view(*shape_pfx, -1, *shape_sfx)
+    msk = jnp.tile(msk, (*shape_pfx, 1))
+    return tensor[msk].reshape(*shape_pfx, -1, *shape_sfx)
 
 
-def wmean(input, weight, dim=None, keepdim=False):
+def mask_tensor(
+    tensor: Tensor,
+    mask: Tensor,
+    axis: Sequence[int],
+    fill_value: Union[float, Tensor] = 0
+):
+    mask = conform_mask(tensor=tensor, mask=mask, axis=axis)
+    return jnp.where(mask, tensor, fill_value)
+
+
+def wmean(
+    input: Tensor,
+    weight: Tensor,
+    axis: Optional[Union[Sequence[int], int]] = None,
+    keepdims: bool = False
+) -> Tensor:
     """
     Reducing function for reducing losses: weighted mean.
+
+    >>> wmean(jnp.array([1, 2, 3]), jnp.array([1, 0, 1]))
+    DeviceArray(2., dtype=float32)
+
+    >>> wmean(
+    ...     jnp.array([[1, 2, 3],
+    ...                [1, 2, 3],
+    ...                [1, 2, 3]]),
+    ...     jnp.array([1, 0, 1]),
+    ...     axis=0
+    ... )
+    DeviceArray([1., 2., 3.], dtype=float32)
+
+    >>> wmean(
+    ...     jnp.array([[1, 2, 3],
+    ...                [1, 2, 3],
+    ...                [1, 2, 3]]),
+    ...     jnp.array([1, 0, 1]),
+    ...     axis=1,
+    ...     keepdims=True
+    ... )
+    DeviceArray([[2.],
+                 [2.],
+                 [2.]], dtype=float32)
     """
-    if dim is None:
-        dim = list(range(input.dim()))
-    elif isinstance(dim, int):
-        dim = (dim,)
-    assert weight.dim() == len(dim), (
+    if axis is None:
+        axis = tuple(range(input.ndim))
+    elif isinstance(axis, int):
+        axis = (axis,)
+    assert weight.ndim == len(axis), (
         'Weight must have as many dimensions as are being reduced')
-    retain = [True for _ in range(input.dim())]
-    for d in dim:
-        retain[d] = False
+    retain = [(i not in axis) for i in range(input.ndim)]
     for i, d in enumerate(retain):
-        if d: weight = weight.unsqueeze(i)
+        if d: weight = jnp.expand_dims(weight, i)
     wtd = (weight * input)
-    return wtd.sum(dim, keepdim=keepdim) / weight.sum(dim, keepdim=keepdim)
+    return wtd.sum(axis, keepdims=keepdims) / weight.sum(axis, keepdims=keepdims)
 
 
+#TODO: marking this as an experimental function
 def selfwmean(input, dim=None, keepdim=False, gradpath='input', softmax=True):
     """
     Self-weighted mean reducing function. Completely untested. Will break and
@@ -92,18 +227,7 @@ def selfwmean(input, dim=None, keepdim=False, gradpath='input', softmax=True):
     return wmean(input=i, weight=w, keepdim=keepdim, gradpath=gradpath)
 
 
-# torch is actually very, very good at doing this. Looks like we might have
-# miscellaneous utilities.
-# It's not even continuous, let alone differentiable. Let's not use this.
-def threshold(input, threshold, dead=0, leak=0):
-    if not isinstance(dead, torch.Tensor):
-        dead = torch.tensor(dead, dtype=input.dtype, device=input.device)
-    if leak == 0:
-        return torch.where(input > threshold, input, dead)
-    return torch.where(input > threshold, input, dead + leak * input)
-
-
-def complex_decompose(complex):
+def complex_decompose(complex: Tensor) -> Tuple[Tensor, Tensor]:
     """
     Decompose a complex-valued tensor into amplitude and phase components.
 
@@ -126,12 +250,12 @@ def complex_decompose(complex):
     --------
     :func:`complex_recompose`
     """
-    ampl = torch.abs(complex)
-    phase = torch.angle(complex)
+    ampl = jnp.abs(complex)
+    phase = jnp.angle(complex)
     return ampl, phase
 
 
-def complex_recompose(ampl, phase):
+def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
     """
     Reconstitute a complex-valued tensor from real-valued tensors denoting its
     amplitude and its phase.
@@ -156,18 +280,21 @@ def complex_recompose(ampl, phase):
     --------
     :func:`complex_decompose`
     """
-    # TODO : consider using the complex exponential when torch enables it,
+    # TODO : consider using the complex exponential function,
     # depending on the gradient properties
-    # see here : https://discuss.pytorch.org/t/complex-functions-exp-does- ...
-    # not-support-automatic-differentiation-for-outputs-with-complex- ...
-    # dtype/98039
-    # Supposedly it was updated, but it still isn't working after calling
-    # pip install torch --upgrade
-    # (old note, might be working now)
-    # https://github.com/pytorch/pytorch/issues/43349
-    # https://github.com/pytorch/pytorch/pull/47194
-    return ampl * (torch.cos(phase) + 1j * torch.sin(phase))
-    #return ampl * torch.exp(phase * 1j)
+    #return ampl * jnp.exp(phase * 1j)
+    return ampl * (jnp.cos(phase) + 1j * jnp.sin(phase))
+
+
+def amplitude_apply(func: Callable) -> Callable:
+    """
+    Decorator for applying a function to the amplitude component of a complex
+    tensor.
+    """
+    def wrapper(complex: Tensor) -> Tensor:
+        ampl, phase = complex_decompose(complex)
+        return complex_recompose(func(ampl), phase)
+    return wrapper
 
 
 def _promote_nnz_dim(values):
@@ -195,6 +322,7 @@ def _conform_dims(A_values, B_values):
         return A_values.view(-1, *A_shape), B_values
 
 
+#TODO: marking this as an experimental function
 def sparse_mm(A, B):
     """
     Batched sparse-sparse matrix multiplication.
@@ -288,6 +416,7 @@ def _sparse_mm(A_indices, A_values, B_indices, B_values, m, k, n):
         return out_indices[0], torch.stack(out_values)
 
 
+#TODO: marking this as an experimental function
 def sparse_rcmul(A, R=None, C=None, coalesce_output=True):
     """
     Batchable row- and column-wise multiplication of sparse matrices.
@@ -344,6 +473,7 @@ def _rcmul_broadcast(tensor, indices):
     return tensor[indices]
 
 
+#TODO: marking this as an experimental function
 def sparse_reciprocal(A):
     """
     Reciprocal of nonzero elements in a sparse tensor. Zero-valued elements
@@ -366,15 +496,12 @@ def sparse_reciprocal(A):
     return out
 
 
-def _conform_vector_weight(weight):
-    if weight.dim() == 1:
-        return weight
-    if weight.shape[-2] != 1:
-        return weight.unsqueeze(-2)
-    return weight
-
-
-def orient_and_conform(input, axis, reference=None, dim=None):
+def orient_and_conform(
+    input: Tensor,
+    axis: Union[int, Sequence[int]],
+    reference: Optional[Tensor] = None,
+    dim: Optional[int] = None
+) -> Tensor:
     """
     Orient an input tensor along a set of axes, and conform its overall
     dimension to equal that of a reference.
@@ -391,12 +518,14 @@ def orient_and_conform(input, axis, reference=None, dim=None):
     axis : tuple
         Output axes along which the tensor's input dimensions should be
         reoriented. This should be an n-tuple, where n is the number of axes
-        in the input tensor.
+        in the input tensor. These axes must be in the same order in the input
+        tensor; if they are not, the input must be transposed before being
+        oriented.
     reference : tensor or None
         Reference tensor. The output is unsqueezed so that its total
         dimension equals that of the reference. Either a reference or an
         explicit output dimension (``dim``) must be provided.
-    dim : tuple or None
+    dim : int or None
         Number of tensor axes in the desired output.
 
     Returns
@@ -410,14 +539,15 @@ def orient_and_conform(input, axis, reference=None, dim=None):
     if dim is None and reference is None:
         raise ValueError('Must specify either `reference` or `dim`')
     elif dim is None:
-        dim = reference.dim()
-    assert len(axis) == input.dim(), (
+        dim = reference.ndim
+    # can't rely on this when we compile with jit
+    assert len(axis) == input.ndim, (
         'Output orientation axis required for each input dimension')
     shape = [1] * dim
     asgn = [0] * dim
-    for size, ax in zip(input.size(), axis):
+    for size, ax in zip(input.shape, axis):
         shape[ax] = size
         assert sum(asgn[ax:]) == 0, (
             'All axes must be in order. Transpose the input if necessary.')
         asgn[ax] = 1
-    return input.view(*shape)
+    return input.reshape(*shape)
