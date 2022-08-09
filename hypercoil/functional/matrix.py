@@ -4,19 +4,29 @@
 """
 Special matrix functions.
 """
+import jax
+import jax.numpy as jnp
 import torch
 import math
-from .utils import conform_mask
+from functools import partial
+from typing import Literal, Optional, Tuple
+from .utils import Tensor, conform_mask, vmap_over_outer
 
 
-def invert_spd(A, force_invert_singular=True):
-    r"""
-    Invert a symmetric positive definite matrix.
+def cholesky_invert(X: Tensor) -> Tensor:
+    """
+    Invert a symmetric positive definite matrix using Cholesky decomposition.
 
-    Currently, this operates by computing the Cholesky decomposition of the
-    matrix, inverting the decomposition, and recomposing. If the Cholesky
-    decomposition fails because the input is singular, then it instead returns
-    the Moore-Penrose pseudoinverse.
+    .. warning::
+        The input matrix must be symmetric and positive definite. If this is
+        not the case, the function will either raise a `LinAlgError` or
+        produce undefined results. For positive semidefinite matrices, the
+        Moore-Penrose pseudoinverse can be used instead.
+
+    .. admonition::
+        This does not appear to be any faster than using the inverse directly.
+        In fact, it is almost always slower than ``jnp.linalg.inv``. It's
+        retained for historical reasons.
 
     :Dimension: **Input :** :math:`(*, D, D)`
                     D denotes the row or column dimension of the matrices to
@@ -28,33 +38,23 @@ def invert_spd(A, force_invert_singular=True):
     Parameters
     ----------
     A : Tensor
-        Batch of symmetric positive definite matrices.
+        Symmetric positive definite matrix.
 
     Returns
     -------
     Ainv : Tensor
-        Inverse or Moore-Penrose pseudoinverse of each matrix in the input
-        batch.
+        Inverse of the input matrix.
     """
-    try:
-        L = torch.linalg.cholesky(A)
-        Li = torch.inverse(L)
-        return Li.transpose(-1, -2) @ Li
-    except RuntimeError:
-        #TODO: getting to this point often means the matrix is singular,
-        # so it probably should fail or at least have the option to
-        #TODO: Right now we're using the pseudoinverse here. Does this make
-        # more sense than trying again with a reconditioned matrix?
-        if force_invert_singular:
-            return torch.pinverse(A)
-            #return symmetric(invert_spd(
-            #    recondition_eigenspaces(A, psi=1e-4, xi=1e-5),
-            #    force_invert_singular=False
-            #))
-        raise
+    L = jnp.linalg.cholesky(X)
+    Li = jnp.linalg.inv(L)
+    return Li.swapaxes(-1, -2) @ Li
 
 
-def symmetric(X, skew=False, axes=(-2, -1)):
+def symmetric(
+    X: Tensor,
+    skew: bool = False,
+    axes: Tuple[int, int] = (-2, -1)
+) -> Tensor:
     """
     Impose symmetry on a tensor block.
 
@@ -78,13 +78,20 @@ def symmetric(X, skew=False, axes=(-2, -1)):
         Input with symmetry imposed across specified slices.
     """
     if not skew:
-        return (X + X.transpose(*axes)) / 2
+        return (X + X.swapaxes(*axes)) / 2
     else:
-        return (X - X.transpose(*axes)) / 2
+        return (X - X.swapaxes(*axes)) / 2
 
 
-def symmetric_sparse(W, edge_index, skew=False, n_vertices=None,
-                     divide=True, return_coo=False):
+#TODO: marking this as an experimental function
+def symmetric_sparse(
+    W: Tensor,
+    edge_index: Tensor,
+    skew: bool = False,
+    n_vertices: Optional[int] = None,
+    divide: bool = True,
+    return_coo: bool = False
+) -> Tensor:
     r"""
     Impose symmetry (undirectedness) on a weight-edge index pair
     representation of a graph.
@@ -154,7 +161,11 @@ def symmetric_sparse(W, edge_index, skew=False, n_vertices=None,
         return out.values(), out.indices()
 
 
-def spd(X, eps=1e-6, method='eig'):
+def spd(
+    X: Tensor,
+    eps: float = 1e-6,
+    method: Literal['eig', 'svd'] = 'eig'
+) -> Tensor:
     """
     Impose symmetric positive definiteness on a tensor block.
 
@@ -202,22 +213,23 @@ def spd(X, eps=1e-6, method='eig'):
         Input modified so that each slice is symmetric and positive definite.
     """
     if method == 'eig':
-        L = torch.linalg.eigvalsh(symmetric(X))
-        lmin = L.amin(axis=-1) - eps
-        lmin = torch.minimum(
-            lmin,
-            torch.zeros(1, dtype=L.dtype, device=L.device)
-        ).squeeze()
+        L = vmap_over_outer(jnp.linalg.eigvalsh, 2)((symmetric(X),))
+        lmin = L.min(axis=-1) - eps
+        lmin = jnp.minimum(lmin, 0).squeeze()
         return symmetric(
-            X - lmin[..., None, None] *
-            torch.eye(X.size(-1), dtype=X.dtype, device=X.device)
-        )
+            X - lmin[..., None, None] * jnp.eye(X.shape[-1]))
     elif method == 'svd':
-        Q, L, _ = torch.svd(symmetric(X))
-        return symmetric(Q @ torch.diag_embed(L) @ Q.transpose(-1, -2))
+        Q, L, _ = vmap_over_outer(jnp.linalg.svd, 2)((symmetric(X),))
+        return symmetric(
+            Q @ (L[..., None] * Q.swapaxes(-1, -2)))
 
 
-def expand_outer(L, R=None, C=None, symmetry=None):
+def expand_outer(
+    L: Tensor,
+    R: Optional[Tensor] = None,
+    C: Optional[Tensor] = None,
+    symmetry: Optional[Literal['cross', 'skew']] = None
+) -> Tensor:
     r"""
     Multiply out a left and a right generator matrix as an outer product.
 
@@ -250,7 +262,7 @@ def expand_outer(L, R=None, C=None, symmetry=None):
         Providing a vector is equivalent to providing a diagonal coupling
         matrix. This term can, for instance, be used to toggle between
         positive and negative semidefinite outputs.
-    symmetry : ``'cross'``, ``'skew'``, or other (default None)
+    symmetry : ``'cross'``, ``'skew'``, or None (default None)
         Symmetry constraint imposed on the generated low-rank template matrix.
 
         * ``cross`` enforces symmetry by replacing the initial expansion with
@@ -264,23 +276,30 @@ def expand_outer(L, R=None, C=None, symmetry=None):
           for R and L. (This approach also guarantees that the output is
           positive semidefinite.)
     """
-    if L.dim() == 1:
-        L = L.unsqueeze(-1)
+    if L.ndim == 1:
+        L = L[..., None]
     if R is None:
         R = L
+    elif R.ndim == 1:
+        R = R[..., None]
     if C is None:
-        output = L @ R.transpose(-2, -1)
+        output = L @ R.swapaxes(-2, -1)
     elif C.shape[-1] == C.shape[-2] == L.shape[-1]:
-        output = L @ C @ R.transpose(-2, -1)
-    elif C.shape[-1] == 1:
-        output = L @ (C * R.transpose(-2, -1))
+        output = L @ C @ R.swapaxes(-2, -1)
+    else:
+        output = L @ (C * R.swapaxes(-2, -1))
     #TODO: Unit tests are not hitting this conditional...
     if symmetry == 'cross' or symmetry == 'skew':
         return symmetric(output, skew=(symmetry == 'skew'))
     return output
 
 
-def recondition_eigenspaces(A, psi, xi):
+def recondition_eigenspaces(
+    A: Tensor,
+    psi : float,
+    xi : float,
+    key : Tensor
+) -> Tensor:
     r"""
     Recondition a positive semidefinite matrix such that it has no zero
     eigenvalues, and all of its eigenspaces have dimension one.
@@ -310,51 +329,100 @@ def recondition_eigenspaces(A, psi, xi):
     tensor
         Reconditioned matrix or matrix block.
     """
-    x = xi * torch.rand(A.shape[-1], dtype=A.dtype, device=A.device)
-    mask = torch.eye(A.shape[-1], dtype=A.dtype, device=A.device)
+    x = jax.random.uniform(key=key, shape=A.shape, maxval=xi)
+    mask = jnp.eye(A.shape[-1])
     return A + (psi - xi + x) * mask
 
 
-def delete_diagonal(A):
+def delete_diagonal(A: Tensor) -> Tensor:
     """
     Delete the diagonal from a block of square matrices. Dimension is inferred
     from the final axis.
     """
-    dim = A.shape[-1]
-    mask = (~torch.eye(dim, device=A.device, dtype=torch.bool)).to(
-        dtype=A.dtype)
+    mask = ~jnp.eye(A.shape[-1], dtype=bool)
     return A * mask
 
 
-def fill_diagonal(A, fill=0, offset=0):
+def fill_diagonal(A: Tensor, fill: float = 0, offset: int = 0) -> Tensor:
     """
-    Fill the main diagonal in a block of square matrices. Dimension is
+    Fill a selected diagonal in a block of square matrices. Dimension is
     inferred from the final axes.
     """
     dim = A.shape[-2:]
-    mask = torch.ones(
-        max(dim) - abs(offset),
-        device=A.device,
-        dtype=torch.bool
-    )
-    mask = torch.diag_embed(mask, offset=offset)
+    mask = jnp.ones(max(dim) - abs(offset), dtype=bool)
+    mask = vmap_over_outer(partial(jnp.diagflat, k=offset), 1)((mask,))
+    #mask = torch.diag_embed(mask, offset=offset)
     mask = mask[:dim[0], :dim[1]]
-    #mask = torch.eye(dim, device=A.device, dtype=torch.bool)
     mask = conform_mask(A, mask, axis=(-2, -1))
-    A = A.clone()
-    A[mask] = fill
-    return A
+    return A.at[mask].set(fill)
 
 
-def toeplitz(c, r=None, dim=None, fill_value=0, dtype=None, device=None):
+def toeplitz_2d(
+    c: Tensor,
+    r: Optional[Tensor] = None,
+    dim: Optional[Tuple[int, int]] = None,
+    fill_value: float = 0
+) -> Tensor:
+    """
+    Construct a 2D Toeplitz matrix from a column and row vector.
+
+    Based on the second method posted by @mattjj and evaluated by
+    @blakehechtman here:
+    https://github.com/google/jax/issues/1646#issuecomment-1139044324
+    Apparently this method underperforms on TPU. But given that TPUs are
+    only available for Google, this is probably not a big deal.
+
+    Our method is more flexible in that it admits Toeplitz matrices without
+    circulant structure. Our API is also closer to that of the scipy toeplitz
+    function. We also support a fill value for the matrix. See
+    :func:`toeplitz` for complete API documentation.
+    """
+    if r is None:
+        r = c
+    m_in, n_in = c.shape[-1], r.shape[-1]
+    m, n = dim if dim is not None else (m_in, n_in)
+    d = max(m, n)
+    if (m != n) or (m_in != n_in != d):
+        r_arg, c_arg = fill_value * jnp.ones(d), fill_value * jnp.ones(d)
+        r_arg = r_arg.at[:n_in].set(r)
+        c_arg = c_arg.at[:m_in].set(c)
+    else:
+        r_arg, c_arg = r, c
+    c_arg = jnp.flip(c_arg, -1)
+
+    mask = jnp.zeros(2 * d - 1, dtype=bool)
+    mask = mask.at[:(d - 1)].set(True)
+    iota = jnp.arange(d)
+    def roll(c, r, i, mask):
+        rs = jnp.roll(r, i, axis=-1)
+        cs = jnp.roll(c, i + 1, axis=-1)
+        ms = jnp.roll(mask, i, axis=-1)[-d:]
+        return jnp.where(ms, cs, rs)
+    f = jax.vmap(roll, in_axes=(None, None, 0, None))
+    return f(c_arg, r_arg, iota[..., None], mask)[..., :m, :n]
+
+
+def toeplitz(
+    c: Tensor,
+    r: Optional[Tensor] = None,
+    dim: Optional[Tuple[int, int]] = None,
+    fill_value: float = 0
+) -> Tensor:
     r"""
     Populate a block of tensors with Toeplitz banded structure.
+
+    .. warning::
+
+        Inputs ``c`` and ``r`` must contain the same first element for
+        functionality to match ``scipy.toeplitz``. This is not checked.
+        In the event that this is not the case, ``c[0]`` is ignored.
+        Note that this is the opposite of ``scipy.toeplitz``.
 
     :Dimension: **c :** :math:`(C, *)`
                     C denotes the number of elements in the first column whose
                     values are propagated along the matrix diagonals. ``*``
                     denotes any number of additional dimensions.
-                **R :** :math:`(R, *)`
+                **r :** :math:`(R, *)`
                     R denotes the number of elements in the first row whose
                     values are propagated along the matrix diagonals.
                 **fill_value :** :math:`(*)`
@@ -397,77 +465,12 @@ def toeplitz(c, r=None, dim=None, fill_value=0, dtype=None, device=None):
         Block of Toeplitz matrices populated from the specified row and column
         elements.
     """
-    if r is None:
-        r = c.conj()
-    if dtype is None:
-        dtype = c.dtype
-    if device is None:
-        device = c.device
-    clen, rlen = c.size(0), r.size(0)
-    obj_shp = c.size()[1:]
-    if dim is not None and dim is not (clen, rlen):
-        r_ = torch.zeros([dim[1], *obj_shp], dtype=dtype, device=device)
-        c_ = torch.zeros([dim[0], *obj_shp], dtype=dtype, device=device)
-        if isinstance(fill_value, torch.Tensor) or fill_value != 0:
-            r_ += fill_value
-            c_ += fill_value
-        r_[:rlen] = r
-        c_[:clen] = c
-        r, c = r_, c_
-    return _populate_toeplitz(c, r, obj_shp, dtype=dtype, device=device)
+    return vmap_over_outer(
+        partial(toeplitz_2d, dim=dim, fill_value=fill_value), 1
+    )((c, r))
 
 
-def _populate_toeplitz(c, r, obj_shp, dtype=None, device=None):
-    """
-    Populate a block of Toeplitz matrices without any preprocessing.
-
-    Thanks to
-    https://github.com/cornellius-gp/gpytorch/ ...
-        blob/master/gpytorch/utils/toeplitz.py
-    for ideas toward a faster implementation.
-
-    #TODO: This might be iterating over elements in an order that is almost
-    adversarially bad. Conform it to the gpytorch implementation if the need
-    arises.
-    """
-    if dtype is None:
-        dtype = c.dtype
-    if device is None:
-        device = c.device
-    out_shp = c.size(0), r.size(0)
-    # return _strided_view_toeplitz(r, c, out_shp)
-    X = torch.empty([*out_shp, *obj_shp], dtype=dtype, device=device)
-    for i, val in enumerate(c):
-        m = min(i + out_shp[1], out_shp[0])
-        for j in range(i, m):
-            X[j, j - i] = val
-    for i, val in list(enumerate(r))[1:]:
-        m = min(i + out_shp[0], out_shp[1])
-        for j in range(i, m):
-            X[j - i, j] = val
-    return X.permute(*range(2, X.dim()), 0, 1)
-
-
-def _strided_view_toeplitz(r, c, out_shp):
-    """
-    torch is *not* planning on implementing negative strides anytime soon, so
-    this numpy-like code will likely not be usable for the foreseeable future.
-
-    See el3ment's comments and the response here:
-    https://github.com/pytorch/pytorch/issues/604
-
-    It's not great practice, but we're keeping it here in case they have a
-    change of heart.
-    """
-    raise NotImplementedError('This operation is not currently supported.')
-    vals = torch.cat([c.flip(-1)[:-1], r])
-    n = vals.stride(0)
-    return torch.as_strided(vals[out_shp[0]:],
-                            shape=out_shp,
-                            strides=(-n, n))
-
-
-def sym2vec(sym, offset=1):
+def sym2vec(sym: Tensor, offset: int = 1) -> Tensor:
     """
     Convert a block of symmetric matrices into ravelled vector form.
 
@@ -492,13 +495,14 @@ def sym2vec(sym, offset=1):
         `sym`, beginning with the diagonal offset from the main by the input
         `offset`.
     """
-    idx = torch.triu_indices(*sym.shape[-2:], offset=offset)
+    idx = jnp.triu_indices(m=sym.shape[-2], n=sym.shape[-1], k=offset)
     shape = sym.shape[:-2]
+    #print(idx, shape)
     vec = sym[..., idx[0], idx[1]]
-    return vec.view(*shape, -1)
+    return vec.reshape(*shape, -1)
 
 
-def vec2sym(vec, offset=1):
+def vec2sym(vec: Tensor, offset: int = 1) -> Tensor:
     """
     Convert a block of ravelled vectors into symmetric matrices.
 
@@ -524,22 +528,20 @@ def vec2sym(vec, offset=1):
         symmetrising.
     """
     shape = vec.shape[:-1]
-    vec = vec.view(*shape, -1)
+    vec = vec.reshape(*shape, -1)
     cn2 = vec.shape[-1]
     side = int(0.5 * (math.sqrt(8 * cn2 + 1) + 1)) + (offset - 1)
-    idx = torch.triu_indices(side, side, offset)
-    sym = torch.zeros(
-        (*shape, side, side), dtype=vec.dtype, device=vec.device
-    )
-    sym[..., idx[0], idx[1]] = vec
-    sym = sym + sym.transpose(-1, -2)
+    idx = jnp.triu_indices(m=side, n=side, k=offset)
+    sym = jnp.zeros((*shape, side, side))
+    sym = sym.at[..., idx[0], idx[1]].set(vec)
+    sym = sym + sym.swapaxes(-1, -2)
     if offset == 0:
-        mask = torch.eye(side, device=sym.device, dtype=torch.bool)
-        sym[..., mask] = sym[..., mask] / 2
+        mask = jnp.eye(side, dtype=bool)
+        sym = sym.at[..., mask].set(sym[..., mask] / 2)
     return sym
 
 
-def squareform(X):
+def squareform(X: Tensor) -> Tensor:
     """
     Convert between symmetric matrix and vector forms.
 
@@ -562,7 +564,7 @@ def squareform(X):
         :doc:`in square matrix form <hypercoil.functional.matrix.vec2sym>`.
     """
     if (X.shape[-2] == X.shape[-1]
-        and torch.allclose(X, X.transpose(-1, -2))):
+        and jnp.allclose(X, X.swapaxes(-1, -2))):
         return sym2vec(X, offset=1)
     else:
         return vec2sym(X, offset=1)
