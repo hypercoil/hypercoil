@@ -12,6 +12,7 @@ unless explicitly specified.
 """
 from .activation import (
     corrnorm,
+    threshold,
     isochor
 )
 from .cmass import (
@@ -52,7 +53,7 @@ from .kernel import (
     gaussian_kernel, rbf_kernel, cosine_kernel
 )
 from .matrix import (
-    invert_spd, expand_outer, spd, symmetric, symmetric_sparse,
+    cholesky_invert, expand_outer, spd, symmetric, symmetric_sparse,
     delete_diagonal, fill_diagonal, recondition_eigenspaces,
     toeplitz, sym2vec, vec2sym, squareform
 )
@@ -78,15 +79,15 @@ from .semidefinite import (
     mean_logeuc_spd, mean_geom_spd
 )
 from .tsconv import (
-    polychan, polyconv2d, basischan, basisconv2d, tsconv2d
+    conv, polychan, polyconv2d, basischan, basisconv2d, tsconv2d
 )
 from .utils import (
     complex_decompose,
     complex_recompose,
     conform_mask,
     apply_mask,
+    mask_tensor,
     wmean,
-    threshold,
     sparse_mm,
     sparse_rcmul,
     sparse_reciprocal,
