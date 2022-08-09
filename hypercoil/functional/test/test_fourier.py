@@ -16,11 +16,7 @@ from hypercoil.functional import (
     product_filter, unwrap, analytic_signal,
     envelope, instantaneous_frequency, env_inst
 )
-
-
-#TODO: Unit tests missing for:
-# - zero-phase filter
-# - verify that our zero-phase filter is really zero-phase
+from hypercoil.functional.fourier import product_filtfilt
 
 
 class TestFourier:
@@ -55,6 +51,18 @@ class TestFourier:
         out = product_filter(self.X, w)
         ref = self.scipy_product_filter(self.X, w)
         assert self.approx(out, ref)
+
+    def test_zerophase_filter(self):
+        w = (np.random.rand(self.N // 2 + 1) +
+             1j * np.random.rand(self.N // 2 + 1))
+        in_phase = jnp.angle(jnp.fft.rfft(self.X))
+        out = product_filter(self.X, w)
+        out_phase = jnp.angle(jnp.fft.rfft(out))
+        assert not jnp.allclose(in_phase, out_phase, atol=1e-6)
+
+        out = product_filtfilt(self.X, w)
+        out_phase = jnp.angle(jnp.fft.rfft(out))
+        assert jnp.allclose(in_phase, out_phase, atol=1e-6)
 
     def test_attenuation(self):
         w = self.uniform_attenuator()
