@@ -5,13 +5,20 @@
 Convolve the signal via multiplication in the Fourier domain.
 """
 import math
+from typing import Callable, Optional, Sequence, Tuple
+import jax
+import jax.numpy as jnp
 import torch
 import torch.fft
 from .cov import corr
-from .utils import complex_decompose, orient_and_conform
+from .utils import complex_decompose, orient_and_conform, Tensor
 
 
-def product_filter(X, weight, **params):
+def product_filter(
+    X: Tensor,
+    weight: Tensor,
+    **params
+) -> Tensor:
     r"""
     Convolve a multivariate signal via multiplication in the frequency domain.
 
@@ -44,13 +51,17 @@ def product_filter(X, weight, **params):
         Original time series filtered via multiplication in the frequency
         domain.
     """
-    n = X.size(-1)
-    Xf = torch.fft.rfft(X, n=n, **params)
+    n = X.shape[-1]
+    Xf = jnp.fft.rfft(X, n=n, **params)
     Xf_filt = weight * Xf
-    return torch.fft.irfft(Xf_filt, n=n, **params)
+    return jnp.fft.irfft(Xf_filt, n=n, **params)
 
 
-def product_filtfilt(X, weight, **params):
+def product_filtfilt(
+    X: Tensor,
+    weight: Tensor,
+    **params
+) -> Tensor:
     r"""
     Perform zero-phase digital filtering of a signal via multiplication in the
     frequency domain.
@@ -93,13 +104,22 @@ def product_filtfilt(X, weight, **params):
         in the frequency domain.
     """
     X_filt = product_filter(X, weight, **params)
-    out = product_filter(X_filt.flip(-1), weight, **params).flip(-1)
-    return out
+    out = product_filter(jnp.flip(X_filt,-1), weight, **params)
+    return jnp.flip(out, -1)
 
 
-def unwrap(phase, axis=-1, discont=None, period=(2 * math.pi)):
+def unwrap(
+    phase: Tensor,
+    axis: int = -1,
+    discont: Optional[float] = None,
+    period: float = (2 * math.pi)
+) -> Tensor:
     r"""
     Unwrap tensor values, replacing large deltas with their complement.
+
+    .. warning::
+        This function is retained for backwards compatibility. In all new
+        code, use :func:`jax.numpy.unwrap` instead.
 
     The unwrapping procedure first computes the difference between each pair
     of contiguous values along the specified tensor axis. For each difference
@@ -135,35 +155,38 @@ def unwrap(phase, axis=-1, discont=None, period=(2 * math.pi)):
     tensor
         Tensor containing unwrapped values.
     """
-    dd = phase.diff(axis=axis)
+    phase = jnp.asarray(phase)
+    dd = jnp.diff(phase, axis=axis)
     half_period = period / 2
     if discont is None:
         discont = half_period
 
-    slice1 = [slice(None, None)] * phase.dim()
+    slice1 = [slice(None, None)] * phase.ndim
     slice1[axis] = slice(1, None)
     slice1 = tuple(slice1)
 
     interval_high = half_period
     interval_low = -interval_high
     ddmod = (dd - interval_low) % period + interval_low
-    ddmod = torch.where(
+    ddmod = jnp.where(
         (ddmod == interval_low) & (dd > 0),
-        torch.tensor(interval_high, dtype=phase.dtype, device=phase.device),
+        interval_high,
         ddmod
     )
     phase_correct = ddmod - dd
-    phase_correct = torch.where(
-        dd.abs() < discont,
-        torch.tensor(0, dtype=phase.dtype, device=phase.device),
-        phase_correct
+    phase_correct = jnp.where(
+        jnp.abs(dd) < discont, 0.0, phase_correct
     )
-    unwrapped_phase = phase.clone()
-    unwrapped_phase[slice1] = phase[slice1] + phase_correct.cumsum(axis)
+    unwrapped_phase = phase.at[slice1].set(
+        phase[slice1] + jnp.cumsum(phase_correct, axis=axis))
     return unwrapped_phase
 
 
-def analytic_signal(X, axis=-1, n=None):
+def analytic_signal(
+    X: Tensor,
+    axis: int = -1,
+    n: Optional[int] = None
+) -> Tensor:
     """
     Compute the analytic signal.
 
@@ -197,27 +220,33 @@ def analytic_signal(X, axis=-1, n=None):
     :func:`instantaneous_frequency`
     :func:`env_inst`
     """
-    if X.is_complex():
+    if jnp.iscomplexobj(X):
         raise ValueError(
             'Input for analytic signal must be strictly real')
 
-    Xf = torch.fft.fft(X, n=n, axis=axis)
-    n = n or X.size(axis)
-    h = torch.zeros(n, dtype=X.dtype, device=X.device)
+    Xf = jnp.fft.fft(X, n=n, axis=axis)
+    n = n or X.shape[axis]
+    h = jnp.zeros(n)
 
+    #TODO: don't like this assignment implementation or the conditionals
     if n % 2 == 0:
-        h[0] = h[n // 2] = 1
-        h[1:(n // 2)] = 2
+        h = h.at[0].set(1)
+        h = h.at[n // 2].set(1)
+        h = h.at[1:(n // 2)].set(2)
     else:
-        h[0] = 1
-        h[1:((n + 1) // 2)] = 2
+        h = h.at[0].set(1)
+        h = h.at[1:((n + 1) // 2)].set(2)
 
-    if Xf.dim() >= 1:
+    if Xf.ndim >= 1:
         h = orient_and_conform(h, axis=axis, reference=Xf)
-    return torch.fft.ifft(Xf * h, axis=axis)
+    return jnp.fft.ifft(Xf * h, axis=axis)
 
 
-def hilbert_transform(X, axis=-1, n=None):
+def hilbert_transform(
+    X: Tensor,
+    axis: int = -1,
+    n: Optional[int] = None
+) -> Tensor:
     """
     Hilbert transform of an input signal.
 
@@ -247,7 +276,11 @@ def hilbert_transform(X, axis=-1, n=None):
     return analytic_signal(X=X, axis=axis, n=n).imag
 
 
-def envelope(X, axis=-1, n=None):
+def envelope(
+    X: Tensor,
+    axis: int = -1,
+    n: Optional[int] = None
+) -> Tensor:
     """
     Envelope of a signal, computed via the analytic signal.
 
@@ -278,10 +311,15 @@ def envelope(X, axis=-1, n=None):
     :func:`instantaneous_frequency`
     :func:`env_inst`
     """
-    return analytic_signal(X=X, axis=axis, n=n).abs()
+    return jnp.abs(analytic_signal(X=X, axis=axis, n=n))
 
 
-def instantaneous_phase(X, axis=-1, n=None, period=(2 * math.pi)):
+def instantaneous_phase(
+    X: Tensor,
+    axis: int = -1,
+    n: Optional[int] = None,
+    period: float = (2 * math.pi)
+) -> Tensor:
     """
     Instantaneous phase of a signal, computed via the analytic signal.
 
@@ -314,14 +352,20 @@ def instantaneous_phase(X, axis=-1, n=None, period=(2 * math.pi)):
     :func:`instantaneous_frequency`
     :func:`env_inst`
     """
-    return unwrap(
-        analytic_signal(X=X, axis=axis, n=n).angle(),
+    return jnp.unwrap(
+        jnp.angle(analytic_signal(X=X, axis=axis, n=n)),
         axis=axis,
         period=period
     )
 
 
-def instantaneous_frequency(X, axis=-1, n=None, fs=1, period=(2 * math.pi)):
+def instantaneous_frequency(
+    X: Tensor,
+    axis: int = -1,
+    n : Optional[int] = None,
+    fs: float = 1,
+    period: float = (2 * math.pi)
+) -> Tensor:
     """
     Instantaneous frequency of a signal, computed via the analytic signal.
 
@@ -357,12 +401,16 @@ def instantaneous_frequency(X, axis=-1, n=None, fs=1, period=(2 * math.pi)):
     :func:`env_inst`
     """
     inst_phase = instantaneous_phase(X=X, axis=axis, n=n, period=period)
-    return fs * inst_phase.diff(dim=axis) / period
+    return fs * jnp.diff(inst_phase, axis=axis) / period
 
 
-def env_inst(X, axis=-1, n=None, fs=1,
-             period=(2 * math.pi),
-             return_instantaneous_phase=False):
+def env_inst(
+    X: Tensor,
+    axis: int = -1,
+    n: Optional[int] = None,
+    fs: float = 1,
+    period: float = (2 * math.pi)
+) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Compute the analytic signal, and then decompose it into the envelope and
     instantaneous phase and frequency.
@@ -398,31 +446,34 @@ def env_inst(X, axis=-1, n=None, fs=1,
     :func:`instantaneous_frequency`
     """
     Xa = analytic_signal(X=X, axis=axis, n=n)
-    env = Xa.abs()
-    inst_phase = unwrap(Xa.angle(), axis=axis, period=period)
-    inst_freq = fs * inst_phase.diff(dim=axis) / period
-    if return_instantaneous_phase:
-        return env, inst_freq, inst_phase
-    else:
-        return env, inst_freq
+    env = jnp.abs(Xa)
+    inst_phase = jnp.unwrap(jnp.angle(Xa), axis=axis, period=period)
+    inst_freq = fs * jnp.diff(inst_phase, axis=axis) / period
+    return env, inst_freq, inst_phase
 
 
+#TODO: marking this as an experimental function
 def ampl_phase_corr(
-    X, weight=None, corr_axes=(0,), cov=corr, **params):
+    X: Tensor,
+    weight: Tensor = None,
+    corr_axes: Sequence[int] = (0,),
+    cov: Callable = corr,
+    **params
+) -> Tensor:
     """
     Covariance among frequency bins, amplitude and phase. To run it across the
     batch and region axes, use
     ``ampl_phase_corr(X, weight=None, corr_axes=(0, -2))``
     Be advised: there is no interesting structure here.
     """
-    n = X.size(-1)
-    Xf = torch.fft.rfft(X, n=n, **params)
+    n = X.shape[-1]
+    Xf = jnp.fft.rfft(X, n=n, **params)
     ampl, phase = complex_decompose(Xf)
     axes = [True for _ in ampl.shape]
     for ax in corr_axes:
         axes[ax] = False
     shape = [e for i, e in enumerate(ampl.shape) if axes[i]]
     new_axes = [i - len(corr_axes) for i in range(len(corr_axes))]
-    ampl = torch.moveaxis(ampl, corr_axes, new_axes).reshape(*shape, -1)
-    phase = torch.moveaxis(phase, corr_axes, new_axes).reshape(*shape, -1)
+    ampl = jnp.moveaxis(ampl, corr_axes, new_axes).reshape(*shape, -1)
+    phase = jnp.moveaxis(phase, corr_axes, new_axes).reshape(*shape, -1)
     return cov(ampl, weight=weight), cov(phase, weight=weight)
