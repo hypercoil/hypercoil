@@ -5,8 +5,11 @@
 Differentiable computation of matrix logarithm, exponential, and square root.
 For use with symmetric (typically positive semidefinite) matrices.
 """
-import torch
+import jax
+import jax.numpy as jnp
+from typing import Callable, Literal, Optional
 from . import symmetric, recondition_eigenspaces
+from .utils import Tensor
 
 
 #TODO: Look here more closely:
@@ -18,14 +21,28 @@ from . import symmetric, recondition_eigenspaces
 # https://geoopt.readthedocs.io/en/latest/index.html
 # We could also ideally replace the domain mapper system with
 # manifold-aware optimisers.
+# Now that we're switching to JAX as the backend, we can instead look into
+# projections as in jaxopt. Not for gradients in our case, though.
 
 
-def symmap(input, map, spd=True, psi=0,
-           recondition='eigenspaces',
-           truncate_eigenvalues=False):
+def symmap(
+    input: Tensor,
+    map: Callable,
+    spd: bool = True,
+    psi: float = 0,
+    key: Optional[Tensor] = None,
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    fill_nans: bool = True,
+    truncate_eigenvalues: bool = False
+) -> Tensor:
     r"""
     Apply a specified matrix-valued transformation to a batch of symmetric
     (probably positive semidefinite) tensors.
+
+    .. note::
+        This should be faster than using ``jax.scipy.linalg.funm`` for
+        Hermitian matrices, although it is less general and probably less
+        stable. This method relies on the eigendecomposition of the matrix.
 
     :Dimension: **Input :** :math:`(N, *, D, D)`
                     N denotes batch size, ``*`` denotes any number of
@@ -46,6 +63,9 @@ def symmap(input, map, spd=True, psi=0,
         eigenvalues are nonnegative.
     psi : float in [0, 1]
         Conditioning factor to promote positive definiteness.
+    key: Tensor or None (default None)
+        Key for pseudo-random number generation. Required if ``recondition`` is
+        set to ``'eigenspaces'`` and ``psi`` is in (0, 1].
     recondition : ``'convexcombination'`` or ``'eigenspaces'`` (default ``'eigenspaces'``)
         Method for reconditioning.
 
@@ -68,6 +88,9 @@ def symmap(input, map, spd=True, psi=0,
           definiteness, this method promotes eigenspaces with dimension 1 (no
           degenerate/repeated eigenvalues). Nondegeneracy of eigenvalues is
           required for differentiation through SVD.
+    fill_nans : bool (default True)
+        Indicates that any NaNs among the transformed eigenvalues should be
+        replaced with zeros.
     truncate_eigenvalues : bool (default False)
         Indicates that very small eigenvalues, which might for instance occur
         due to numerical errors in the decomposition, should be truncated to
@@ -85,27 +108,32 @@ def symmap(input, map, spd=True, psi=0,
         if psi > 1:
             raise ValueError('Nonconvex combination. Select psi in [0, 1].')
         if recondition == 'convexcombination':
-            input = (1 - psi) * input + psi * torch.eye(
-                input.size(-1), dtype=input.dtype, device=input.device
-            )
+            input = (1 - psi) * input + psi * jnp.eye(input.size(-1))
         elif recondition == 'eigenspaces':
-            input = recondition_eigenspaces(input, psi=psi, xi=psi)
+            input = recondition_eigenspaces(input, psi=psi, xi=psi, key=key)
     if not spd:
-        Q, L, _ = torch.svd(symmetric(input))
+        return jax.scipy.linalg.funm(input, map)
     else:
-        L, Q = torch.linalg.eigh(symmetric(input))
+        L, Q = jnp.linalg.eigh(symmetric(input))
     if truncate_eigenvalues:
         # Based on xmodar's implementation here:
         # https://github.com/pytorch/pytorch/issues/25481
-        above_cutoff = L > L.amax() * L.size(-1) * torch.finfo(L.dtype).eps
-        L = L[..., above_cutoff]
-        Q = Q[..., above_cutoff]
-    Lmap = torch.diag_embed(map(L))
-    return symmetric(Q @ Lmap @ Q.transpose(-1, -2))
+        mask = (
+            L > L.max(-1, keepdims=True) *
+            L.shape[-1] * jnp.finfo(L.dtype).eps)
+        L = jnp.where(mask, L, 0)
+    Lmap = map(L)
+    if fill_nans:
+        Lmap = jnp.where(jnp.isnan(Lmap), 0, Lmap)
+    return symmetric(Q @ (Lmap[..., None] * Q.swapaxes(-1, -2)))
 
 
 #TODO: change symlog and symsqrt to support either reconditioning method.
-def symlog(input, recondition=0):
+def symlog(
+    input: Tensor,
+    psi: float = 0,
+    key: Optional[Tensor] = None,
+) -> Tensor:
     r"""
     Matrix logarithm of a batch of symmetric, positive definite matrices.
 
@@ -129,27 +157,30 @@ def symlog(input, recondition=0):
     ----------
     input : Tensor
         Batch of symmetric tensors to transform using the matrix logarithm.
-    recondition : float in [0, 1]
+    psi : float in [0, 1]
         Conditioning factor to promote positive definiteness and nondegenerate
         eigenvalues. If this is in (0, 1], the original input will be replaced
         with
 
-        :math:`\widetilde{X} = X + \psi I - \xi I`
+          :math:`\widetilde{X} = X + \psi I - \xi I`
 
         where each element of :math:`\xi` is independently sampled uniformly
         from :math:`(0, \psi)`. A suitable value can be used to ensure that
         all eigenvalues are positive and therefore guarantee that the matrix
         is in the domain.
+    key: Tensor or None (default None)
+        Key for pseudo-random number generation. Required if ``recondition`` is
+        set to ``'eigenspaces'`` and ``psi`` is in (0, 1].
 
     Returns
     -------
     output : Tensor
         Logarithm of each matrix in the input batch.
     """
-    return symmap(input, torch.log, psi=recondition)
+    return symmap(input, jnp.log, psi=psi, key=key)
 
 
-def symexp(input):
+def symexp(input: Tensor) -> Tensor:
     r"""
     Matrix exponential of a batch of symmetric, positive definite matrices.
 
@@ -157,6 +188,11 @@ def symexp(input):
     computing the exponential of the eigenvalues, and recomposing.
 
     :math:`\exp X = Q_X \exp \Lambda_X Q_X^\intercal`
+
+    .. note::
+        This approach is in principle faster than the matrix exponential in
+        JAX, but it is not as robust or general as the JAX implementation
+        (``jax.linalg.expm``).
 
     :Dimension: **Input :** :math:`(N, *, D, D)`
                     N denotes batch size, ``*`` denotes any number of
@@ -179,10 +215,14 @@ def symexp(input):
     --------
     `torch.matrix_exp` is generally more stable and recommended over this.
     """
-    return symmap(input, torch.exp)
+    return symmap(input, jnp.exp)
 
 
-def symsqrt(input, recondition=0):
+def symsqrt(
+    input: Tensor,
+    psi: float = 0,
+    key: Optional[Tensor] = None,
+) -> Tensor:
     r"""
     Matrix square root of a batch of symmetric, positive definite matrices.
 
@@ -196,6 +236,11 @@ def symsqrt(input, recondition=0):
     guard against the infeasible case, consider specifying a ``recondition``
     parameter.
 
+    .. note::
+        This approach is in principle faster than the matrix square root in
+        JAX, but it is not as robust or general as the JAX implementation
+        (``jax.linalg.sqrtm``).
+
     :Dimension: **Input :** :math:`(N, *, D, D)`
                     N denotes batch size, ``*`` denotes any number of
                     intervening dimensions, D denotes matrix row and column
@@ -207,22 +252,24 @@ def symsqrt(input, recondition=0):
     ----------
     input : Tensor
         Batch of symmetric tensors to transform using the matrix square root.
-    recondition : float in [0, 1]
-    recondition : float in [0, 1]
+    psi : float in [0, 1]
         Conditioning factor to promote positive definiteness and nondegenerate
         eigenvalues. If this is in (0, 1], the original input will be replaced
         with
 
-        :math:`\widetilde{X} = X + \psi I - \xi I`
+          :math:`\widetilde{X} = X + \psi I - \xi I`
 
         where each element of :math:`\xi` is independently sampled uniformly
         from :math:`(0, \psi)`. A suitable value can be used to ensure that
         all eigenvalues are positive and therefore guarantee that the matrix
         is in the domain.
+    key: Tensor or None (default None)
+        Key for pseudo-random number generation. Required if ``recondition`` is
+        set to ``'eigenspaces'`` and ``psi`` is in (0, 1].
 
     Returns
     -------
     output : Tensor
         Square root of each matrix in the input batch.
     """
-    return symmap(input, torch.sqrt, psi=recondition)
+    return symmap(input, jnp.sqrt, psi=psi, key=key)
