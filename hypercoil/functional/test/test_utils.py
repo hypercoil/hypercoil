@@ -6,15 +6,19 @@ Unit tests for utility functions.
 """
 import torch
 import pytest
+import jax
+import jax.numpy as jnp
+import numpy as np
 from hypercoil.functional import (
     apply_mask, wmean, sparse_mm, sparse_rcmul, orient_and_conform
 )
+from hypercoil.functional.utils import conform_mask, mask_tensor, vmap_over_outer
 
 
 class TestUtils:
 
     def test_wmean(self):
-        z = torch.tensor([[
+        z = np.array([[
             [1., 4., 2.],
             [0., 9., 1.],
             [4., 6., 7.]],[
@@ -22,49 +26,111 @@ class TestUtils:
             [4., 6., 7.],
             [1., 4., 2.]
         ]])
-        w = torch.ones_like(z)
-        assert wmean(z, w) == torch.mean(z)
-        w = torch.tensor([1., 0., 1.])
-        assert torch.all(wmean(z, w, dim=1) == torch.tensor([
+        w = np.ones_like(z)
+        assert np.allclose(wmean(z, w), jnp.mean(z))
+        w = np.array([1., 0., 1.])
+        assert np.all(wmean(z, w, axis=1) == np.array([
             [(1 + 4) / 2, (4 + 6) / 2, (2 + 7) / 2],
             [(0 + 1) / 2, (9 + 4) / 2, (1 + 2) / 2]
         ]))
-        assert torch.all(wmean(z, w, dim=2) == torch.tensor([
+        assert np.all(wmean(z, w, axis=2) == np.array([
             [(1 + 2) / 2, (0 + 1) / 2, (4 + 7) / 2],
             [(0 + 1) / 2, (4 + 7) / 2, (1 + 2) / 2]
         ]))
-        w = torch.tensor([
+        w = np.array([
             [1., 0., 1.],
             [0., 1., 1.]
         ])
-        assert torch.all(wmean(z, w, dim=(0, 1)) == torch.tensor([
+        assert np.all(wmean(z, w, axis=(0, 1)) == np.array([
             [(1 + 4 + 4 + 1) / 4, (4 + 6 + 6 + 4) / 4, (2 + 7 + 7 + 2) / 4]
         ]))
-        assert torch.all(wmean(z, w, dim=(0, 2)) == torch.tensor([
+        assert np.all(wmean(z, w, axis=(0, 2)) == np.array([
             [(1 + 2 + 9 + 1) / 4, (0 + 1 + 6 + 7) / 4, (4 + 7 + 4 + 2) / 4]
         ]))
 
     def test_mask(self):
-        msk = torch.tensor([1, 1, 0, 0, 0], dtype=torch.bool)
-        tsr = torch.rand(5, 5, 5)
+        msk = jnp.array([1, 1, 0, 0, 0], dtype=bool)
+        tsr = np.random.rand(5, 5, 5)
         mskd = apply_mask(tsr, msk, axis=0)
         assert mskd.shape == (2, 5, 5)
-        assert torch.all(mskd == tsr[:2])
+        assert np.all(mskd == tsr[:2])
         mskd = apply_mask(tsr, msk, axis=1)
         assert mskd.shape == (5, 2, 5)
-        assert torch.all(mskd == tsr[:, :2])
+        assert np.all(mskd == tsr[:, :2])
         mskd = apply_mask(tsr, msk, axis=2)
-        assert torch.all(mskd == tsr[:, :, :2])
+        assert np.all(mskd == tsr[:, :, :2])
         assert mskd.shape == (5, 5, 2)
         mskd = apply_mask(tsr, msk, axis=-1)
-        assert torch.all(mskd == tsr[:, :, :2])
+        assert np.all(mskd == tsr[:, :, :2])
         assert mskd.shape == (5, 5, 2)
         mskd = apply_mask(tsr, msk, axis=-2)
-        assert torch.all(mskd == tsr[:, :2])
+        assert np.all(mskd == tsr[:, :2])
         assert mskd.shape == (5, 2, 5)
         mskd = apply_mask(tsr, msk, axis=-3)
-        assert torch.all(mskd == tsr[:2])
+        assert np.all(mskd == tsr[:2])
         assert mskd.shape == (2, 5, 5)
+
+        mask = conform_mask(tsr[0, 0], msk, axis=-1, batch=True)
+        assert mask.shape == (5,)
+        assert tsr[0, 0][mask].size == 2
+        mask = conform_mask(tsr, msk, axis=-1)
+        assert mask.shape == (5, 5, 5)
+        assert tsr[mask].size == 50
+        mask = conform_mask(tsr, jnp.outer(msk, msk), axis=-1, batch=True)
+        assert mask.shape == (5, 5, 5)
+        assert tsr[mask].size == 20
+
+        jconform = jax.jit(conform_mask, static_argnames=('axis', 'batch'))
+        mask = jconform(tsr[0, 0], msk, axis=-1, batch=True)
+        assert mask.shape == (5,)
+        assert tsr[0, 0][mask].size == 2
+        mask = jconform(tsr, msk, axis=-1)
+        assert mask.shape == (5, 5, 5)
+        assert tsr[mask].size == 50
+        mask = jconform(tsr, jnp.outer(msk, msk), axis=-1, batch=True)
+        assert mask.shape == (5, 5, 5)
+        assert tsr[mask].size == 20
+
+        jtsrmsk = jax.jit(mask_tensor, static_argnames=('axis',))
+        mskd = jtsrmsk(tsr, msk, axis=-1)
+        assert (mskd != 0).sum() == 50
+        mskd = jtsrmsk(tsr, msk, axis=-1, fill_value=float('nan'))
+        assert np.isnan(mskd).sum() == 75
+
+    def test_vmap_over_outer(self):
+        test_obs = 100
+        offset = 10
+        offset2 = 50
+        w = np.zeros((test_obs, test_obs))
+        rows, cols = np.diag_indices_from(w)
+        w[(rows, cols)] = np.random.rand(test_obs)
+        w[(rows[:-offset], cols[offset:])] = (
+            3 * np.random.rand(test_obs - offset))
+        w[(rows[:-offset2], cols[offset2:])] = (
+            np.random.rand(test_obs - offset2))
+        w = jnp.stack([w] * 20)
+        w = w.reshape(2, 2, 5, test_obs, test_obs)
+
+        jaxpr_test = jax.make_jaxpr(vmap_over_outer(jnp.diagonal, 2))((w,))
+        jaxpr_ref = jax.make_jaxpr(
+            jax.vmap(jax.vmap(jax.vmap(jnp.diagonal, 0, 0), 1, 1), 2, 2))(w)
+        assert jaxpr_test.jaxpr.pretty_print() == jaxpr_ref.jaxpr.pretty_print()
+
+        out = vmap_over_outer(jnp.diagonal, 2)((w,))
+        ref = jax.vmap(jax.vmap(jax.vmap(jnp.diagonal, 0, 0), 1, 1), 2, 2)(w)
+        assert np.allclose(out, ref)
+
+        out = jax.jit(vmap_over_outer(jnp.diagonal, 2))((w,))
+        ref = jax.jit(jax.vmap(jax.vmap(jax.vmap(jnp.diagonal, 0, 0), 1, 1), 2, 2))(w)
+        assert np.allclose(out, ref)
+
+        L = np.random.rand(5, 13)
+        R = np.random.rand(2, 5, 4)
+        jvouter = jax.jit(vmap_over_outer(jnp.outer, 1))
+        out = jvouter((L, R))
+        ref = jax.vmap(jax.vmap(jnp.outer, (None, 0), 0), (0, 1), 1)(L, R)
+        assert out.shape == (2, 5, 13, 4)
+        assert np.allclose(out, ref)
 
     def test_sp_rcmul(self):
         X = torch.rand(20, 3, 4)
@@ -151,16 +217,23 @@ class TestUtils:
         assert torch.allclose(ref, out)
 
     def test_orient_and_conform(self):
-        X = torch.rand(3, 7)
-        R = torch.rand(2, 7, 11, 1, 3)
-        out = orient_and_conform(X.transpose(-1, 0), (1, -1), reference=R)
-        ref = X.transpose(-1, -2).unsqueeze(-2).unsqueeze(-2).unsqueeze(0)
+        X = np.random.rand(3, 7)
+        R = np.random.rand(2, 7, 11, 1, 3)
+        out = orient_and_conform(X.swapaxes(-1, 0), (1, -1), reference=R)
+        ref = X.swapaxes(-1, -2)[None, :, None, None, :]
         assert(out.shape == ref.shape)
-        assert torch.all(out == ref)
+        assert np.all(out == ref)
 
-        X = torch.rand(7)
-        R = torch.rand(2, 7, 11, 1, 3)
+        X = np.random.rand(7)
+        R = np.random.rand(2, 7, 11, 1, 3)
         out = orient_and_conform(X, 1, reference=R)
-        ref = X.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).unsqueeze(0)
+        ref = X[None, :, None, None, None]
         assert(out.shape == ref.shape)
-        assert torch.all(out == ref)
+        assert np.all(out == ref)
+
+        # test with jit compilation
+        jorient = jax.jit(orient_and_conform, static_argnames=('axis', 'dim'))
+        out = jorient(X, 1, dim=R.ndim)
+        ref = X[None, :, None, None, None]
+        assert(out.shape == ref.shape)
+        assert np.all(out == ref)
