@@ -25,43 +25,8 @@ from .utils import Tensor
 # projections as in jaxopt. Not for gradients in our case, though.
 
 
-def symmap(
-    input: Tensor,
-    map: Callable,
-    spd: bool = True,
-    psi: float = 0,
-    key: Optional[Tensor] = None,
-    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
-    fill_nans: bool = True,
-    truncate_eigenvalues: bool = False
-) -> Tensor:
-    r"""
-    Apply a specified matrix-valued transformation to a batch of symmetric
-    (probably positive semidefinite) tensors.
-
-    .. note::
-        This should be faster than using ``jax.scipy.linalg.funm`` for
-        Hermitian matrices, although it is less general and probably less
-        stable. This method relies on the eigendecomposition of the matrix.
-
-    :Dimension: **Input :** :math:`(N, *, D, D)`
-                    N denotes batch size, ``*`` denotes any number of
-                    intervening dimensions, D denotes matrix row and column
-                    dimension.
-                **Output :** :math:`(N, *, D, D)`
-                    As above.
-
-    Parameters
-    ----------
-    input : Tensor
-        Batch of symmetric tensors to transform.
-    map : dimension-conserving torch callable
-        Transformation to apply as a matrix-valued function.
-    spd : bool (default True)
-        Indicates that the matrices in the input batch are symmetric positive
-        semidefinite; guards against numerical rounding errors and ensures all
-        eigenvalues are nonnegative.
-    psi : float in [0, 1]
+def document_symmetric_map(func):
+    param_spec = r"""psi : float in [0, 1]
         Conditioning factor to promote positive definiteness.
     key: Tensor or None (default None)
         Key for pseudo-random number generation. Required if ``recondition`` is
@@ -98,6 +63,51 @@ def symmap(
         through this operation, or if you require the input to be positive
         definite. For these use cases, consider using the ``psi`` and
         ``recondition`` parameters.
+    """
+    func.__doc__ = func.__doc__.format(
+        param_spec=param_spec
+    )
+    return func
+
+
+@document_symmetric_map
+def symmap(
+    input: Tensor,
+    map: Callable,
+    spd: bool = True,
+    psi: float = 0,
+    key: Optional[Tensor] = None,
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    fill_nans: bool = True,
+    truncate_eigenvalues: bool = False
+) -> Tensor:
+    r"""
+    Apply a specified matrix-valued transformation to a batch of symmetric
+    (probably positive semidefinite) tensors.
+
+    .. note::
+        This should be faster than using ``jax.scipy.linalg.funm`` for
+        Hermitian matrices, although it is less general and probably less
+        stable. This method relies on the eigendecomposition of the matrix.
+
+    :Dimension: **Input :** :math:`(N, *, D, D)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, D denotes matrix row and column
+                    dimension.
+                **Output :** :math:`(N, *, D, D)`
+                    As above.
+
+    Parameters
+    ----------
+    input : Tensor
+        Batch of symmetric tensors to transform.
+    map : dimension-conserving torch callable
+        Transformation to apply as a matrix-valued function.
+    spd : bool (default True)
+        Indicates that the matrices in the input batch are symmetric positive
+        semidefinite; guards against numerical rounding errors and ensures all
+        eigenvalues are nonnegative.
+    {param_spec}
 
     Returns
     -------
@@ -128,11 +138,14 @@ def symmap(
     return symmetric(Q @ (Lmap[..., None] * Q.swapaxes(-1, -2)))
 
 
-#TODO: change symlog and symsqrt to support either reconditioning method.
+@document_symmetric_map
 def symlog(
     input: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    fill_nans: bool = True,
+    truncate_eigenvalues: bool = False,
 ) -> Tensor:
     r"""
     Matrix logarithm of a batch of symmetric, positive definite matrices.
@@ -157,27 +170,22 @@ def symlog(
     ----------
     input : Tensor
         Batch of symmetric tensors to transform using the matrix logarithm.
-    psi : float in [0, 1]
-        Conditioning factor to promote positive definiteness and nondegenerate
-        eigenvalues. If this is in (0, 1], the original input will be replaced
-        with
-
-          :math:`\widetilde{X} = X + \psi I - \xi I`
-
-        where each element of :math:`\xi` is independently sampled uniformly
-        from :math:`(0, \psi)`. A suitable value can be used to ensure that
-        all eigenvalues are positive and therefore guarantee that the matrix
-        is in the domain.
-    key: Tensor or None (default None)
-        Key for pseudo-random number generation. Required if ``recondition`` is
-        set to ``'eigenspaces'`` and ``psi`` is in (0, 1].
+    {param_spec}
 
     Returns
     -------
     output : Tensor
         Logarithm of each matrix in the input batch.
     """
-    return symmap(input, jnp.log, psi=psi, key=key)
+    return symmap(
+        input,
+        jnp.log,
+        psi=psi,
+        key=key,
+        recondition=recondition,
+        fill_nans=fill_nans,
+        truncate_eigenvalues=truncate_eigenvalues,
+    )
 
 
 def symexp(input: Tensor) -> Tensor:
@@ -218,10 +226,14 @@ def symexp(input: Tensor) -> Tensor:
     return symmap(input, jnp.exp)
 
 
+@document_symmetric_map
 def symsqrt(
     input: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    fill_nans: bool = True,
+    truncate_eigenvalues: bool = False,
 ) -> Tensor:
     r"""
     Matrix square root of a batch of symmetric, positive definite matrices.
@@ -229,7 +241,7 @@ def symsqrt(
     Computed by diagonalising the matrix :math:`X = Q_X \Lambda_X Q_X^\intercal`,
     computing the square root of the eigenvalues, and recomposing.
 
-    :math:`\sqrt{X} = Q_X \sqrt{\Lambda_X} Q_X^\intercal`
+    :math:`\sqrt{{X}} = Q_X \sqrt{{\Lambda_X}} Q_X^\intercal`
 
     Note that this will be infeasible for matrices with negative eigenvalues,
     and potentially singular matrices due to numerical rounding errors. To
@@ -252,24 +264,19 @@ def symsqrt(
     ----------
     input : Tensor
         Batch of symmetric tensors to transform using the matrix square root.
-    psi : float in [0, 1]
-        Conditioning factor to promote positive definiteness and nondegenerate
-        eigenvalues. If this is in (0, 1], the original input will be replaced
-        with
-
-          :math:`\widetilde{X} = X + \psi I - \xi I`
-
-        where each element of :math:`\xi` is independently sampled uniformly
-        from :math:`(0, \psi)`. A suitable value can be used to ensure that
-        all eigenvalues are positive and therefore guarantee that the matrix
-        is in the domain.
-    key: Tensor or None (default None)
-        Key for pseudo-random number generation. Required if ``recondition`` is
-        set to ``'eigenspaces'`` and ``psi`` is in (0, 1].
+    {param_spec}
 
     Returns
     -------
     output : Tensor
         Square root of each matrix in the input batch.
     """
-    return symmap(input, jnp.sqrt, psi=psi, key=key)
+    return symmap(
+        input,
+        jnp.sqrt,
+        psi=psi,
+        key=key,
+        recondition=recondition,
+        fill_nans=fill_nans,
+        truncate_eigenvalues=truncate_eigenvalues,
+    )
