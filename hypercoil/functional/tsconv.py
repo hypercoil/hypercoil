@@ -4,11 +4,134 @@
 """
 Functions supporting convolution of time series and other data.
 """
-import torch
+import jax
+import jax.numpy as jnp
+from collections.abc import Iterable
+from itertools import repeat
+from typing import Callable, List, Literal, Optional, Sequence, Tuple, Union
+from .utils import Tensor
 
 
-def basisconv2d(X, weight, basis_functions, include_const=False, bias=None,
-                padding=None, conv=None, **params):
+torch_dims = {
+    0: ('NC', 'OI', 'NC'),
+    1: ('NCH', 'OIH', 'NCH'),
+    2: ('NCHW', 'OIHW', 'NCHW'),
+    3: ('NCHWD', 'OIHWD', 'NCHWD'),
+}
+
+
+def _ntuple(n: int) -> Callable:
+    """
+    Create a function that returns a tuple of length ``n``.
+    Stolen from PyTorch.
+    """
+    def parse(x):
+        if isinstance(x, Iterable):
+            return tuple(x)
+        return tuple(repeat(x, n))
+    return parse
+
+
+def atleast_4d(*pparams) -> Tensor:
+    res = []
+    for p in pparams:
+        if p.ndim == 0:
+            result = p.reshape(1, 1, 1, 1)
+        elif p.ndim == 1:
+            result = p[None, None, None, ...]
+        elif p.ndim == 2:
+            result = p[None, None, ...]
+        elif p.ndim == 3:
+            result = p[None, ...]
+        else:
+            result = p
+        res.append(result)
+        if len(res) == 1:
+            return res[0]
+    return res
+
+
+def conv(
+    input: Tensor,
+    weight: Tensor,
+    bias: Tensor = None,
+    stride: Union[int, Sequence[int]] = 1,
+    padding: Union[int, Sequence[Tuple[int, int]]] = 0,
+    dilation: Union[int, Sequence[int]] = 1
+) -> Tensor:
+    """
+    ``torch``-like API for convolution.
+    The implementation is basically pilfered from
+    https://stackoverflow.com/questions/69571976/ ...
+    ... how-to-use-grad-convolution-in-google-jax
+    """
+    n = len(input.shape) - 2
+    if isinstance(stride, int):
+        stride = _ntuple(n)(stride)
+    if isinstance(padding, int):
+        padding = [(i, i) for i in _ntuple(n)(padding)]
+    if isinstance(dilation, int):
+        dilation = _ntuple(n)(dilation)
+    out = jax.lax.conv_general_dilated(
+        lhs=input,
+        rhs=weight,
+        window_strides=stride,
+        padding=padding,
+        lhs_dilation=dilation,
+        rhs_dilation=None,
+        dimension_numbers=torch_dims[n],
+        feature_group_count=1,
+        batch_group_count=1,
+        precision=None,
+        preferred_element_type=None)
+    if bias is not None:
+        return out + bias
+    return out
+
+
+def tsconv2d(
+    X: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor] = None,
+    padding: Optional[Union[Literal['initial', 'final'],
+                      Sequence[Tuple[int, int]]]] = None,
+    conv_fn: Optional[Callable] = None,
+    **params
+) -> Tensor:
+    """
+    Convolve time series data.
+
+    This is a convenience function for performing convolution over time
+    series data. It automatically configures padding so that the convolution
+    produces an output with the same number of observations as the input.
+
+    Padding can be applied to the initial or final observations of the input
+    dataset, or both.
+    """
+    X = _configure_input_for_ts_conv(X)
+    weight = _configure_weight_for_ts_conv(weight)
+    if conv_fn is None:
+        conv_fn = conv
+    padding = _configure_padding_for_ts_conv(padding, weight)
+    return conv_fn(
+        input=X,
+        weight=weight,
+        bias=bias,
+        padding=padding,
+        **params
+    )
+
+
+def basisconv2d(
+    X: Tensor,
+    weight: Tensor,
+    basis_functions: Sequence[Callable],
+    include_const: bool = False,
+    bias: Optional[Tensor] = None,
+    padding: Optional[Tuple[int, int]] = None,
+    conv_fn: Optional[Callable] = None,
+    **params
+) -> Tensor:
     r"""
     Perform convolution using basis function channel mapping.
 
@@ -67,25 +190,44 @@ def basisconv2d(X, weight, basis_functions, include_const=False, bias=None,
         Input dataset transformed via convolution over basis function-mapped
         channels.
     """
-    assert weight.size(1) - include_const == len(basis_functions)
-    padding, X = _configure_padding_for_ts_conv(padding, X, weight)
+    weight = _configure_weight_for_ts_conv(weight)
+    assert weight.shape[1] - include_const == len(basis_functions)
+    padding = _configure_padding_for_ts_conv(padding, weight)
     X = basischan(
         X,
         basis_functions=basis_functions,
         include_const=include_const
     )
-    if conv is None:
-        conv = torch.conv2d
-    return conv(X, weight, bias=bias, padding=padding, **params)
+    return tsconv2d(
+        X=X,
+        weight=weight,
+        bias=bias,
+        padding=padding,
+        conv_fn=conv_fn,
+        **params
+    )
 
 
-def polyconv2d(X, weight, include_const=False, bias=None,
-               padding=None, conv=None, **params):
+def polyconv2d(
+    X: Tensor,
+    weight: Tensor,
+    include_const: bool = False,
+    bias: Optional[Tensor] = None,
+    padding: Optional[Union[Literal['initial', 'final'],
+                      Sequence[Tuple[int, int]]]] = None,
+    conv_fn: Optional[Callable] = None,
+    **params
+) -> Tensor:
     r"""
     Perform convolution using a polynomial channel basis.
 
     Convolution using a kernel whose ith input channel views the input dataset
     raised to the ith power.
+
+    .. warning::
+        This function automatically creates a channel for each specified
+        power. If your input already includes a channel for each power, you
+        should use ``tsconv2d`` instead.
 
     :Dimension: **Input :** :math:`(N, *, C, obs)`
                     N denotes batch size, ``*`` denotes any number of
@@ -139,55 +281,49 @@ def polyconv2d(X, weight, include_const=False, bias=None,
     out : Tensor
         Input dataset transformed via polynomial convolution.
     """
-    degree = weight.size(1) - include_const
-    padding, X = _configure_padding_for_ts_conv(padding, X, weight)
+    weight = _configure_weight_for_ts_conv(weight)
+    degree = weight.shape[1] - include_const
     X = polychan(X, degree=degree, include_const=include_const)
-    if conv is None:
-        conv = torch.conv2d
-    return conv(X, weight, bias=bias, padding=padding, **params)
+    return tsconv2d(
+        X=X,
+        weight=weight,
+        bias=bias,
+        padding=padding,
+        conv_fn=conv_fn,
+        **params
+    )
 
 
-def tsconv2d(X, weight, bias=None, padding=None, conv=None, **params):
-    """
-    Convolve time series data.
-    """
-    X = _configure_input_for_ts_conv(X)
-    if conv is None:
-        conv = torch.conv2d
-    padding, X = _configure_padding_for_ts_conv(padding, X, weight)
-    return conv(X, weight, bias=bias, padding=padding, **params)
+def _configure_input_for_ts_conv(X: Tensor) -> Tensor:
+    return atleast_4d(X)
 
 
-def _configure_input_for_ts_conv(X):
-    if X.dim() == 2:
-        X = X.view(1, *X.shape)
-    elif X.dim() == 1:
-        X = X.view(1, -1)
-    return X
+def _configure_weight_for_ts_conv(weight: Tensor) -> Tensor:
+    return atleast_4d(weight)
 
 
-def _configure_input_for_channel_basis(X):
-    """
-    Helper function for conforming arbitrary inputs to dimensions expected
-    for defining a channel basis.
-    """
-    X = _configure_input_for_ts_conv(X)
-    stack = [X]
-    return X, stack
-
-
-def _configure_padding_for_ts_conv(padding, X, weight):
+def _configure_padding_for_ts_conv(
+    padding: Union[None, Literal['initial', 'final'],
+                   Sequence[Tuple[int, int]]],
+    weight: Tensor,
+) -> Sequence[Tuple[int, int]]:
+    size = weight.shape[-1]
     if padding == 'final':
-        X = torch.nn.functional.pad(X, (0, weight.size(-1) - 1))
-        padding = (0, 0)
-    if padding == 'initial':
-        X = torch.nn.functional.pad(X, (weight.size(-1) - 1, 0))
-        padding = (0, 0)
-    padding = padding or (0, weight.size(-1) // 2)
-    return padding, X
+        padding = ((0, 0), (0, size - 1))
+    elif padding == 'initial':
+        padding = ((0, 0), (size - 1, 0))
+    padding = padding or (
+        (0, 0),
+        (size // 2, size // 2)
+    )
+    return padding
 
 
-def basischan(X, basis_functions, include_const=False):
+def basischan(
+    X: Tensor,
+    basis_functions: List[Callable],
+    include_const: bool = False
+) -> Tensor:
     r"""
     Create a channel basis for the data.
 
@@ -218,12 +354,12 @@ def basischan(X, basis_functions, include_const=False):
         Indicates that a constant or intercept term should be included.
     """
     X = _configure_input_for_ts_conv(X)
-    stack = [f(X) for f in basis_functions]
     if include_const:
-        stack = [torch.ones_like(X)] + stack
-    if X.dim() == 3:
-        return torch.stack(stack, 1)
-    return torch.cat(stack, 1)
+        basis_functions = [jnp.ones_like] + list(basis_functions)
+    stack = [f(X) for f in basis_functions]
+    if X.shape[1] != 1:
+        return jnp.stack(stack, 1)
+    return jnp.concatenate(stack, 1)
 
 
 def polychan(X, degree=2, include_const=False):
@@ -258,11 +394,6 @@ def polychan(X, degree=2, include_const=False):
     out : Tensor
         Input dataset expanded as a K-channel polynomial basis.
     """
-    X, stack = _configure_input_for_channel_basis(X)
-    for _ in range(degree - 1):
-        stack += [stack[-1] * X]
-    if include_const:
-        stack = [torch.ones_like(X)] + stack
-    if X.dim() == 3:
-        return torch.stack(stack, 1)
-    return torch.cat(stack, 1)
+    X = _configure_input_for_ts_conv(X)
+    powers = jnp.arange(not include_const, degree + 1)
+    return jnp.power(X, powers[..., None, None])
