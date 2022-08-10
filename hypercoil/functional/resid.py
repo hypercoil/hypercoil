@@ -4,10 +4,15 @@
 """
 Residualise tensor block via least squares.
 """
-import torch
+import jax.numpy as jnp
+from hypercoil.functional.utils import Tensor, vmap_over_outer
 
 
-def residualise(Y, X, driver='gelsd', rowvar=True):
+def residualise(
+    Y: Tensor,
+    X: Tensor,
+    rowvar: bool = True
+) -> Tensor:
     r"""
     Residualise a tensor block via ordinary linear least squares.
 
@@ -52,13 +57,12 @@ def residualise(Y, X, driver='gelsd', rowvar=True):
         relationship is transposed.
     """
     if rowvar:
-        X_in = X.transpose(-1, -2)
-        Y_in = Y.transpose(-1, -2)
+        X_in = X.swapaxes(-1, -2)
+        Y_in = Y.swapaxes(-1, -2)
     else:
         X_in, Y_in = X, Y
-    betas, _, _, _ = torch.linalg.lstsq(
-        X_in, Y_in, driver=driver
-    )
+    fit = vmap_over_outer(jnp.linalg.lstsq, 2)
+    betas = fit((X_in, Y_in))[0]
     if rowvar:
-        return Y - betas.transpose(-1, -2) @ X
+        return Y - betas.swapaxes(-1, -2) @ X
     return Y - X @ betas
