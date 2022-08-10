@@ -4,12 +4,17 @@
 """
 Measures on graphs and networks.
 """
-import torch
-from torch_geometric.utils import get_laplacian
-from .matrix import delete_diagonal
+import jax
+import jax.numpy as jnp
+from functools import partial
+from jax.nn import relu
+from jax.experimental.sparse import BCOO
+from typing import Callable, Literal, Optional, Union
+from .matrix import delete_diagonal, fill_diagonal
+from hypercoil.functional.utils import Tensor, vmap_over_outer
 
 
-def girvan_newman_null(A):
+def girvan_newman_null(A: Tensor) -> Tensor:
     r"""
     Girvan-Newman null model for a tensor block.
 
@@ -47,14 +52,20 @@ def girvan_newman_null(A):
         Block comprising Girvan-Newman null matrices corresponding to each
         input adjacency matrix.
     """
-    k_i = A.sum(-1, keepdim=True)
-    k_o = A.sum(-2, keepdim=True)
-    two_m = k_i.sum(-2, keepdim=True)
+    k_i = A.sum(-1, keepdims=True)
+    k_o = A.sum(-2, keepdims=True)
+    two_m = k_i.sum(-2, keepdims=True)
     return k_i @ k_o / two_m
 
 
-def modularity_matrix(A, gamma=1, null=girvan_newman_null,
-                      normalise=False, sign='+', **params):
+def modularity_matrix(
+    A: Tensor,
+    gamma: float = 1,
+    null: Callable = girvan_newman_null,
+    normalise: bool = False,
+    sign: Optional[Literal['+', '-']] = '+',
+    **params
+):
     r"""
     Modularity matrices for a tensor block.
 
@@ -110,17 +121,23 @@ def modularity_matrix(A, gamma=1, null=girvan_newman_null,
     relaxed_modularity: Compute the modularity given a community structure.
     """
     if sign == '+':
-        A = torch.relu(A)
+        A = relu(A)
     elif sign == '-':
-        A = -torch.relu(-A)
+        A = -relu(-A)
     mod = A - gamma * null(A, **params)
     if normalise:
-        two_m = A.sum([-2, -1], keepdim=True)
+        two_m = A.sum((-2, -1), keepdims=True)
         return mod / two_m
     return mod
 
 
-def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True, normalise=False):
+def coaffiliation(
+    C_i: Tensor,
+    C_o: Optional[Tensor] = None,
+    L: Optional[Tensor] = None,
+    exclude_diag: bool = True,
+    normalise: bool = False
+) -> Tensor:
     r"""
     Coaffiliation of vertices under a community structure.
 
@@ -178,23 +195,33 @@ def coaffiliation(C_i, C_o=None, L=None, exclude_diag=True, normalise=False):
     """
     if C_o is None: C_o = C_i
     if normalise:
-        norm_fac_i = torch.max(torch.tensor(1), C_i.max())
-        norm_fac_o = torch.max(torch.tensor(1), C_o.max())
+        norm_fac_i = jnp.maximum(1, C_i.max((-1, -2)))
+        norm_fac_o = jnp.maximum(1, C_o.max((-1, -2)))
         C_i = C_i / norm_fac_i
         C_o = C_o / norm_fac_o
     if L is None:
-        C = C_i @ C_o.transpose(-1, -2)
+        C = C_i @ C_o.swapaxes(-1, -2)
     else:
-        C = C_i @ L @ C_o.transpose(-1, -2)
+        C = C_i @ L @ C_o.swapaxes(-1, -2)
     if exclude_diag:
         C = delete_diagonal(C)
     return C
 
 
-def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
-                       null=girvan_newman_null, normalise_modularity=True,
-                       normalise_coaffiliation=True, directed=False, sign='+',
-                       **params):
+def relaxed_modularity(
+    A: Tensor,
+    C: Tensor,
+    C_o: Optional[Tensor] = None,
+    L: Optional[Tensor] = None,
+    exclude_diag: bool = True,
+    gamma: float = 1,
+    null: Callable = girvan_newman_null,
+    normalise_modularity: bool = True,
+    normalise_coaffiliation: bool = True,
+    directed: bool = False,
+    sign: Optional[Literal['+', '-']] ='+',
+    **params
+) -> Tensor:
     r"""
     A relaxation of the modularity of a network given a community partition.
 
@@ -283,19 +310,25 @@ def relaxed_modularity(A, C, C_o=None, L=None, exclude_diag=True, gamma=1,
                           normalise=normalise_modularity, sign=sign, **params)
     C = coaffiliation(C, C_o=C_o, L=L, exclude_diag=exclude_diag,
                       normalise=normalise_coaffiliation)
-    Q = (B * C).sum([-2, -1])
+    Q = (B * C).sum((-2, -1))
     if not directed:
         return Q / 2
     return Q
 
 
-def degree(W, edge_index=None):
-    if edge_index is not None:
+def degree(W: Tensor) -> Tensor:
+    # TODO: technically, we *have* implemented this for sparse graphs in the
+    # ``_sparse_laplacian`` function, but it involves some overhead that makes
+    # a separate implementation useless for our purposes.
+    if isinstance(W, BCOO):
         raise NotImplementedError
     return W.sum(-1)
 
 
-def graph_laplacian(W, edge_index=None, normalise=True, num_nodes=None):
+def graph_laplacian(
+    W: Tensor,
+    normalise: bool = True
+) -> Tensor:
     r"""
     Laplacian of a graph.
 
@@ -348,25 +381,81 @@ def graph_laplacian(W, edge_index=None, normalise=True, num_nodes=None):
         Number of nodes in the graph, if it is sparse. Forwarded to
         ``get_laplacian`` in ``torch_geometric``.
     """
-    if edge_index is not None:
-        if normalise: norm = 'sym'
-        return get_laplacian(
-            edge_index=edge_index,
-            edge_weight=W,
-            normalization=norm,
-            dtype=W.dtype,
-            num_nodes=num_nodes
-        )
+    #TODO: This will not work if JAX ever adds sparse formats other than BCOO.
+    #      I wonder if ``sparsify`` will work here. Ha ha, I'm a silly person.
+    if isinstance(W, BCOO):
+        return _sparse_laplacian(W=W, normalise=normalise)
     deg = degree(W)
-    D = torch.diag_embed(deg)
+    D = vmap_over_outer(jnp.diagflat, 1)((deg,))
     L = D - W
     if normalise:
-        norm_fac = torch.where(
-            deg == 0,
-            torch.tensor(1, dtype=W.dtype, device=W.device),
-            1 / deg.sqrt()
-        )
+        norm_fac = jnp.where(deg == 0, 1, 1 / jnp.sqrt(deg))
         L = L * norm_fac
-        L = L * norm_fac.unsqueeze(-1)
-        L.fill_diagonal_(1)
+        L = L * norm_fac[..., None]
+        L = vmap_over_outer(partial(fill_diagonal, fill=1), 2)((L,))
     return L
+
+
+def _sparse_delete_selfloops(
+    edge_index: Tensor,
+    edge_weight: Tensor
+) -> Tensor:
+    mask = edge_index[..., 0] == edge_index[..., 1]
+    return edge_index, edge_weight.at[mask].set(0)
+
+
+def _sparse_append_selfloops(
+    edge_index: Tensor,
+    edge_weight: Tensor,
+    fill_value: Union[float, Tensor],
+    num_nodes: int
+) -> Tensor:
+    loop_index = jnp.arange(0, num_nodes, dtype=jnp.int32)
+    loop_index = jnp.tile(loop_index[..., None], (1, 2))
+    edge_index = jnp.concatenate([edge_index, loop_index], axis=-2)
+    if isinstance(fill_value, float) or isinstance(fill_value, int):
+        edge_weight = jnp.concatenate([
+            edge_weight, fill_value * jnp.ones((num_nodes,))
+        ], axis=-1)
+    else:
+        edge_weight = jnp.concatenate([edge_weight, fill_value], axis=-1)
+    return edge_index, edge_weight
+
+
+def _sparse_laplacian(W, normalise=True):
+    num_nodes = W.shape[-1]
+    edge_index, edge_weight = W.indices, W.data
+    edge_index, edge_weight = _sparse_delete_selfloops(edge_index, edge_weight)
+    row, col = edge_index[..., 0], edge_index[..., 1]
+    dnums = jax.lax.ScatterDimensionNumbers(
+        update_window_dims=(),
+        inserted_window_dims=(0,),
+        scatter_dims_to_operand_dims=(0,)
+    )
+    deg = jax.lax.scatter_add(
+        jnp.zeros(num_nodes),
+        row[..., None],
+        edge_weight,
+        dnums
+    )
+    if normalise:
+        deg_inv_sqrt = jnp.power(deg, -0.5)
+        deg_inv_sqrt = jnp.where(
+            jnp.logical_or(jnp.isnan(deg_inv_sqrt), jnp.isinf(deg_inv_sqrt)),
+            0,
+            deg_inv_sqrt)
+        edge_weight = deg_inv_sqrt[row] * edge_weight * deg_inv_sqrt[col]
+        edge_index, edge_weight = _sparse_append_selfloops(
+            edge_index,
+            edge_weight=-edge_weight,
+            fill_value=1,
+            num_nodes=num_nodes
+        )
+    else:
+        edge_index, edge_weight = _sparse_append_selfloops(
+            edge_index,
+            edge_weight=-edge_weight,
+            fill_value=deg,
+            num_nodes=num_nodes
+        )
+    return BCOO((edge_weight, edge_index), shape=W.shape)
