@@ -4,13 +4,13 @@
 """
 Unit tests for differentiable terminals.
 """
-import pytest
-import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from pkg_resources import resource_filename as pkgrf
-from hypercoil.functional import (
-    hybrid_interpolate, spectral_interpolate, weighted_interpolate
+from hypercoil.functional.interpolate import (
+    hybrid_interpolate, spectral_interpolate,
+    weighted_interpolate, centred_square_kernel,
+    _weighted_interpolate_stage
 )
 
 
@@ -121,3 +121,32 @@ class TestInterpolation:
         )
 
         self.plot_figure(rec, seen, t, 'spectral-interpolate')
+
+    def test_weighted_interpolate(self):
+        seen, t, mask = self.synthesise_data(77, 'interpolate')
+
+        rec = weighted_interpolate(
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1),
+            stages=list(range(10, 100)) + [1500]
+        )
+
+        self.plot_figure(rec, seen, t, 'weighted-interpolate')
+
+
+    def test_weighted_interpolate_single_stage(self):
+        seen, t, mask = self.synthesise_data(77, 'interpolate')
+
+        kernel = centred_square_kernel(2, 1000)
+        (rec, mask), _ = _weighted_interpolate_stage(seen, mask, kernel)
+        rec = np.where(mask, rec, float('nan'))
+
+        self.plot_figure(rec, seen, t, 'weighted-singlestage2-interpolate')
+
+
+    def test_default_kernel(self):
+        max_stage = 5
+        ker = centred_square_kernel(3, max_stage)
+        assert np.all(ker == np.array([0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0]))
+        ker = centred_square_kernel(2, max_stage)
+        assert np.all(ker == np.array([0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0]))
