@@ -6,11 +6,12 @@ Methods for interpolating, extrapolating, and imputing unseen or censored
 frames.
 """
 import torch
+import jax
 import jax.numpy as jnp
 from functools import partial
-from typing import Callable, Literal, Optional, Tuple
+from typing import Callable, Literal, Optional, Sequence, Tuple, Union
 from .utils import conform_mask, vmap_over_outer, Tensor
-from .tsconv import atleast_4d
+from .tsconv import atleast_4d, conv, tsconv2d
 
 
 class InterpolationError(Exception): pass
@@ -150,12 +151,26 @@ def hybrid_interpolate(
     return torch.where(final_mask, final_data, rec)
 
 
+def _number_consecutive_impl(carry: int, x: Tensor) -> Tuple[int, int]:
+    carry = jax.lax.cond(x, lambda c: c + 1, lambda c: 0, carry)
+    return carry, carry
+
+
+def number_consecutive(x: Tensor) -> Tensor:
+    return jax.lax.scan(_number_consecutive_impl, 0, x)[1]
+
+
+def max_number_consecutive(x: Tensor) -> Tensor:
+    return number_consecutive(x).max()
+
+
 def weighted_interpolate(
-    data,
-    mask,
-    start_stage=1,
-    max_stage=None,
-    map_to_kernel=None
+    data: Tensor,
+    mask: Tensor,
+    start_stage: int = 1,
+    max_stage: Union[int, Literal['auto']] = 'auto',
+    stages: Optional[Sequence[int]] = None,
+    map_to_kernel: Optional[Callable] = None
 ):
     """
     Interpolate unseen time frames as a weighted average of neighbours.
@@ -201,62 +216,91 @@ def weighted_interpolate(
         Input dataset with missing frames imputed using the specified weighted
         average.
     """
-    batch_size = data.shape[0]
-    if max_stage is None:
-        max_stage = float('inf')
+    data = atleast_4d(data)
+    mask = atleast_4d(mask)
+    orig_data = data.copy()
+    if stages is None:
+        stages = all_stages(start_stage, max_stage, mask)
+    max_stage = stages[-1]
     if map_to_kernel is None:
-        map_to_kernel = lambda stage: torch.ones(
-            2 * stage + 1,
-            dtype=data.dtype,
-            device=data.device
-        )
-    cur_stage = 1
-    rec = data
-    orig_mask = conform_mask(rec, mask, axis=-1, batch=True)
-    rec_mask = conform_mask(rec, mask, axis=-1, batch=True)
-    while cur_stage < max_stage:
-        kernel = map_to_kernel(cur_stage).view(1, 1, 1, -1)
-        #rec_old = rec
-        rec = reconstruct_weighted(
-            rec,
-            rec_mask,
-            kernel,
-            cur_stage
-        )
-        #rec, rec_mask = _get_data_for_weighted_recon(rec_old, rec, rec_mask)
-        rec, rec_mask = _get_data_for_weighted_recon(data, rec, orig_mask)
-        if (~rec_mask).sum() == 0:
-            break
-        cur_stage += 1
-    rec[~rec_mask] = float('nan')
-    return rec
+        map_to_kernel = partial(centred_square_kernel, max_stage=max_stage)
+        #map_to_kernel = lambda s: jnp.ones(2 * s + 1)
+    kernels = jnp.stack(make_kernels(stages, map_to_kernel))
+    f = lambda x, k: _weighted_interpolate_stage(
+        data=x[0],
+        mask=x[1],
+        kernel=k,
+        #orig_data=orig_data,
+    )
+    (data, mask), _ = jax.lax.scan(
+        f=f,
+        init=(data, mask),
+        xs=kernels,
+    )
+    #data = jnp.where(mask, data, float('nan'))
+    return data
 
 
-def _get_data_for_weighted_recon(orig_data, rec_data, mask):
-    data = torch.where(mask, orig_data, rec_data)
-    mask = ~torch.isnan(rec_data.sum((-2, -3)))
-    mask = conform_mask(data, mask, axis=-1, batch=True)
-    data[~mask] = 0
+def make_kernels(
+    stages: Sequence[int],
+    map_to_kernel: Callable
+) -> Sequence[Tensor]:
+    return [map_to_kernel(stage) for stage in stages]
+
+
+def all_stages(
+    start_stage: int = 1,
+    max_stage: Union[int, Literal['auto']] = 'auto',
+    mask: Optional[Tensor] = None
+) -> Sequence[int]:
+    if max_stage == 'auto':
+        max_stage = vmap_over_outer(max_number_consecutive, 1)((~mask,)).max()
+    return range(start_stage, max_stage + 1)
+
+
+def _weighted_interpolate_stage(
+    data: Tensor,
+    mask: Tensor,
+    kernel: Tensor,
+    #orig_data: Tensor,
+):
+    print(data)
+    print(mask)
+    print(kernel)
+    stage_rec_data = reconstruct_weighted(
+        data,
+        mask,
+        kernel
+    )
+    return _get_data_for_weighted_recon(data, stage_rec_data, mask), None
+
+
+def centred_square_kernel(stage: int, max_stage: int) -> Tensor:
+    kernel = jnp.zeros(2 * max_stage + 1)
+    midpt = max_stage
+    return kernel.at[(midpt - stage):(midpt + stage + 1)].set(1)
+
+
+def _get_data_for_weighted_recon(
+    orig_data: Tensor,
+    rec_data: Tensor,
+    mask: Tensor
+) -> Tuple[Tensor, Tensor]:
+    data = jnp.where(mask, orig_data, rec_data)
+    mask = ~jnp.isnan(rec_data.sum((-2, -3), keepdims=True))
+    data = jnp.where(mask, data, 0)
     return data, mask
 
 
-def reconstruct_weighted(data, mask, kernel, stage):
+def reconstruct_weighted(
+    data: Tensor,
+    mask: Tensor,
+    kernel: Tensor
+) -> Tensor:
     padding = kernel.shape[-1] // 2
-    mask = mask.to(dtype=data.dtype, device=data.device)
-    val = torch.conv2d(
-        (data * mask),
-        kernel,
-        stride=1,
-        padding=(0, padding)
-    )
-    wt = torch.conv2d(
-        mask,
-        kernel,
-        stride=1,
-        padding=(0, padding)
-    )
-    if torch.all(torch.isnan(data)): assert 0
-    return val / wt
+    val = tsconv2d(jnp.where(mask, data, 0), kernel)
+    wt = tsconv2d(jnp.where(mask, 1., 0.), kernel)
+    return val / wt # (wt + jnp.finfo(wt.dtype).eps)
 
 
 def spectral_interpolate(
@@ -357,7 +401,6 @@ def spectral_interpolate(
     return jnp.where(msk, data, recon)
 
 
-import jax
 def _spectral_interpolate_single(
     tsr: Tensor,
     msk: Tensor,
