@@ -6,20 +6,26 @@ Methods for interpolating, extrapolating, and imputing unseen or censored
 frames.
 """
 import torch
+import jax.numpy as jnp
 from functools import partial
-from .utils import conform_mask, apply_mask
+from typing import Callable, Literal, Optional, Tuple
+from .utils import conform_mask, vmap_over_outer, Tensor
+from .tsconv import atleast_4d
+
+
+class InterpolationError(Exception): pass
 
 
 def hybrid_interpolate(
-    data,
-    mask,
-    max_weighted_stage=3,
-    map_to_kernel=None,
-    oversampling_frequency=8,
-    maximum_frequency=1,
-    frequency_thresh=0.3,
-    handle_fail='orig'
-):
+    data: Tensor,
+    mask: Tensor,
+    max_weighted_stage: int = 3,
+    map_to_kernel: Optional[Callable] = None,
+    oversampling_frequency: float = 8,
+    maximum_frequency: float = 1,
+    frequency_thresh: float = 0.3,
+    handle_fail: Literal['orig', 'raise'] = 'orig'
+) -> Tensor:
     """
     Interpolate unseen time frames using a hybrid approach that combines
     :func:`weighted <weighted_interpolate>` and
@@ -99,7 +105,7 @@ def hybrid_interpolate(
         mask=mask,
         start_stage=1,
         max_stage=max_weighted_stage,
-        map_to_kernel=None
+        map_to_kernel=map_to_kernel
     )
     #print(torch.where(torch.isnan(rec)))
     spec_mask = ~torch.isnan(rec).sum(-2).to(torch.bool)
@@ -131,7 +137,7 @@ def hybrid_interpolate(
         mask=final_mask.squeeze(),
         start_stage=1,
         max_stage=None,
-        map_to_kernel=None
+        map_to_kernel=map_to_kernel
     )
     if handle_fail == 'orig':
         rec = torch.where(final_mask, final_data, rec)
@@ -254,13 +260,12 @@ def reconstruct_weighted(data, mask, kernel, stage):
 
 
 def spectral_interpolate(
-    data,
-    tmask,
-    oversampling_frequency=8,
-    maximum_frequency=1,
-    sampling_period=1,
-    thresh=0,
-    handle_fail='raise'
+    data: Tensor,
+    tmask: Tensor,
+    oversampling_frequency: float = 8,
+    maximum_frequency: float = 1,
+    sampling_period: float = 1,
+    thresh: float = 0
 ):
     """
     Spectral interpolation based on basis function projection.
@@ -297,6 +302,11 @@ def spectral_interpolate(
         arguments. If your inputs are not batched, ``unsqueeze`` their first
         dimension before providing them as inputs.
 
+    .. warning::
+        If the input time series contains either no or all missing
+        observations, then the output time series will be identical to the
+        input time series.
+
     Parameters
     ----------
     data : tensor
@@ -329,158 +339,147 @@ def spectral_interpolate(
         Input ``data`` whose flagged frames are replaced using the spectral
         interpolation procedure.
     """
-    dtype, device = data.dtype, data.device
-    recon = torch.zeros_like(data, dtype=dtype, device=device)
-    for i, (tsr, msk) in enumerate(zip(data, tmask)):
-        msk = msk.squeeze()
-        try:
-            (sin_basis, cos_basis, angular_frequencies, all_samples
-                ) = _periodogram_cfg(
-                    tmask=msk,
-                    sampling_period=sampling_period,
-                    oversampling_frequency=oversampling_frequency,
-                    maximum_frequency=maximum_frequency,
-                    dtype=dtype,
-                    device=device
-                )
-        except InterpolationError:
-            continue
-        except RuntimeError:
-            ##TODO: this is a critical unit test.
-            # We need a principled way of handling different data cases, such
-            # all missing (which can and will occur under windowing conditions)
-            if handle_fail == 'orig':
-                #print('Disaster!')
-                #print(recon[i].shape, tsr.shape)
-                recon[i] = tsr
-                continue
-            else:
-                raise RuntimeError('The dataset provided likely has no seen time points')
-        recon[i] = _interpolate_spectral(
-            data=apply_mask(tsr, msk, -1),
-            sine_basis=sin_basis,
-            cosine_basis=cos_basis,
-            angular_frequencies=angular_frequencies,
-            all_samples=all_samples,
-            thresh=thresh
-        )
+    data = atleast_4d(data)
+    tmask = atleast_4d(tmask)
+    angular_frequencies, all_samples = _periodogram_cfg(
+        n_samples=data.shape[-1],
+        sampling_period=sampling_period,
+        oversampling_frequency=oversampling_frequency,
+        maximum_frequency=maximum_frequency
+    )
+    recon = vmap_over_outer(partial(
+        _spectral_interpolate_single,
+        all_samples=all_samples,
+        angular_frequencies=angular_frequencies,
+        thresh=thresh,
+    ), 3)((data, tmask))
     msk = conform_mask(data, tmask.squeeze(), axis=-1, batch=True)
-    return torch.where(msk, data, recon)
+    return jnp.where(msk, data, recon)
 
 
-class InterpolationError(Exception): pass
+import jax
+def _spectral_interpolate_single(
+    tsr: Tensor,
+    msk: Tensor,
+    all_samples: Tensor,
+    angular_frequencies: Tensor,
+    thresh: float = 0,
+) -> Tensor:
+    msk = msk.squeeze()
+    def fn() -> Tensor:
+        return _spectral_interpolate_single_impl(
+            tsr,
+            msk,
+            all_samples,
+            angular_frequencies,
+            thresh
+        )
+    degenerate_mask = jnp.logical_or(msk.all(), (~msk).all())
+    return jax.lax.cond(degenerate_mask, lambda: tsr, fn)
 
 
-def _periodogram_cfg(tmask,
-                     sampling_period=1,
-                     oversampling_frequency=8,
-                     maximum_frequency=1,
-                     dtype=None,
-                     device=None):
-    """
-    Configure inputs for Lomb-Scargle interpolation.
+def _spectral_interpolate_single_impl(
+    tsr: Tensor,
+    msk: Tensor,
+    all_samples: Tensor,
+    angular_frequencies: Tensor,
+    thresh: float = 0
+) -> Tensor:
+    sin_basis, cos_basis = _apply_periodogram(
+        tmask=msk,
+        all_samples=all_samples,
+        angular_frequencies=angular_frequencies
+    )
+    return _interpolate_spectral(
+        data=tsr,
+        tmask=msk,
+        sine_basis=sin_basis,
+        cosine_basis=cos_basis,
+        angular_frequencies=angular_frequencies,
+        all_samples=all_samples,
+        thresh=thresh
+    )
 
-    Parameters
-    ----------
-    tmask : tensor
-        Boolean tensor indicating whether the value in each frame should
-        be interpolated.
-    sampling_period : float (default 1)
-        The sampling period or repetition time.
-    oversampling_frequency : int (default 8)
-        Oversampling frequency for the periodogram.
-    maximum_frequency : float
-        The maximum frequency in the dataset, as a fraction of Nyquist.
-        Default 1 (Nyquist).
-    dtype : torch ``dtype`` (default None)
-        Tensor data type.
-    device : torch ``device`` (default None)
-        Tensor device.
 
-    Returns
-    -------
-    sin_basis: numpy array
-        Sine basis term for the periodogram.
-    cos_basis: numpy array
-        Cosine basis term for the periodogram.
-    angular_frequencies: numpy array
-        Angular frequencies for computing the periodogram.
-    all_samples: numpy array
-        Temporal indices of all observations, seen and unseen.
-    """
-    n_samples = tmask.shape[-1]
+def _apply_periodogram(
+    tmask: Tensor,
+    all_samples: Tensor,
+    angular_frequencies: Tensor,
+) -> Tuple[Tensor, Tensor]:
+    seen_samples = jnp.where(tmask, all_samples, float('nan'))
+    arg = jnp.outer(angular_frequencies, seen_samples)
+    return jnp.sin(arg), jnp.cos(arg)
 
-    seen_samples = (
-        torch.where(tmask)[0].to(dtype=dtype, device=device) + 1
-    ) * sampling_period
-    timespan = seen_samples.max() - seen_samples.min()
+
+def _periodogram_cfg(
+    n_samples: int,
+    sampling_period: float = 1,
+    oversampling_frequency: float = 8,
+    maximum_frequency: float = 1,
+) -> Tuple[Tensor, Tensor]:
+    timespan = sampling_period * (n_samples + 1) - 1
+    all_samples = jnp.arange(start=sampling_period,
+                             step=sampling_period,
+                             stop=timespan + 1)
     freqstep = 1 / (timespan * oversampling_frequency)
-    n_samples_seen = seen_samples.shape[0]
-    if n_samples_seen == n_samples:
-        raise InterpolationError(
-            'No interpolation is necessary for this dataset.')
 
-    all_samples = torch.arange(start=sampling_period,
-                               step=sampling_period,
-                               end=sampling_period * (n_samples + 1),
-                               dtype=dtype,
-                               device=device)
-    basis_frequencies = torch.arange(
+    angular_frequencies = 2 * jnp.pi * jnp.arange(
         start=freqstep,
         step=freqstep,
-        end=(maximum_frequency * n_samples_seen / (2 * timespan) + freqstep),
-        dtype=dtype,
-        device=device
+        stop=(maximum_frequency * n_samples / (2 * timespan) + freqstep)
     )
-    angular_frequencies = 2 * torch.pi * basis_frequencies
-
-    arg = angular_frequencies.view(-1, 1) @ seen_samples.view(1, -1)
-    ##TODO: adding the offset term worsens the performance: Why?
-    #offsets = torch.atan2(
-    #    torch.sin(2 * arg).sum(1),
-    #    torch.cos(2 * arg).sum(1)
-    #) / (2 * angular_frequencies)
-    #arg = arg - (angular_frequencies * offsets).view(-1, 1)
-
-    cos_basis = torch.cos(arg)
-    sin_basis = torch.sin(arg)
-    return sin_basis, cos_basis, angular_frequencies, all_samples
+    return angular_frequencies, all_samples
 
 
-def _fit_spectrum(basis, data, thresh=0):
+def _fit_spectrum(
+    basis: Tensor,
+    data: Tensor,
+    thresh: float = 0
+) -> Tensor:
     """
     Compute the transform from seen data for sin and cos terms.
     Here we project the data onto each of the sine and cosine bases.
     Note that, due to missing observations, the basis functions are not
     exactly orthogonal. Thus, we will have some shared variance captured by
-    our estimates.
+    our estimates. We can potentially mitigate this using a threshold or
+    lateral inhibition.
     """
-    num = basis @ data.transpose(-1, -2)
+    num = basis @ data.swapaxes(-1, -2)
     # There seems to be a missing square here in the original implementation.
     # Putting it back, however, results in a much poorer fit. Here we're
     # instead going with projecting the seen time series onto each of the sin
     # and cos terms to get our spectra.
-    denom = torch.sqrt((basis ** 2).sum(-1))
-    spectrum = (num / denom.unsqueeze(-1))
-    spectrum[(spectrum.abs() / spectrum.abs().max()) <= thresh] = 0
+    denom = jnp.sqrt((basis ** 2).sum(-1, keepdims=True))
+    spectrum = (num / denom)
+    if thresh > 0:
+        absval = jnp.abs(spectrum)
+        mask = ((absval / absval.max()) <= thresh)
+        return jnp.where(mask, 0, spectrum)
     return spectrum
 
 
 def _reconstruct_from_spectrum(
-    spectrum, fn, angular_frequencies, all_samples):
+    spectrum: Tensor,
+    fn: Callable,
+    angular_frequencies: Tensor,
+    all_samples: Tensor
+) -> Tensor:
     """
     Interpolate over unseen epochs; reconstruct the time series.
     """
-    basis = fn(angular_frequencies.view(-1, 1) @ all_samples.view(1, -1))
-    return basis.transpose(-1, -2) @ spectrum
+    basis = fn(jnp.outer(angular_frequencies, all_samples))
+    return basis.swapaxes(-1, -2) @ spectrum
 
 
-def _interpolate_spectral(data,
-                          sine_basis,
-                          cosine_basis,
-                          angular_frequencies,
-                          all_samples,
-                          thresh=0):
+def _interpolate_spectral(
+    data: Tensor,
+    tmask: Tensor,
+    sine_basis: Tensor,
+    cosine_basis: Tensor,
+    angular_frequencies: Tensor,
+    all_samples: Tensor,
+    thresh: float = 0
+) -> Tensor:
     """
     Temporally interpolate over unseen (masked) values in a dataset using an
     approach loosely inspired by the Lomb-Scargle periodogram. Modified from
@@ -523,17 +522,23 @@ def _interpolate_spectral(data,
         all_samples=all_samples
     )
 
+    data = jnp.where(tmask, data, 0)
+    sine_basis = jnp.where(tmask, sine_basis, 0)
+    cosine_basis = jnp.where(tmask, cosine_basis, 0)
+
     c = _fit_spectrum(cosine_basis, data, thresh=thresh)
     s = _fit_spectrum(sine_basis, data, thresh=thresh)
 
-    s_recon = reconstruct(s, torch.sin)
-    c_recon = reconstruct(c, torch.cos)
-    recon = (c_recon + s_recon).transpose(-1, -2)
+    s_recon = reconstruct(s, jnp.sin)
+    c_recon = reconstruct(c, jnp.cos)
+    recon = (c_recon + s_recon).swapaxes(-1, -2)
 
-    # Normalise the reconstructed spectrum. This is necessary when the
-    # oversampling frequency exceeds 1.
-    std_recon = recon.std(-1, keepdim=True, unbiased=False)
-    std_orig = data.std(-1, keepdim=True, unbiased=False)
-    norm_fac = std_recon / (std_orig + torch.finfo(data.dtype).eps)
+    # Normalise the reconstructed spectrum by projecting the seen time points
+    # onto the real data. This will give us a beta value that we can use to
+    # normalise the reconstructed time series.
+    recon_seen = jnp.where(tmask, recon, 0)
+    seen_data = jnp.where(tmask, data, 0)
+    norm_fac = jnp.sum(recon_seen * seen_data, axis=-1) / \
+        jnp.sum(seen_data ** 2, axis=-1)
 
-    return recon / (norm_fac + torch.finfo(data.dtype).eps)
+    return recon / (norm_fac + jnp.finfo(data.dtype).eps)
