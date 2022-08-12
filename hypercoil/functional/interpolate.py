@@ -164,6 +164,143 @@ def max_number_consecutive(x: Tensor) -> Tensor:
     return number_consecutive(x).max()
 
 
+def first(x: Tensor, mask: Tensor) -> Tensor:
+    return x[tuple(jnp.argwhere(mask, size=1))]
+
+
+def first_and_last(x: Tensor, mask: Tensor) -> Tensor:
+    frst = first(x, mask)
+    last = jnp.flip(
+        first(jnp.flip(x, axis=-1), jnp.flip(mask, axis=-1)), axis=-1)
+    return frst, last
+
+
+def linear_interpolate(
+    data: Tensor,
+    mask: Tensor,
+) -> Tensor:
+    """
+    Interpolate unseen time frames as a convex combination of nearest
+    neighbours.
+
+    Parameters
+    ----------
+    data : tensor
+        Time series data.
+    mask : boolean tensor
+        Boolean tensor indicating whether the value in each frame of the input
+        time series is observed. ``True`` indicates that the original data are
+        "good" or observed, while ``False`` indicates that they are "bad" or
+        missing and flags them for interpolation.
+
+    Returns
+    -------
+    tensor
+        Input dataset with missing frames imputed using the specified weighted
+        average.
+    """
+    data = atleast_4d(data)
+    mask = atleast_4d(mask)
+    init = vmap_over_outer(first, 1)((data, mask))
+    delta_zero = jnp.zeros_like(init)
+    n_frames_interpolate = jnp.flip(
+        vmap_over_outer(number_consecutive, 1)((jnp.flip(~mask, axis=-1),)),
+        axis=-1)
+    init_frames = (jnp.diff(n_frames_interpolate, axis=-1) > 0)
+    deltas = vmap_over_outer(delta_lookahead, 1)((
+        data,
+        init_frames,
+        mask,
+        n_frames_interpolate[..., 1:],
+    ))
+    deltas = jnp.concatenate((delta_zero, deltas), axis=-1)
+    return vmap_over_outer(_interpolate_from_deltas, 1)((
+        data, mask, deltas, init
+    ))
+
+
+def _delta_lookahead_fn(
+    i: int,
+    lookahead: int,
+    data: Tensor,
+    mask: Tensor,
+) -> Tensor:
+    return jax.lax.cond(
+        mask[i + lookahead],
+        lambda: data[i + lookahead] - data[i],
+        lambda: 0.
+    )
+
+
+def _delta_lookahead_impl(
+    carry: Tuple[int, float],
+    x: Tuple[Tensor, Tensor],
+    lookahead_fn: Callable
+) -> Tuple[float, int]:
+    mask, frames = x
+    idx, rem = carry
+    total_step_size = jax.lax.cond(
+        mask,
+        lambda fr, i: lookahead_fn(i, fr + 1),
+        lambda _, __: 0.,
+        frames, idx
+    )
+    new_step = jnp.array(total_step_size != 0)
+    rem = jax.lax.cond(
+        new_step,
+        lambda s: total_step_size,
+        lambda _: rem,
+        total_step_size)
+    incr = jnp.array(rem != 0)
+    y = jax.lax.cond(
+        incr,
+        lambda fr, rem: rem / fr,
+        lambda _, __: 0.,
+        frames, rem
+    )
+    rem = rem - y
+    rem = jnp.sign(rem) * jnp.maximum(jnp.abs(rem), 0.)
+    return (idx + 1, rem), y,
+
+
+def delta_lookahead(
+    data: Tensor,
+    diff_mask: Tensor,
+    data_mask: Tensor,
+    frames: Tensor
+) -> Tensor:
+    f = partial(
+        _delta_lookahead_impl,
+        lookahead_fn=partial(_delta_lookahead_fn, data=data, mask=data_mask)
+    )
+    _, diffs = jax.lax.scan(f, (0, 0.), (diff_mask, frames))
+    return diffs
+
+
+def _interpolate_from_deltas_impl(carry: Tensor, x: Tensor) -> Tensor:
+    data, mask, delta = x
+    val = jax.lax.cond(
+        mask,
+        lambda data, _: data,
+        lambda _, delta: carry + delta,
+        data, delta
+    )
+    return val, val
+
+
+def _interpolate_from_deltas(
+    data: Tensor,
+    mask: Tensor,
+    deltas: Tensor,
+    initial_value: Tensor,
+) -> Tensor:
+    return jax.lax.scan(
+        _interpolate_from_deltas_impl,
+        initial_value.squeeze(),
+        (data, mask, deltas)
+    )[1]
+
+
 def weighted_interpolate(
     data: Tensor,
     mask: Tensor,
@@ -218,7 +355,7 @@ def weighted_interpolate(
     """
     data = atleast_4d(data)
     mask = atleast_4d(mask)
-    orig_data = data.copy()
+    #orig_data = data.copy()
     if stages is None:
         stages = all_stages(start_stage, max_stage, mask)
     max_stage = stages[-1]
@@ -297,7 +434,6 @@ def reconstruct_weighted(
     mask: Tensor,
     kernel: Tensor
 ) -> Tensor:
-    padding = kernel.shape[-1] // 2
     val = tsconv2d(jnp.where(mask, data, 0), kernel)
     wt = tsconv2d(jnp.where(mask, 1., 0.), kernel)
     return val / wt # (wt + jnp.finfo(wt.dtype).eps)
