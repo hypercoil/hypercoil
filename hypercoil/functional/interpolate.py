@@ -5,13 +5,12 @@
 Methods for interpolating, extrapolating, and imputing unseen or censored
 frames.
 """
-import torch
 import jax
 import jax.numpy as jnp
 from functools import partial
 from typing import Callable, Literal, Optional, Sequence, Tuple, Union
-from .utils import PyTree, conform_mask, vmap_over_outer, Tensor
-from .tsconv import atleast_4d, tsconv2d
+from .utils import atleast_4d, conform_mask, vmap_over_outer, PyTree, Tensor
+from .tsconv import tsconv2d
 
 
 #TODO: get lambdas out of cond and other lax functions. Right now we're almost
@@ -23,6 +22,30 @@ from .tsconv import atleast_4d, tsconv2d
 
 
 class InterpolationError(Exception): pass
+
+
+def _number_consecutive_impl(carry: int, x: Tensor) -> Tuple[int, int]:
+    carry = jax.lax.cond(x, lambda c: c + 1, lambda c: 0, carry)
+    return carry, carry
+
+
+def number_consecutive(x: Tensor) -> Tensor:
+    return jax.lax.scan(_number_consecutive_impl, 0, x)[1]
+
+
+def max_number_consecutive(x: Tensor) -> Tensor:
+    return number_consecutive(x).max()
+
+
+def first(x: Tensor, mask: Tensor) -> Tensor:
+    return x[tuple(jnp.argwhere(mask, size=1))]
+
+
+def first_and_last(x: Tensor, mask: Tensor) -> Tensor:
+    frst = first(x, mask)
+    last = jnp.flip(
+        first(jnp.flip(x, axis=-1), jnp.flip(mask, axis=-1)), axis=-1)
+    return frst, last
 
 
 def hybrid_interpolate(
@@ -97,7 +120,8 @@ def hybrid_interpolate(
     """
     data = atleast_4d(data)
     mask = atleast_4d(mask)
-    linear_mask, spectral_mask = vmap_over_outer(
+    #linear_mask, spectral_mask = vmap_over_outer(
+    linear_mask, _ = vmap_over_outer(
         partial(_partition_mask,
         max_consecutive=max_consecutive_linear), f_dim=1
     )((~mask,))
@@ -163,30 +187,6 @@ def _partition_consecutive(
     )
     out = branched_cond(preds, branches)
     return out, out
-
-
-def _number_consecutive_impl(carry: int, x: Tensor) -> Tuple[int, int]:
-    carry = jax.lax.cond(x, lambda c: c + 1, lambda c: 0, carry)
-    return carry, carry
-
-
-def number_consecutive(x: Tensor) -> Tensor:
-    return jax.lax.scan(_number_consecutive_impl, 0, x)[1]
-
-
-def max_number_consecutive(x: Tensor) -> Tensor:
-    return number_consecutive(x).max()
-
-
-def first(x: Tensor, mask: Tensor) -> Tensor:
-    return x[tuple(jnp.argwhere(mask, size=1))]
-
-
-def first_and_last(x: Tensor, mask: Tensor) -> Tensor:
-    frst = first(x, mask)
-    last = jnp.flip(
-        first(jnp.flip(x, axis=-1), jnp.flip(mask, axis=-1)), axis=-1)
-    return frst, last
 
 
 def linear_interpolate(
@@ -332,6 +332,11 @@ def weighted_interpolate(
     convolution of seen time frames with this kernel, and marks those time
     frames as seen for the next iteration. Iteration proceeds either until the
     specified maximum stage or until every unseen frame is imputed.
+
+    .. note::
+        In practice, for a square window kernel, the weighted interpolation is
+        similar to a nearest-neighbour interpolation with very inefficient
+        implementation.
 
     Parameters
     ----------
