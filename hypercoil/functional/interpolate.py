@@ -10,8 +10,16 @@ import jax
 import jax.numpy as jnp
 from functools import partial
 from typing import Callable, Literal, Optional, Sequence, Tuple, Union
-from .utils import conform_mask, vmap_over_outer, Tensor
-from .tsconv import atleast_4d, conv, tsconv2d
+from .utils import PyTree, conform_mask, vmap_over_outer, Tensor
+from .tsconv import atleast_4d, tsconv2d
+
+
+#TODO: get lambdas out of cond and other lax functions. Right now we're almost
+#      definitely suffering catastrophic performance degradation due to the
+#      need to recompile every time a lax function with embedded lambdas is
+#      called.
+#
+#      See: https://github.com/google/jax/issues/5210#issuecomment-747079574
 
 
 class InterpolationError(Exception): pass
@@ -20,32 +28,27 @@ class InterpolationError(Exception): pass
 def hybrid_interpolate(
     data: Tensor,
     mask: Tensor,
-    max_weighted_stage: int = 3,
-    map_to_kernel: Optional[Callable] = None,
+    max_consecutive_linear: int = 3,
     oversampling_frequency: float = 8,
     maximum_frequency: float = 1,
     frequency_thresh: float = 0.3,
-    handle_fail: Literal['orig', 'raise'] = 'orig'
 ) -> Tensor:
     """
     Interpolate unseen time frames using a hybrid approach that combines
-    :func:`weighted <weighted_interpolate>` and
+    :func:`linear <linear_interpolate>` and
     :func:`spectral <spectral_interpolate>`
     methods.
 
-    Hybrid interpolation uses the :func:`weighted <weighted_interpolate>`
-    method for unseen frames that are no more than ``max_weighted_stage``
+    Hybrid interpolation uses the :func:`linear <linear_interpolate>`
+    method for unseen frames that are no more than ``max_consecutive_linear``
     frames away from a seen frame, and the
     :func:`spectral <spectral_interpolate>` method otherwise.
-    (More specifically, if ``map_to_kernel`` is set, it uses the weighted
-    approach if the weighted approach successfully imputes using the kernel
-    returned when the argument to ``map_to_kernel`` is
-    ``max_weighted_stage``.) Imputation proceeds as follows:
+    Imputation proceeds as follows:
 
     * Unseen frames are divided into two groups according to the approach that
       will be used for imputation.
     * Spectral interpolation is applied using the seen time frames.
-    * Weighted interpolation is applied using the seen time frames, together
+    * Linear interpolation is applied using the seen time frames, together
       with the frames interpolated using the spectral method.
 
     Parameters
@@ -57,13 +60,10 @@ def hybrid_interpolate(
         time series is observed. ``True`` indicates that the original data are
         "good" or observed, while ``False`` indicates that they are "bad" or
         missing and flags them for interpolation.
-    max_weighted_stage : int or None (default 3)
-        The final stage of weighted interpolation. The meaning of this is
-        governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
-        argument is otherwise specified, it sets the maximum size of a boxcar
-        window for averaging. By default, a maximum stage of 3 is specified
-        for weighted interpolation; any unseen frames that cannot be imputed
-        using this maximum are instead imputed using the spectral approach.
+    max_consecutive_linear : int or None (default 3)
+        The maximum number of consecutive frames for which the linear method
+        will be used; any unseen frames that cannot be imputed using this
+        maximum are instead imputed using the spectral approach.
     map_to_kernel : callable(int -> tensor)
         A function that uses the integer value of the current stage to create
         a convolutional kernel for weighting of neighbours. By default, a
@@ -95,60 +95,74 @@ def hybrid_interpolate(
     tensor
         Input dataset with missing frames imputed.
     """
-    batch_size = data.shape[0]
-    ##TODO
-    # Right now, we're using the first weighted interpolation only for
-    # determining the frames where spectral interpolation should be applied.
-    # This seems rather wasteful.
-    #print(torch.where(torch.isnan(data)))
-    rec = weighted_interpolate(
-        data=data,
-        mask=mask,
-        start_stage=1,
-        max_stage=max_weighted_stage,
-        map_to_kernel=map_to_kernel
-    )
-    #print(torch.where(torch.isnan(rec)))
-    spec_mask = ~torch.isnan(rec).sum(-2).to(torch.bool)
+    data = atleast_4d(data)
+    mask = atleast_4d(mask)
+    linear_mask, spectral_mask = vmap_over_outer(
+        partial(_partition_mask,
+        max_consecutive=max_consecutive_linear), f_dim=1
+    )((~mask,))
     rec = spectral_interpolate(
-        data=data,
-        tmask=spec_mask,
+        data=data, mask=mask,
         oversampling_frequency=oversampling_frequency,
         maximum_frequency=maximum_frequency,
-        sampling_period=1,
-        thresh=frequency_thresh,
-        handle_fail=handle_fail
+        thresh=frequency_thresh
     )
-    mask = mask.squeeze()
-    if mask.dim() == 1:
-        mask = mask.unsqueeze(0)
-    final_mask = (
-        mask.view(batch_size, -1) +
-        ~spec_mask.view(batch_size, -1)).to(torch.bool)
-    final_mask = (
-        final_mask * ~torch.isnan(rec).squeeze().sum(-2, keepdim=True)
-    ).to(torch.bool).squeeze()
-    final_mask = conform_mask(data, final_mask, axis=-1, batch=True)
-    final_data = torch.where(
-        final_mask,
-        rec,
-        data)
-    rec = weighted_interpolate(
-        data=final_data,
-        mask=final_mask.squeeze(),
-        start_stage=1,
-        max_stage=None,
-        map_to_kernel=map_to_kernel
+    return linear_interpolate(
+        data=rec, mask=~linear_mask
     )
-    if handle_fail == 'orig':
-        rec = torch.where(final_mask, final_data, rec)
-        rec = torch.where(torch.isnan(rec), data, rec)
-        if torch.any(torch.isnan(rec)):
-            raise InterpolationError(
-                'Data are still missing after interpolation. This typically '
-                'occurs when all input data are NaN-valued.')
-        return rec
-    return torch.where(final_mask, final_data, rec)
+
+
+def _partition_mask(
+    mask: Tensor,
+    max_consecutive: int
+) -> Tuple[Tensor, Tensor]:
+    n_consecutive = number_consecutive(mask)
+    lt, gt = jax.lax.scan(
+        partial(_partition_consecutive, max_consecutive=max_consecutive),
+        init=(jnp.array(False), jnp.array(False)),
+        xs=(mask, n_consecutive)
+    )[1]
+    return lt, gt
+
+
+# TODO: This absolutely terrible function is a hack to get around the fact
+#       that it's very difficult to use jax.lax.switch using a list of
+#       conditions.
+#
+#       It's very likely that this function has to recompile at every call,
+#       and we'll need to do something about that.
+def branched_cond(
+    preds: Sequence[bool],
+    branches: Sequence[Tensor],
+    *operands: PyTree
+) -> Tensor:
+    if len(preds) == 1: return branches[0](*operands)
+    return jax.lax.cond(
+        preds[0],
+        branches[0],
+        lambda: branched_cond(preds[1:], branches[1:], *operands),
+        *operands)
+
+
+def _partition_consecutive(
+    carry: Tuple[bool, bool],
+    xs: Tuple[Tensor, Tensor],
+    max_consecutive: int
+) -> Tuple[Tensor, Tensor]:
+    mask, n_consecutive = xs
+    lt, gt = carry
+    preds = (
+        jnp.logical_not(mask),
+        gt | (n_consecutive > max_consecutive),
+        lt | (n_consecutive < max_consecutive)
+    )
+    branches = (
+        lambda: (jnp.array(False), jnp.array(False)),
+        lambda: (jnp.array(False), jnp.array(True)),
+        lambda: (jnp.array(True), jnp.array(False))
+    )
+    out = branched_cond(preds, branches)
+    return out, out
 
 
 def _number_consecutive_impl(carry: int, x: Tensor) -> Tuple[int, int]:
@@ -401,9 +415,6 @@ def _weighted_interpolate_stage(
     kernel: Tensor,
     #orig_data: Tensor,
 ):
-    print(data)
-    print(mask)
-    print(kernel)
     stage_rec_data = reconstruct_weighted(
         data,
         mask,
@@ -441,7 +452,7 @@ def reconstruct_weighted(
 
 def spectral_interpolate(
     data: Tensor,
-    tmask: Tensor,
+    mask: Tensor,
     oversampling_frequency: float = 8,
     maximum_frequency: float = 1,
     sampling_period: float = 1,
@@ -520,7 +531,7 @@ def spectral_interpolate(
         interpolation procedure.
     """
     data = atleast_4d(data)
-    tmask = atleast_4d(tmask)
+    tmask = atleast_4d(mask)
     angular_frequencies, all_samples = _periodogram_cfg(
         n_samples=data.shape[-1],
         sampling_period=sampling_period,
