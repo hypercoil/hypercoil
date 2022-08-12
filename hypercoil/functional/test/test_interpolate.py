@@ -90,9 +90,9 @@ class TestInterpolation:
         seen, t, mask = self.synthesise_data(77, 'interpolate')
 
         rec = hybrid_interpolate(
-            seen.view(3, 1, 1, -1),
-            mask.view(3, 1, 1, -1),
-            max_weighted_stage=5,
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1),
+            max_consecutive_linear=15,
             frequency_thresh=0.8
         )
 
@@ -103,9 +103,9 @@ class TestInterpolation:
         seen, t, mask = self.synthesise_data(77, 'extrapolate')
 
         rec = hybrid_interpolate(
-            seen.view(3, 1, 1, -1),
-            mask.view(3, 1, 1, -1),
-            max_weighted_stage=5,
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1),
+            max_consecutive_linear=15,
             frequency_thresh=0.9
         )
 
