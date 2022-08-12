@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from collections.abc import Iterable
 from itertools import repeat
 from typing import Callable, List, Literal, Optional, Sequence, Tuple, Union
-from .utils import Tensor
+from .utils import Tensor, atleast_4d
 
 
 torch_dims = {
@@ -30,25 +30,6 @@ def _ntuple(n: int) -> Callable:
             return tuple(x)
         return tuple(repeat(x, n))
     return parse
-
-
-def atleast_4d(*pparams) -> Tensor:
-    res = []
-    for p in pparams:
-        if p.ndim == 0:
-            result = p.reshape(1, 1, 1, 1)
-        elif p.ndim == 1:
-            result = p[None, None, None, ...]
-        elif p.ndim == 2:
-            result = p[None, None, ...]
-        elif p.ndim == 3:
-            result = p[None, ...]
-        else:
-            result = p
-        res.append(result)
-        if len(res) == 1:
-            return res[0]
-    return res
 
 
 def conv(

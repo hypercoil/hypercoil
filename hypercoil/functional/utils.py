@@ -19,28 +19,31 @@ Tensor = Any
 PyTree = Any
 
 
+def atleast_4d(*pparams) -> Tensor:
+    res = []
+    for p in pparams:
+        if p.ndim == 0:
+            result = p.reshape(1, 1, 1, 1)
+        elif p.ndim == 1:
+            result = p[None, None, None, ...]
+        elif p.ndim == 2:
+            result = p[None, None, ...]
+        elif p.ndim == 3:
+            result = p[None, ...]
+        else:
+            result = p
+        res.append(result)
+        if len(res) == 1:
+            return res[0]
+    return res
+
+
 def _conform_vector_weight(weight: Tensor) -> Tensor:
     if weight.ndim == 1:
         return weight
     if weight.shape[-2] != 1:
         return weight[..., None, :]
     return weight
-
-
-# def apply_vmap_over_outer(
-#     x: PyTree,
-#     f: Callable,
-#     f_dim: int
-# ) -> Tensor:
-#     """
-#     Apply a tensor-valued function to the outer dimensions of a tensor.
-#     """
-#     return reduce(
-#         lambda x, g: g(x),
-#         [partial(vmap, in_axes=i, out_axes=i)
-#          for i in range(0, x.ndim - f_dim)],
-#         f
-#     )(x)
 
 
 def _dim_or_none(x, i):

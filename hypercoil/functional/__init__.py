@@ -82,6 +82,7 @@ from .tsconv import (
     conv, polychan, polyconv2d, basischan, basisconv2d, tsconv2d
 )
 from .utils import (
+    atleast_4d,
     complex_decompose,
     complex_recompose,
     conform_mask,
