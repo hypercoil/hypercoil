@@ -6,13 +6,14 @@ Crosshair-kernel similarity
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Localised similarity functions over a crosshair kernel.
 """
-import torch
 from .crosshair import (
     crosshair_dot,
     crosshair_norm_l1,
     crosshair_norm_l2
 )
-from .matrix import expand_outer
+
+
+#TODO: There are no tests run for correctness of any of these functions.
 
 
 def crosshair_similarity(X, W):
@@ -53,7 +54,7 @@ def crosshair_similarity(X, W):
         Output data channels resulting from applying the template to the input
         dataset.
     """
-    return crosshair_dot(X.unsqueeze(-4), W).sum(-3)
+    return crosshair_dot(X[..., None, :, :, :], W).sum(-3)
 
 
 def crosshair_cosine_similarity(X, W):
@@ -94,8 +95,10 @@ def crosshair_cosine_similarity(X, W):
         Output data channels resulting from applying the template to the input
         dataset.
     """
-    num = crosshair_dot(X.unsqueeze(-4), W)
-    denom0 = crosshair_norm_l2(X.unsqueeze(-4))
+    X_dim_exp = X[..., None, :, :, :]
+    num = crosshair_dot(X_dim_exp, W)
+    num = crosshair_dot(X_dim_exp, W)
+    denom0 = crosshair_norm_l2(X_dim_exp)
     denom1 = crosshair_norm_l2(W)
     return (num / (denom0 * denom1)).sum(-3)
 
@@ -138,7 +141,7 @@ def crosshair_l1_similarity(X, W):
         Output data channels resulting from applying the template to the input
         dataset.
     """
-    diff = X.unsqueeze(-4) - W
+    diff = X[..., None, :, :, :] - W
     return crosshair_norm_l1(diff).sum(-3)
 
 
@@ -180,5 +183,5 @@ def crosshair_l2_similarity(X, W):
         Output data channels resulting from applying the template to the input
         dataset.
     """
-    diff = X.unsqueeze(-4) - W
+    diff = X[..., None, :, :, :] - W
     return crosshair_norm_l2(diff).sum(-3)
