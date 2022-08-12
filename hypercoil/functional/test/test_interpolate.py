@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 from pkg_resources import resource_filename as pkgrf
 from hypercoil.functional.interpolate import (
     hybrid_interpolate, spectral_interpolate,
-    weighted_interpolate, centred_square_kernel,
-    _weighted_interpolate_stage
+    linear_interpolate, weighted_interpolate,
+    centred_square_kernel, _weighted_interpolate_stage
 )
 
 
@@ -111,6 +111,26 @@ class TestInterpolation:
 
         self.plot_figure(rec, seen, t, 'hybrid-extrapolate')
 
+    def test_linear_interpolate(self):
+        seen, t, mask = self.synthesise_data(77, 'interpolate')
+
+        rec = linear_interpolate(
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1)
+        )
+
+        self.plot_figure(rec, seen, t, 'linear-interpolate')
+
+    def test_linear_extrapolate(self):
+        seen, t, mask = self.synthesise_data(77, 'extrapolate')
+
+        rec = linear_interpolate(
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1)
+        )
+
+        self.plot_figure(rec, seen, t, 'linear-extrapolate')
+
     def test_spectral_interpolate(self):
         seen, t, mask = self.synthesise_data(77, 'interpolate')
 
@@ -133,7 +153,6 @@ class TestInterpolation:
 
         self.plot_figure(rec, seen, t, 'weighted-interpolate')
 
-
     def test_weighted_interpolate_single_stage(self):
         seen, t, mask = self.synthesise_data(77, 'interpolate')
 
@@ -142,7 +161,6 @@ class TestInterpolation:
         rec = np.where(mask, rec, float('nan'))
 
         self.plot_figure(rec, seen, t, 'weighted-singlestage2-interpolate')
-
 
     def test_default_kernel(self):
         max_stage = 5
