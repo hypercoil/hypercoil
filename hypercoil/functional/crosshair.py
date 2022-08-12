@@ -6,7 +6,7 @@ Crosshair kernel
 ~~~~~~~~~~~~~~~~
 Elementary operations over a crosshair kernel.
 """
-import torch
+import jax.numpy as jnp
 
 
 def crosshair_dot(A, B, row=-2, col=-1):
@@ -46,8 +46,8 @@ def crosshair_dot(A, B, row=-2, col=-1):
     crosshair_dot_gen: Extend the kernel over more than 2 dimensions.
     """
     prod = A * B
-    rows = prod.sum(row, keepdim=True)
-    cols = prod.sum(col, keepdim=True)
+    rows = prod.sum(row, keepdims=True)
+    cols = prod.sum(col, keepdims=True)
     return rows + cols - prod
 
 
@@ -80,7 +80,7 @@ def crosshair_norm_l2(A, row=-2, col=-1):
         Tensor in which each entry contains the norm of the entries of the
         input matrix computed over a crosshair-shaped kernel.
     """
-    return torch.sqrt(crosshair_dot(A, A, row=row, col=col))
+    return jnp.sqrt(crosshair_dot(A, A, row=row, col=col))
 
 
 def crosshair_norm_l1(A, row=-2, col=-1):
@@ -112,12 +112,13 @@ def crosshair_norm_l1(A, row=-2, col=-1):
         Tensor in which each entry contains the norm of the entries of the
         input matrix computed over a crosshair-shaped kernel.
     """
-    abs = torch.abs(A)
-    rows = abs.sum(row, keepdim=True)
-    cols = abs.sum(col, keepdim=True)
+    abs = jnp.abs(A)
+    rows = abs.sum(row, keepdims=True)
+    cols = abs.sum(col, keepdims=True)
     return rows + cols - abs
 
 
+#TODO: marking this as an experimental function
 def crosshair_dot_gen(A, B, axes=(-2, -1)):
     """
     A generalised version of the crosshair dot product where the crosshair can
@@ -129,7 +130,7 @@ def crosshair_dot_gen(A, B, axes=(-2, -1)):
     repeats = len(axes) - 1
     axis_sum = [None for _ in axes]
     for i, ax in enumerate(axes):
-        axis_sum[i] = prod.sum(ax, keepdim=True)
+        axis_sum[i] = prod.sum(ax, keepdims=True)
     out = axis_sum[0]
     for a in axis_sum[1:]:
         out = out + a
