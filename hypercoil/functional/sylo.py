@@ -13,6 +13,7 @@ from .matrix import expand_outer
 from .crosssim import crosshair_similarity
 
 
+#TODO: marking this as an experimental function (or add some tests)
 def sylo(X, L, R=None, C=None, bias=None, symmetry=None,
          similarity=crosshair_similarity):
     r"""

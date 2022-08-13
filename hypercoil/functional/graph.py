@@ -11,7 +11,7 @@ from jax.nn import relu
 from jax.experimental.sparse import BCOO
 from typing import Callable, Literal, Optional, Union
 from .matrix import delete_diagonal, fill_diagonal
-from hypercoil.functional.utils import Tensor, vmap_over_outer
+from hypercoil.functional.utils import Tensor, vmap_over_outer, is_sparse
 
 
 def girvan_newman_null(A: Tensor) -> Tensor:
@@ -320,7 +320,7 @@ def degree(W: Tensor) -> Tensor:
     # TODO: technically, we *have* implemented this for sparse graphs in the
     # ``_sparse_laplacian`` function, but it involves some overhead that makes
     # a separate implementation useless for our purposes.
-    if isinstance(W, BCOO):
+    if is_sparse(W):
         raise NotImplementedError
     return W.sum(-1)
 
@@ -381,9 +381,8 @@ def graph_laplacian(
         Number of nodes in the graph, if it is sparse. Forwarded to
         ``get_laplacian`` in ``torch_geometric``.
     """
-    #TODO: This will not work if JAX ever adds sparse formats other than BCOO.
-    #      I wonder if ``sparsify`` will work here. Ha ha, I'm a silly person.
-    if isinstance(W, BCOO):
+    # I wonder if ``sparsify`` will work here. Ha ha, I'm a silly person.
+    if is_sparse(W):
         return _sparse_laplacian(W=W, normalise=normalise)
     deg = degree(W)
     D = vmap_over_outer(jnp.diagflat, 1)((deg,))

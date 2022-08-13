@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import torch
 from jax import vmap
 from jax.tree_util import tree_map, tree_reduce
+from jax.experimental.sparse import BCOO
 from functools import partial, reduce
 from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
@@ -36,6 +37,11 @@ def atleast_4d(*pparams) -> Tensor:
         if len(res) == 1:
             return res[0]
     return res
+
+
+#TODO: This will not work if JAX ever adds sparse formats other than BCOO.
+def is_sparse(X):
+    return isinstance(X, BCOO)
 
 
 def _conform_vector_weight(weight: Tensor) -> Tensor:
