@@ -306,17 +306,6 @@ def amplitude_apply(func: Callable) -> Callable:
     return wrapper
 
 
-def _promote_nnz_dim(values):
-    return values.permute(list(range(values.dim()))[::-1])
-    # slightly faster but not as easy to implement
-    #return values.permute((*list(range(values.dim()))[1:], 0))
-
-
-def _demote_nnz_dim(values):
-    return _promote_nnz_dim(values)
-    #return values.permute((-1, *list(range(values.dim()))[:-1]))
-
-
 def _conform_dims(A_values, B_values):
     A_shape = A_values.shape[1:]
     B_shape = B_values.shape[1:]

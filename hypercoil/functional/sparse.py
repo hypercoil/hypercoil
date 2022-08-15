@@ -118,3 +118,14 @@ def spspmm(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
     out_indices = out_indices.reshape(out_nse, -1)
     out_data = out_data.reshape(out_nse, *dense_dim_out)
     return BCOO((out_data, out_indices), shape=out_shape)
+
+
+def _promote_nnz_dim(values):
+    return jnp.transpose(values, list(range(values.ndim))[::-1])
+    # slightly faster but not as easy to implement
+    #return jnp.transpose(values, (*list(range(values.ndim))[1:], 0))
+
+
+def _demote_nnz_dim(values):
+    return _promote_nnz_dim(values)
+    #return jnp.transpose(values, (-1, *list(range(values.dim()))[:-1]))
