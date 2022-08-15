@@ -14,11 +14,12 @@ We use the following convention for sparse matrices:
   is greater relative to minimal sparse schemes. However, this scheme also
   benefits from the ability to vectorise operations on the batch.
 - The leading dimensions of the matrix are the sparse dimensions.
-- The final dimension is the batch dimension.
+- The final, dense dimension is the batch dimension.
 
 It's possible -- very likely -- that we'll eventually figure out that this
-isn't the best way to represent sparse matrices. If so, we'll probably
-want to change the interface of this module.
+isn't the best way to represent the kinds of sparse matrices that we work
+with. If so, we'll want to change the interfaces in this module. As such,
+any contents of this module should be considered experimental.
 """
 import jax
 import jax.numpy as jnp
@@ -28,16 +29,16 @@ from typing import Sequence
 from .utils import Tensor
 
 
-def random_sparse(key, shape, density=0.1, dtype=jnp.float32):
+def random_sparse(key, shape, density=0.1):
     """
     Generate a random sparse matrix.
     """
     n = jnp.prod(jnp.array(shape))
-    nnz = int(density * n)
+    nse = int(density * n)
     k1, k2 = jax.random.split(key)
-    indices = jax.random.choice(k1, a=n, shape=(nnz,), replace=False)
+    indices = jax.random.choice(k1, a=n, shape=(nse,), replace=False)
     indices = jnp.stack(jnp.unravel_index(indices, shape), axis=-1)
-    data = jax.random.normal(k2, (nnz,))
+    data = jax.random.normal(k2, (nse,))
     return BCOO((data, indices), shape=shape).sum_duplicates()
 
 
@@ -63,3 +64,57 @@ def to_batch(matrices: Sequence[Tensor]) -> Tensor:
         (data, indices),
         shape=(*matrices[0].shape, batch_size)
     ).sum_duplicates()
+
+
+def _get_dense_dim_mm(lhs, rhs):
+    """
+    Get the dense dimension of the matrix multiplication.
+    """
+    lhs_dims = lhs.data.shape[1:]
+    rhs_dims = rhs.data.shape[1:]
+    # we don't check for broadcastability here
+    return [max(l, r) for l, r in zip(lhs_dims, rhs_dims)]
+
+
+def spspmm(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
+    """
+    Sparse-sparse matrix multiplication with vectorisation over any dense
+    dimensions.
+    """
+    # lhs_shape = lhs.shape
+    # rhs_shape = rhs.shape
+    # lhs_dims = list(lhs_shape[:-lhs.n_dense])
+    # rhs_dims = list(rhs_shape[:-lhs.n_dense])
+    # lhs_dims[outer_dims[0]] = lhs_dims[inner_dims[0]] = None
+    # rhs_dims[outer_dims[0]] = rhs_dims[inner_dims[0]] = None
+
+    # only support 2D sparse for now
+    assert lhs.n_sparse == rhs.n_sparse == 2
+    dense_dim_out = _get_dense_dim_mm(lhs, rhs)
+    out_shape = (
+        lhs.shape[outer_dims[0]],
+        rhs.shape[outer_dims[1]],
+        *dense_dim_out
+    )
+
+    out_nse = lhs.nse * rhs.nse # memory use scales as product of NSEs
+    lhs_data = lhs.data[None, ...]
+    rhs_data = rhs.data[:, None, ...]
+
+    lhs_contract_dim, rhs_contract_dim = inner_dims
+    lhs_contract_idx = lhs.indices[:, lhs_contract_dim][None, :]
+    rhs_contract_idx = rhs.indices[:, rhs_contract_dim][:, None]
+    out_nonzero = (lhs_contract_idx == rhs_contract_idx)
+    extra_idx = [None] * len(dense_dim_out)
+    out_nonzero = out_nonzero[tuple([...] + extra_idx)]
+    out_data = jnp.where(out_nonzero, lhs_data * rhs_data, 0.)
+
+    lhs_indices = jnp.ones_like(lhs.indices).at[:, -2].set(
+        lhs.indices[:, outer_dims[0]])
+    rhs_indices = jnp.ones_like(rhs.indices).at[:, -1].set(
+        rhs.indices[:, outer_dims[1]])
+    out_indices = (lhs_indices[None, ...] * rhs_indices[:, None, ...])
+
+    out_indices = out_indices.reshape(out_nse, -1)
+    out_data = out_data.reshape(out_nse, *dense_dim_out)
+    return BCOO((out_data, out_indices), shape=out_shape)
