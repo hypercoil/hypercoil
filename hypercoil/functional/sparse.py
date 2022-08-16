@@ -115,6 +115,89 @@ def spspmm_full(
     )
 
 
+def select_indices(
+    tensor: Tensor,
+    threshold: float = 0.0,
+    threshold_type: Literal['abs>', 'abs<' '>', '<'] = 'abs>',
+    top_k: bool = True,
+    top_k_reduction: Optional[Literal['mean']] = 'mean',
+    fix_indices_over_channel_dims: bool = True,
+) -> Tensor:
+    """
+    Select indices from a tensor (e.g., in preparation for sparsification).
+
+    The input can be a boolean matrix, in which case the output contains the
+    indices of True entries. The input can also be a matrix with values, in
+    which case the output contains the indices of entries that survive the
+    thresholding operation.
+
+    .. warning::
+        This function is not compatible with JIT compilation.
+
+    .. warning::
+        If the input is batched or contains multiple channels, the ``top_k``
+        option will return separate indices for each channel and each batch
+        element. Ensure that ``top_k_reduction`` is set to ``'mean'`` to
+        obtain a single index across all batch elements (and potentially
+        channels, according to ``fix_indices_over_channel_dims``).
+
+    Parameters
+    ----------
+    tensor : Tensor
+        The input tensor.
+    threshold : float (default: 0.0)
+        The threshold value. Used only if the input matrices are matrices with
+        values.
+    threshold_type : one of 'abs>', 'abs<', '>', '<' (default: 'abs>')
+        The type of thresholding operation to perform.
+    top_k : bool (default: False)
+        If True, then the threshold value must be an integer, and the
+        thresholding operation will be replaced by selection of the top k
+        entries.
+    fix_indices_over_channel_dims : bool (default: True)
+        If True, then the indices of nonzero entries that are returned will
+        be fixed over all channel dimensions. If False, then the indices of
+        nonzero entries that are returned are allowed to vary over all channel
+        dimensions.
+    """
+    if fix_indices_over_channel_dims:
+        fixed_axes = tuple(range(tensor.ndim - 2))
+    else:
+        fixed_axes = (0,)
+    if tensor.dtype == jnp.bool_:
+        data = tensor.any(axis=fixed_axes)
+        return jnp.stack(jnp.where(tensor), axis=-1)
+    elif not top_k:
+        if threshold_type == 'abs>':
+            tensor = jnp.abs(tensor) > threshold
+        elif threshold_type == 'abs<':
+            tensor = jnp.abs(tensor) < threshold
+        elif threshold_type == '>':
+            tensor = tensor > threshold
+        elif threshold_type == '<':
+            tensor = tensor < threshold
+        tensor = tensor.any(axis=fixed_axes)
+        return jnp.stack(jnp.where(tensor), axis=-1)
+    else:
+        if top_k_reduction == 'mean':
+            tensor = tensor.mean(axis=fixed_axes)
+        if not isinstance(threshold, int):
+            raise ValueError(
+                'If topk is True, then the threshold value must be an integer.'
+            )
+        if threshold_type == 'abs>':
+            descending = True
+            tensor = jnp.abs(tensor)
+        elif threshold_type == 'abs<':
+            descending = False
+            tensor = jnp.abs(tensor)
+        elif threshold_type == '>':
+            descending = True
+        elif threshold_type == '<':
+            descending = False
+        return topk(tensor, k=threshold, axis=-1, descending=descending)[..., None]
+
+
 def trace_spspmm(
     lhs: TopKTensor,
     rhs: TopKTensor,
@@ -166,42 +249,14 @@ def trace_spspmm(
     """
     out = spspmm_full(lhs, rhs)
     data = out.data.squeeze(-1)
-    if fix_indices_over_channel_dims:
-        fixed_axes = tuple(range(lhs.ndim - 2))
-    else:
-        fixed_axes = (0,)
-    if lhs.dtype == jnp.bool_:
-        data = data.any(axis=fixed_axes)
-        return jnp.stack(jnp.where(data), axis=-1)
-    elif not top_k:
-        if threshold_type == 'abs>':
-            data = jnp.abs(data) > threshold
-        elif threshold_type == 'abs<':
-            data = jnp.abs(data) < threshold
-        elif threshold_type == '>':
-            data = data > threshold
-        elif threshold_type == '<':
-            data = data < threshold
-        data = data.any(axis=fixed_axes)
-        return jnp.stack(jnp.where(data), axis=-1)
-    else:
-        if top_k_reduction == 'mean':
-            data = data.mean(axis=fixed_axes)
-        if not isinstance(threshold, int):
-            raise ValueError(
-                'If topk is True, then the threshold value must be an integer.'
-            )
-        if threshold_type == 'abs>':
-            descending = True
-            data = jnp.abs(data)
-        elif threshold_type == 'abs<':
-            descending = False
-            data = jnp.abs(data)
-        elif threshold_type == '>':
-            descending = True
-        elif threshold_type == '<':
-            descending = False
-        return topk(data, k=threshold, axis=-1, descending=descending)[..., None]
+    return select_indices(
+        data,
+        threshold=threshold,
+        threshold_type=threshold_type,
+        top_k=top_k,
+        top_k_reduction=top_k_reduction,
+        fix_indices_over_channel_dims=fix_indices_over_channel_dims,
+    )
 
 
 def _ix(x, i): return x[i]
