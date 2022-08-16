@@ -6,8 +6,9 @@ Unit tests for sparse matrix utilities.
 """
 import jax
 import numpy as np
+import jax.numpy as jnp
 from hypercoil.functional.sparse import(
-    random_sparse,
+    random_sparse, spdiagmm, spspmm_full,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal
 )
 
@@ -22,6 +23,33 @@ class TestSparse:
         assert out.shape == (4, 3, 1000, 1000)
         assert out.indices.shape == (1, 1, 1000, 5, 1)
         assert out.data.shape == (4, 3, 1000, 5)
+
+    def test_spdiagmm(self):
+        sp = random_sparse(
+            (4, 3, 100, 100),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        diag = np.random.randn(3, 100)
+        diag_embed = jax.vmap(jnp.diagflat, in_axes=(0,))(diag)
+
+        ref_rhsdiag = sp.todense() @ diag_embed
+        out_rhsdiag = spdiagmm(sp, diag).todense()
+        assert np.allclose(out_rhsdiag, ref_rhsdiag)
+
+        ref_lhsdiag = diag_embed @ sp.todense()
+        out_lhsdiag = spdiagmm(diag, sp, lhs_diag=True).todense()
+        assert np.allclose(out_lhsdiag, ref_lhsdiag)
+
+    def test_spspmm_full(self):
+        sp = random_sparse(
+            (4, 3, 100, 100),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        out = spspmm_full(sp, sp).todense()
+        ref = sp.todense() @ sp.todense().swapaxes(-1, -2)
+        assert np.allclose(out, ref)
 
     def test_sparse_batch_batchfinal(self):
         shape = (10, 10)
