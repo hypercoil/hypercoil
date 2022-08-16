@@ -120,7 +120,7 @@ def trace_spspmm(
     rhs: TopKTensor,
     threshold: float = 0.0,
     threshold_type: Literal['abs>', 'abs<' '>', '<'] = 'abs>',
-    top_k: bool = False,
+    top_k: bool = True,
     top_k_reduction: Optional[Literal['mean']] = 'mean',
     fix_indices_over_channel_dims: bool = True,
 ) -> Tensor:
@@ -233,6 +233,9 @@ def as_topk(
     *,
     descending: bool = True,
 ) -> TopKTensor:
+    """
+    Convert a tensor to a top-k sparse matrix format.
+    """
     #TODO: allow user to specify axis (?)
     indices = topk(tensor, k, axis=-1, descending=descending)
     #axc = axis_complement(tensor.ndim, axis)

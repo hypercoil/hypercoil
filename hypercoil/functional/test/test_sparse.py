@@ -86,25 +86,25 @@ class TestSparse:
         )
 
         spb = sparse_astype(sp, jnp.bool_)
-        out = trace_spspmm(spb, spb)
+        out = trace_spspmm(spb, spb, top_k=False)
         assert out.shape[-1] == 2
 
-        out0 = trace_spspmm(sp, sp, threshold=5,
+        out0 = trace_spspmm(sp, sp, threshold=5, top_k=False,
                             threshold_type='abs>',
                             fix_indices_over_channel_dims=False)
-        out1 = trace_spspmm(sp, sp, threshold=5,
+        out1 = trace_spspmm(sp, sp, threshold=5, top_k=False,
                             threshold_type='abs<',
                             fix_indices_over_channel_dims=False)
         assert out0.shape[-1] == out1.shape[-1] == 3
         assert out0.shape[0] + out1.shape[0] == sp.shape[-1] * sp.shape[-2] * sp.shape[-3]
 
-        out0 = trace_spspmm(sp, sp, threshold=0,
+        out0 = trace_spspmm(sp, sp, threshold=0, top_k=False,
                             threshold_type='>',
                             fix_indices_over_channel_dims=False)
-        out1 = trace_spspmm(sp, sp, threshold=0,
+        out1 = trace_spspmm(sp, sp, threshold=0, top_k=False,
                             threshold_type='<',
                             fix_indices_over_channel_dims=False)
-        out2 = trace_spspmm(spb, spb,
+        out2 = trace_spspmm(spb, spb, top_k=False,
                             fix_indices_over_channel_dims=False)
         assert out0.shape[-1] == out1.shape[-1] == out2.shape[-1] == 3
         assert out0.shape[0] + out1.shape[0] == out2.shape[0]
