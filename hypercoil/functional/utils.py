@@ -8,6 +8,7 @@ blemish.
 """
 import jax.numpy as jnp
 import torch
+import distrax
 from jax import vmap
 from jax.tree_util import tree_map, tree_reduce
 from jax.experimental.sparse import BCOO
@@ -18,6 +19,7 @@ from typing import Any, Callable, Optional, Sequence, Tuple, Union
 #TODO: replace with jaxtyping at some point
 Tensor = Any
 PyTree = Any
+Distribution = distrax.Distribution
 
 
 def atleast_4d(*pparams) -> Tensor:
@@ -59,6 +61,15 @@ def _dim_or_none(x, i):
     return proposal
 
 
+def _compose(
+    f: Any,
+    g: Callable,
+) -> Any:
+    return g(f)
+
+
+#TODO: use chex to evaluate how often this has to compile when using
+#      jit + vmap_over_outer
 def apply_vmap_over_outer(
     x: PyTree,
     f: Callable,
@@ -74,7 +85,8 @@ def apply_vmap_over_outer(
     #    for i in range(0, ndmax + 1)
     #])
     return reduce(
-        lambda x, g: g(x),
+        _compose,
+        #lambda x, g: g(x),
         [partial(
             vmap,
             in_axes=tree_map(partial(_dim_or_none, i=i - ndmax), ndim),
