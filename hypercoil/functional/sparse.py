@@ -23,11 +23,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.experimental.sparse import BCOO
-from typing import Any, Literal, Optional, Sequence, Union
+from typing import Any, Literal, Optional, Sequence, Tuple, Union
 
 from torch import threshold
 
-from .utils import Tensor
+from .utils import Tensor, vmap_over_outer
 
 
 TopKTensor = Any
@@ -97,6 +97,44 @@ def spspmm_full(
     )
 
 
+def _ix(x, i): return x[i]
+
+
+def topk(
+    tensor: Tensor,
+    k: int,
+    *,
+    axis: int = -1,
+    descending: bool = True,
+) -> Tensor:
+    """
+    Select the top k entries of a tensor and return the indices in a format
+    compatible with the top-k sparse matrix format.
+    """
+    if descending:
+        tensor = -tensor
+    arr = np.array(tensor)
+    slc = [slice(None)] * arr.ndim
+    slc[axis] = slice(None, k)
+    slc = tuple(slc)
+    return np.argpartition(arr, k - 1, axis=axis)[slc]
+
+
+def as_topk(
+    tensor: Tensor,
+    k: int,
+    *,
+    descending: bool = True,
+) -> TopKTensor:
+    #TODO: allow user to specify axis (?)
+    indices = topk(tensor, k, axis=-1, descending=descending)
+    #axc = axis_complement(tensor.ndim, axis)
+    data_fn = vmap_over_outer(_ix, 1)
+    data = data_fn((tensor, indices))
+    return BCOO((data, indices[..., None]), shape=tensor.shape)
+
+
+# We temporarily need this obvious placeholder for importing the module.
 spspmm = lambda lhs, rhs: 0
 
 
