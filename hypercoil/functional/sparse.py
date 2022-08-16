@@ -21,10 +21,16 @@ the following properties:
 from functools import partial
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax.experimental.sparse import BCOO
-from typing import Optional, Sequence
+from typing import Any, Literal, Optional, Sequence, Union
+
+from torch import threshold
 
 from .utils import Tensor
+
+
+TopKTensor = Any
 
 
 def random_sparse(
@@ -47,6 +53,51 @@ def random_sparse(
     idx_unsqueeze = tuple([None] * (1 + len(channel_dims)) + [...])
     data = jax.random.normal(dkey, (batch_size, *channel_dims, n_rows, k))
     return BCOO((data, indices[idx_unsqueeze]), shape=shape).sum_duplicates()
+
+
+def spdiagmm(
+    lhs: Union[Tensor, TopKTensor],
+    rhs: Union[Tensor, TopKTensor],
+    lhs_diag: bool = False
+) -> TopKTensor:
+    """
+    Matrix multiplication of a top-k format sparse matrix with a diagonal
+    matrix. Returns a sparse matrix in the top-k format.
+
+    The diagonal matrix should be formatted as a vector or batch of vectors
+    whose final dimension is equal to the matching inner dimension of the
+    top-k sparse matrix. All other dimensions should be broadcastable.
+
+    A diagonal matrix that is in matrix form can be converted into a vector by
+    calling a ``diagonal`` function that is appropriately vmapped.
+    """
+    if lhs_diag:
+        data = lhs[..., None] * rhs.data
+        indices = rhs.indices
+        shape = rhs.shape
+    else:
+        data = lhs.data * rhs[..., tuple(lhs.indices.squeeze())]
+        indices = lhs.indices
+        shape = lhs.shape
+    return BCOO((data, indices), shape=shape)
+
+
+def spspmm_full(
+    lhs: TopKTensor,
+    rhs: TopKTensor
+) -> Tensor:
+    """
+    Matrix multiplication of a top-k format sparse matrix with another sparse
+    matrix in the top-k format. Returns a full matrix.
+    """
+    contracting_dims = ((lhs.ndim - 1,), (rhs.ndim - 1,))
+    batch_dims = (tuple(range(lhs.ndim - 2)), tuple(range(rhs.ndim - 2)))
+    return jax.experimental.sparse.bcoo_dot_general(
+        lhs, rhs, dimension_numbers=(contracting_dims, batch_dims)
+    )
+
+
+spspmm = lambda lhs, rhs: 0
 
 
 def random_sparse_batchfinal(key, shape, density=0.1):
@@ -145,20 +196,20 @@ def spspmm_batchfinal(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
     return BCOO((out_data, out_indices), shape=out_shape)
 
 
-def spspmm(lhs, rhs, inner_dims=(1, 1), batch_dims=(0, 0)):
-    contracting_dims = ((inner_dims[0],), (inner_dims[1],))
-    batch_dims = ((batch_dims[0],), (batch_dims[1],))
-    dimension_numbers = (contracting_dims, batch_dims)
-    return jax.experimental.sparse.bcoo_dot_general(
-        lhs, rhs, dimension_numbers=dimension_numbers
-    )
-    # print(dimension_numbers)
-    # fwd = jax.vmap(
-    #     partial(jax.experimental.sparse.bcoo_dot_general,
-    #             dimension_numbers=dimension_numbers),
-    #     in_axes=batch_dims
-    # )
-    # return fwd(lhs, rhs)
+# def spspmm(lhs, rhs, inner_dims=(1, 1), batch_dims=(0, 0)):
+#     contracting_dims = ((inner_dims[0],), (inner_dims[1],))
+#     batch_dims = ((batch_dims[0],), (batch_dims[1],))
+#     dimension_numbers = (contracting_dims, batch_dims)
+#     return jax.experimental.sparse.bcoo_dot_general(
+#         lhs, rhs, dimension_numbers=dimension_numbers
+#     )
+#     print(dimension_numbers)
+#     fwd = jax.vmap(
+#         partial(jax.experimental.sparse.bcoo_dot_general,
+#                 dimension_numbers=dimension_numbers),
+#         in_axes=batch_dims
+#     )
+#     return fwd(lhs, rhs)
 
 
 def _promote_nnz_dim(values):
