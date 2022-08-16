@@ -2,36 +2,56 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Utilities for batch-final, common-index COO sparse matrices.
+Utilities for operations on various BCOO sparse matrix formats.
 
-We use the following convention for sparse matrices:
-- Sparse matrices are represented using the BCOO format.
-- All members of a batch are stored in a single COO matrix.
-- All members of a batch are indexed by a common index. In other words, any
-  entry that is non-zero in a batch member is also non-zero in all other batch
-  members, or else must be encoded using an explicit zero entry. A consequence
-  of this scheme is that the memory cost of representing a batch of matrices
-  is greater relative to minimal sparse schemes. However, this scheme also
-  benefits from the ability to vectorise operations on the batch.
-- The leading dimensions of the matrix are the sparse dimensions.
-- The final, dense dimension is the batch dimension.
+Top-k BCOO format
+-----------------
 
-It's possible -- very likely -- that we'll eventually figure out that this
-isn't the best way to represent the kinds of sparse matrices that we work
-with. If so, we'll want to change the interfaces in this module. As such,
-any contents of this module should be considered experimental.
+One common BCOO sparse format that is useful in many applications, such as
+connectopic mapping, is the top-k format. This format is a sparse matrix with
+the following properties:
+- Each row has no more than k non-zero entries.
+- The indices of nonzero entries are shared across all batch elements.
+- The indexing tensor has shape (..., ``n_rows``, ``k``, 1) where ``...``
+  indicates a number of leading singleton dimensions equal to the number of
+  ``channel_dims`` + 1.
+- The data tensor has shape
+  (``batch_size``, ``*channel_dims``, ``n_rows``, ``k``).
 """
+from functools import partial
 import jax
 import jax.numpy as jnp
 from jax.experimental.sparse import BCOO
-from typing import Sequence
+from typing import Optional, Sequence
 
 from .utils import Tensor
 
 
-def random_sparse(key, shape, density=0.1):
+def random_sparse(
+    shape: Sequence[int],
+    k: Optional[int] = None,
+    *,
+    key: jax.random.PRNGKey,
+) -> Tensor:
     """
-    Generate a random sparse matrix.
+    Generate a batch of random sparse matrices in the top-k format.
+    """
+    if k is None: k = max(shape[-1] // 100, 1)
+    batch_size, *channel_dims, n_rows, n_cols = shape
+    ikey, dkey = jax.random.split(key)
+    ikeys = jax.random.split(ikey, n_rows)
+    indices = jnp.stack([
+        jax.random.choice(i, a=n_cols, shape=(k, 1), replace=False)
+        for i in ikeys
+    ], axis=0)
+    idx_unsqueeze = tuple([None] * (1 + len(channel_dims)) + [...])
+    data = jax.random.normal(dkey, (batch_size, *channel_dims, n_rows, k))
+    return BCOO((data, indices[idx_unsqueeze]), shape=shape).sum_duplicates()
+
+
+def random_sparse_batchfinal(key, shape, density=0.1):
+    """
+    Generate a random sparse matrix in batch-final COO format.
     """
     n = jnp.prod(jnp.array(shape))
     nse = int(density * n)
@@ -42,7 +62,7 @@ def random_sparse(key, shape, density=0.1):
     return BCOO((data, indices), shape=shape).sum_duplicates()
 
 
-def to_batch(matrices: Sequence[Tensor]) -> Tensor:
+def to_batch_batchfinal(matrices: Sequence[Tensor]) -> Tensor:
     """
     Convert a sequence of sparse matrices to a batch of matrices using the
     batch-final, common-index COO format.
@@ -66,7 +86,7 @@ def to_batch(matrices: Sequence[Tensor]) -> Tensor:
     ).sum_duplicates()
 
 
-def _get_dense_dim_mm(lhs, rhs):
+def _get_dense_dim_mm_batchfinal(lhs, rhs):
     """
     Get the dense dimension of the matrix multiplication.
     """
@@ -76,10 +96,15 @@ def _get_dense_dim_mm(lhs, rhs):
     return [max(l, r) for l, r in zip(lhs_dims, rhs_dims)]
 
 
-def spspmm(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
+def spspmm_batchfinal(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
     """
-    Sparse-sparse matrix multiplication with vectorisation over any dense
+    Sparse-sparse matrix multiplication with vectorisation over trailing dense
     dimensions.
+
+    .. note::
+        This function is not recommended for use. It is maintained in case
+        it is useful in the future. It is strongly recommended that you use
+        the top-k format instead.
     """
     # lhs_shape = lhs.shape
     # rhs_shape = rhs.shape
@@ -90,7 +115,7 @@ def spspmm(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
 
     # only support 2D sparse for now
     assert lhs.n_sparse == rhs.n_sparse == 2
-    dense_dim_out = _get_dense_dim_mm(lhs, rhs)
+    dense_dim_out = _get_dense_dim_mm_batchfinal(lhs, rhs)
     out_shape = (
         lhs.shape[outer_dims[0]],
         rhs.shape[outer_dims[1]],
@@ -118,6 +143,22 @@ def spspmm(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
     out_indices = out_indices.reshape(out_nse, -1)
     out_data = out_data.reshape(out_nse, *dense_dim_out)
     return BCOO((out_data, out_indices), shape=out_shape)
+
+
+def spspmm(lhs, rhs, inner_dims=(1, 1), batch_dims=(0, 0)):
+    contracting_dims = ((inner_dims[0],), (inner_dims[1],))
+    batch_dims = ((batch_dims[0],), (batch_dims[1],))
+    dimension_numbers = (contracting_dims, batch_dims)
+    return jax.experimental.sparse.bcoo_dot_general(
+        lhs, rhs, dimension_numbers=dimension_numbers
+    )
+    # print(dimension_numbers)
+    # fwd = jax.vmap(
+    #     partial(jax.experimental.sparse.bcoo_dot_general,
+    #             dimension_numbers=dimension_numbers),
+    #     in_axes=batch_dims
+    # )
+    # return fwd(lhs, rhs)
 
 
 def _promote_nnz_dim(values):
