@@ -8,7 +8,7 @@ import jax
 import numpy as np
 import jax.numpy as jnp
 from hypercoil.functional.sparse import(
-    random_sparse, spdiagmm, spspmm_full, topk, as_topk,
+    random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal
 )
 from hypercoil.functional.utils import vmap_over_outer
@@ -64,6 +64,17 @@ class TestSparse:
         Xtk = as_topk(X, k, descending=False)
         out = np.where(X <= Xtk.data[..., [-1]], 1, 0).sum(-1)
         assert np.all(out == k)
+
+    def test_sparse_astype(self):
+        sp = random_sparse(
+            (4, 3, 100, 100),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        spb = sparse_astype(sp, jnp.bool_)
+        assert spb.data.dtype == jnp.bool_
+        assert spb.indices.dtype == jnp.int32
+        assert spb.dtype == jnp.bool_
 
     def test_sparse_batch_batchfinal(self):
         shape = (10, 10)

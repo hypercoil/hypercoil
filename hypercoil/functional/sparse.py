@@ -55,6 +55,21 @@ def random_sparse(
     return BCOO((data, indices[idx_unsqueeze]), shape=shape).sum_duplicates()
 
 
+def sparse_astype(tensor, dtype):
+    """
+    Set the data type of a sparse matrix.
+
+    This function is probably unnecessary, but I'm missing a way to do this
+    with the current API.
+    """
+    if tensor.dtype == dtype:
+        return tensor
+    return BCOO(
+        (tensor.data.astype(dtype), tensor.indices),
+        shape=tensor.shape
+    )
+
+
 def spdiagmm(
     lhs: Union[Tensor, TopKTensor],
     rhs: Union[Tensor, TopKTensor],
