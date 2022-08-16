@@ -9,6 +9,7 @@ import numpy as np
 import jax.numpy as jnp
 from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
+    trace_spspmm,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal
 )
 from hypercoil.functional.utils import vmap_over_outer
@@ -75,6 +76,56 @@ class TestSparse:
         assert spb.data.dtype == jnp.bool_
         assert spb.indices.dtype == jnp.int32
         assert spb.dtype == jnp.bool_
+
+    def test_trace_spspmm(self):
+        #TODO: there are no correctness tests here.
+        sp = random_sparse(
+            (1, 3, 100, 100),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+
+        spb = sparse_astype(sp, jnp.bool_)
+        out = trace_spspmm(spb, spb)
+        assert out.shape[-1] == 2
+
+        out0 = trace_spspmm(sp, sp, threshold=5,
+                            threshold_type='abs>',
+                            fix_indices_over_channel_dims=False)
+        out1 = trace_spspmm(sp, sp, threshold=5,
+                            threshold_type='abs<',
+                            fix_indices_over_channel_dims=False)
+        assert out0.shape[-1] == out1.shape[-1] == 3
+        assert out0.shape[0] + out1.shape[0] == sp.shape[-1] * sp.shape[-2] * sp.shape[-3]
+
+        out0 = trace_spspmm(sp, sp, threshold=0,
+                            threshold_type='>',
+                            fix_indices_over_channel_dims=False)
+        out1 = trace_spspmm(sp, sp, threshold=0,
+                            threshold_type='<',
+                            fix_indices_over_channel_dims=False)
+        out2 = trace_spspmm(spb, spb,
+                            fix_indices_over_channel_dims=False)
+        assert out0.shape[-1] == out1.shape[-1] == out2.shape[-1] == 3
+        assert out0.shape[0] + out1.shape[0] == out2.shape[0]
+
+        sp = random_sparse(
+            (4, 3, 1000, 1000),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        out0 = trace_spspmm(sp, sp, threshold=5, top_k=True)
+        assert out0.shape == (1000, 5, 1)
+        out0 = trace_spspmm(sp, sp, threshold=5, top_k=True, threshold_type='<')
+        assert out0.shape == (1000, 5, 1)
+        out0 = trace_spspmm(sp, sp, threshold=5, top_k=True,
+                            threshold_type='abs<',
+                            fix_indices_over_channel_dims=False)
+        assert out0.shape == (3, 1000, 5, 1)
+        out0 = trace_spspmm(sp, sp, threshold=5, top_k=True,
+                            threshold_type='>',
+                            top_k_reduction=None)
+        assert out0.shape == (4, 3, 1000, 5, 1)
 
     def test_sparse_batch_batchfinal(self):
         shape = (10, 10)
