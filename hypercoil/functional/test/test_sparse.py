@@ -9,7 +9,7 @@ import numpy as np
 import jax.numpy as jnp
 from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
-    trace_spspmm, _serialised_spspmm,
+    trace_spspmm, _serialised_spspmm, spspmm, _ix,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal
 )
 from hypercoil.functional.utils import vmap_over_outer
@@ -155,6 +155,36 @@ class TestSparse:
         assert out.data.shape == (4, 3, 1000, 5)
         assert out.indices.shape == (1, 1, 1000, 5, 1)
         assert out.n_batch == 3
+
+    def test_spspmm_topk(self):
+        lhs = random_sparse(
+            (4, 3, 1000, 3000),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        rhs = random_sparse(
+            (4, 3, 500, 3000),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        indices = trace_spspmm(lhs, rhs, threshold=5, top_k=True)
+
+        spspmm_jit = jax.jit(spspmm, static_argnames=('n_blocks',))
+        out0 = spspmm_jit(lhs, rhs)
+        assert out0.shape == (4, 3, 1000, 500)
+        sampling_fn = vmap_over_outer(_ix, 1)
+        out0_data = sampling_fn((
+            out0.data.squeeze(-1),
+            indices.squeeze(-1)
+        ))
+
+        out1 = spspmm_jit(lhs, rhs, indices)
+        assert out1.shape == (4, 3, 1000, 500)
+        assert np.allclose(out0_data, out1.data)
+
+        out2 = spspmm_jit(lhs, rhs, indices, n_blocks=10)
+        assert out2.shape == (4, 3, 1000, 500)
+        assert np.allclose(out0_data, out2.data)
 
     def test_sparse_batch_batchfinal(self):
         shape = (10, 10)
