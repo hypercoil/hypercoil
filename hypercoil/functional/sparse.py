@@ -25,14 +25,15 @@ import numpy as np
 from jax.experimental.sparse import BCOO
 from typing import Any, Literal, Optional, Sequence, Tuple, Union
 
-from torch import threshold
-
 from .utils import (
     Tensor, vmap_over_outer, fold_and_promote, demote_and_unfold
 )
 
 
 TopKTensor = Any
+
+
+def _ix(x, i): return x[i]
 
 
 def random_sparse(
@@ -100,6 +101,68 @@ def spdiagmm(
         indices = lhs.indices
         shape = lhs.shape
     return BCOO((data, indices), shape=shape)
+
+
+def spspmm(
+    lhs: TopKTensor,
+    rhs: TopKTensor,
+    indices: Optional[Tensor] = None,
+    n_blocks: int = 1
+):
+    """
+    Sparse-sparse matrix multiplication of top-k format sparse matrices.
+
+    This function is a wrapper around the JAX sparse matrix multiplication
+    function ``bcoo_dot_general``. It is a convenience function that also
+    provides the option to separate the matrix multiplication into blocks for
+    serialisation and reduced memory usage. It additionally provides the
+    option to use a pre-computed index tensor and return a top-k format sparse
+    matrix containing the results of the matrix multiplication at only the
+    specified indices.
+
+    .. warning::
+        Note that this implementation of the matrix multiplication operation
+        returns
+        :math:`A B^\intercal` for LHS :math:`A` and RHS :math:`B`.
+
+    Parameters
+    ----------
+    lhs : TopKTensor
+        Left-hand side sparse matrix in the top-k format.
+    rhs : TopKTensor
+        Right-hand side sparse matrix in the top-k format.
+    indices : Tensor or None (default: None)
+        Indices of the matrix product to return. If not specified, the entire
+        matrix is returned.
+    n_blocks : int (default: 1)
+        Number of blocks to split the matrix multiplication into for
+        serialisation. If set to 1, the matrix multiplication is performed
+        directly.
+
+    Returns
+    -------
+    TopKTensor or Tensor
+        Result of the matrix multiplication.
+    """
+    if indices is None:
+        return spspmm_full(lhs, rhs)
+    elif n_blocks == 1:
+        sampling_fn = vmap_over_outer(_ix, 1)
+        data = sampling_fn((
+            spspmm_full(lhs, rhs).data.squeeze(-1),
+            indices.squeeze(-1)
+        ))
+        shape = lhs.shape[:-2] + (lhs.shape[-2], rhs.shape[-2])
+        idx_idx = tuple(
+            [None] * (data.ndim - indices.ndim + 1) + [Ellipsis])
+        return BCOO((data, indices[idx_idx]), shape=shape)
+    else:
+        return _serialised_spspmm(
+            lhs=lhs,
+            rhs=rhs,
+            indices=indices,
+            n_blocks=n_blocks
+        )
 
 
 def spspmm_full(
@@ -287,7 +350,7 @@ def _serialised_spspmm(
         partial(_serialised_spspmm_impl, rhs=rhs, lhs_shape=lhs_shape),
         None,
         (lhs_data, lhs_indices, out_indices))
-    out_data = demote_and_unfold(out_data, -3, (-3, -2))
+    out_data = demote_and_unfold(out_data, -2, (-3, -2))
     out_shape = lhs.shape[:-2] + (lhs.shape[-2], rhs.shape[-2])
     out_idx_idx = tuple(
         [None] * (out_data.ndim - indices.ndim + 1) + [Ellipsis])
@@ -295,7 +358,7 @@ def _serialised_spspmm(
 
 
 def _serialised_spspmm_impl(
-    dummy: None,
+    _: None,
     data: Tuple[Tensor, Tensor, Tensor],
     rhs: TopKTensor,
     lhs_shape: Tuple[int, ...]
@@ -306,9 +369,6 @@ def _serialised_spspmm_impl(
     ).data.squeeze(-1)
     sampling_fn = vmap_over_outer(_ix, 1)
     return None, sampling_fn((out, out_indices.squeeze(-1)))
-
-
-def _ix(x, i): return x[i]
 
 
 def topk(
@@ -346,10 +406,6 @@ def as_topk(
     data_fn = vmap_over_outer(_ix, 1)
     data = data_fn((tensor, indices))
     return BCOO((data, indices[..., None]), shape=tensor.shape)
-
-
-# We temporarily need this obvious placeholder for importing the module.
-spspmm = lambda lhs, rhs: 0
 
 
 def random_sparse_batchfinal(key, shape, density=0.1):
