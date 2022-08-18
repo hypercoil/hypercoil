@@ -538,6 +538,45 @@ def spspmm_batchfinal(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
 #     return fwd(lhs, rhs)
 
 
+def embed_params_in_diagonal(params):
+    dim = params.shape[-1]
+    indices = jnp.arange(dim)
+    indices = jnp.stack((indices, indices)).T[None, ...]
+    idx_idx = tuple([None] * (params.ndim - 2) + [Ellipsis])
+    return BCOO(
+        (params, indices[idx_idx]), shape=(*params.shape[:-1], dim, dim)
+    )
+
+
+def embed_params_in_sparse(params):
+    """
+    Embed parameters in a sparse matrix.
+
+    .. warning::
+        This function is not intended to be compatible with JIT compilation.
+
+    .. warning::
+        The input must have at least 1 batch dimension. If it does not, a
+        singleton batch dimension is added.
+    """
+    if params.ndim == 2:
+        params = params[None, ...]
+    dim = params.shape[-1]
+
+    nzi = jax.lax.stop_gradient(jnp.abs(params))
+    dims = list(range(params.ndim - 2))
+    if dims:
+        nzi = nzi.sum(dims)
+    indices = jnp.stack(jnp.where(nzi))
+    values = params[..., indices[0], indices[1]]
+    indices = indices.T[None, ...]
+    idx_idx = tuple([None] * (params.ndim - 3) + [Ellipsis])
+    return BCOO(
+        (values, indices[idx_idx]),
+        shape=(*params.shape[:-2], dim, dim)
+    )
+
+
 def _promote_nnz_dim(values):
     return jnp.transpose(values, list(range(values.ndim))[::-1])
     # slightly faster but not as easy to implement
