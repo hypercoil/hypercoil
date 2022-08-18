@@ -27,7 +27,9 @@ from typing import Any, Literal, Optional, Sequence, Tuple, Union
 
 from torch import threshold
 
-from .utils import Tensor, vmap_over_outer
+from .utils import (
+    Tensor, vmap_over_outer, fold_and_promote, demote_and_unfold
+)
 
 
 TopKTensor = Any
@@ -107,6 +109,11 @@ def spspmm_full(
     """
     Matrix multiplication of a top-k format sparse matrix with another sparse
     matrix in the top-k format. Returns a full matrix.
+
+    .. warning::
+        Note that this implementation of the matrix multiplication operation
+        returns
+        :math:`A B^\intercal` for LHS :math:`A` and RHS :math:`B`.
     """
     contracting_dims = ((lhs.ndim - 1,), (rhs.ndim - 1,))
     batch_dims = (tuple(range(lhs.ndim - 2)), tuple(range(rhs.ndim - 2)))
@@ -257,6 +264,48 @@ def trace_spspmm(
         top_k_reduction=top_k_reduction,
         fix_indices_over_channel_dims=fix_indices_over_channel_dims,
     )
+
+
+def _serialised_spspmm(
+    lhs: TopKTensor,
+    rhs: TopKTensor,
+    indices: Tensor,
+    n_blocks: int = 1,
+):
+    if lhs.shape[-2] % n_blocks != 0:
+        raise ValueError(
+            'The number of blocks must divide the number of rows in the '
+            'left-hand side matrix.'
+        )
+    lhs_data = fold_and_promote(lhs.data, axis=-2, n_folds=n_blocks)
+    lhs_indices = fold_and_promote(lhs.indices, axis=-3, n_folds=n_blocks)
+    out_indices = fold_and_promote(indices, axis=-3, n_folds=n_blocks)
+    lhs_shape = (
+        lhs.shape[:-2] + (lhs.shape[-2] // n_blocks, ) + lhs.shape[-1:])
+
+    _, out_data = jax.lax.scan(
+        partial(_serialised_spspmm_impl, rhs=rhs, lhs_shape=lhs_shape),
+        None,
+        (lhs_data, lhs_indices, out_indices))
+    out_data = demote_and_unfold(out_data, -3, (-3, -2))
+    out_shape = lhs.shape[:-2] + (lhs.shape[-2], rhs.shape[-2])
+    out_idx_idx = tuple(
+        [None] * (out_data.ndim - indices.ndim + 1) + [Ellipsis])
+    return BCOO((out_data, indices[out_idx_idx]), shape=out_shape)
+
+
+def _serialised_spspmm_impl(
+    dummy: None,
+    data: Tuple[Tensor, Tensor, Tensor],
+    rhs: TopKTensor,
+    lhs_shape: Tuple[int, ...]
+):
+    lhs_data, lhs_indices, out_indices = data
+    out = spspmm_full(
+        BCOO((lhs_data, lhs_indices), shape=(lhs_shape)), rhs
+    ).data.squeeze(-1)
+    sampling_fn = vmap_over_outer(_ix, 1)
+    return None, sampling_fn((out, out_indices.squeeze(-1)))
 
 
 def _ix(x, i): return x[i]
