@@ -6,6 +6,7 @@ A hideous, disorganised group of utility functions. Hopefully someday they
 can disappear altogether or be moved elsewhere, but for now they exist, a sad
 blemish.
 """
+import jax
 import jax.numpy as jnp
 import torch
 import distrax
@@ -13,7 +14,7 @@ from jax import vmap
 from jax.tree_util import tree_map, tree_reduce
 from jax.experimental.sparse import BCOO
 from functools import partial, reduce
-from typing import Any, Callable, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Generator, Optional, Sequence, Tuple, Union
 
 
 #TODO: replace with jaxtyping at some point
@@ -101,6 +102,186 @@ def vmap_over_outer(f: Callable, f_dim: int) -> Callable:
     Transform a function to apply to the outer dimensions of a tensor.
     """
     return partial(apply_vmap_over_outer, f=f, f_dim=f_dim)
+
+
+def axis_complement(
+    ndim: int,
+    axis: Union[int, Tuple[int, ...]],
+) -> Tuple[int, ...]:
+    """
+    Return the complement of the axis or axes for a tensor of dimension ndim.
+    """
+    if isinstance(axis, int): axis = (axis,)
+    ax = [True for _ in range(ndim)]
+    for a in axis:
+        ax[a] = False
+    ax = [i for i, a in enumerate(ax) if a]
+    return tuple(ax)
+
+
+def standard_axis_number(axis: int, ndim: int) -> int:
+    """
+    Convert an axis number to a standard axis number.
+    """
+    if axis < 0:
+        axis += ndim
+    return axis
+
+
+def promote_axis(
+    ndim: int,
+    axis: Union[int, Tuple[int, ...]],
+) -> Tuple[int, ...]:
+    """
+    Promote an axis or axes to the outermost dimension.
+    """
+    if isinstance(axis, int): axis = (axis,)
+    axis = [standard_axis_number(ax, ndim) for ax in axis]
+    return (*axis, *axis_complement(ndim, axis))
+
+
+# def _ax_out(ax, compl, ax_idx, compl_idx, out_idx):
+#     return (out_idx + 1, ax_idx + 1, compl_idx), ax[ax_idx]
+
+
+# def _compl_out(ax, compl, ax_idx, compl_idx, out_idx):
+#     return (out_idx + 1, ax_idx, compl_idx + 1), compl[compl_idx]
+
+
+# def _demote_ax_impl(carry, pred, out, ax, compl) -> Tensor:
+#     out_idx, ax_idx, compl_idx = carry
+#     #pred = (out_idx in out)
+#     carry, ret = jax.lax.cond(
+#         pred, _ax_out, _compl_out,
+#         ax, compl, ax_idx, compl_idx, out_idx)
+#     return carry, ret
+
+
+# def demote_axis(
+#     ndim: int,
+#     axis: Union[int, Tuple[int, ...]],
+# ) -> Tuple[int, ...]:
+#     """
+#     Demote the outermost axis or axes to the specified dimension(s).
+#     """
+#     if isinstance(axis, int): axis = (axis,)
+#     out = [standard_axis_number(ax, ndim) for ax in axis]
+#     ax = jnp.arange(len(axis))
+#     compl = jnp.arange(len(axis), ndim)
+#     pred = (jnp.array(out) == jnp.arange(ndim)[..., None]).any(-1)
+#     _, ax = jax.lax.scan(
+#         partial(_demote_ax_impl, out=out, ax=ax, compl=compl),
+#         init=(0, 0, 0),
+#         xs=pred,
+#         length=ndim
+#     )
+#     return ax
+
+
+def _demote_axis(
+    ndim: int,
+    axis: Union[int, Tuple[int, ...]],
+) -> Generator:
+    """Helper function for axis demotion."""
+    compl = range(len(axis), ndim).__iter__()
+    src = range(len(axis)).__iter__()
+    for ax in range(ndim):
+        if ax in axis:
+            yield src.__next__()
+        else:
+            yield compl.__next__()
+
+
+def demote_axis(
+    ndim: int,
+    axis: Union[int, Tuple[int, ...]],
+) -> Tuple[int, ...]:
+    if isinstance(axis, int): axis = (axis,)
+    axis = [standard_axis_number(ax, ndim) for ax in axis]
+    return tuple(_demote_axis(ndim=ndim, axis=axis))
+
+
+@partial(jax.jit, static_argnames=('axis', 'n_folds'))
+def fold_axis(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
+    """
+    Fold the specified axis into the specified number of folds.
+    """
+    shape = tensor.shape
+    current = shape[axis]
+    new_shape = (
+        shape[:axis] +
+        (current // n_folds, n_folds) +
+        shape[axis + 1:]
+    )
+    return tensor.reshape(new_shape)
+
+
+# Apparently lambdas will give us trouble with the compiler.
+# So we have this trash instead.
+def _prod(x, y): return x * y
+def _sum(x, y): return x + y
+def _left(x, y): return x
+def _right(x, y): return y
+def _noop(x): return x
+def _id_mul(x): return 1
+def _id_add(x): return 0
+
+def _reduce_cond(acc, x, f, identity):
+    data, pred = x
+    nxt = jax.lax.cond(pred, _noop, identity, data)
+    acc = f(acc, nxt)
+    return acc, None
+
+
+@partial(jax.jit, static_argnames=('axes',))
+def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
+    """
+    Unfold the specified consecutive axes into a single new axis.
+
+    This function will fail if the specified axes are not consecutive.
+    """
+    if isinstance(axes, int):
+        return tensor
+    # shape = jnp.array(tensor.shape)
+    # ndim = len(shape)
+    # ax = jnp.array(axes)[..., None]
+    # pred = (jnp.arange(ndim) == ax).any(0)
+    # #prod = jnp.prod(jnp.where(pred, shape, 1)).item()
+    # print(pred, shape)
+    # prod, _ = jax.lax.scan(
+    #     partial(_reduce_cond, f=_prod, identity=_id_mul),
+    #     1,
+    #     (tensor.shape, pred))
+    # print(prod)
+    shape = tensor.shape
+    current = [shape[ax] for ax in axes]
+    prod = reduce(_prod, current)
+    new_shape = (
+        tensor.shape[:axes[0]] +
+        (prod,) +
+        tensor.shape[axes[-1] + 1:]
+    )
+    return tensor.reshape(new_shape)
+
+
+@partial(jax.jit, static_argnames=('axis', 'n_folds'))
+def fold_and_promote(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
+    """
+    Fold the specified axis into the specified number of folds, and promote
+    the new axis across the number of folds to the outermost dimension.
+    """
+    folded = fold_axis(tensor, axis, n_folds)
+    return jnp.transpose(folded, promote_axis(folded.ndim, axis))
+
+
+@partial(jax.jit, static_argnames=('target_address', 'axes'))
+def demote_and_unfold(
+    tensor: Tensor,
+    target_address: int,
+    axes: Union[int, Tuple[int, ...]]
+):
+    demoted = jnp.transpose(tensor, demote_axis(tensor.ndim, target_address))
+    return unfold_axes(demoted, axes)
 
 
 def conform_mask(
