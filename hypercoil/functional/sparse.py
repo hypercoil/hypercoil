@@ -408,6 +408,24 @@ def as_topk(
     return BCOO((data, indices[..., None]), shape=tensor.shape)
 
 
+def full_as_topk(
+    tensor: Tensor,
+) -> TopKTensor:
+    """
+    Represent a batch of full tensors in top-k sparse matrix format.
+
+    This is strictly less efficient than standard full tensor format, but
+    provides compatibility with functions that operate on top-k sparse
+    matrices.
+    """
+    data = tensor
+    ndim = data.ndim
+    k = data.shape[-1]
+    indices = jnp.arange(k)
+    idx_idx = tuple([None] * (ndim - 1) + [Ellipsis, None])
+    return BCOO((data, indices[idx_idx]), shape=data.shape)
+
+
 def random_sparse_batchfinal(key, shape, density=0.1):
     """
     Generate a random sparse matrix in batch-final COO format.
