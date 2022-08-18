@@ -166,6 +166,17 @@ class TestUtils:
         assert demote_and_unfold(X, -2, (3, 4)).shape == (3, 5, 7, 22)
         assert demote_and_unfold(X, 1, (1, 2, 3)).shape == (3, 70, 11)
 
+        X2 = np.random.rand(4, 3, 100, 7)
+        Y = fold_and_promote(X2, -2, 5)
+        assert Y.shape == (5, 4, 3, 20, 7)
+        X2_hat = demote_and_unfold(Y, -2, (-3, -2))
+        assert np.all(X2 == X2_hat)
+
+        Y = demote_and_unfold(X2, -2, (-3, -2))
+        assert Y.shape == (3, 400, 7)
+        X2_hat = fold_and_promote(Y, -2, 4)
+        assert np.all(X2 == X2_hat)
+
     def test_sp_rcmul(self):
         X = torch.rand(20, 3, 4)
         E = torch.randint(2, (2, 20))
