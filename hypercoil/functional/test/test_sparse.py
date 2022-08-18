@@ -10,7 +10,8 @@ import jax.numpy as jnp
 from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
     trace_spspmm, _serialised_spspmm, spspmm, _ix, full_as_topk,
-    random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal
+    random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
+    embed_params_in_diagonal, embed_params_in_sparse
 )
 from hypercoil.functional.utils import vmap_over_outer
 
@@ -244,3 +245,18 @@ class TestSparse:
         assert out.shape == (shape_B[1], shape_B[1], batch_size)
         out = spspmm_jit(B, A)
         assert out.shape == (shape_B[1], shape_A[1], batch_size)
+
+    def test_params_embed(self):
+        params = np.random.rand(2, 3, 2, 10)
+        out = embed_params_in_diagonal(params)
+        assert out.shape == (2, 3, 2, 10, 10)
+        ref = vmap_over_outer(jnp.diagflat, 1)((params,))
+        assert np.allclose(out.todense(), ref)
+
+        Q = np.random.randn(2, 3, 2, 10, 10)
+        Q = np.where(Q > 0.8, Q, 0)
+        assert np.all(embed_params_in_sparse(Q).todense() == Q)
+
+        Q = np.random.randn(10, 10)
+        Q = np.where(Q > 0.8, Q, 0)
+        assert np.all(embed_params_in_sparse(Q).todense() == Q)
