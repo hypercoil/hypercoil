@@ -5,29 +5,42 @@
 Parameterised similarity kernels and distance metrics.
 """
 import torch
+import jax
+import jax.numpy as jnp
+from jax.experimental.sparse import BCOO
+from .sparse import TopKTensor, spspmm, spdiagmm, _promote_nnz_dim
 from .utils import (
+    Tensor, is_sparse,
     sparse_mm, sparse_rcmul, sparse_reciprocal,
-    _conform_vector_weight, _promote_nnz_dim
+    _conform_vector_weight
 )
 
 
 def _default_gamma(X, gamma):
     if gamma is None:
-        gamma = 1 / X.size(-1)
+        gamma = 1 / X.shape[-1]
     return gamma
 
 
 def _embed_params_in_diagonal(theta):
-    dim = theta.size(-1)
-    indices = torch.arange(dim, dtype=theta.dtype, device=theta.device)
-    indices = torch.stack((indices, indices))
+    dim = theta.shape[-1]
+    indices = jnp.arange(dim)
+    indices = jnp.stack((indices, indices))
     theta = _promote_nnz_dim(theta)
-    return torch.sparse_coo_tensor(
-        indices, theta, size=(dim, dim, *theta.shape[1:])
+    return BCOO(
+        theta, indices, shape=(dim, dim, *theta.shape[1:])
     )
 
 
 def _embed_params_in_sparse(theta):
+    dim = theta.shape[-1]
+
+    nzi = jax.lax.stop_gradient(jnp.abs(theta))
+    dims = list(range(theta.ndim - 2))
+    if dims:
+        nzi = nzi.sum(dims)
+    indices = jnp.stack(jnp.where(nzi))
+
     dim = theta.size(-1)
     with torch.no_grad():
         dims = list(range(theta.dim() - 2))
@@ -44,12 +57,12 @@ def _embed_params_in_sparse(theta):
 
 def _linear_kernel_dense(X0, X1, theta):
     if theta is None:
-        return X0 @ X1.transpose(-1, -2)
-    elif theta.dim() == 1 or theta.shape[-1] != theta.shape[-2]:
+        return X0 @ X1.swapaxes(-1, -2)
+    elif theta.ndim == 1 or theta.shape[-1] != theta.shape[-2]:
         theta = _conform_vector_weight(theta)
-        return (X0 * theta) @ X1.transpose(-1, -2)
+        return (X0 * theta) @ X1.swapaxes(-1, -2)
     else:
-        return X0 @ theta @ X1.transpose(-1, -2)
+        return X0 @ theta @ X1.swapaxes(-1, -2)
 
 
 def _linear_kernel_sparse(X0, X1, theta):
@@ -138,7 +151,7 @@ def linear_kernel(X0, X1=None, theta=None):
     """
     if X1 is None:
         X1 = X0
-    if X0.is_sparse:
+    if is_sparse(X0):
         return _linear_kernel_sparse(X0, X1, theta)
     else:
         return _linear_kernel_dense(X0, X1, theta)
@@ -148,9 +161,9 @@ def linear_distance(X0, X1=None, theta=None):
     """Squared Euclidean (L2) distance."""
     if X1 is None:
         X1 = X0
-    D = X0.unsqueeze(-2) - X1.unsqueeze(-3)
-    D = linear_kernel(X0=D.unsqueeze(-2), theta=theta)
-    return D.view(*D.shape[:-2])
+    D = X0[..., None, :] - X1[..., None, :, :]
+    D = linear_kernel(X0=D[..., None, :], theta=theta)
+    return D.reshape(*D.shape[:-2])
 
 
 def polynomial_kernel(X0, X1=None, theta=None, gamma=None, order=3, r=0):
@@ -261,7 +274,7 @@ def sigmoid_kernel(X0, X1=None, theta=None, gamma=None, r=0):
     """
     gamma = _default_gamma(X0, gamma)
     K = linear_kernel(X0, X1, theta)
-    return torch.tanh(gamma * K + r)
+    return jax.nn.tanh(gamma * K + r)
 
 
 def gaussian_kernel(X0, X1=None, theta=None, sigma=None):
@@ -377,7 +390,7 @@ def rbf_kernel(X0, X1=None, theta=None, gamma=None):
     """
     gamma = _default_gamma(X0, gamma)
     K = linear_distance(X0, X1, theta)
-    return torch.exp(-gamma * K)
+    return jnp.exp(-gamma * K)
 
 
 def cosine_kernel(X0, X1=None, theta=None):
