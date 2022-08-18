@@ -12,7 +12,12 @@ import numpy as np
 from hypercoil.functional import (
     apply_mask, wmean, sparse_mm, sparse_rcmul, orient_and_conform
 )
-from hypercoil.functional.utils import conform_mask, mask_tensor, vmap_over_outer
+from hypercoil.functional.utils import (
+    conform_mask, mask_tensor, vmap_over_outer,
+    promote_axis, demote_axis, fold_axis, unfold_axes,
+    axis_complement, standard_axis_number,
+    fold_and_promote, demote_and_unfold
+)
 
 
 class TestUtils:
@@ -131,6 +136,35 @@ class TestUtils:
         ref = jax.vmap(jax.vmap(jnp.outer, (None, 0), 0), (0, 1), 1)(L, R)
         assert out.shape == (2, 5, 13, 4)
         assert np.allclose(out, ref)
+
+    def test_axis_ops(self):
+        shape = (2, 3, 5, 7, 11)
+        X = np.empty(shape)
+        ndim = X.ndim
+        assert axis_complement(ndim, -2) == (0, 1, 2, 4)
+        assert axis_complement(ndim, (0, 1, 4)) == (2, 3)
+        assert axis_complement(ndim, (0, 1, 2, 3, -1)) == ()
+
+        assert standard_axis_number(-2, ndim) == 3
+        assert standard_axis_number(1, ndim) == 1
+
+        assert unfold_axes(X, (-3, -2)).shape == (2, 3, 35, 11)
+        assert unfold_axes(X, (1, 2, 3)).shape == (2, 105, 11)
+
+        assert promote_axis(ndim, -2) == (3, 0, 1, 2, 4)
+        assert promote_axis(ndim, 1) == (1, 0, 2, 3, 4)
+
+        assert fold_axis(X, -3, 1).shape == (2, 3, 5, 1, 7, 11)
+        assert fold_axis(X, -3, 5).shape == (2, 3, 1, 5, 7, 11)
+
+        assert demote_axis(7, (5, 2)) == (2, 3, 0, 4, 5, 1, 6)
+        assert demote_axis(ndim, 2) == (1, 2, 0, 3, 4)
+
+        assert fold_and_promote(X, -2, 7).shape == (7, 2, 3, 5, 1, 11)
+        assert fold_and_promote(X, -4, 3).shape == (3, 2, 1, 5, 7, 11)
+
+        assert demote_and_unfold(X, -2, (3, 4)).shape == (3, 5, 7, 22)
+        assert demote_and_unfold(X, 1, (1, 2, 3)).shape == (3, 70, 11)
 
     def test_sp_rcmul(self):
         X = torch.rand(20, 3, 4)
