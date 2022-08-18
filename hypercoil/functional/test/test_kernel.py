@@ -4,8 +4,8 @@
 """
 Unit tests for kernels and distances.
 """
-import pytest
 import torch
+import jax
 import numpy as np
 from hypercoil.functional import (
     linear_kernel,
@@ -27,17 +27,18 @@ from sklearn.metrics.pairwise import (
 
 class TestKernel:
 
-    def random_sparse_input(self, dim, nnz):
-        W = torch.randn(*(nnz, *dim[2:]))
-        r = torch.randint(dim[0], (nnz,))
-        c = torch.randint(dim[1], (nnz,))
-        E = torch.stack((r, c))
-        return torch.sparse_coo_tensor(E, W, size=dim)
+    def random_sparse_input(dim, nse):
+        W = np.random.randn(*dim[:-2], nse)
+        r = np.random.randint(dim[-2], (nse,))
+        c = np.random.randint(dim[-1], (nse,))
+        E = np.stack((r, c))[None, ...]
+        return BCOO((W, E), shape=dim, n_batch=1)
+        #return torch.sparse_coo_tensor(E, W, size=dim)
 
     def test_linear_kernel(self):
         n, p = 30, 100
-        X = torch.randn(10, n, p)
-        Y = torch.randn(10, n, p)
+        X = np.random.randn(10, n, p)
+        Y = np.random.randn(10, n, p)
         ref = np.stack([lk_ref(x) for x in X])
         out = linear_kernel(X)
         assert np.allclose(out, ref, atol=1e-5)
@@ -45,15 +46,25 @@ class TestKernel:
         out = linear_kernel(X, Y)
         assert np.allclose(out, ref, atol=1e-5)
 
+        linear_kernel_jit = jax.jit(linear_kernel)
+        out = linear_kernel_jit(X, Y)
+        assert np.allclose(out, ref, atol=1e-5)
+        out = linear_kernel_jit(X)
+        ref = linear_kernel_jit(X, X)
+        assert np.allclose(out, ref, atol=1e-5)
+
     def test_polynomial_kernel(self):
         n, p = 30, 100
-        X = torch.randn(n, p)
-        Y = torch.randn(n, p)
+        X = np.random.randn(n, p)
+        Y = np.random.randn(n, p)
         ref = linear_kernel(X, Y)
         out = polynomial_kernel(X, Y, gamma=1, order=1)
-        assert torch.allclose(out, ref, atol=1e-5)
+        assert np.allclose(out, ref, atol=1e-5)
         ref = pk_ref(X, Y)
-        out = polynomial_kernel(X, Y, r=1)
+        out = jax.jit(
+            polynomial_kernel,
+            static_argnames=('r', 'gamma')
+        )(X, Y, r=1)
         assert np.allclose(out, ref, atol=1e-5)
         ref = pk_ref(X, Y, gamma=-1, degree=7, coef0=-100)
         out = polynomial_kernel(X, Y, gamma=-1, order=7, r=-100)
@@ -61,10 +72,13 @@ class TestKernel:
 
     def test_sigmoid_kernel(self):
         n, p = 30, 100
-        X = torch.randn(n, p)
-        Y = torch.randn(n, p)
+        X = np.random.randn(n, p)
+        Y = np.random.randn(n, p)
         ref = sk_ref(X, Y)
-        out = sigmoid_kernel(X, Y, r=1)
+        out = jax.jit(
+            sigmoid_kernel,
+            static_argnames=('r', 'gamma')
+        )(X, Y, r=1)
         assert np.allclose(out, ref, atol=1e-5)
         ref = sk_ref(X, Y, gamma=0.71, coef0=-2)
         out = sigmoid_kernel(X, Y, gamma=0.71, r=-2)
@@ -72,16 +86,22 @@ class TestKernel:
 
     def test_gaussian_kernel(self):
         n, p = 30, 100
-        X = torch.randn(n, p)
-        Y = torch.randn(n, p)
+        X = np.random.randn(n, p)
+        Y = np.random.randn(n, p)
         ref = gk_ref(X, Y)
         out = gaussian_kernel(X, Y)
         assert np.allclose(out, ref, atol=1e-5)
-        ref = gk_ref(X, Y, gamma=-2)
-        out = rbf_kernel(X, Y, gamma=-2)
+        ref = gk_ref(X, Y, gamma=-2e-5)
+        out = jax.jit(
+            rbf_kernel,
+            static_argnames=('gamma',)
+        )(X, Y, gamma=-2e-5)
         assert np.allclose(out, ref, atol=1e-5)
         ref = gk_ref(X, Y, gamma=0.25)
-        out = gaussian_kernel(X, Y, sigma=2)
+        out = jax.jit(
+            gaussian_kernel,
+            static_argnames=('sigma',)
+        )(X, Y, sigma=2)
         assert np.allclose(out, ref, atol=1e-5)
 
     def test_norm(self):
@@ -110,49 +130,49 @@ class TestKernel:
         assert np.allclose(ref, out.to_dense())
 
     def test_parameterised_kernel(self):
-        X = torch.tensor([
+        X = np.array([
             [0., 1., 0., 1., 2.],
             [2., 1., 1., 1., 0.],
             [0., 0., 0., 0., 0.]
-        ]).t()
+        ]).T
 
-        theta = torch.tensor([1., 1., 1.])
+        theta = np.array([1., 1., 1.])
         ref = lk_ref(X)
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
 
-        theta = torch.tensor([1., 1., 0.])
+        theta = np.array([1., 1., 0.])
         ref = lk_ref(X)
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
 
-        theta = torch.tensor([1., 0., 0.])
-        ref = (X[:, 0].view(-1, 1) @ X[:, 0].view(1, -1))
+        theta = np.array([1., 0., 0.])
+        ref = (X[:, 0].reshape(-1, 1) @ X[:, 0].reshape(1, -1))
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
 
-        theta = torch.tensor([0., 1., 0.])
-        ref = (X[:, 1].view(-1, 1) @ X[:, 1].view(1, -1))
+        theta = np.array([0., 1., 0.])
+        ref = (X[:, 1].reshape(-1, 1) @ X[:, 1].reshape(1, -1))
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
 
-        theta = torch.tensor([0., 1., 0.])
-        ref = (X[:, 1].view(-1, 1) @ X[:, 1].view(1, -1))
+        theta = np.array([0., 1., 0.])
+        ref = (X[:, 1].reshape(-1, 1) @ X[:, 1].reshape(1, -1))
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
 
-        theta = torch.tensor([
+        theta = np.array([
             [1., 0., 0.],
             [1., 1., 0.]
         ])
         ref = np.stack((
-            (X[:, 0].view(-1, 1) @ X[:, 0].view(1, -1)),
+            (X[:, 0].reshape(-1, 1) @ X[:, 0].reshape(1, -1)),
             lk_ref(X),
         ))
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
 
-        theta = torch.eye(3)
+        theta = np.eye(3)
         ref = lk_ref(X)
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
