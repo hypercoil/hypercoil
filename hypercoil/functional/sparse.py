@@ -323,6 +323,10 @@ def trace_spspmm(
     )
 
 
+def _null_carrier(carry, pparams, retvals):
+    return carry
+
+
 def block_serialise(
     f: Callable,
     *,
@@ -331,6 +335,8 @@ def block_serialise(
     retnums: Sequence[int] = (0,),
     in_axes: Sequence[int] = (-1,),
     out_axes: Sequence[int] = (-1,),
+    carrier_fn: Optional[Callable] = None,
+    return_carry: bool = False,
 ) -> Callable:
     """
     Serialise a function to be run over blocks of data, in order to reduce the
@@ -339,14 +345,23 @@ def block_serialise(
     .. warning::
         Each specified input argument must be divisible by the number of
         blocks along the specified axis.
-    """
-    if len(in_axes) != len(argnums):
-        in_axes = in_axes * len(argnums)
-    if len(out_axes) != len(retnums):
-        out_axes = out_axes * len(retnums)
 
-    def _f_scan_compat(_, blocked_pparams, **params):
-        return None, f(*blocked_pparams, **params)
+    .. warning::
+        Any parameters that are not to be serialised must be passed as keyword
+        arguments. If this is not possible using the original function, then
+        you will have to write a wrapper function.
+    """
+    if len(in_axes) == 1:
+        in_axes = in_axes * len(argnums)
+    if len(out_axes) == 1:
+        out_axes = out_axes * len(retnums)
+    if carrier_fn is None:
+        carrier_fn = _null_carrier
+
+    def _f_scan_compat(carry, blocked_pparams, **params):
+        retvals = f(*blocked_pparams, **params)
+        carry = carrier_fn(carry, blocked_pparams, retvals)
+        return carry, retvals
 
     def _f_serialised(*pparams, **params):
         pparams = list(pparams)
@@ -355,7 +370,7 @@ def block_serialise(
                 pparams[arg],
                 axis=ax,
                 n_folds=n_blocks)
-        _, out = jax.lax.scan(
+        carry, out = jax.lax.scan(
             partial(_f_scan_compat, **params),
             None,
             pparams,
@@ -368,6 +383,8 @@ def block_serialise(
             out[ret] = demote_and_unfold(out[ret], ax, (ax - 1, ax))
         if len(out) == 1:
             return out[0]
+        if return_carry:
+            return carry, tuple(out)
         return tuple(out)
 
     return _f_serialised
