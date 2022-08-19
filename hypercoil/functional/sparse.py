@@ -28,7 +28,8 @@ from jax.experimental.sparse import BCOO
 from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from .utils import (
-    Tensor, vmap_over_outer, fold_and_promote, demote_and_unfold
+    Tensor, standard_axis_number, vmap_over_outer,
+    fold_and_promote, demote_and_unfold
 )
 
 
@@ -320,6 +321,56 @@ def trace_spspmm(
         top_k_reduction=top_k_reduction,
         fix_indices_over_channel_dims=fix_indices_over_channel_dims,
     )
+
+
+def block_serialise(
+    f: Callable,
+    *,
+    n_blocks: int = 1,
+    argnums: Sequence[int] = (0,),
+    retnums: Sequence[int] = (0,),
+    in_axes: Sequence[int] = (-1,),
+    out_axes: Sequence[int] = (-1,),
+) -> Callable:
+    """
+    Serialise a function to be run over blocks of data, in order to reduce the
+    memory footprint of each call.
+
+    .. warning::
+        Each specified input argument must be divisible by the number of
+        blocks along the specified axis.
+    """
+    if len(in_axes) != len(argnums):
+        in_axes = in_axes * len(argnums)
+    if len(out_axes) != len(retnums):
+        out_axes = out_axes * len(retnums)
+
+    def _f_scan_compat(_, blocked_pparams, **params):
+        return None, f(*blocked_pparams, **params)
+
+    def _f_serialised(*pparams, **params):
+        pparams = list(pparams)
+        for arg, ax in zip(argnums, in_axes):
+            pparams[arg] = fold_and_promote(
+                pparams[arg],
+                axis=ax,
+                n_folds=n_blocks)
+        _, out = jax.lax.scan(
+            partial(_f_scan_compat, **params),
+            None,
+            pparams,
+        )
+        if not isinstance(out, tuple):
+            out = (out,)
+        out = list(out)
+        for ret, ax in zip(retnums, out_axes):
+            ax = standard_axis_number(ax, out[ret].ndim)
+            out[ret] = demote_and_unfold(out[ret], ax, (ax - 1, ax))
+        if len(out) == 1:
+            return out[0]
+        return tuple(out)
+
+    return _f_serialised
 
 
 def _serialised_spspmm(
