@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
     trace_spspmm, _serialised_spspmm, spspmm, _ix, full_as_topk,
-    spsp_pairdiff, select_indices, topkx,
+    spsp_pairdiff, select_indices, topkx, block_serialise,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
     embed_params_in_diagonal, embed_params_in_sparse
 )
@@ -18,6 +18,29 @@ from hypercoil.functional.utils import vmap_over_outer
 
 
 class TestSparse:
+    def test_block_serialise(self):
+        X = np.random.rand(2, 3, 100, 100)
+        def f(X, Y): return X.swapaxes(-2, -1) @ Y
+        ref = f(X, X)
+        f_blk = jax.jit(block_serialise(f, n_blocks=10, out_axes=(-2,)))
+        out = f_blk(X, Y=X)
+        assert np.allclose(out, ref)
+
+        def g(X, Y): return f(X, Y).sum()
+        ref = jax.grad(g)(X, X)
+        g_blk_grad = jax.jit(block_serialise(jax.grad(g), n_blocks=10))
+        out = g_blk_grad(X, Y=X)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        def h(X, Y): return (X * Y).sum()
+        Y = np.broadcast_to(np.arange(100), X.shape)
+        h_blk_grad = jax.jit(
+            block_serialise(
+                jax.grad(h), n_blocks=10, argnums=(0, 1)
+            ))
+        out = h_blk_grad(X, Y)
+        assert np.all(out == Y)
+
     def test_sparse_topk(self):
         out = random_sparse(
             (4, 3, 1000, 1000),
