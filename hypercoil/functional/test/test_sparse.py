@@ -101,14 +101,14 @@ class TestSparse:
     def test_topkx(self):
         X = np.random.randn(2, 3, 100, 100)
         f = lambda X: X.swapaxes(-2, -1) @ X
-        f_topk = topkx(f)
+        f_topk = topkx(f, auto_index=True)
         out0 = f_topk(80, X).todense()
         ref = np.where(out0, f(X), 0)
         assert np.allclose(out0, ref)
 
         indices = select_indices(f(X), 80)
-        f_topk = jax.jit(topkx(f, indices=indices))
-        out1 = f_topk(X).todense()
+        f_topk = jax.jit(topkx(f))
+        out1 = f_topk(indices, X).todense()
         assert np.allclose(out0, out1, atol=1e-5)
 
     def test_sparse_astype(self):
