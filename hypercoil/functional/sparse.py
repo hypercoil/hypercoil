@@ -409,6 +409,149 @@ def block_serialise(
     return _f_serialised
 
 
+# Block serialisation for top-k format sparse matrices.
+# ----------------------------------------------------------------------------
+# This is fairly complicated because it involves packaging and unpacking the
+# data and indices into BCOO tensors, as well as tracking the shape of the
+# output.
+def _shape_carrier(carry, _, retvals, retnums=(0,), axes=(-1,)):
+    """
+    Carrier function for the shape of the output. This can be used to track
+    the shape of the output of a block serialised function when the output is
+    a sparse matrix.
+    """
+    def _update_shape(cur, new, ax):
+        for j, s in enumerate(new):
+            if j == ax:
+                yield cur[j] + s
+            else:
+                yield s
+
+    axes = tuple([
+        standard_axis_number(ax, retvals[i].ndim)
+        for ax, i in zip(axes, retnums)
+    ])
+    update = tuple([retvals[i].shape for i in retnums])
+    carry = [tuple(_update_shape(cur, new, axes[i]))
+             for i, (cur, new) in enumerate(zip(carry, update))]
+    return tuple(carry)
+
+
+def _shape_block(shape, n_blocks, axis=-2):
+    return shape[:axis] + (shape[axis] // n_blocks,) + shape[axis + 1:]
+
+
+def sp_block_serialise(
+    f: Callable,
+    *,
+    n_blocks: int = 1,
+    argnums: Sequence[int] = (),
+    retnums: Sequence[int] = (),
+    in_axes: Sequence[int] = (),
+    out_axes: Sequence[int] = (),
+    sp_argnums: Sequence[int] = (0,),
+    sp_retnums: Sequence[int] = (0,),
+) -> Callable:
+    """
+    Function block serialisation transformation with a convenience wrapper for
+    handling top-k format sparse data.
+    """
+    def _cfg_return():
+        oax = 0
+        retnum = 0
+        for i in range(len(retnums + sp_retnums)):
+            if i in retnums:
+                yield retnum, out_axes[oax]
+                oax += 1
+                retnum += 1
+            else:
+                yield retnum, -2
+                yield retnum + 1, -3
+                retnum += 2
+
+    retnums, out_axes = zip(*_cfg_return())
+    retnums, out_axes = tuple(retnums), tuple(out_axes)
+
+    def _prepare_transformation(pparams):
+        j = 0
+        iax = 0
+        for i, pparam in enumerate(pparams):
+            if i in sp_argnums:
+                blocked_shape = _shape_block(pparam.shape, n_blocks)
+                yield pparam.data, j, -2, (True, blocked_shape)
+                yield pparam.indices, j + 1, -3, (False, None)
+                j += 2
+            else:
+                yield pparam, j, in_axes[iax], (False, None)
+                j += 1
+                iax += 1
+
+    def _finalise_transformation(retvals, shapes):
+        s = 0
+        for i, retval in enumerate(retvals):
+            if i in sp_retnums:
+                indices = retvals[i + 1]
+                yield BCOO((retval, indices), shape=shapes[s])
+                s += 1
+            elif not (i - 1) in sp_retnums:
+                yield retval
+
+    def _package_as_topk(pparams, addresses):
+        prev = False
+        for i, a in enumerate(addresses):
+            cur, shape = a
+            if cur:
+                yield BCOO((pparams[i], pparams[i + 1]), shape=shape)
+            elif not prev:
+                yield pparams[i]
+            prev = cur
+
+    def _unpack_topk(retvals):
+        for i, retval in enumerate(retvals):
+            if i in sp_retnums:
+                yield retval.data
+                yield retval.indices
+            else:
+                yield retval
+
+    def _unpack_topk_postprocess(retvals):
+        return tuple(_unpack_topk(retvals))
+
+    def _f_unpack(*pparams, addresses, **params):
+        pparams = list(_package_as_topk(pparams, addresses))
+        out = f(*pparams, **params)
+        if not isinstance(out, tuple):
+            out = (out,)
+        return out
+
+    def _init_shapes(data):
+        for i, d in data:
+            if i:
+                yield tuple([0 for _ in d])
+
+    def _f_serialised(*pparams, **params):
+        inputs = _prepare_transformation(pparams)
+        pparams, argnums, in_axes, data_addresses = zip(*inputs)
+        zero_shapes = tuple(_init_shapes(data_addresses))
+        serialised = block_serialise(
+            partial(_f_unpack, addresses=data_addresses),
+            n_blocks=n_blocks,
+            argnums=argnums, retnums=retnums,
+            in_axes=in_axes, out_axes=out_axes,
+            carrier_fn=partial(_shape_carrier, axes=(-2,) * len(sp_retnums), retnums=sp_retnums), carry_init=zero_shapes,
+            return_carry=True,
+            postprocess_fn=_unpack_topk_postprocess,
+        )
+        shapes, retvals = serialised(*pparams, **params)
+        out = tuple(_finalise_transformation(retvals, shapes))
+        if len(out) == 1:
+            return out[0]
+        return tuple(out)
+
+    return _f_serialised
+# ----------------------------------------------------------------------------
+
+
 def _serialised_spspmm(
     lhs: TopKTensor,
     rhs: TopKTensor,
