@@ -18,12 +18,12 @@ the following properties:
 - The data tensor has shape
   (``batch_size``, ``*channel_dims``, ``n_rows``, ``k``).
 """
-from functools import partial
 import jax
 import jax.numpy as jnp
 import numpy as np
+from functools import partial
 from jax.experimental.sparse import BCOO
-from typing import Any, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from .utils import (
     Tensor, vmap_over_outer, fold_and_promote, demote_and_unfold
@@ -369,6 +369,100 @@ def _serialised_spspmm_impl(
     ).data.squeeze(-1)
     sampling_fn = vmap_over_outer(_ix, 1)
     return None, sampling_fn((out, out_indices.squeeze(-1)))
+
+
+def xtopk(
+    f: Callable,
+    *,
+    retnums: Sequence[int] = (0,),
+    indices: Optional[Tensor] = None,
+    threshold_type: Literal['abs>', 'abs<' '>', '<'] = 'abs>',
+    fix_indices_over_channel_dims: bool = True,
+) -> TopKTensor:
+    """
+    Transform a function that produces a full matrix so that it instead
+    produces a sparse matrix in the top-k format.
+
+    .. warning::
+        The transformed function produces as an intermediate result a full
+        matrix. Thus, this transformation will not reduce the memory usage of
+        the function.
+
+    .. warning::
+        The transformed function is compatible with JIT compilation only if
+        ``indices`` is provided. Indices can be obtained in a separate step
+        using the :func:`select_indices` function.
+
+    Parameters
+    ----------
+    f : Callable
+        The function to transform.
+    retnums : Sequence[int] (default: (0,))
+        The indices of the return values to be converted to the top-k format.
+    indices : Tensor (default: None)
+        The indices of the nonzero entries in the top-k format. If None, then
+        the indices are sampled from the output of the function according to
+        the thresholding operation.
+    threshold_type : one of 'abs>', 'abs<', '>', '<' (default: 'abs>')
+        The type of thresholding operation to perform.
+    fix_indices_over_channel_dims : bool (default: True)
+        If True, then the indices of nonzero entries that are returned will
+        be fixed over all channel dimensions. If False, then the indices of
+        nonzero entries that are returned are allowed to vary over all channel
+        dimensions.
+
+    Returns
+    -------
+    Callable
+        The transformed function. Any tensor return values specified by
+        ``retnums`` will be returned in the top-k sparse format when the
+        transformed function is called. If ``indices`` is None, then the
+        transformed function takes an additional first argument, which is the
+        value of k to use in the top-k selection.
+    """
+    sampling_fn = vmap_over_outer(_ix, 1)
+    if indices is None:
+        def _f_and_sample(k, *pparams, **params):
+            f_out = f(*pparams, **params)
+            if not isinstance(f_out, tuple):
+                f_out = (f_out,)
+            out_transformed = [out for out in f_out]
+            for idx in retnums:
+                indices = select_indices(
+                    f_out[idx],
+                    top_k=True,
+                    threshold=k,
+                    threshold_type=threshold_type,
+                    fix_indices_over_channel_dims=fix_indices_over_channel_dims,
+                )
+                data = sampling_fn((f_out[idx], indices.squeeze(-1)))
+                idx_idx = tuple(
+                    [None] * (data.ndim - indices.ndim + 1) + [Ellipsis])
+                out_transformed[idx] = BCOO(
+                    (data, indices[idx_idx]),
+                    shape=f_out[idx].shape
+                )
+            if len(out_transformed) == 1:
+                return out_transformed[0]
+            return tuple(out_transformed)
+    else:
+        def _f_and_sample(*params, **pparams):
+            f_out = f(*params, **pparams)
+            if not isinstance(f_out, tuple):
+                f_out = (f_out,)
+            out_transformed = [out for out in f_out]
+            for idx in retnums:
+                data = sampling_fn((f_out[idx], indices.squeeze(-1)))
+                idx_idx = tuple(
+                    [None] * (data.ndim - indices.ndim + 1) + [Ellipsis])
+                out_transformed[idx] = BCOO(
+                    (data, indices[idx_idx]),
+                    shape=f_out[idx].shape
+                )
+            if len(out_transformed) == 1:
+                return out_transformed[0]
+            return tuple(out_transformed)
+    return _f_and_sample
 
 
 def topk(
