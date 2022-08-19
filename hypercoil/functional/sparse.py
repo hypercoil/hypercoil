@@ -426,6 +426,47 @@ def full_as_topk(
     return BCOO((data, indices[idx_idx]), shape=data.shape)
 
 
+def _spsp_pairdiff_impl(
+    lhs_data: Tensor,
+    lhs_indices: Tensor,
+    rhs: TopKTensor
+) -> Tuple[Tensor, Tensor]:
+    lhs_data = jnp.broadcast_to(lhs_data, rhs.data.shape)
+    lhs_indices = jnp.broadcast_to(lhs_indices, rhs.indices.shape)
+    lhs = BCOO((lhs_data, lhs_indices), shape=rhs.shape)
+    out = lhs - rhs
+    return out.data, out.indices
+
+
+def spsp_pairdiff(
+    lhs: TopKTensor,
+    rhs: TopKTensor,
+) -> TopKTensor:
+    """
+    Pairwise difference between two top-k sparse matrices.
+    """
+    lhs_data = fold_and_promote(lhs.data, -2, lhs.data.shape[-2])
+    lhs_indices = fold_and_promote(lhs.indices, -3, lhs.indices.shape[-3])
+    data, indices = jax.vmap(
+        partial(_spsp_pairdiff_impl, rhs=rhs),
+        in_axes=(0, 0)
+    )(lhs_data, lhs_indices)
+    data = demote_and_unfold(data, -3, (-3,)) #.swapaxes(-3, -2)
+    indices = demote_and_unfold(indices, -4, (-4,)) #.swapaxes(-4, -3)
+    shape = lhs.shape[:-2] + (
+        lhs.shape[-2], rhs.shape[-2], lhs.shape[-1])
+    return BCOO((data, indices), shape=shape)
+    # X0_data = X0.data[..., None, :]
+    # X1_data = X1.data[..., None, :, :]
+    # X0_indices = X0.indices[..., None, :, :]
+    # X1_indices = X1.indices[..., None, :, :, :]
+    # X0_shape = X0.shape[:-1] + (1,) + X0.shape[-1:]
+    # X1_shape = X1.shape[:-2] + (1,) + X1.shape[-2:]
+    # X0 = BCOO((X0_data, X0_indices), shape=X0_shape)
+    # X1 = BCOO((X1_data, X1_indices), shape=X1_shape)
+    # return X0, X1
+
+
 def random_sparse_batchfinal(key, shape, density=0.1):
     """
     Generate a random sparse matrix in batch-final COO format.
