@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
     trace_spspmm, _serialised_spspmm, spspmm, _ix, full_as_topk,
-    spsp_pairdiff, select_indices, xtopk,
+    spsp_pairdiff, select_indices, topkx,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
     embed_params_in_diagonal, embed_params_in_sparse
 )
@@ -51,7 +51,7 @@ class TestSparse:
             k=5,
             key=jax.random.PRNGKey(4839)
         )
-        out = spspmm_full(sp, sp).todense()
+        out = spspmm_full(sp, sp)
         ref = sp.todense() @ sp.todense().swapaxes(-1, -2)
         assert np.allclose(out, ref)
 
@@ -75,18 +75,18 @@ class TestSparse:
         assert U.indices.shape == V.indices.shape == (1, 1, 1, 1, 5, 1)
         assert spspmm(U, V).shape == (2, 3, 3, 20, 20)
 
-    def test_xtopk(self):
+    def test_topkx(self):
         X = np.random.randn(2, 3, 100, 100)
         f = lambda X: X.swapaxes(-2, -1) @ X
-        f_topk = xtopk(f)
-        out0 = f_topk(2, X).todense()
+        f_topk = topkx(f)
+        out0 = f_topk(80, X).todense()
         ref = np.where(out0, f(X), 0)
         assert np.allclose(out0, ref)
 
-        indices = select_indices(f(X), 2)
-        f_topk = jax.jit(xtopk(f, indices=indices))
+        indices = select_indices(f(X), 80)
+        f_topk = jax.jit(topkx(f, indices=indices))
         out1 = f_topk(X).todense()
-        assert np.allclose(out0, out1)
+        assert np.allclose(out0, out1, atol=1e-5)
 
     def test_sparse_astype(self):
         sp = random_sparse(
@@ -198,7 +198,7 @@ class TestSparse:
         assert out0.shape == (4, 3, 1000, 500)
         sampling_fn = vmap_over_outer(_ix, 1)
         out0_data = sampling_fn((
-            out0.data.squeeze(-1),
+            out0,
             indices.squeeze(-1)
         ))
 

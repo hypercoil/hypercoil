@@ -8,13 +8,15 @@ Top-k BCOO format
 -----------------
 
 One common BCOO sparse format that is useful in many applications, such as
-connectopic mapping, is the top-k format. This format is a sparse matrix with
+connectopic mapping, is the top-k format. Sparse matrices in top-k format have
 the following properties:
+
 - Each row has no more than k non-zero entries.
 - The indices of nonzero entries are shared across all batch elements.
-- The indexing tensor has shape (..., ``n_rows``, ``k``, 1) where ``...``
+- The indexing tensor has shape (``...``, ``n_rows``, ``k``, 1) where ``...``
   indicates a number of leading singleton dimensions equal to the number of
-  ``channel_dims`` + 1.
+  ``channel_dims`` + 1. (``n_rows`` can be substituted for a singleton
+  dimension as well, in which case all rows have the same nonzero indices.)
 - The data tensor has shape
   (``batch_size``, ``*channel_dims``, ``n_rows``, ``k``).
 """
@@ -147,15 +149,7 @@ def spspmm(
     if indices is None:
         return spspmm_full(lhs, rhs)
     elif n_blocks == 1:
-        sampling_fn = vmap_over_outer(_ix, 1)
-        data = sampling_fn((
-            spspmm_full(lhs, rhs).data.squeeze(-1),
-            indices.squeeze(-1)
-        ))
-        shape = lhs.shape[:-2] + (lhs.shape[-2], rhs.shape[-2])
-        idx_idx = tuple(
-            [None] * (data.ndim - indices.ndim + 1) + [Ellipsis])
-        return BCOO((data, indices[idx_idx]), shape=shape)
+        return topkx(spspmm_full, indices=indices)(lhs, rhs)
     else:
         return _serialised_spspmm(
             lhs=lhs,
@@ -182,7 +176,7 @@ def spspmm_full(
     batch_dims = (tuple(range(lhs.ndim - 2)), tuple(range(rhs.ndim - 2)))
     return jax.experimental.sparse.bcoo_dot_general(
         lhs, rhs, dimension_numbers=(contracting_dims, batch_dims)
-    )
+    ).data.squeeze(-1)
 
 
 def select_indices(
@@ -317,8 +311,7 @@ def trace_spspmm(
         nonzero entries that are returned are allowed to vary over all channel
         dimensions.
     """
-    out = spspmm_full(lhs, rhs)
-    data = out.data.squeeze(-1)
+    data = spspmm_full(lhs, rhs)
     return select_indices(
         data,
         threshold=threshold,
@@ -366,12 +359,12 @@ def _serialised_spspmm_impl(
     lhs_data, lhs_indices, out_indices = data
     out = spspmm_full(
         BCOO((lhs_data, lhs_indices), shape=(lhs_shape)), rhs
-    ).data.squeeze(-1)
+    )
     sampling_fn = vmap_over_outer(_ix, 1)
     return None, sampling_fn((out, out_indices.squeeze(-1)))
 
 
-def xtopk(
+def topkx(
     f: Callable,
     *,
     retnums: Sequence[int] = (0,),
