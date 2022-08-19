@@ -10,6 +10,7 @@ import jax.numpy as jnp
 from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
     trace_spspmm, _serialised_spspmm, spspmm, _ix, full_as_topk,
+    spsp_pairdiff,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
     embed_params_in_diagonal, embed_params_in_sparse
 )
@@ -165,15 +166,17 @@ class TestSparse:
         assert out.n_batch == 3
 
     def test_spspmm_topk(self):
+        key = jax.random.PRNGKey(4839)
+        k0, k1 = jax.random.split(key)
         lhs = random_sparse(
             (4, 3, 1000, 3000),
             k=5,
-            key=jax.random.PRNGKey(4839)
+            key=k0
         )
         rhs = random_sparse(
             (4, 3, 500, 3000),
             k=5,
-            key=jax.random.PRNGKey(4839)
+            key=k1
         )
         indices = trace_spspmm(lhs, rhs, threshold=5, top_k=True)
 
@@ -193,6 +196,23 @@ class TestSparse:
         out2 = spspmm_jit(lhs, rhs, indices, n_blocks=10)
         assert out2.shape == (4, 3, 1000, 500)
         assert np.allclose(out0_data, out2.data)
+
+    def test_spsppairdiff(self):
+        key = jax.random.PRNGKey(4839)
+        k0, k1 = jax.random.split(key)
+        lhs = random_sparse(
+            (4, 3, 100, 300),
+            k=5,
+            key=k0
+        )
+        rhs = random_sparse(
+            (4, 3, 50, 300),
+            k=5,
+            key=k1
+        )
+        out = spsp_pairdiff(lhs, rhs)
+        ref = lhs.todense()[..., None, :] - rhs.todense()[..., None, :, :]
+        assert np.all(out.todense() == ref)
 
     def test_sparse_batch_batchfinal(self):
         shape = (10, 10)
