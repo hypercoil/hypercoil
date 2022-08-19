@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
     trace_spspmm, _serialised_spspmm, spspmm, _ix, full_as_topk,
-    spsp_pairdiff, select_indices, topkx, block_serialise,
+    spsp_pairdiff, select_indices, topkx, block_serialise, sp_block_serialise,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
     embed_params_in_diagonal, embed_params_in_sparse
 )
@@ -110,6 +110,31 @@ class TestSparse:
         f_topk = jax.jit(topkx(f))
         out1 = f_topk(indices, X).todense()
         assert np.allclose(out0, out1, atol=1e-5)
+
+    def test_sp_block_serialise(self):
+        lhs = random_sparse(
+            (4, 3, 1000, 3000),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        rhs = random_sparse(
+            (4, 3, 500, 3000),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        indices = select_indices(spspmm_full(lhs, rhs), 4)
+        f = sp_block_serialise(
+            topkx(spspmm_full),
+            n_blocks=10,
+            argnums=(0,), # indices: non-sparse input to block
+            in_axes=(-3,), # blocking axes for indices
+            sp_argnums=(1,) # lhs: sparse input to block
+        )
+        out = f(indices, lhs, rhs=rhs)
+        ref = spspmm(lhs, rhs, indices=indices)
+        assert np.allclose(out.data, ref.data)
+        assert np.all(out.indices == ref.indices)
+        assert np.allclose(out.todense(), ref.todense())
 
     def test_sparse_astype(self):
         sp = random_sparse(
