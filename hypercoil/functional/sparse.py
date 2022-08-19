@@ -402,7 +402,6 @@ def as_topk(
     """
     #TODO: allow user to specify axis (?)
     indices = topk(tensor, k, axis=-1, descending=descending)
-    #axc = axis_complement(tensor.ndim, axis)
     data_fn = vmap_over_outer(_ix, 1)
     data = data_fn((tensor, indices))
     return BCOO((data, indices[..., None]), shape=tensor.shape)
@@ -451,20 +450,11 @@ def spsp_pairdiff(
         partial(_spsp_pairdiff_impl, rhs=rhs),
         in_axes=(0, 0)
     )(lhs_data, lhs_indices)
-    data = demote_and_unfold(data, -3, (-3,)) #.swapaxes(-3, -2)
-    indices = demote_and_unfold(indices, -4, (-4,)) #.swapaxes(-4, -3)
+    data = demote_and_unfold(data, -3, (-3,))
+    indices = demote_and_unfold(indices, -4, (-4,))
     shape = lhs.shape[:-2] + (
         lhs.shape[-2], rhs.shape[-2], lhs.shape[-1])
     return BCOO((data, indices), shape=shape)
-    # X0_data = X0.data[..., None, :]
-    # X1_data = X1.data[..., None, :, :]
-    # X0_indices = X0.indices[..., None, :, :]
-    # X1_indices = X1.indices[..., None, :, :, :]
-    # X0_shape = X0.shape[:-1] + (1,) + X0.shape[-1:]
-    # X1_shape = X1.shape[:-2] + (1,) + X1.shape[-2:]
-    # X0 = BCOO((X0_data, X0_indices), shape=X0_shape)
-    # X1 = BCOO((X1_data, X1_indices), shape=X1_shape)
-    # return X0, X1
 
 
 def random_sparse_batchfinal(key, shape, density=0.1):
@@ -524,13 +514,6 @@ def spspmm_batchfinal(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
         it is useful in the future. It is strongly recommended that you use
         the top-k format instead.
     """
-    # lhs_shape = lhs.shape
-    # rhs_shape = rhs.shape
-    # lhs_dims = list(lhs_shape[:-lhs.n_dense])
-    # rhs_dims = list(rhs_shape[:-lhs.n_dense])
-    # lhs_dims[outer_dims[0]] = lhs_dims[inner_dims[0]] = None
-    # rhs_dims[outer_dims[0]] = rhs_dims[inner_dims[0]] = None
-
     # only support 2D sparse for now
     assert lhs.n_sparse == rhs.n_sparse == 2
     dense_dim_out = _get_dense_dim_mm_batchfinal(lhs, rhs)
@@ -561,22 +544,6 @@ def spspmm_batchfinal(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
     out_indices = out_indices.reshape(out_nse, -1)
     out_data = out_data.reshape(out_nse, *dense_dim_out)
     return BCOO((out_data, out_indices), shape=out_shape)
-
-
-# def spspmm(lhs, rhs, inner_dims=(1, 1), batch_dims=(0, 0)):
-#     contracting_dims = ((inner_dims[0],), (inner_dims[1],))
-#     batch_dims = ((batch_dims[0],), (batch_dims[1],))
-#     dimension_numbers = (contracting_dims, batch_dims)
-#     return jax.experimental.sparse.bcoo_dot_general(
-#         lhs, rhs, dimension_numbers=dimension_numbers
-#     )
-#     print(dimension_numbers)
-#     fwd = jax.vmap(
-#         partial(jax.experimental.sparse.bcoo_dot_general,
-#                 dimension_numbers=dimension_numbers),
-#         in_axes=batch_dims
-#     )
-#     return fwd(lhs, rhs)
 
 
 def embed_params_in_diagonal(params):
