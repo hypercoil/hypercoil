@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
     trace_spspmm, _serialised_spspmm, spspmm, _ix, full_as_topk,
-    spsp_pairdiff,
+    spsp_pairdiff, select_indices, xtopk,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
     embed_params_in_diagonal, embed_params_in_sparse
 )
@@ -74,6 +74,19 @@ class TestSparse:
         assert U.n_batch == V.n_batch == 4
         assert U.indices.shape == V.indices.shape == (1, 1, 1, 1, 5, 1)
         assert spspmm(U, V).shape == (2, 3, 3, 20, 20)
+
+    def test_xtopk(self):
+        X = np.random.randn(2, 3, 100, 100)
+        f = lambda X: X.swapaxes(-2, -1) @ X
+        f_topk = xtopk(f)
+        out0 = f_topk(2, X).todense()
+        ref = np.where(out0, f(X), 0)
+        assert np.allclose(out0, ref)
+
+        indices = select_indices(f(X), 2)
+        f_topk = jax.jit(xtopk(f, indices=indices))
+        out1 = f_topk(X).todense()
+        assert np.allclose(out0, out1)
 
     def test_sparse_astype(self):
         sp = random_sparse(
