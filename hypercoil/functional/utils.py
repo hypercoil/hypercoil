@@ -206,6 +206,7 @@ def fold_axis(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     """
     Fold the specified axis into the specified number of folds.
     """
+    axis = standard_axis_number(axis, tensor.ndim)
     shape = tensor.shape
     current = shape[axis]
     new_shape = (
@@ -254,6 +255,7 @@ def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
     #     (tensor.shape, pred))
     # print(prod)
     shape = tensor.shape
+    axes = [standard_axis_number(ax, tensor.ndim) for ax in axes]
     current = [shape[ax] for ax in axes]
     prod = reduce(_prod, current)
     new_shape = (
