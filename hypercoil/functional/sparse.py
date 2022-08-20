@@ -420,21 +420,17 @@ def _shape_carrier(carry, _, retvals, retnums=(0,), axes=(-1,)):
     the shape of the output of a block serialised function when the output is
     a sparse matrix.
     """
-    def _update_shape(cur, new, ax):
-        for j, s in enumerate(new):
-            if j == ax:
-                yield cur[j] + s
-            else:
-                yield s
-
     axes = tuple([
         standard_axis_number(ax, retvals[i].ndim)
         for ax, i in zip(axes, retnums)
     ])
-    update = tuple([retvals[i].shape for i in retnums])
-    carry = [tuple(_update_shape(cur, new, axes[i]))
-             for i, (cur, new) in enumerate(zip(carry, update))]
-    return tuple(carry)
+    axidx = tuple([
+        jnp.where(jnp.arange(retvals[i].ndim) == ax, True, False)
+        for ax, i in zip(axes, retnums)])
+    update = tuple([jnp.array(retvals[i].shape) for i in retnums])
+    return tree_map(
+        lambda ax, cur, new: jnp.where(ax, cur + new, new),
+        axidx, carry, update)
 
 
 def _shape_block(shape, n_blocks, axis=-2):
@@ -451,6 +447,7 @@ def sp_block_serialise(
     out_axes: Sequence[int] = (),
     sp_argnums: Sequence[int] = (0,),
     sp_retnums: Sequence[int] = (0,),
+    sp_retndims: Optional[Sequence[int]] = None,
 ) -> Callable:
     """
     Function block serialisation transformation with a convenience wrapper for
@@ -471,6 +468,7 @@ def sp_block_serialise(
 
     retnums, out_axes = zip(*_cfg_return())
     retnums, out_axes = tuple(retnums), tuple(out_axes)
+    #print(retnums, out_axes)
 
     def _prepare_transformation(pparams):
         j = 0
@@ -486,11 +484,13 @@ def sp_block_serialise(
                 j += 1
                 iax += 1
 
-    def _finalise_transformation(retvals, shapes):
+    def _finalise_transformation(shapes, retvals):
         s = 0
         for i, retval in enumerate(retvals):
             if i in sp_retnums:
+                #print(s, shapes[s])
                 indices = retvals[i + 1]
+                #yield ((retval, indices), shapes[s])
                 yield BCOO((retval, indices), shape=shapes[s])
                 s += 1
             elif not (i - 1) in sp_retnums:
@@ -525,25 +525,43 @@ def sp_block_serialise(
         return out
 
     def _init_shapes(data):
-        for i, d in data:
-            if i:
-                yield tuple([0 for _ in d])
+        if sp_retndims is None:
+            for i, d in data:
+                if i:
+                    yield jnp.zeros(len(d))
+                    #yield tuple([0 for _ in d])
+        else:
+            #print(sp_retndims)
+            #print([range(ndim) for ndim in sp_retndims])
+            for ndim in sp_retndims:
+                #print(tuple([0 for _ in range(ndim)]))
+                #yield tuple([0 for _ in range(ndim)])
+                yield jnp.zeros(ndim)
 
     def _f_serialised(*pparams, **params):
         inputs = _prepare_transformation(pparams)
         pparams, argnums, in_axes, data_addresses = zip(*inputs)
         zero_shapes = tuple(_init_shapes(data_addresses))
+        #print(zero_shapes)
         serialised = block_serialise(
             partial(_f_unpack, addresses=data_addresses),
             n_blocks=n_blocks,
             argnums=argnums, retnums=retnums,
             in_axes=in_axes, out_axes=out_axes,
-            carrier_fn=partial(_shape_carrier, axes=(-2,) * len(sp_retnums), retnums=sp_retnums), carry_init=zero_shapes,
+            carrier_fn=partial(
+                _shape_carrier,
+                axes=(-2,) * len(sp_retnums),
+                retnums=sp_retnums),
+            carry_init=zero_shapes,
             return_carry=True,
             postprocess_fn=_unpack_topk_postprocess,
         )
         shapes, retvals = serialised(*pparams, **params)
-        out = tuple(_finalise_transformation(retvals, shapes))
+        #print('shapes ', shapes)
+        if not isinstance(retvals, tuple):
+            retvals = (retvals,)
+        #return shapes, retvals
+        out = tuple(_finalise_transformation(shapes, retvals))
         if len(out) == 1:
             return out[0]
         return tuple(out)
