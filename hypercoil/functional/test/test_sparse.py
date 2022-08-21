@@ -36,7 +36,7 @@ class TestSparse:
         Y = np.broadcast_to(np.arange(100), X.shape)
         h_blk_grad = jax.jit(
             block_serialise(
-                jax.grad(h), n_blocks=10, argnums=(0, 1)
+                jax.grad(h), n_blocks=10,
             ))
         out = h_blk_grad(X, Y)
         assert np.all(out == Y)

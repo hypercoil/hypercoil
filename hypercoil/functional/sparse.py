@@ -24,7 +24,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from functools import partial
-from jax.tree_util import tree_map
+from itertools import cycle
+#from jax.tree_util import tree_map
 from jax.experimental.sparse import BCOO
 from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
@@ -350,7 +351,6 @@ def block_serialise(
     f: Callable,
     *,
     n_blocks: int = 1,
-    argnums: Sequence[int] = (0,),
     retnums: Sequence[int] = (0,),
     in_axes: Sequence[int] = (-1,),
     out_axes: Sequence[int] = (-1,),
@@ -372,8 +372,6 @@ def block_serialise(
         arguments. If this is not possible using the original function, then
         you will have to write a wrapper function.
     """
-    if len(in_axes) == 1:
-        in_axes = in_axes * len(argnums)
     if len(out_axes) == 1:
         out_axes = out_axes * len(retnums)
     if carrier_fn is None:
@@ -388,9 +386,9 @@ def block_serialise(
 
     def _f_serialised(*pparams, **params):
         pparams = list(pparams)
-        for arg, ax in zip(argnums, in_axes):
-            pparams[arg] = fold_and_promote(
-                pparams[arg],
+        for i, (pparam, ax) in enumerate(zip(pparams, cycle(in_axes))):
+            pparams[i] = fold_and_promote(
+                pparam,
                 axis=ax,
                 n_folds=n_blocks)
         carry, out = jax.lax.scan(
@@ -455,7 +453,6 @@ def sp_block_serialise(
     f: Callable,
     *,
     n_blocks: int = 1,
-    argnums: Sequence[int] = (),
     retnums: Sequence[int] = (),
     in_axes: Sequence[int] = (),
     out_axes: Sequence[int] = (),
