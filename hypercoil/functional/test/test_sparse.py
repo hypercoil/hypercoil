@@ -131,24 +131,21 @@ class TestSparse:
             argnums=(0,), # indices: non-sparse input to block
             in_axes=(-3,), # blocking axes for indices
             sp_argnums=(1,), # lhs: sparse input to block
+            sp_retshapes=((4, 3, 1000, 500),), # output shapes,
+                                               # required explicitly
         )
-        #with jax.check_tracer_leaks():
-        #    out = jax.jit(f)(indices, lhs, rhs=rhs)
-        out = jax.jit(f)(indices, lhs, rhs=rhs)
+        with jax.check_tracer_leaks():
+            out = jax.jit(f)(indices, lhs, rhs=rhs)
         ref = spspmm(lhs, rhs, indices=indices)
-        #print(out)
         assert np.allclose(out.data, ref.data)
         assert np.all(out.indices == ref.indices)
-        # This will fail until we figure out
-        # https://github.com/google/jax/issues/12028
-        #assert np.allclose(out.todense(), ref.todense())
+        assert np.allclose(out.todense(), ref.todense())
 
         f = sp_block_serialise(
             spspmm_full,
             n_blocks=10,
             retnums=(0,), # returns full
             sp_retnums=(), # no sparse return
-            sp_retndims=(), # no sparse return
             out_axes=(-2,),
         )
         out = jax.jit(f)(lhs, rhs=rhs)

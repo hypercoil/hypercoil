@@ -49,16 +49,22 @@ def random_sparse(
     """
     Generate a batch of random sparse matrices in the top-k format.
     """
-    if k is None: k = max(shape[-1] // 100, 1)
-    batch_size, *channel_dims, n_rows, n_cols = shape
     ikey, dkey = jax.random.split(key)
+    if k is None: k = max(shape[-1] // 100, 1)
+    if len(shape) > 2:
+        batch_size, *channel_dims, n_rows, n_cols = shape
+        idx_unsqueeze = tuple([None] * (1 + len(channel_dims)) + [...])
+        data = jax.random.normal(dkey, (batch_size, *channel_dims, n_rows, k))
+    else:
+        n_rows, n_cols = shape
+        idx_unsqueeze = (...)
+        data = jax.random.normal(dkey, (n_rows, k))
     ikeys = jax.random.split(ikey, n_rows)
     indices = jnp.stack([
         jax.random.choice(i, a=n_cols, shape=(k, 1), replace=False)
         for i in ikeys
     ], axis=0)
-    idx_unsqueeze = tuple([None] * (1 + len(channel_dims)) + [...])
-    data = jax.random.normal(dkey, (batch_size, *channel_dims, n_rows, k))
+    print(indices.shape, idx_unsqueeze)
     return BCOO((data, indices[idx_unsqueeze]), shape=shape).sum_duplicates()
 
 
@@ -414,23 +420,31 @@ def block_serialise(
 # This is fairly complicated because it involves packaging and unpacking the
 # data and indices into BCOO tensors, as well as tracking the shape of the
 # output.
-def _shape_carrier(carry, _, retvals, retnums=(0,), axes=(-1,)):
-    """
-    Carrier function for the shape of the output. This can be used to track
-    the shape of the output of a block serialised function when the output is
-    a sparse matrix.
-    """
-    axes = tuple([
-        standard_axis_number(ax, retvals[i].ndim)
-        for ax, i in zip(axes, retnums)
-    ])
-    axidx = tuple([
-        jnp.where(jnp.arange(retvals[i].ndim) == ax, True, False)
-        for ax, i in zip(axes, retnums)])
-    update = tuple([jnp.array(retvals[i].shape) for i in retnums])
-    return tree_map(
-        lambda ax, cur, new: jnp.where(ax, cur + new, new),
-        axidx, carry, update)
+# Update: we've given up on tracking the shape of the output, and instead
+# require the caller to pass the shape of the output.
+
+# So it turns out that carrying the shape of the output is not possible with
+# JIT compilation. Shapes must be static, but accumulating the shape of the
+# output through a lax scan wraps it into a DeviceArray. So keeping it static
+# is not possible. This means that we must require the caller to pass the
+# shape of the output.
+# def _shape_carrier(carry, _, retvals, retnums=(0,), axes=(-1,)):
+#     """
+#     Carrier function for the shape of the output. This can be used to track
+#     the shape of the output of a block serialised function when the output is
+#     a sparse matrix.
+#     """
+#     axes = tuple([
+#         standard_axis_number(ax, retvals[i].ndim)
+#         for ax, i in zip(axes, retnums)
+#     ])
+#     axidx = tuple([
+#         jnp.where(jnp.arange(retvals[i].ndim) == ax, True, False)
+#         for ax, i in zip(axes, retnums)])
+#     update = tuple([jnp.array(retvals[i].shape) for i in retnums])
+#     return tree_map(
+#         lambda ax, cur, new: jnp.where(ax, cur + new, new),
+#         axidx, carry, update)
 
 
 def _shape_block(shape, n_blocks, axis=-2):
@@ -447,7 +461,7 @@ def sp_block_serialise(
     out_axes: Sequence[int] = (),
     sp_argnums: Sequence[int] = (0,),
     sp_retnums: Sequence[int] = (0,),
-    sp_retndims: Optional[Sequence[int]] = None,
+    sp_retshapes: Sequence[Sequence[int]] = (),
 ) -> Callable:
     """
     Function block serialisation transformation with a convenience wrapper for
@@ -466,6 +480,8 @@ def sp_block_serialise(
                 yield retnum + 1, -3
                 retnum += 2
 
+    if sp_retshapes == () and sp_retnums != ():
+        raise ValueError('Must specify shapes of any sparse outputs')
     retnums, out_axes = zip(*_cfg_return())
     retnums, out_axes = tuple(retnums), tuple(out_axes)
     #print(retnums, out_axes)
@@ -491,6 +507,7 @@ def sp_block_serialise(
                 #print(s, shapes[s])
                 indices = retvals[i + 1]
                 #yield ((retval, indices), shapes[s])
+                #yield _mk_bcoo(retvals, indices, shapes[s])
                 yield BCOO((retval, indices), shape=shapes[s])
                 s += 1
             elif not (i - 1) in sp_retnums:
@@ -501,6 +518,7 @@ def sp_block_serialise(
         for i, a in enumerate(addresses):
             cur, shape = a
             if cur:
+                #yield _mk_bcoo(pparams[i], pparams[i + 1], shape=shape)
                 yield BCOO((pparams[i], pparams[i + 1]), shape=shape)
             elif not prev:
                 yield pparams[i]
@@ -524,44 +542,41 @@ def sp_block_serialise(
             out = (out,)
         return out
 
-    def _init_shapes(data):
-        if sp_retndims is None:
-            for i, d in data:
-                if i:
-                    yield jnp.zeros(len(d))
-                    #yield tuple([0 for _ in d])
-        else:
-            #print(sp_retndims)
-            #print([range(ndim) for ndim in sp_retndims])
-            for ndim in sp_retndims:
-                #print(tuple([0 for _ in range(ndim)]))
-                #yield tuple([0 for _ in range(ndim)])
-                yield jnp.zeros(ndim)
+    # def _init_shapes(data):
+    #     if sp_retndims is None:
+    #         for i, d in data:
+    #             if i:
+    #                 yield jnp.zeros(len(d))
+    #                 #yield tuple([0 for _ in d])
+    #     else:
+    #         for ndim in sp_retndims:
+    #             yield jnp.zeros(ndim)
 
     def _f_serialised(*pparams, **params):
         inputs = _prepare_transformation(pparams)
         pparams, argnums, in_axes, data_addresses = zip(*inputs)
-        zero_shapes = tuple(_init_shapes(data_addresses))
+        #zero_shapes = tuple(_init_shapes(data_addresses))
         #print(zero_shapes)
         serialised = block_serialise(
             partial(_f_unpack, addresses=data_addresses),
             n_blocks=n_blocks,
             argnums=argnums, retnums=retnums,
             in_axes=in_axes, out_axes=out_axes,
-            carrier_fn=partial(
-                _shape_carrier,
-                axes=(-2,) * len(sp_retnums),
-                retnums=sp_retnums),
-            carry_init=zero_shapes,
-            return_carry=True,
+            # carrier_fn=partial(
+            #     _shape_carrier,
+            #     axes=(-2,) * len(sp_retnums),
+            #     retnums=sp_retnums),
+            # carry_init=zero_shapes,
+            # return_carry=True,
             postprocess_fn=_unpack_topk_postprocess,
         )
-        shapes, retvals = serialised(*pparams, **params)
+        #shapes, retvals = serialised(*pparams, **params)
+        retvals = serialised(*pparams, **params)
         #print('shapes ', shapes)
         if not isinstance(retvals, tuple):
             retvals = (retvals,)
         #return shapes, retvals
-        out = tuple(_finalise_transformation(shapes, retvals))
+        out = tuple(_finalise_transformation(sp_retshapes, retvals))
         if len(out) == 1:
             return out[0]
         return tuple(out)
