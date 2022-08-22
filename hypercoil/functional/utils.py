@@ -8,6 +8,7 @@ blemish.
 """
 import jax
 import jax.numpy as jnp
+import numpy as np
 import torch
 import distrax
 from jax import vmap
@@ -18,7 +19,7 @@ from typing import Any, Callable, Generator, Optional, Sequence, Tuple, Union
 
 
 #TODO: replace with jaxtyping at some point
-Tensor = Any
+Tensor = Union[jnp.DeviceArray, np.ndarray]
 PyTree = Any
 Distribution = distrax.Distribution
 

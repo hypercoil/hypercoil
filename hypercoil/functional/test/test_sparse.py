@@ -107,6 +107,20 @@ class TestSparse:
         ref = sp.todense() @ spflat.todense().swapaxes(-1, -2)
         assert np.allclose(out, ref)
 
+        spflat = random_sparse(
+            (50, 100),
+            k=5,
+            key=jax.random.PRNGKey(np.random.randint(2 ** 32))
+        )
+        out = jax.jit(spspmm_full)(sp, spflat)
+        ref = sp.todense() @ spflat.todense().swapaxes(-1, -2)
+        assert np.allclose(out, ref)
+
+        full = np.random.randn(3, 100, 100)
+        out = jax.jit(spspmm_full)(sp, full)
+        ref = sp.todense() @ full.swapaxes(-1, -2)
+        assert np.allclose(out, ref, atol=1e-5)
+
     def test_topk(self):
         def _nlt(x, i): return (x[i] < x).sum()
         X = np.random.randn(2, 3, 1000, 1000)

@@ -35,7 +35,7 @@ from .utils import (
 )
 
 
-TopKTensor = Any
+TopKTensor = BCOO
 
 
 def _ix(x, i): return x[i]
@@ -187,6 +187,22 @@ def spspmm(
         )
 
 
+def _spspmm_broadcast(
+    lhs: TopKTensor,
+    rhs: TopKTensor,
+):
+    lhs_batch, rhs_batch = lhs.shape[:-2], rhs.shape[:-2]
+    batch = jnp.broadcast_shapes(lhs_batch, rhs_batch)
+    lhs_shape, rhs_shape = batch + lhs.shape[-2:], batch + rhs.shape[-2:]
+    # This is unusual and feels inelegant and wasteful compared with just
+    # using `broadcast_to`, but `broadcast_to` results in an exception because
+    # the shape it receives isn't static.
+    dummy_lhs = jnp.empty(lhs_shape)
+    dummy_rhs = jnp.empty(rhs_shape)
+    bcsp = sparsify(jnp.broadcast_arrays)
+    return bcsp(lhs, dummy_lhs)[0], bcsp(rhs, dummy_rhs)[0]
+
+
 def spspmm_full(
     lhs: TopKTensor,
     rhs: TopKTensor
@@ -200,7 +216,9 @@ def spspmm_full(
         returns
         :math:`A B^\intercal` for LHS :math:`A` and RHS :math:`B`.
     """
-    lhs, rhs = sparsify(jnp.broadcast_arrays)(lhs, rhs)
+    if not isinstance(lhs, BCOO) or not isinstance(rhs, BCOO):
+        return lhs @ rhs.swapaxes(-2, -1)
+    lhs, rhs = _spspmm_broadcast(lhs, rhs)
     contracting_dims = ((lhs.ndim - 1,), (rhs.ndim - 1,))
     batch_dims = (tuple(range(lhs.ndim - 2)), tuple(range(rhs.ndim - 2)))
     return jax.experimental.sparse.bcoo_dot_general(
@@ -218,7 +236,7 @@ def dspdmm(
     sparse matrix X and a diagonal matrix D, the result is
 
     .. math::
-        D X D
+        \mathbf{D} \mathbf{X} \mathbf{D}
     """
     return spdiagmm(diag, spdiagmm(input, diag), lhs_diag=True)
 
@@ -807,7 +825,7 @@ def full_as_topk(
     Represent a batch of full tensors in top-k sparse matrix format.
 
     This is strictly less efficient than standard full tensor format, but
-    provides compatibility with functions that operate on top-k sparse
+    provides compatibility with functions that operate only on top-k sparse
     matrices.
     """
     data = tensor
