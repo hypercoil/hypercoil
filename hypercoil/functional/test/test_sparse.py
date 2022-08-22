@@ -8,11 +8,11 @@ import jax
 import numpy as np
 import jax.numpy as jnp
 from hypercoil.functional.sparse import(
-    random_sparse, spdiagmm, spspmm_full, topk, as_topk, sparse_astype,
-    trace_spspmm, _serialised_spspmm, spspmm, _ix, full_as_topk,
-    spsp_pairdiff, select_indices, topkx, block_serialise, sp_block_serialise,
+    random_sparse, spdiagmm, dspdmm, spspmm_full, topk, as_topk,
+    sparse_astype, trace_spspmm, _serialised_spspmm, spspmm, _ix,
+    full_as_topk, spsp_pairdiff, select_indices, topkx, block_serialise,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
-    embed_params_in_diagonal, embed_params_in_sparse
+    sp_block_serialise, embed_params_in_diagonal, embed_params_in_sparse
 )
 from hypercoil.functional.utils import vmap_over_outer
 
@@ -68,6 +68,25 @@ class TestSparse:
         out_lhsdiag = spdiagmm(diag, sp, lhs_diag=True).todense()
         assert np.allclose(out_lhsdiag, ref_lhsdiag)
 
+        ref_bothdiag = diag_embed @ sp.todense() @ diag_embed
+        out_bothdiag = dspdmm(sp, diag).todense()
+        assert np.allclose(out_bothdiag, ref_bothdiag)
+
+        diag = np.random.randn(100)
+        diag_embed = jnp.diagflat(diag)
+
+        ref_rhsdiag = sp.todense() @ diag_embed
+        out_rhsdiag = spdiagmm(sp, diag).todense()
+        assert np.allclose(out_rhsdiag, ref_rhsdiag)
+
+        ref_lhsdiag = diag_embed @ sp.todense()
+        out_lhsdiag = spdiagmm(diag, sp, lhs_diag=True).todense()
+        assert np.allclose(out_lhsdiag, ref_lhsdiag)
+
+        ref_bothdiag = diag_embed @ sp.todense() @ diag_embed
+        out_bothdiag = dspdmm(sp, diag).todense()
+        assert np.allclose(out_bothdiag, ref_bothdiag)
+
     def test_spspmm_full(self):
         sp = random_sparse(
             (4, 3, 100, 100),
@@ -76,6 +95,15 @@ class TestSparse:
         )
         out = spspmm_full(sp, sp)
         ref = sp.todense() @ sp.todense().swapaxes(-1, -2)
+        assert np.allclose(out, ref)
+
+        spflat = random_sparse(
+            (100, 100),
+            k=5,
+            key=jax.random.PRNGKey(np.random.randint(2 ** 32))
+        )
+        out = jax.jit(spspmm_full)(sp, spflat)
+        ref = sp.todense() @ spflat.todense().swapaxes(-1, -2)
         assert np.allclose(out, ref)
 
     def test_topk(self):

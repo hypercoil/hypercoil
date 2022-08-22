@@ -26,7 +26,7 @@ import numpy as np
 from functools import partial
 from itertools import cycle
 #from jax.tree_util import tree_map
-from jax.experimental.sparse import BCOO
+from jax.experimental.sparse import BCOO, sparsify
 from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from .utils import (
@@ -65,7 +65,6 @@ def random_sparse(
         jax.random.choice(i, a=n_cols, shape=(k, 1), replace=False)
         for i in ikeys
     ], axis=0)
-    print(indices.shape, idx_unsqueeze)
     return BCOO((data, indices[idx_unsqueeze]), shape=shape).sum_duplicates()
 
 
@@ -181,11 +180,27 @@ def spspmm_full(
         returns
         :math:`A B^\intercal` for LHS :math:`A` and RHS :math:`B`.
     """
+    lhs, rhs = sparsify(jnp.broadcast_arrays)(lhs, rhs)
     contracting_dims = ((lhs.ndim - 1,), (rhs.ndim - 1,))
     batch_dims = (tuple(range(lhs.ndim - 2)), tuple(range(rhs.ndim - 2)))
     return jax.experimental.sparse.bcoo_dot_general(
         lhs, rhs, dimension_numbers=(contracting_dims, batch_dims)
     ).data.squeeze(-1)
+
+
+def dspdmm(
+    input: TopKTensor,
+    diag: Tensor
+) -> TopKTensor:
+    """
+    Left and right matrix multiplication of a top-k format sparse matrix with
+    a diagonal matrix. Returns a sparse matrix in the top-k format. For a
+    sparse matrix X and a diagonal matrix D, the result is
+
+    .. math::
+        D X D
+    """
+    return spdiagmm(diag, spdiagmm(input, diag), lhs_diag=True)
 
 
 def select_indices(
