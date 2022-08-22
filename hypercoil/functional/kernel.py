@@ -7,8 +7,10 @@ Parameterised similarity kernels and distance metrics.
 import torch
 import jax
 import jax.numpy as jnp
+from functools import singledispatch
+from typing import Optional
 from jax.experimental.sparse import BCOO
-from .sparse import TopKTensor, spspmm, spdiagmm, _promote_nnz_dim
+from .sparse import TopKTensor, full_as_topk, spspmm, spdiagmm, topkx
 from .utils import (
     Tensor, is_sparse,
     sparse_mm, sparse_rcmul, sparse_reciprocal,
@@ -22,100 +24,28 @@ def _default_gamma(X, gamma):
     return gamma
 
 
-def _embed_params_in_diagonal(theta):
-    dim = theta.shape[-1]
-    indices = jnp.arange(dim)
-    indices = jnp.stack((indices, indices))
-    theta = _promote_nnz_dim(theta)
-    return BCOO(
-        theta, indices, shape=(dim, dim, *theta.shape[1:])
-    )
-
-
-def _embed_params_in_sparse(theta):
-    dim = theta.shape[-1]
-
-    nzi = jax.lax.stop_gradient(jnp.abs(theta))
-    dims = list(range(theta.ndim - 2))
-    if dims:
-        nzi = nzi.sum(dims)
-    indices = jnp.stack(jnp.where(nzi))
-
-    dim = theta.size(-1)
-    with torch.no_grad():
-        dims = list(range(theta.dim() - 2))
-        if dims:
-            nzi = theta.abs().sum(list(range(theta.dim() - 2)))
-        else:
-            nzi = theta.abs()
-        indices = torch.stack(torch.where(nzi))
-    values = _promote_nnz_dim(theta[..., indices[0], indices[1]])
-    return torch.sparse_coo_tensor(
-        indices, values, size=(dim, dim, *values.shape[1:])
-    )
-
-
-def _linear_kernel_dense(X0, X1, theta):
-    if theta is None:
-        return X0 @ X1.swapaxes(-1, -2)
-    elif theta.ndim == 1 or theta.shape[-1] != theta.shape[-2]:
-        theta = _conform_vector_weight(theta)
-        return (X0 * theta) @ X1.swapaxes(-1, -2)
-    else:
-        return X0 @ theta @ X1.swapaxes(-1, -2)
-
-
-def _linear_kernel_sparse(X0, X1, theta):
-    if theta is None:
-        return sparse_mm(X0, X1.transpose(0, 1))
-    elif theta.is_sparse:
-        pass
-    elif theta.dim() == 1 or theta.shape[-1] != theta.shape[-2]:
-        theta = _embed_params_in_diagonal(theta)
-    else:
-        theta = _embed_params_in_sparse(theta)
-    X0 = sparse_mm(X0, theta)
-    return sparse_mm(X0, X1.transpose(0, 1))
-
-
-def _param_norm_sparse(X, theta, squared=False):
-    if theta is None:
-        out = torch.sparse.sum(X ** 2, dim=1)
-        if squared:
-            return out
-        return out.sqrt()
-    elif theta.is_sparse:
-        pass
-    elif theta.dim() == 1 or theta.shape[-1] != theta.shape[-2]:
-        theta = _embed_params_in_diagonal(theta)
-    else:
-        theta = _embed_params_in_sparse(theta)
-    sc = (sparse_mm(X, theta) * X)
-    out = torch.sparse.sum(sc, dim=1)
-    if squared:
-        return out
-    return out.sqrt()
-
-
-def _param_norm(X, theta, squared=False):
-    if X.is_sparse:
-        return _param_norm_sparse(X, theta, squared)
-    elif squared:
-        return (X ** 2).sum(-1)
-    else:
-        return X.norm(dim=-1)
-
-
-def linear_kernel(X0, X1=None, theta=None):
+@singledispatch
+def linear_kernel(
+    X0: Tensor,
+    X1: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None,
+    intermediate_indices: None = None,
+) -> Tensor:
     r"""
     Parameterised linear kernel between input tensors.
 
-    For tensors :math:`X_0` and :math:`X_1` containing observations in column
+    For tensors :math:`X_0` and :math:`X_1` containing features in column
     vectors, the parameterised linear kernel is
 
     :math:`K_{\theta}(X_0, X_1) = X_0^\intercal \theta X_1`
 
     where :math:`\theta` is the kernel parameter.
+
+    .. note::
+        The inputs here are assumed to contain features in row vectors and
+        observations in columns. This differs from the convention frequently
+        used in the literature. However, this has the benefit of direct
+        compatibility with the top-k sparse tensor format.
 
     :Dimension: **X0 :** :math:`(*, N, P)` or :math:`(N, P, *)`
                     N denotes number of observations, P denotes number of
@@ -151,10 +81,86 @@ def linear_kernel(X0, X1=None, theta=None):
     """
     if X1 is None:
         X1 = X0
-    if is_sparse(X0):
-        return _linear_kernel_sparse(X0, X1, theta)
+    if theta is None:
+        return X0 @ X1.swapaxes(-1, -2)
+    elif theta.ndim == 1 or theta.shape[-1] != theta.shape[-2]:
+        theta = _conform_vector_weight(theta)
+        return (X0 * theta) @ X1.swapaxes(-1, -2)
     else:
-        return _linear_kernel_dense(X0, X1, theta)
+        return X0 @ theta @ X1.swapaxes(-1, -2)
+
+
+@linear_kernel.register
+def _(
+    X0: TopKTensor,
+    X1: Optional[TopKTensor] = None,
+    theta: Optional[Tensor] = None,
+    intermediate_indices: Optional[Tensor] = None,
+) -> TopKTensor:
+    if X1 is None:
+        X1 = X0
+    if theta is None:
+        return spspmm(X0, X1)
+    elif is_sparse(theta):
+        if theta.data.shape[-1] == theta.shape[-1]:
+            lhs = X0
+            if intermediate_indices is not None:
+                rhs = topkx(spspmm)(intermediate_indices, X1, theta)
+            else:
+                rhs = spspmm(X1, theta)
+        elif intermediate_indices is not None:
+            mm = topkx(spspmm)
+            lhs = mm(intermediate_indices, X0, theta)
+            rhs = mm(intermediate_indices, X1, theta)
+        else:
+            lhs = spspmm(X0, theta)
+            rhs = spspmm(X1, theta)
+        return spspmm(lhs, rhs)
+    elif theta.ndim == 1 or theta.shape[-1] != theta.shape[-2]:
+        return spspmm(spdiagmm(X0, theta), X1)
+    else:
+        theta = full_as_topk(theta)
+        if intermediate_indices is not None:
+            rhs = topkx(spspmm)(intermediate_indices, X1, theta)
+            return spspmm(X0, rhs)
+        return spspmm(X0, spspmm(X1, theta))
+
+
+def _param_norm_sparse(X, theta, squared=False):
+    if theta is None:
+        out = torch.sparse.sum(X ** 2, dim=1)
+        if squared:
+            return out
+        return out.sqrt()
+    elif theta.is_sparse:
+        pass
+    elif theta.dim() == 1 or theta.shape[-1] != theta.shape[-2]:
+        theta = _embed_params_in_diagonal(theta)
+    else:
+        theta = _embed_params_in_sparse(theta)
+    sc = (sparse_mm(X, theta) * X)
+    out = torch.sparse.sum(sc, dim=1)
+    if squared:
+        return out
+    return out.sqrt()
+
+
+def _param_norm_sparse(X, theta, squared=False):
+    if theta is None:
+        data = X.data.sum(-1, keepdims=True)
+        if not squared:
+            data = jnp.sqrt(data)
+    elif is_sparse(theta):
+        pass
+
+
+def _param_norm(X, theta, squared=False):
+    if X.is_sparse:
+        return _param_norm_sparse(X, theta, squared)
+    elif squared:
+        return linear_distance(X, X, theta)
+    else:
+        return jnp.sqrt(linear_distance(X, X, theta))
 
 
 def linear_distance(X0, X1=None, theta=None):
@@ -170,7 +176,7 @@ def polynomial_kernel(X0, X1=None, theta=None, gamma=None, order=3, r=0):
     r"""
     Parameterised polynomial kernel between input tensors.
 
-    For tensors :math:`X_0` and :math:`X_1` containing observations in column
+    For tensors :math:`X_0` and :math:`X_1` containing features in column
     vectors, the parameterised polynomial kernel is
 
     :math:`K_{\theta}(X_0, X_1) = (\gamma X_0^\intercal \theta X_1 + r)^\omega`
@@ -178,6 +184,12 @@ def polynomial_kernel(X0, X1=None, theta=None, gamma=None, order=3, r=0):
     where :math:`\theta` is the kernel parameter, :math:`\gamma` and r are
     scaling and offset coefficients, and :math:`\omega` is the maximum degree
     or order of the kernel.
+
+    .. note::
+        The inputs here are assumed to contain features in row vectors and
+        observations in columns. This differs from the convention frequently
+        used in the literature. However, this has the benefit of direct
+        compatibility with the top-k sparse tensor format.
 
     :Dimension: **X0 :** :math:`(*, N, P)` or :math:`(N, P, *)`
                     N denotes number of observations, P denotes number of
@@ -227,13 +239,19 @@ def sigmoid_kernel(X0, X1=None, theta=None, gamma=None, r=0):
     r"""
     Parameterised sigmoid kernel between input tensors.
 
-    For tensors :math:`X_0` and :math:`X_1` containing observations in column
+    For tensors :math:`X_0` and :math:`X_1` containing features in column
     vectors, the parameterised sigmoid kernel is
 
     :math:`K_{\theta}(X_0, X_1) = \tanh (\gamma X_0^\intercal \theta X_1 + r)`
 
     where :math:`\theta` is the kernel parameter, and :math:`\gamma` and r are
     scaling and offset coefficients.
+
+    .. note::
+        The inputs here are assumed to contain features in row vectors and
+        observations in columns. This differs from the convention frequently
+        used in the literature. However, this has the benefit of direct
+        compatibility with the top-k sparse tensor format.
 
     :Dimension: **X0 :** :math:`(*, N, P)` or :math:`(N, P, *)`
                     N denotes number of observations, P denotes number of
@@ -281,7 +299,7 @@ def gaussian_kernel(X0, X1=None, theta=None, sigma=None):
     r"""
     Parameterised Gaussian kernel between input tensors.
 
-    For tensors :math:`X_0` and :math:`X_1` containing observations in column
+    For tensors :math:`X_0` and :math:`X_1` containing features in column
     vectors, the parameterised Gaussian kernel is
 
     :math:`K_{\theta}(X_0, X_1) = e^{\frac{1}{\sigma^2} (X_0 - X_1)^\intercal \theta (X_0 - X_1)}`
@@ -293,6 +311,12 @@ def gaussian_kernel(X0, X1=None, theta=None, sigma=None):
 
     This is the same as :func:`rbf_kernel` but is parameterised in terms of
     :math:`\sigma` rather than  :math:`\gamma`.
+
+    .. note::
+        The inputs here are assumed to contain features in row vectors and
+        observations in columns. This differs from the convention frequently
+        used in the literature. However, this has the benefit of direct
+        compatibility with the top-k sparse tensor format.
 
     :Dimension: **X0 :** :math:`(*, N, P)` or :math:`(N, P, *)`
                     N denotes number of observations, P denotes number of
@@ -340,7 +364,7 @@ def rbf_kernel(X0, X1=None, theta=None, gamma=None):
     r"""
     Parameterised RBF kernel between input tensors.
 
-    For tensors :math:`X_0` and :math:`X_1` containing observations in column
+    For tensors :math:`X_0` and :math:`X_1` containing features in column
     vectors, the parameterised RBF kernel is
 
     :math:`K_{\theta}(X_0, X_1) = e^{\gamma (X_0 - X_1)^\intercal \theta (X_0 - X_1)}`
@@ -352,6 +376,12 @@ def rbf_kernel(X0, X1=None, theta=None, gamma=None):
 
     This is the same as :func:`gaussian_kernel` but is parameterised in terms
     of :math:`\gamma` rather than  :math:`\sigma`.
+
+    .. note::
+        The inputs here are assumed to contain features in row vectors and
+        observations in columns. This differs from the convention frequently
+        used in the literature. However, this has the benefit of direct
+        compatibility with the top-k sparse tensor format.
 
     :Dimension: **X0 :** :math:`(*, N, P)` or :math:`(N, P, *)`
                     N denotes number of observations, P denotes number of
@@ -397,7 +427,7 @@ def cosine_kernel(X0, X1=None, theta=None):
     r"""
     Parameterised cosine kernel between input tensors.
 
-    For tensors :math:`X_0` and :math:`X_1` containing observations in column
+    For tensors :math:`X_0` and :math:`X_1` containing features in column
     vectors, the parameterised cosine kernel is
 
     :math:`K_{\theta}(X_0, X_1) = \frac{X_0^\intercal \theta X_1}{\|X_0\|_\theta \|X_1\|_\theta}`
@@ -407,6 +437,12 @@ def cosine_kernel(X0, X1=None, theta=None):
     :math:`\|A\|_{\theta;i} = \sqrt{A_i^\intercal \theta A_i}`
 
     is the elementwise square root of the vector of quadratic forms.
+
+    .. note::
+        The inputs here are assumed to contain features in row vectors and
+        observations in columns. This differs from the convention frequently
+        used in the literature. However, this has the benefit of direct
+        compatibility with the top-k sparse tensor format.
 
     :Dimension: **X0 :** :math:`(*, N, P)` or :math:`(N, P, *)`
                     N denotes number of observations, P denotes number of
