@@ -868,6 +868,21 @@ def spsp_pairdiff(
     return BCOO((data, indices), shape=shape)
 
 
+def splr_hadamard(
+    input: TopKTensor,
+    col: Tensor,
+    row: Tensor,
+) -> TopKTensor:
+    """
+    Hadamard product between a sparse matrix and a low-rank matrix generated
+    as the outer product of the specified column and row vectors.
+    """
+    row = row[tuple(input.indices.squeeze(-1))]
+    col = col[..., None, :]
+    lr = (row * col).sum(-1)
+    return BCOO((lr * input.data, input.indices), shape=input.shape)
+
+
 def spsp_innerpaired(
     lhs: TopKTensor,
     rhs: Optional[TopKTensor] = None,
