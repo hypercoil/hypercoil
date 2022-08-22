@@ -4,21 +4,22 @@
 """
 Parameterised similarity kernels and distance metrics.
 """
-import torch
 import jax
 import jax.numpy as jnp
 from functools import singledispatch
 from typing import Optional, Tuple, Union
-from jax.experimental.sparse import BCOO
-from .sparse import TopKTensor, full_as_topk, spspmm, spdiagmm, topkx
+from jax.experimental.sparse import BCOO, sparsify
+from .sparse import (
+    TopKTensor, spsp_pairdiff, spsp_innerpaired, spspmm, spdiagmm, topkx
+)
 from .utils import (
     Tensor, is_sparse,
-    sparse_mm, sparse_rcmul, sparse_reciprocal,
+    sparse_rcmul, sparse_reciprocal,
     _conform_vector_weight
 )
 
 
-def _default_gamma(X, gamma):
+def _default_gamma(X: Tensor, *, gamma: Optional[float]) -> float:
     if gamma is None:
         gamma = 1 / X.shape[-1]
     return gamma
@@ -94,7 +95,7 @@ def linear_kernel(
 def _(
     X0: TopKTensor,
     X1: Optional[TopKTensor] = None,
-    theta: Optional[Tensor] = None,
+    theta: Optional[Union[Tensor, TopKTensor]] = None,
     intermediate_indices: Union[None, Tensor, Tuple[Tensor, Tensor]] = None,
 ) -> TopKTensor:
     if X1 is None:
@@ -125,50 +126,101 @@ def _(
         return spspmm(X0, spspmm(X1, theta))
 
 
-def _param_norm_sparse(X, theta, squared=False):
-    if theta is None:
-        out = torch.sparse.sum(X ** 2, dim=1)
-        if squared:
-            return out
-        return out.sqrt()
-    elif theta.is_sparse:
-        pass
-    elif theta.dim() == 1 or theta.shape[-1] != theta.shape[-2]:
-        theta = _embed_params_in_diagonal(theta)
-    else:
-        theta = _embed_params_in_sparse(theta)
-    sc = (sparse_mm(X, theta) * X)
-    out = torch.sparse.sum(sc, dim=1)
+@singledispatch
+def param_norm(
+    X: Tensor,
+    theta: Optional[Tensor],
+    *,
+    squared: bool =False
+) -> Tensor:
+    r"""
+    Parameterised norm of pairwise distances between observations in an input
+    tensor.
+
+    For a tensor :math:`X` containing features in column vectors, the
+    parameterised norms of pairwise distances between observations
+    :math:`X_i` and :math:`X_j` are
+
+    :math:`\|X_i - X_j\|_{\theta} = (X_i - X_j)^\intercal \theta (X_i - X_j)`
+    or
+    :math:`\|X_i - X_j\|_{\theta} = (X_i - X_j)^\intercal \theta (X_i - X_j)^2`
+    if ``squared`` is True.
+
+    .. note::
+        The inputs here are assumed to contain features in row vectors and
+        observations in columns. This differs from the convention frequently
+        used in the literature. However, this has the benefit of direct
+        compatibility with the top-k sparse tensor format.
+
+    :Dimension: **X :** :math:`(*, N, P)` or :math:`(N, P, *)`
+                    N denotes number of observations, P denotes number of
+                    features, `*` denotes any number of additional dimensions.
+                    If the input is dense, then the last dimensions should be
+                    N and P; if it is sparse, then the first dimensions should
+                    be N and P.
+                **theta :** :math:`(*, P, P)` or :math:`(*, P)`
+                    As above.
+                **Output :** :math:`(*, N)` or :math:`(N, *)`
+                    As above.
+    """
     if squared:
-        return out
-    return out.sqrt()
-
-
-def _param_norm_sparse(X, theta, squared=False):
-    if theta is None:
-        data = X.data.sum(-1, keepdims=True)
-        if not squared:
-            data = jnp.sqrt(data)
-    elif is_sparse(theta):
-        pass
-
-
-def _param_norm(X, theta, squared=False):
-    if X.is_sparse:
-        return _param_norm_sparse(X, theta, squared)
-    elif squared:
         return linear_distance(X, X, theta)
     else:
         return jnp.sqrt(linear_distance(X, X, theta))
 
 
-def linear_distance(X0, X1=None, theta=None):
-    """Squared Euclidean (L2) distance."""
+@param_norm.register
+def _(
+    X: TopKTensor,
+    theta: Optional[Union[Tensor, TopKTensor]],
+    *,
+    squared: bool = False
+) -> TopKTensor:
+    if squared:
+        return linear_distance(X, X, theta)
+    else:
+        return sparsify(jnp.sqrt)(linear_distance(X, X, theta))
+
+
+@singledispatch
+def linear_distance(
+    X0: Tensor,
+    X1: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None
+) -> Tensor:
+    """Squared Euclidean (L2) distance (or Mahalanobis if theta is set)."""
     if X1 is None:
         X1 = X0
     D = X0[..., None, :] - X1[..., None, :, :]
-    D = linear_kernel(X0=D[..., None, :], theta=theta)
+    if (theta is not None
+        ) and (theta.ndim > 1
+        ) and (theta.shape[-1] != theta.shape[-2]):
+        theta = theta[..., None, None, None, :]
+    D = linear_kernel(D[..., None, :], theta=theta)
     return D.reshape(*D.shape[:-2])
+
+
+@linear_distance.register
+def _(
+    X0: TopKTensor,
+    X1: Optional[TopKTensor] = None,
+    theta: Optional[Union[Tensor, TopKTensor]] = None
+) -> TopKTensor:
+    if X1 is None:
+        X1 = X0
+    D = spsp_pairdiff(lhs=X0, rhs=X1)
+    if isinstance(theta, BCOO):
+        lhs = rhs = spspmm(D, theta)
+    elif theta is not None:
+        lhs = D
+        if theta.ndim == 1 or theta.shape[-1] != theta.shape[-2]:
+            rhs = spdiagmm(D, theta)
+        else:
+            theta = theta[..., None, :, :]
+            rhs = spspmm(D, theta.swapaxes(-1, -2))
+    else:
+        lhs = rhs = D
+    return spsp_innerpaired(lhs, rhs)
 
 
 def polynomial_kernel(X0, X1=None, theta=None, gamma=None, order=3, r=0):
@@ -229,7 +281,7 @@ def polynomial_kernel(X0, X1=None, theta=None, gamma=None, order=3, r=0):
     tensor
         Kernel Gram matrix.
     """
-    gamma = _default_gamma(X0, gamma)
+    gamma = _default_gamma(X0, gamma=gamma)
     K = linear_kernel(X0, X1, theta)
     return (gamma * K + r) ** order
 
@@ -289,7 +341,7 @@ def sigmoid_kernel(X0, X1=None, theta=None, gamma=None, r=0):
     tensor
         Kernel Gram matrix.
     """
-    gamma = _default_gamma(X0, gamma)
+    gamma = _default_gamma(X0, gamma=gamma)
     K = linear_kernel(X0, X1, theta)
     return jax.nn.tanh(gamma * K + r)
 
@@ -417,7 +469,7 @@ def rbf_kernel(X0, X1=None, theta=None, gamma=None):
     tensor
         Kernel Gram matrix.
     """
-    gamma = _default_gamma(X0, gamma)
+    gamma = _default_gamma(X0, gamma=gamma)
     K = linear_distance(X0, X1, theta)
     return jnp.exp(-gamma * K)
 
