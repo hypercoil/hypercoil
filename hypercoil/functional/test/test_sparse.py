@@ -11,6 +11,7 @@ from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, dspdmm, spspmm_full, topk, as_topk,
     sparse_astype, trace_spspmm, _serialised_spspmm, spspmm, _ix,
     full_as_topk, spsp_pairdiff, select_indices, topkx, block_serialise,
+    topk_to_bcoo,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
     sp_block_serialise, embed_params_in_diagonal, embed_params_in_sparse
 )
@@ -125,6 +126,16 @@ class TestSparse:
         assert U.n_batch == V.n_batch == 4
         assert U.indices.shape == V.indices.shape == (1, 1, 1, 1, 5, 1)
         assert spspmm(U, V).shape == (2, 3, 3, 20, 20)
+
+    def test_topk_to_bcoo(self):
+        topk = random_sparse(
+            (4, 3, 1000, 3000),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        bcoo = topk_to_bcoo(topk)
+        assert bcoo.shape == (4, 3, 1000, 3000)
+        assert np.all(topk.todense() == bcoo.todense())
 
     def test_topkx(self):
         X = np.random.randn(2, 3, 100, 100)

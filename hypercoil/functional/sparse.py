@@ -30,7 +30,7 @@ from jax.experimental.sparse import BCOO, sparsify
 from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from .utils import (
-    Tensor, standard_axis_number, vmap_over_outer,
+    Tensor, standard_axis_number, unfold_axes, vmap_over_outer,
     fold_and_promote, demote_and_unfold
 )
 
@@ -84,6 +84,26 @@ def sparse_astype(
         (tensor.data.astype(dtype), tensor.indices),
         shape=tensor.shape
     )
+
+
+def topk_to_bcoo(
+    tensor: TopKTensor,
+) -> Tensor:
+    """
+    Convert a top-k format BCOO sparse matrix to an unstructured BCOO format
+    sparse matrix.
+    """
+    indices = jnp.tile(
+        jnp.arange(tensor.indices.shape[-3])[..., None],
+        (1, tensor.indices.shape[-2])
+    )
+    indices = jnp.concatenate(
+        jnp.broadcast_arrays(
+            indices[..., None],
+            tensor.indices), -1)
+    indices = unfold_axes(indices, (-3, -2))
+    data = unfold_axes(tensor.data, (-2, -1))
+    return BCOO((data, indices), shape=tensor.shape)
 
 
 def spdiagmm(
