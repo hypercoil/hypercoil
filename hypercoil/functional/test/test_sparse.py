@@ -11,7 +11,7 @@ from hypercoil.functional.sparse import(
     random_sparse, spdiagmm, dspdmm, spspmm_full, topk, as_topk,
     sparse_astype, trace_spspmm, _serialised_spspmm, spspmm, _ix,
     full_as_topk, spsp_pairdiff, select_indices, topkx, block_serialise,
-    topk_to_bcoo,
+    topk_to_bcoo, splr_hadamard, spsp_innerpaired,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
     sp_block_serialise, embed_params_in_diagonal, embed_params_in_sparse
 )
@@ -343,6 +343,46 @@ class TestSparse:
         out = spsp_pairdiff(lhs, rhs)
         ref = lhs.todense()[..., None, :] - rhs.todense()[..., None, :, :]
         assert np.all(out.todense() == ref)
+
+    def test_sp_lowrank_hadamard(self):
+        X = random_sparse(
+            (4, 3, 50, 100),
+            k=5,
+            key=jax.random.PRNGKey(4839)
+        )
+        c = np.random.randn(50, 4)
+        r = np.random.randn(100, 4)
+
+        out = splr_hadamard(X, c, r)
+        ref = X.todense() * (c @ r.swapaxes(-1, -2))
+        assert np.allclose(out.todense(), ref)
+
+    def test_spsp_innerpaired(self):
+        key = jax.random.PRNGKey(4839)
+        k0, k1 = jax.random.split(key)
+        lhs = random_sparse(
+            (4, 3, 100, 300),
+            k=5,
+            key=k0
+        )
+        rhs = random_sparse(
+            (4, 3, 100, 300),
+            k=5,
+            key=k1
+        )
+        out = jnp.sqrt(spsp_innerpaired(lhs, lhs))
+        ref = jnp.linalg.norm(lhs.todense(), axis=-1)
+        assert np.allclose(out, ref)
+
+        out = spsp_innerpaired(lhs, rhs)
+        ref = (lhs.todense() * rhs.todense()).sum(-1)
+        assert np.allclose(out, ref)
+
+        out = spsp_innerpaired(lhs, rhs.todense())
+        assert np.allclose(out, ref)
+
+        out = spsp_innerpaired(lhs.todense(), rhs)
+        assert np.allclose(out, ref)
 
     def test_sparse_batch_batchfinal(self):
         shape = (10, 10)
