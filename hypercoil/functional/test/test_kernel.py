@@ -8,6 +8,7 @@ import torch
 import jax
 import jax.numpy as jnp
 import numpy as np
+from scipy.spatial.distance import cdist
 from hypercoil.functional import (
     linear_kernel,
     polynomial_kernel,
@@ -16,7 +17,7 @@ from hypercoil.functional import (
     sigmoid_kernel,
     cosine_kernel
 )
-from hypercoil.functional.kernel import _param_norm
+from hypercoil.functional.kernel import param_norm, linear_distance
 from hypercoil.functional.sparse import random_sparse
 from sklearn.metrics.pairwise import (
     linear_kernel as lk_ref,
@@ -240,6 +241,96 @@ class TestKernel:
             k=5,
             key=k2
         )
-        linear_kernel(X, Y, theta=theta, intermediate_indices=(indices_L, indices_R))
+        linear_kernel(X, Y, theta=theta,
+                      intermediate_indices=(indices_L, indices_R))
         theta = jax.random.normal(k2, shape=(3, 100, 100))
         linear_kernel(X, Y, theta=theta, intermediate_indices=indices_R)
+
+    def test_linear_distance(self):
+        X = np.random.randn(4, 3, 50, 100)
+        Y = np.random.randn(4, 3, 100, 100)
+        out = jnp.sqrt(linear_distance(X, Y))
+        ref = np.stack([
+            np.stack([
+                cdist(x, y) for x, y in zip(X_, Y_)
+            ]) for X_, Y_ in zip(X, Y)])
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = np.random.rand(100,)
+        out = jnp.sqrt(linear_distance(X, Y, theta=theta))
+        ref = np.stack([
+            np.stack([
+                cdist(x, y, metric='mahalanobis', VI=np.diagflat(theta))
+                for x, y in zip(X_, Y_)
+            ]) for X_, Y_ in zip(X, Y)])
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = np.random.rand(3, 100,)
+        out = jnp.sqrt(linear_distance(X, Y, theta=theta))
+        ref = np.stack([
+            np.stack([
+                cdist(x, y, metric='mahalanobis', VI=np.diagflat(th))
+                for x, y, th in zip(X_, Y_, theta)
+            ]) for X_, Y_ in zip(X, Y)])
+        assert np.allclose(out, ref, atol=1e-5)
+
+        key = jax.random.PRNGKey(4839)
+        k0, k1, k2, k3 = jax.random.split(key, 4)
+        X = random_sparse(
+            (4, 3, 50, 100),
+            k=5,
+            key=k0
+        )
+        Y = random_sparse(
+            (4, 3, 70, 100),
+            k=5,
+            key=k1
+        )
+        out = jnp.sqrt(linear_distance(X, Y))
+        ref = np.stack([
+            np.stack([
+                cdist(x, y) for x, y in zip(X_, Y_)
+            ]) for X_, Y_ in zip(X.todense(), Y.todense())])
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = np.random.rand(100,)
+        out = jnp.sqrt(linear_distance(X, Y, theta=theta))
+        ref = np.stack([
+            np.stack([
+                cdist(x, y, metric='mahalanobis', VI=np.diagflat(theta))
+                for x, y in zip(X_, Y_)
+            ]) for X_, Y_ in zip(X.todense(), Y.todense())])
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = np.random.rand(3, 100,)
+        out = jnp.sqrt(linear_distance(X, Y, theta=theta))
+        ref = np.stack([
+            np.stack([
+                cdist(x, y, metric='mahalanobis', VI=np.diagflat(th))
+                for x, y, th in zip(X_, Y_, theta)
+            ]) for X_, Y_ in zip(X.todense(), Y.todense())])
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = random_sparse(
+            (100, 100),
+            k=5,
+            key=k2
+        )
+        out = jnp.sqrt(linear_distance(X, Y, theta=theta))
+        theta_ref = theta.todense().T @ theta.todense()
+        ref = np.stack([
+            np.stack([
+                cdist(x, y, metric='mahalanobis', VI=theta_ref)
+                for x, y in zip(X_, Y_)
+            ]) for X_, Y_ in zip(X.todense(), Y.todense())])
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = jax.random.normal(k2, shape=(3, 100, 100))
+        theta = theta @ theta.swapaxes(-1, -2) # make sure it's positive definite
+        out = jnp.sqrt(linear_distance(X, Y, theta=theta))
+        ref = np.stack([
+            np.stack([
+                cdist(x, y, metric='mahalanobis', VI=th)
+                for x, y, th in zip(X_, Y_, theta)
+            ]) for X_, Y_ in zip(X.todense(), Y.todense())])
+        assert np.allclose(out, ref, atol=1e-5)
