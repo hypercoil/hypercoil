@@ -16,6 +16,7 @@ from hypercoil.functional import (
     cosine_kernel
 )
 from hypercoil.functional.kernel import _param_norm
+from hypercoil.functional.sparse import random_sparse
 from sklearn.metrics.pairwise import (
     linear_kernel as lk_ref,
     polynomial_kernel as pk_ref,
@@ -28,6 +29,7 @@ from sklearn.metrics.pairwise import (
 class TestKernel:
 
     def random_sparse_input(dim, nse):
+        from jax.experimental.sparse import BCOO
         W = np.random.randn(*dim[:-2], nse)
         r = np.random.randint(dim[-2], (nse,))
         c = np.random.randint(dim[-1], (nse,))
@@ -177,57 +179,40 @@ class TestKernel:
         out = linear_kernel(X, theta=theta)
         assert np.allclose(out, ref, atol=1e-5)
 
-    def test_kernel_sparse(self):
-        W = torch.tensor([
-            [0.2, -1.3, 2, 0.1, -4],
-            [4, 4, 0, -2, -6],
-            [0.1, 0., -1, 1, 1]
-        ]).t().requires_grad_(True)
-        E = torch.tensor([
-            [0, 3],
-            [0, 4],
-            [1, 1],
-            [2, 0],
-            [3, 2]
-        ]).t()
-        X = torch.sparse_coo_tensor(E, W, size=(5, 5, 3))
-
-        # unparameterised
-        ref = linear_kernel(
-            torch.permute(X.to_dense(), (-1, 0, 1)),
+    def test_linear_kernel_sparse(self):
+        key = jax.random.PRNGKey(4839)
+        k0, k1, k2 = jax.random.split(key, 3)
+        X = random_sparse(
+            (4, 3, 50, 100),
+            k=5,
+            key=k0
         )
-        out = linear_kernel(X).to_dense().permute(-1, 0, 1)
-        assert torch.allclose(ref, out)
-
-        # vector parameter
-        theta = torch.rand(5)
-        ref = linear_kernel(
-            torch.permute(X.to_dense(), (-1, 0, 1)),
-            theta=theta
+        Y = random_sparse(
+            (4, 3, 100, 100),
+            k=5,
+            key=k1
         )
-        out = linear_kernel(
-            X, theta=theta
-        ).to_dense().permute(-1, 0, 1)
-        assert torch.allclose(ref, out)
 
-        # multi-vector parameter
-        theta = torch.rand(1, 2, 5)
-        ref = linear_kernel(
-            torch.permute(X.to_dense(), (-1, 0, 1)),
-            theta=theta.view(2, 1, 1, 5)
-        )
-        out = linear_kernel(
-            X, theta=theta
-        ).to_dense().permute(-2, -1, 0, 1)
-        assert torch.allclose(ref, out)
+        out = linear_kernel(X, Y)
+        ref = linear_kernel(X.todense(), Y.todense())
+        assert np.allclose(out, ref, atol=1e-5)
 
-        # matrix parameter
-        theta = torch.randint(2, (3, 5, 5), dtype=torch.float)
-        ref = linear_kernel(
-            torch.permute(X.to_dense(), (-1, 0, 1)),
-            theta=theta.view(3, 1, 5, 5)
+        theta = jax.random.normal(k2, shape=(100,))
+        out = linear_kernel(X, Y, theta=theta)
+        ref = linear_kernel(X.todense(), Y.todense(), theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = jax.random.normal(k2, shape=(3, 100))
+        out = linear_kernel(X, Y, theta=theta)
+        ref = linear_kernel(X.todense(), Y.todense(), theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = random_sparse(
+            (100, 100),
+            k=5,
+            key=k2
         )
-        out = linear_kernel(
-            X, theta=theta.view(1, 3, 5, 5)
-        ).to_dense().permute(-2, -1, 0, 1)
-        assert torch.allclose(ref, out)
+        out = linear_kernel(X, Y, theta=theta)
+        theta_ref = theta.todense().T @ theta.todense()
+        ref = linear_kernel(X.todense(), Y.todense(), theta=theta_ref)
+        assert np.allclose(out, ref, atol=1e-5)
