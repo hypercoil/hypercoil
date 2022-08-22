@@ -868,6 +868,46 @@ def spsp_pairdiff(
     return BCOO((data, indices), shape=shape)
 
 
+def spsp_innerpaired(
+    lhs: TopKTensor,
+    rhs: Optional[TopKTensor] = None,
+    #theta: Optional[Tensor] = None,
+) -> Tensor:
+    r"""
+    Positive definite nondegenerate symmetric bilinear forms with sparse
+    arguments.
+
+    .. note::
+        The array dimension signature of this operation is informally
+
+        :math:`\mathbb{R}^{m \times p} \times \mathbb{R}^{m \times p} \rightarrow \mathbb{R}^{m}`
+
+        while that of ``spspmm`` is
+
+        :math:`\mathbb{R}^{m \times p} \times \mathbb{R}^{n \times p} \rightarrow \mathbb{R}^{m \times n}`
+
+        Every argument in ``lhs`` is thus paired with one in ``rhs``. If your
+        data do not fit this schema, then use ``spspmm`` instead.
+
+    .. note::
+        If ``rhs`` is not specified, then this computes a squared vector norm.
+    """
+    if rhs is None:
+        rhs = lhs
+    if not isinstance(lhs, BCOO) and not isinstance(rhs, BCOO):
+        return (lhs * rhs).sum(-1)
+    elif not isinstance(lhs, BCOO):
+        return (lhs * rhs.todense()).sum(-1)
+    elif not isinstance(rhs, BCOO):
+        return (lhs.todense() * rhs).sum(-1)
+    lhs, rhs = sparsify(jnp.broadcast_arrays)(lhs, rhs)
+    contracting_dims = ((lhs.ndim - 1,), (rhs.ndim - 1,))
+    batch_dims = (tuple(range(lhs.ndim - 1)), tuple(range(rhs.ndim - 1)))
+    return jax.experimental.sparse.bcoo_dot_general(
+        lhs, rhs, dimension_numbers=(contracting_dims, batch_dims)
+    ).data.squeeze(-1)
+
+
 def random_sparse_batchfinal(key, shape, density=0.1):
     """
     Generate a random sparse matrix in batch-final COO format.
