@@ -8,7 +8,7 @@ import torch
 import jax
 import jax.numpy as jnp
 from functools import singledispatch
-from typing import Optional
+from typing import Optional, Tuple, Union
 from jax.experimental.sparse import BCOO
 from .sparse import TopKTensor, full_as_topk, spspmm, spdiagmm, topkx
 from .utils import (
@@ -95,7 +95,7 @@ def _(
     X0: TopKTensor,
     X1: Optional[TopKTensor] = None,
     theta: Optional[Tensor] = None,
-    intermediate_indices: Optional[Tensor] = None,
+    intermediate_indices: Union[None, Tensor, Tuple[Tensor, Tensor]] = None,
 ) -> TopKTensor:
     if X1 is None:
         X1 = X0
@@ -110,8 +110,8 @@ def _(
                 rhs = spspmm(X1, theta)
         elif intermediate_indices is not None:
             mm = topkx(spspmm)
-            lhs = mm(intermediate_indices, X0, theta)
-            rhs = mm(intermediate_indices, X1, theta)
+            lhs = mm(intermediate_indices[0], X0, theta)
+            rhs = mm(intermediate_indices[1], X1, theta)
         else:
             lhs = spspmm(X0, theta)
             rhs = spspmm(X1, theta)
@@ -119,7 +119,6 @@ def _(
     elif theta.ndim == 1 or theta.shape[-1] != theta.shape[-2]:
         return spspmm(spdiagmm(X0, theta), X1)
     else:
-        theta = full_as_topk(theta)
         if intermediate_indices is not None:
             rhs = topkx(spspmm)(intermediate_indices, X1, theta)
             return spspmm(X0, rhs)

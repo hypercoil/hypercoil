@@ -6,6 +6,7 @@ Unit tests for kernels and distances.
 """
 import torch
 import jax
+import jax.numpy as jnp
 import numpy as np
 from hypercoil.functional import (
     linear_kernel,
@@ -181,7 +182,7 @@ class TestKernel:
 
     def test_linear_kernel_sparse(self):
         key = jax.random.PRNGKey(4839)
-        k0, k1, k2 = jax.random.split(key, 3)
+        k0, k1, k2, k3 = jax.random.split(key, 4)
         X = random_sparse(
             (4, 3, 50, 100),
             k=5,
@@ -216,3 +217,29 @@ class TestKernel:
         theta_ref = theta.todense().T @ theta.todense()
         ref = linear_kernel(X.todense(), Y.todense(), theta=theta_ref)
         assert np.allclose(out, ref, atol=1e-5)
+
+        theta = jax.random.normal(k2, shape=(3, 100, 100))
+        out = linear_kernel(X, Y, theta=theta)
+        ref = linear_kernel(X.todense(), Y.todense(), theta=theta)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        #TODO: We're not doing any kind of correctness checks here.
+        k = 4
+        ikeys = jax.random.split(k3, 50)
+        indices_L = jnp.stack([
+            jax.random.choice(i, a=100, shape=(k, 1), replace=False)
+            for i in ikeys
+        ], axis=0)
+        ikeys = jax.random.split(k3, 100)
+        indices_R = jnp.stack([
+            jax.random.choice(i, a=100, shape=(k, 1), replace=False)
+            for i in ikeys
+        ], axis=0)
+        theta = random_sparse(
+            (100, 100),
+            k=5,
+            key=k2
+        )
+        linear_kernel(X, Y, theta=theta, intermediate_indices=(indices_L, indices_R))
+        theta = jax.random.normal(k2, shape=(3, 100, 100))
+        linear_kernel(X, Y, theta=theta, intermediate_indices=indices_R)
