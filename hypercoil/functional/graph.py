@@ -10,6 +10,8 @@ from functools import partial
 from jax.nn import relu
 from jax.experimental.sparse import BCOO
 from typing import Callable, Literal, Optional, Union
+from hypercoil.functional.sparse import (
+    dspdmm, topk_diagaugment, topk_diagzero)
 from .matrix import delete_diagonal, fill_diagonal
 from hypercoil.functional.utils import Tensor, vmap_over_outer, is_sparse
 
@@ -327,7 +329,8 @@ def degree(W: Tensor) -> Tensor:
 
 def graph_laplacian(
     W: Tensor,
-    normalise: bool = True
+    normalise: bool = True,
+    topk: bool = True,
 ) -> Tensor:
     r"""
     Laplacian of a graph.
@@ -370,26 +373,31 @@ def graph_laplacian(
         Edge weight tensor. If ``edge_index`` is not provided, then this
         should be the graph adjacency matrix; otherwise, it should be a
         list of weights corresponding to the edges in ``edge_index``.
-    edge_index : ``LongTensor`` or None (default None)
-        List of edges corresponding to the provided weights. Each column
-        contains the index of the source vertex and the index of the target
-        vertex for the corresponding weight in ``W``.
     normalise : bool (default True)
         Indicates that the Laplacian should be normalised using the degree
         matrix.
-    num_nodes : int or None (default None)
-        Number of nodes in the graph, if it is sparse. Forwarded to
-        ``get_laplacian`` in ``torch_geometric``.
+    topk : bool (default True)
+        Indicates that the input is a top-k sparse matrix. Has no effect if
+        ``W`` is not a sparse matrix.
     """
     # I wonder if ``sparsify`` will work here. Ha ha, I'm a silly person.
-    if is_sparse(W):
+    if is_sparse(W) and not topk:
         return _sparse_laplacian(W=W, normalise=normalise)
+    elif is_sparse(W):
+        W = topk_diagzero(W)
+        deg = W.data.sum(-1, keepdims=True)
+        L = topk_diagaugment(-W, deg)
+        if normalise:
+            norm_fac = jnp.where(deg == 0, 1, 1 / jnp.sqrt(deg)).squeeze(-1)
+            L = dspdmm(L, norm_fac)
+        return L
+    W = delete_diagonal(W)
     deg = degree(W)
     D = vmap_over_outer(jnp.diagflat, 1)((deg,))
     L = D - W
     if normalise:
         norm_fac = jnp.where(deg == 0, 1, 1 / jnp.sqrt(deg))
-        L = L * norm_fac
+        L = L * norm_fac[..., None, :]
         L = L * norm_fac[..., None]
         L = vmap_over_outer(partial(fill_diagonal, fill=1), 2)((L,))
     return L
