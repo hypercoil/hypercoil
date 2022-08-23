@@ -6,12 +6,12 @@ Measures on graphs and networks.
 """
 import jax
 import jax.numpy as jnp
-from functools import partial
+from functools import partial, singledispatch
 from jax.nn import relu
 from jax.experimental.sparse import BCOO
 from typing import Callable, Literal, Optional, Union
 from hypercoil.functional.sparse import (
-    dspdmm, topk_diagaugment, topk_diagzero)
+    TopKTensor, dspdmm, topk_diagaugment, topk_diagzero)
 from .matrix import delete_diagonal, fill_diagonal
 from hypercoil.functional.utils import Tensor, vmap_over_outer, is_sparse
 
@@ -327,6 +327,7 @@ def degree(W: Tensor) -> Tensor:
     return W.sum(-1)
 
 
+@singledispatch
 def graph_laplacian(
     W: Tensor,
     normalise: bool = True,
@@ -356,6 +357,12 @@ def graph_laplacian(
         and weight tensors, with source and target vertices swapped in the
         index.
 
+    .. note::
+
+        For a directed graph, this computes the row Laplacian. This could be
+        either the in-degree Laplacian or the out-degree Laplacian, depending
+        on the convention adopted for the input.
+
     :Dimension: **W :** :math:`(*, N, N)` or :math:`(*, E)`
                     ``*`` denotes any number of preceding dimensions, N
                     denotes number of vertices, and E denotes number of edges.
@@ -380,17 +387,6 @@ def graph_laplacian(
         Indicates that the input is a top-k sparse matrix. Has no effect if
         ``W`` is not a sparse matrix.
     """
-    # I wonder if ``sparsify`` will work here. Ha ha, I'm a silly person.
-    if is_sparse(W) and not topk:
-        return _sparse_laplacian(W=W, normalise=normalise)
-    elif is_sparse(W):
-        W = topk_diagzero(W)
-        deg = W.data.sum(-1, keepdims=True)
-        L = topk_diagaugment(-W, deg)
-        if normalise:
-            norm_fac = jnp.where(deg == 0, 1, 1 / jnp.sqrt(deg)).squeeze(-1)
-            L = dspdmm(L, norm_fac)
-        return L
     W = delete_diagonal(W)
     deg = degree(W)
     D = vmap_over_outer(jnp.diagflat, 1)((deg,))
@@ -400,6 +396,23 @@ def graph_laplacian(
         L = L * norm_fac[..., None, :]
         L = L * norm_fac[..., None]
         L = vmap_over_outer(partial(fill_diagonal, fill=1), 2)((L,))
+    return L
+
+
+@graph_laplacian.register
+def _(
+    W: TopKTensor,
+    normalise: bool = True,
+    topk: bool = True,
+):
+    if not topk:
+        return _sparse_laplacian(W=W, normalise=normalise)
+    W = topk_diagzero(W)
+    deg = W.data.sum(-1, keepdims=True)
+    L = topk_diagaugment(-W, deg)
+    if normalise:
+        norm_fac = jnp.where(deg == 0, 1, 1 / jnp.sqrt(deg)).squeeze(-1)
+        L = dspdmm(L, norm_fac)
     return L
 
 
