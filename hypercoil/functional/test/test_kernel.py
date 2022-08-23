@@ -109,10 +109,19 @@ class TestKernel:
         assert np.allclose(out, ref, atol=1e-5)
 
     def test_norm(self):
-        X = self.random_sparse_input((20, 20, 3), 30)
-        out = _param_norm(X, theta=None).to_dense()
-        ref = X.to_dense().norm(dim=1)
-        assert torch.allclose(out, ref)
+        #TODO: We don't have any correctness tests for param_norm yet.
+        X = np.random.randn(4, 3, 50, 100)
+        out = param_norm(X, squared=True)
+        ref = X / (np.linalg.norm(X, axis=-1, keepdims=True) ** 2)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta = np.random.randn(3, 100, 100)
+        theta = theta @ theta.swapaxes(-1, -2)
+        out = param_norm(X, theta)
+        assert out.shape == X.shape
+        theta = np.random.randn(3, 100)
+        out = param_norm(X, theta)
+        assert out.shape == X.shape
 
     def test_cosine_kernel(self):
         X = np.random.randn(4, 3, 50, 100)
