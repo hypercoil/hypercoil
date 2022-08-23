@@ -491,7 +491,6 @@ def rbf_kernel(X0, X1=None, theta=None, gamma=None):
     return jnp.exp(-gamma * K)
 
 
-@singledispatch
 def cosine_kernel(
     X0: Tensor,
     X1: Optional[Tensor] = None,
@@ -552,29 +551,9 @@ def cosine_kernel(
     tensor
         Kernel Gram matrix.
     """
-    X0_norm = X0 / jnp.linalg.norm(X0, 2, axis=-1)[..., None]
+    X0_norm = param_norm(X0, theta=theta)
     if X1 is None:
         X1_norm = X0_norm
     else:
-        X1_norm = X1 / jnp.linalg.norm(X1, 2, axis=-1)[..., None]
-    return linear_kernel(X0_norm, X1_norm, theta)
-
-
-@cosine_kernel.register
-def _(
-    X0: TopKTensor,
-    X1: Optional[TopKTensor] = None,
-    theta: Optional[TopKTensor] = None
-):
-    X0_norm = BCOO(
-        (X0.data / jnp.sqrt(spsp_innerpaired(X0)[..., None]), X0.indices),
-        shape=X0.shape,
-    )
-    if X1 is None:
-        X1_norm = X0_norm
-    else:
-        X1_norm = BCOO(
-            (X1.data / jnp.sqrt(spsp_innerpaired(X1)[..., None]), X1.indices),
-            shape=X1.shape,
-        )
+        X1_norm = param_norm(X1, theta=theta)
     return linear_kernel(X0_norm, X1_norm, theta)

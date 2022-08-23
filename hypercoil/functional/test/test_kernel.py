@@ -100,7 +100,6 @@ class TestKernel:
 
     def test_norm(self):
         #TODO: We don't have any correctness tests for param_norm yet.
-        #      It's implicitly tested in the cosine kernel test.
         X = np.random.randn(4, 3, 50, 100)
         out = param_norm(X, squared=True)
         ref = X / (np.linalg.norm(X, axis=-1, keepdims=True) ** 2)
