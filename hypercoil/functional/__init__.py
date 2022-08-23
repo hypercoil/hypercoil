@@ -49,7 +49,8 @@ from .interpolate import (
     weighted_interpolate
 )
 from .kernel import (
-    linear_kernel, polynomial_kernel, sigmoid_kernel,
+    linear_kernel, param_norm, linear_distance,
+    polynomial_kernel, sigmoid_kernel,
     gaussian_kernel, rbf_kernel, cosine_kernel
 )
 from .matrix import (
@@ -59,6 +60,13 @@ from .matrix import (
 )
 from .resid import (
     residualise
+)
+from .sparse import (
+    random_sparse, spdiagmm, dspdmm, spspmm_full, topk, as_topk, full_as_topk,
+    sparse_astype, trace_spspmm, spspmm, spsp_pairdiff, select_indices, topkx,
+    sp_block_serialise, splr_hadamard, spsp_innerpaired, topk_to_bcoo,
+    topk_diagzero, topk_diagreplace,
+    block_serialise,
 )
 from .sphere import (
     spherical_geodesic,
@@ -89,5 +97,10 @@ from .utils import (
     apply_mask,
     mask_tensor,
     wmean,
-    orient_and_conform
+    orient_and_conform,
+    vmap_over_outer,
+    apply_vmap_over_outer,
+    fold_and_promote,
+    demote_and_unfold,
+    amplitude_apply
 )

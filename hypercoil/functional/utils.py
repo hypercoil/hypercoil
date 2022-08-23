@@ -9,7 +9,6 @@ blemish.
 import jax
 import jax.numpy as jnp
 import numpy as np
-import torch
 import distrax
 from jax import vmap
 from jax.tree_util import tree_map, tree_reduce
@@ -421,14 +420,14 @@ def selfwmean(input, dim=None, keepdim=False, gradpath='input', softmax=True):
     Self-weighted mean reducing function. Completely untested. Will break and
     probably kill you in the process.
     """
-    i = input.clone()
-    w = input.clone()
     if softmax:
-        w = torch.softmax(w)
+        w = jax.nn.softmax(w)
+    # I don't think this actually does what we want it to, but this function
+    # is actually unsupported, so we won't worry about it yet.
     if gradpath == 'input':
-        w = w.detach()
+        w = jax.lax.stop_gradient(w)
     elif gradpath == 'weight':
-        i = i.detach()
+        i = jax.lax.stop_gradient(i)
     return wmean(input=i, weight=w, keepdim=keepdim, gradpath=gradpath)
 
 

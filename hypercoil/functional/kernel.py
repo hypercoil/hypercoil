@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from functools import singledispatch
 from typing import Optional, Tuple, Union
-from jax.experimental.sparse import BCOO, sparsify
+from jax.experimental.sparse import BCOO
 from .sparse import (
     TopKTensor, spsp_pairdiff, spsp_innerpaired, spspmm, spdiagmm, topkx
 )
