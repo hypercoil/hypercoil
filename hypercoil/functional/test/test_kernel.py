@@ -149,7 +149,7 @@ class TestKernel:
         assert np.allclose(out, ref, atol=1e-5)
 
         key = jax.random.PRNGKey(4839)
-        k0, k1, k2, k3 = jax.random.split(key, 4)
+        k0, k1 = jax.random.split(key, 4)
         X = random_sparse(
             (4, 3, 50, 100),
             k=5,

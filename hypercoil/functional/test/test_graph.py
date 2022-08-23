@@ -4,6 +4,7 @@
 """
 Unit tests for graph and network measures
 """
+import jax
 import pytest
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -18,6 +19,8 @@ from communities.utilities import (
     modularity_matrix as modularity_matrix_ref,
     modularity as modularity_ref
 )
+
+from hypercoil.functional.sparse import random_sparse
 
 
 #TODO: Missing unit tests:
@@ -69,6 +72,21 @@ class TestGraph:
         assert np.allclose(L[1:, :], Lref[1:, :])
         assert np.allclose(np.diagonal(L), np.ones(10))
 
+    def test_laplacian_topk(self):
+        key = jax.random.PRNGKey(0)
+        W = random_sparse(
+            (4, 3, 100, 100),
+            k=5,
+            key=key
+        )
+        L = graph_laplacian(W, normalise=False).todense()
+        Lref = graph_laplacian(W.todense(), normalise=False)
+        assert np.allclose(L, Lref, atol=1e-5)
+        W = BCOO((np.abs(W.data), W.indices), shape=W.shape)
+        L = graph_laplacian(W, normalise=True).todense()
+        Lref = graph_laplacian(W.todense(), normalise=True)
+        assert np.allclose(L, Lref, atol=1e-5)
+
     def test_laplacian_sparse(self):
         n_nodes = 5
         W = np.random.rand(n_nodes - 2)
@@ -80,7 +98,7 @@ class TestGraph:
         W = np.concatenate((W, W))
         Ws = BCOO((W, E), shape=(n_nodes, n_nodes))
 
-        L = graph_laplacian(Ws, normalise=True)
+        L = graph_laplacian(Ws, normalise=True, topk=False)
         L = L.todense()
         Lref = laplacian(
             csr_matrix((W, E.T), (n_nodes, n_nodes)),
