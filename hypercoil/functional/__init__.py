@@ -89,8 +89,5 @@ from .utils import (
     apply_mask,
     mask_tensor,
     wmean,
-    sparse_mm,
-    sparse_rcmul,
-    sparse_reciprocal,
     orient_and_conform
 )

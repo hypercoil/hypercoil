@@ -13,9 +13,7 @@ from .sparse import (
     TopKTensor, spsp_pairdiff, spsp_innerpaired, spspmm, spdiagmm, topkx
 )
 from .utils import (
-    Tensor, is_sparse,
-    sparse_rcmul, sparse_reciprocal,
-    _conform_vector_weight
+    Tensor, is_sparse, _conform_vector_weight
 )
 
 
