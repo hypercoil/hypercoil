@@ -474,7 +474,12 @@ def rbf_kernel(X0, X1=None, theta=None, gamma=None):
     return jnp.exp(-gamma * K)
 
 
-def cosine_kernel(X0, X1=None, theta=None):
+@singledispatch
+def cosine_kernel(
+    X0: Tensor,
+    X1: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None
+) -> Tensor:
     r"""
     Parameterised cosine kernel between input tensors.
 
@@ -530,15 +535,29 @@ def cosine_kernel(X0, X1=None, theta=None):
     tensor
         Kernel Gram matrix.
     """
+    X0_norm = X0 / jnp.linalg.norm(X0, 2, axis=-1)[..., None]
     if X1 is None:
-        X1 = X0
-    X0_norm = _param_norm(X0, theta)
-    X1_norm = _param_norm(X1, theta)
-    num = linear_kernel(X0, X1, theta)
-    if num.is_sparse:
-        return sparse_rcmul(
-            num,
-            sparse_reciprocal(X0_norm),
-            sparse_reciprocal(X1_norm),
+        X1_norm = X0_norm
+    else:
+        X1_norm = X1 / jnp.linalg.norm(X1, 2, axis=-1)[..., None]
+    return linear_kernel(X0_norm, X1_norm, theta)
+
+
+@cosine_kernel.register
+def _(
+    X0: TopKTensor,
+    X1: Optional[TopKTensor] = None,
+    theta: Optional[TopKTensor] = None
+):
+    X0_norm = BCOO(
+        (X0.data / jnp.sqrt(spsp_innerpaired(X0)[..., None]), X0.indices),
+        shape=X0.shape,
+    )
+    if X1 is None:
+        X1_norm = X0_norm
+    else:
+        X1_norm = BCOO(
+            (X1.data / jnp.sqrt(spsp_innerpaired(X1)[..., None]), X1.indices),
+            shape=X1.shape,
         )
-    return num * (X0_norm.unsqueeze(1) * X1_norm.unsqueeze(0)).reciprocal()
+    return linear_kernel(X0_norm, X1_norm, theta)
