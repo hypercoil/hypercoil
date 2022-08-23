@@ -12,6 +12,7 @@ from hypercoil.functional.sparse import(
     sparse_astype, trace_spspmm, _serialised_spspmm, spspmm, _ix,
     full_as_topk, spsp_pairdiff, select_indices, topkx, block_serialise,
     topk_to_bcoo, splr_hadamard, spsp_innerpaired,
+    topk_diagzero, topk_diagreplace,
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
     sp_block_serialise, embed_params_in_diagonal, embed_params_in_sparse
 )
@@ -181,7 +182,6 @@ class TestSparse:
         f = sp_block_serialise(
             topkx(spspmm_full),
             n_blocks=10,
-            argnums=(0,), # indices: non-sparse input to block
             in_axes=(-3,), # blocking axes for indices
             sp_argnums=(1,), # lhs: sparse input to block
             sp_retshapes=((4, 3, 1000, 500),), # output shapes,
@@ -383,6 +383,23 @@ class TestSparse:
 
         out = spsp_innerpaired(lhs.todense(), rhs)
         assert np.allclose(out, ref)
+
+    def test_topk_diagmods(self):
+        X = random_sparse(
+            (4, 3, 100, 100),
+            k=20,
+            key=jax.random.PRNGKey(4839)
+        )
+        out = topk_diagzero(X)
+        assert np.any(np.diagonal(X.todense(), axis1=-2, axis2=-1) != 0)
+        assert np.all(np.diagonal(out.todense(), axis1=-2, axis2=-1) == 0)
+
+        diag = np.random.randn(4, 3, 100, 1)
+        out = topk_diagreplace(X, diag)
+        assert np.allclose(
+            np.diagonal(out.todense(), axis1=-2, axis2=-1),
+            diag.squeeze(-1)
+        )
 
     def test_sparse_batch_batchfinal(self):
         shape = (10, 10)
