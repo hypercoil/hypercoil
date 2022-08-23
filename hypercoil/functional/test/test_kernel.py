@@ -115,23 +115,45 @@ class TestKernel:
         assert torch.allclose(out, ref)
 
     def test_cosine_kernel(self):
-        n, p = 30, 100
-        X = torch.randn(n, p)
-        Y = torch.randn(n, p)
-        ref = ck_ref(X, Y)
+        X = np.random.randn(4, 3, 50, 100)
+        Y = np.random.randn(4, 3, 100, 100)
+        ref = np.stack([
+            np.stack([
+                ck_ref(x) for x in X_
+            ]) for X_ in X])
+        out = cosine_kernel(X)
+        assert np.allclose(out, ref, atol=1e-5)
+        ref = np.stack([
+            np.stack([
+                ck_ref(x, y) for x, y in zip(X_, Y_)
+            ]) for X_, Y_ in zip(X, Y)])
         out = cosine_kernel(X, Y)
         assert np.allclose(out, ref, atol=1e-5)
 
-        X = self.random_sparse_input((20, 10, 3), 30)
-        Y = self.random_sparse_input((30, 10, 3), 30)
+        key = jax.random.PRNGKey(4839)
+        k0, k1, k2, k3 = jax.random.split(key, 4)
+        X = random_sparse(
+            (4, 3, 50, 100),
+            k=5,
+            key=k0
+        )
+        Y = random_sparse(
+            (4, 3, 100, 100),
+            k=5,
+            key=k1
+        )
+        ref = np.stack([
+            np.stack([
+                ck_ref(x) for x in X_
+            ]) for X_ in X.todense()])
+        out = cosine_kernel(X)
+        assert np.allclose(out, ref, atol=1e-5)
+        ref = np.stack([
+            np.stack([
+                ck_ref(x, y) for x, y in zip(X_, Y_)
+            ]) for X_, Y_ in zip(X.todense(), Y.todense())])
         out = cosine_kernel(X, Y)
-        ref = np.stack([ck_ref(x, y) for x, y in zip(
-            X.to_dense().permute(-1, 0, 1),
-            Y.to_dense().permute(-1, 0, 1))
-        ], -1)
-        assert out.shape == ref.shape
-        assert out._indices().size(-1) * 3 == (ref != 0).sum()
-        assert np.allclose(ref, out.to_dense())
+        assert np.allclose(out, ref, atol=1e-5)
 
     def test_parameterised_kernel(self):
         X = np.array([
@@ -275,7 +297,7 @@ class TestKernel:
         assert np.allclose(out, ref, atol=1e-5)
 
         key = jax.random.PRNGKey(4839)
-        k0, k1, k2, k3 = jax.random.split(key, 4)
+        k0, k1, k2 = jax.random.split(key, 4)
         X = random_sparse(
             (4, 3, 50, 100),
             k=5,
