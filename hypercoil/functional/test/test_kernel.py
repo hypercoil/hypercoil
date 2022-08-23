@@ -4,7 +4,6 @@
 """
 Unit tests for kernels and distances.
 """
-import torch
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -29,15 +28,6 @@ from sklearn.metrics.pairwise import (
 
 
 class TestKernel:
-
-    def random_sparse_input(dim, nse):
-        from jax.experimental.sparse import BCOO
-        W = np.random.randn(*dim[:-2], nse)
-        r = np.random.randint(dim[-2], (nse,))
-        c = np.random.randint(dim[-1], (nse,))
-        E = np.stack((r, c))[None, ...]
-        return BCOO((W, E), shape=dim, n_batch=1)
-        #return torch.sparse_coo_tensor(E, W, size=dim)
 
     def test_linear_kernel(self):
         n, p = 30, 100
@@ -110,6 +100,7 @@ class TestKernel:
 
     def test_norm(self):
         #TODO: We don't have any correctness tests for param_norm yet.
+        #      It's implicitly tested in the cosine kernel test.
         X = np.random.randn(4, 3, 50, 100)
         out = param_norm(X, squared=True)
         ref = X / (np.linalg.norm(X, axis=-1, keepdims=True) ** 2)
@@ -122,6 +113,25 @@ class TestKernel:
         theta = np.random.randn(3, 100)
         out = param_norm(X, theta)
         assert out.shape == X.shape
+
+        # dense-sparse equivalence
+        key = jax.random.PRNGKey(0)
+        X = random_sparse(
+            (4, 3, 50, 100),
+            k=5,
+            key=key
+        )
+        out = param_norm(X, squared=True).todense()
+        ref = param_norm(X.todense(), squared=True)
+        assert np.allclose(out, ref, atol=1e-5)
+
+        theta0 = np.random.randn(3, 100, 100)
+        theta0 = theta0 @ theta0.swapaxes(-1, -2)
+        theta1 = np.random.rand(3, 100)
+        for theta in (theta0, theta1,):
+            out = param_norm(X, theta).todense()
+            ref = param_norm(X.todense(), theta)
+            assert np.allclose(out, ref, atol=1e-5)
 
     def test_cosine_kernel(self):
         X = np.random.randn(4, 3, 50, 100)
