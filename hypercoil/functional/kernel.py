@@ -179,14 +179,24 @@ def param_norm(
 @param_norm.register
 def _(
     X: TopKTensor,
-    theta: Optional[Union[Tensor, TopKTensor]],
+    theta: Optional[Union[Tensor, TopKTensor]] = None,
     *,
     squared: bool = False
 ) -> TopKTensor:
-    if squared:
-        return linear_distance(X, X, theta)
+    lhs = X
+    if theta is None:
+        rhs = X
+    elif theta.ndim == 1 or theta.shape[-1] != theta.shape[-2]:
+        rhs = spdiagmm(X, theta)
     else:
-        return sparsify(jnp.sqrt)(linear_distance(X, X, theta))
+        rhs = spspmm(X, theta)
+    norm = spsp_innerpaired(lhs, rhs)[..., None]
+    if not squared:
+        norm = jnp.sqrt(norm)
+    return BCOO(
+        (X.data / norm, X.indices),
+        shape=X.shape,
+    )
 
 
 @singledispatch
