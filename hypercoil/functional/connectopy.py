@@ -4,59 +4,51 @@
 """
 Connectopic manifold mapping, based on ``brainspace``.
 """
+from typing import Tuple
 import torch
-from math import sqrt
+import jax
+import jax.numpy as jnp
+
+from hypercoil.functional.utils import Tensor, vmap_over_outer
 from .graph import graph_laplacian
-from .matrix import symmetric, symmetric_sparse
+from .matrix import symmetric
 
 
-def _symmetrise(W, edge_index, return_coo=False):
-    if edge_index is None:
-        W = symmetric(W)
-    elif return_coo:
-        return symmetric_sparse(
-            W, edge_index,
-            divide=False,
-            return_coo=True
-        ), None
-    else:
-        W, edge_index = symmetric_sparse(W, edge_index, divide=False)
-    return W, edge_index
+def _absmax(X: Tensor) -> Tensor:
+    # Not sure the reason for this way of implementing this in brainspace, but
+    # I do believe they had a lot more time to evaluate different approaches.
+    return X[jnp.abs(X).argmax(axis=-2), jnp.arange(X.shape[-1])]
 
 
-def _impose_sign_consistency(Q, k):
+def _impose_sign_consistency(Q: Tensor) -> Tensor:
     """
     Consistent sign for eigenvectors, following ``brainspace`` convention.
     """
-    with torch.no_grad():
-        sgn = torch.sign(Q[Q.abs().argmax(0), range(k)])
-    return Q * sgn
+    sgn = jax.lax.stop_gradient(
+        jnp.sign(vmap_over_outer(_absmax, 2)((Q,)))
+    )
+    return Q * sgn[..., None, :]
 
 
-def laplacian_eigenmaps(W, edge_index=None, k=10,
-                        normalise=True, solver='lobpcg'):
+def laplacian_eigenmaps(
+    W: Tensor,
+    k: int = 10,
+    normalise: bool = True,
+) -> Tuple[Tensor, Tensor]:
     r"""
     Manifold coordinates estimated using Laplacian eigenmaps.
 
     .. warning::
 
-        Laplacian eigenmaps is currently non-differentiable when a sparse
-        input is provided. The extremal eigendecomposition algorithm LOBPCG,
-        which does not currently support gradients for sparse matrices, is
-        used in this case. The diffusion embedding algorithm is potentially
-        differentiable when a sparse input is provided, if the low-rank SVD
-        eigensolver is used. (Consider using diffusion mapping with
-        :math:`\alpha = 0` as a potential workaround if you need this
-        operation to be differentiable.)
+        Sparse inputs are currently unsupported because an implementation of a
+        sparse extremal eigenvalue solver does not yet exist in JAX. For
+        sparse inputs, use the generalised connectopic functional instead --
+        once we implement VJP rules for elementary operations on sparse
+        matrices, anyway.
 
-    :Dimension: **W :** :math:`(*, N, N)` or :math:`(*, E)`
+    :Dimension: **W :** :math:`(*, N, N)`
                     ``*`` denotes any number of preceding dimensions, N
                     denotes number of vertices, and E denotes number of edges.
-                    The shape should be :math:`(*, N, N)` if ``edge_index`` is
-                    not provided and :math:`(*, E)` if ``edge_index`` is
-                    provided.
-                **edge_index :** :math:`(*, 2, E)`
-                    As above.
                 **Q :** :math:`(*, N, k)`
                     k denotes the number of eigenmaps.
                 **L :** :math:`(*, k)`
@@ -69,18 +61,11 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
         should be the graph adjacency (or affinity) matrix; otherwise, it
         should be a list of weights corresponding to the edges in
         ``edge_index``.
-    edge_index : ``LongTensor`` or None (default None)
-        List of edges corresponding to the provided weights. Each column
-        contains the index of the source vertex and the index of the target
-        vertex for the corresponding weight in ``W``.
     k : int (default 10)
         Number of eigenmaps to compute.
     normalise : bool (default True)
         Indicates that the Laplacian should be normalised using the degree
         matrix.
-    solver : ``'lobpcg'`` (default) or ``'eigh'``
-        Method for computing the eigendecomposition. When the input is sparse,
-        ``'lobpcg'`` is always used.
 
     Returns
     -------
@@ -93,47 +78,43 @@ def laplacian_eigenmaps(W, edge_index=None, k=10,
     --------
     :func:`diffusion_mapping`
     """
-    W, edge_index = _symmetrise(W, edge_index)
-    H = graph_laplacian(W, edge_index=edge_index, normalise=normalise)
-    if isinstance(H, tuple):
-        H = torch.sparse_coo_tensor(
-            indices=H[0],
-            values=H[1]
-        )
-    #TODO: LOBPCG is currently not as efficient as it could be. See:
-    # https://github.com/pytorch/pytorch/issues/58828
-    # and monitor progress.
-    # https://github.com/rfeinman/Torch-ARPACK relevant but looks dead,
-    # and we need multiple extremal eigenpairs.
-    if edge_index is not None or solver == 'lobpcg':
-        L, Q = torch.lobpcg(
-            A=H,
-            #B=D,
-            k=(k + 1),
-            largest=False
-        )
-        L = L[..., 1:]
-        Q = Q[..., 1:]
-    else:
-        L, Q = torch.linalg.eigh(H)
-        L = L[..., 1:(k + 1)]
-        Q = Q[..., 1:(k + 1)]
+    W = symmetric(W)
+    H = graph_laplacian(W, normalise=normalise)
+    #TODO: It would be great to derive an extremal eigenvalue solver that
+    #      supports sparse matrices in the top-k format, imposing implicit
+    #      symmetry. eigh is really much too inefficient for this to be
+    #      currently practical.
+    L, Q = jnp.linalg.eigh(H)
+    L = L[..., 1:(k + 1)]
+    Q = Q[..., 1:(k + 1)]
 
     if normalise:
-        D = W.sum(-1, keepdim=True).sqrt()
+        D = jnp.sqrt(W.sum(-1, keepdims=True))
         Q = Q / D
 
-    Q = _impose_sign_consistency(Q, k)
+    Q = _impose_sign_consistency(Q)
     return Q, L
 
 
-def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
-                      diffusion_time=0, solver='lobpcg', niter_svd=500):
+def diffusion_mapping(
+    W: Tensor,
+    k: int = 10,
+    alpha: float = 0.5,
+    diffusion_time: int = 0,
+) -> Tuple[Tensor, Tensor]:
     r"""
     Manifold coordinates estimated using diffusion mapping.
 
     This functionality is adapted very closely from ``brainspace`` with some
     minor adaptations for differentiability.
+
+    .. warning::
+
+        Sparse inputs are currently unsupported because an implementation of a
+        sparse extremal eigenvalue solver does not yet exist in JAX. For
+        sparse inputs, use the generalised connectopic functional instead --
+        once we implement VJP rules for elementary operations on sparse
+        matrices, anyway.
 
     .. note::
 
@@ -162,14 +143,8 @@ def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
     Parameters
     ----------
     W : tensor
-        Edge weight tensor. If ``edge_index`` is not provided, then this
-        should be the graph adjacency (or affinity) matrix; otherwise, it
-        should be a list of weights corresponding to the edges in
-        ``edge_index``.
-    edge_index : ``LongTensor`` or None (default None)
-        List of edges corresponding to the provided weights. Each column
-        contains the index of the source vertex and the index of the target
-        vertex for the corresponding weight in ``W``.
+        Edge weight tensor. This should be the graph adjacency (or affinity)
+        matrix.
     k : int (default 10)
         Number of eigenmaps to compute.
     alpha : float :math:`\in [0, 1]` (default 0.5)
@@ -178,10 +153,6 @@ def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
         Diffusion time parameter. A value of 0 indicates that a multi-scale
         diffusion map should be computed, which considers all valid times
         (1, 2, 3, etc.).
-    solver : ``'lobpcg'`` (default) or ``'eigh'`` or ``'svd'``
-        Method for computing the eigendecomposition.
-    niter_svd : int (default 500)
-        Number of iterations when low-rank SVD is used as the eigensolver.
 
     Returns
     -------
@@ -194,57 +165,23 @@ def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
     --------
     :func:`laplacian_eigenmaps`
     """
-    W, _ = _symmetrise(W, edge_index, return_coo=True)
+    W = symmetric(W)
 
     if alpha > 0:
-        if edge_index is not None:
-            D = torch.sparse.sum(W, 1).to_dense()
-            D_power = D ** -alpha
-            # Note that the first two dimensions contain sparse matrix slices,
-            # and the last dimension is batch if applicable.
-            row, col = W.indices()
-            values = (
-                D_power[row] *
-                W.values() *
-                D_power[col]
-            )
-            W = torch.sparse_coo_tensor(
-                indices=W.indices(),
-                values=values
-            ).coalesce()
-        else:
-            D = W.sum(axis=-1, keepdim=True)
-            D_power = D ** -alpha
-            W = D_power * W * D_power.transpose(-1, -2)
+        D = W.sum(axis=-1, keepdims=True)
+        D_power = D ** -alpha
+        W = D_power * W * D_power.swapaxes(-1, -2)
 
-    if edge_index is not None:
-        D = torch.sparse.sum(W, 1).to_dense()
-        D_power = D[W.indices()[0]] ** -1
-        W = torch.sparse_coo_tensor(
-            indices=W.indices(),
-            values=W.values() * D_power
-        ).coalesce()
-    else:
-        D = W.sum(axis=-1, keepdim=True)
-        W = W * (D ** -1)
+    D = W.sum(axis=-1, keepdims=True)
+    W = W * (D ** -1)
 
-    #TODO: LOBPCG is currently not as efficient as it could be. See:
-    # https://github.com/pytorch/pytorch/issues/58828
-    # and monitor progress.
-    # https://github.com/rfeinman/Torch-ARPACK relevant but looks dead,
-    # and we need multiple extremal eigenpairs.
-    if solver == 'lobpcg':
-        L, Q = torch.lobpcg(
-            A=W,
-            k=(k + 1),
-            largest=True
-        )
-    elif solver == 'eigh':
-        L, Q = torch.linalg.eigh(W)
-        L = L[..., -(k + 1):].flip(-1)
-        Q = Q[..., -(k + 1):].flip(-1)
-    elif solver == 'svd':
-        Q, L, _ = torch.svd_lowrank(W, q=(k + 1), niter=niter_svd)
+    #TODO: It would be great to derive an extremal eigenvalue solver that
+    #      supports sparse matrices in the top-k format, imposing implicit
+    #      symmetry. eigh is really much too inefficient for this to be
+    #      currently practical.
+    L, Q = jnp.linalg.eigh(W)
+    L = jnp.flip(L[..., -(k + 1):], -1)
+    Q = jnp.flip(Q[..., -(k + 1):], -1)
 
     L = L / L[..., 0]
     Q = Q / Q[..., [0]]
@@ -256,6 +193,6 @@ def diffusion_mapping(W, edge_index=None, k=10, alpha=0.5,
     else:
         L = L ** diffusion_time
 
-    Q = Q * L.unsqueeze(-2)
-    Q = _impose_sign_consistency(Q, k)
+    Q = Q * L[..., None, :]
+    Q = _impose_sign_consistency(Q)
     return Q, L
