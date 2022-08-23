@@ -129,44 +129,51 @@ def _(
 @singledispatch
 def param_norm(
     X: Tensor,
-    theta: Optional[Tensor],
+    theta: Optional[Tensor] = None,
     *,
     squared: bool =False
 ) -> Tensor:
     r"""
-    Parameterised norm of pairwise distances between observations in an input
-    tensor.
+    Parameterised norm of observation vectors in an input tensor.
 
     For a tensor :math:`X` containing features in column vectors, the
-    parameterised norms of pairwise distances between observations
-    :math:`X_i` and :math:`X_j` are
+    parameterised norms of an observation vector :math:`X_i` are
 
-    :math:`\|X_i - X_j\|_{\theta} = (X_i - X_j)^\intercal \theta (X_i - X_j)`
+    :math:`\|X_i\|_{\theta} = \sqrt{(X_i)^\intercal \theta (X_i)}`
     or
-    :math:`\|X_i - X_j\|_{\theta} = (X_i - X_j)^\intercal \theta (X_i - X_j)^2`
-    if ``squared`` is True.
+    :math:`\|X_i\|_{\theta} = (X_i)^\intercal \theta (X_i)`
+    if ``squared`` is True. The non-squared form reduces to the L2 norm if
+    ``theta`` is the identity matrix.
 
     .. note::
         The inputs here are assumed to contain features in row vectors and
         observations in columns. This differs from the convention frequently
         used in the literature. However, this has the benefit of direct
         compatibility with the top-k sparse tensor format.
-
-    :Dimension: **X :** :math:`(*, N, P)` or :math:`(N, P, *)`
-                    N denotes number of observations, P denotes number of
-                    features, `*` denotes any number of additional dimensions.
-                    If the input is dense, then the last dimensions should be
-                    N and P; if it is sparse, then the first dimensions should
-                    be N and P.
-                **theta :** :math:`(*, P, P)` or :math:`(*, P)`
-                    As above.
-                **Output :** :math:`(*, N)` or :math:`(N, *)`
-                    As above.
     """
-    if squared:
-        return linear_distance(X, X, theta)
+    if theta is None:
+        norm = jnp.linalg.norm(X, 2, axis=-1, keepdims=True)
+        if squared:
+            norm = norm ** 2
+        Xnorm = (X / norm)
+    elif theta.ndim == 1 or theta.shape[-1] != theta.shape[-2]:
+        X = X[..., None, :]
+        if theta.ndim > 1:
+            theta = theta[..., None, None, :]
+        norm = (X * theta) @ X.swapaxes(-1, -2)
+        if not squared:
+            norm = jnp.sqrt(norm)
+        Xnorm = (X / norm).squeeze(-2)
     else:
-        return jnp.sqrt(linear_distance(X, X, theta))
+        X = X[..., None, :]
+        if theta.ndim > 2:
+            theta = theta[..., None, :, :]
+        norm = (X @ theta @ X.swapaxes(-1, -2))
+        if not squared:
+            norm = jnp.sqrt(norm)
+        Xnorm = (X / norm).squeeze(-2)
+
+    return Xnorm
 
 
 @param_norm.register
