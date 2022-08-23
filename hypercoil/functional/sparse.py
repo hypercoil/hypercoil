@@ -609,8 +609,7 @@ def sp_block_serialise(
         #print(zero_shapes)
         serialised = block_serialise(
             partial(_f_unpack, addresses=data_addresses),
-            n_blocks=n_blocks,
-            argnums=argnums, retnums=retnums,
+            n_blocks=n_blocks, retnums=retnums,
             in_axes=in_axes, out_axes=out_axes,
             # carrier_fn=partial(
             #     _shape_carrier,
@@ -921,6 +920,58 @@ def spsp_innerpaired(
     return jax.experimental.sparse.bcoo_dot_general(
         lhs, rhs, dimension_numbers=(contracting_dims, batch_dims)
     ).data.squeeze(-1)
+
+
+def topk_diagzero(
+    input: TopKTensor
+) -> TopKTensor:
+    r"""
+    Zero out the diagonal of a top-k sparse matrix.
+    """
+    diag_indices = jnp.arange(input.shape[-2])
+    xdim = [d for d in range(input.indices.ndim) if d != input.indices.ndim - 3]
+    diag_indices = jnp.expand_dims(diag_indices, xdim)
+    diag_indices = sparsify(jnp.broadcast_arrays)(diag_indices, input.indices)[0]
+    mask = diag_indices == input.indices
+    new_data = jnp.where(mask.squeeze(-1), 0, input.data)
+    return BCOO((new_data, input.indices), shape=input.shape)
+
+
+def topk_diagaugment(
+    input: TopKTensor,
+    diag: Tensor,
+) -> TopKTensor:
+    r"""
+    Diagonal augmentation of a top-k sparse matrix.
+
+    Given a top-k sparse matrix :math:`A` and a diagonal matrix :math:`D`,
+    the diagonal augmented matrix is :math:`A + D`.
+    """
+    diag_indices = _diag_indices(input)
+    aug_data = jnp.concatenate((input.data, diag), -1)
+    aug_indices = jnp.concatenate((input.indices, diag_indices), -2)
+    return BCOO((aug_data, aug_indices), shape=input.shape)
+
+
+def topk_diagreplace(
+    input: TopKTensor,
+    diag: Tensor,
+) -> TopKTensor:
+    r"""
+    Diagonal replacement of a top-k sparse matrix.
+    """
+    return topk_diagaugment(topk_diagzero(input), diag)
+
+
+def _diag_indices(W: Tensor) -> Tensor:
+    diag_indices = jnp.arange(W.shape[-2])
+    xdim = [d for d in range(W.indices.ndim) if d != W.indices.ndim - 3]
+    diag_indices = jnp.expand_dims(diag_indices, xdim)
+    bcdim = [
+        d if i >= W.indices.ndim - 2 else w
+        for i, (w, d) in enumerate(zip(W.indices.shape, diag_indices.shape))]
+    idx_dummy = jnp.empty(bcdim, dtype=jnp.bool_)
+    return jnp.broadcast_arrays(diag_indices, idx_dummy)[0]
 
 
 def random_sparse_batchfinal(key, shape, density=0.1):
