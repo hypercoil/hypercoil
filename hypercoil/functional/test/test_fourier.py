@@ -58,11 +58,11 @@ class TestFourier:
         in_phase = jnp.angle(jnp.fft.rfft(self.X))
         out = product_filter(self.X, w)
         out_phase = jnp.angle(jnp.fft.rfft(out))
-        assert not jnp.allclose(in_phase, out_phase, atol=1e-6)
+        assert not jnp.allclose(in_phase, out_phase, atol=1e-5)
 
         out = product_filtfilt(self.X, w)
         out_phase = jnp.angle(jnp.fft.rfft(out))
-        assert jnp.allclose(in_phase, out_phase, atol=1e-6)
+        assert jnp.allclose(in_phase, out_phase, atol=1e-4, rtol=1e-3)
 
     def test_attenuation(self):
         w = self.uniform_attenuator()

@@ -364,7 +364,7 @@ def isochor(
     tensor
         Volume-normalised tensor.
     """
-    L, Q = vmap_over_outer(jnp.linalg.eigh, 2)(input)
+    L, Q = jnp.linalg.eigh(input)
     if softmax_temp is not None:
         L = jax.nn.softmax(L / softmax_temp, axis=-1)
     if max_condition is not None:

@@ -97,7 +97,7 @@ class TestSparse:
         )
         out = spspmm_full(sp, sp)
         ref = sp.todense() @ sp.todense().swapaxes(-1, -2)
-        assert np.allclose(out, ref)
+        assert np.allclose(out, ref, atol=1e-5)
 
         spflat = random_sparse(
             (100, 100),
@@ -106,7 +106,7 @@ class TestSparse:
         )
         out = jax.jit(spspmm_full)(sp, spflat)
         ref = sp.todense() @ spflat.todense().swapaxes(-1, -2)
-        assert np.allclose(out, ref)
+        assert np.allclose(out, ref, atol=1e-5)
 
         spflat = random_sparse(
             (50, 100),
@@ -115,7 +115,7 @@ class TestSparse:
         )
         out = jax.jit(spspmm_full)(sp, spflat)
         ref = sp.todense() @ spflat.todense().swapaxes(-1, -2)
-        assert np.allclose(out, ref)
+        assert np.allclose(out, ref, atol=1e-5)
 
         full = np.random.randn(3, 100, 100)
         out = jax.jit(spspmm_full)(sp, full)

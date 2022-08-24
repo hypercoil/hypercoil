@@ -74,7 +74,9 @@ class TestActivationFunctions:
         assert np.allclose(out, 2 * jnp.eye(20), atol=1e-4)
 
         # test jit
-        jit_isochor = jax.jit(isochor)
+        jit_isochor = jax.jit(
+            isochor,
+            static_argnames=('volume', 'max_condition', 'softmax_temp'))
         out = jit_isochor(A, volume=4, max_condition=5)
         assert np.allclose(jnp.linalg.det(out), 4, atol=1e-2)
         L, Q = jnp.linalg.eigh(out)
