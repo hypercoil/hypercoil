@@ -5,7 +5,6 @@
 Unit tests for specialised matrix operations
 """
 import pytest
-import torch
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -16,7 +15,6 @@ from hypercoil.functional import (
     cholesky_invert,
     toeplitz,
     symmetric,
-    symmetric_sparse,
     spd,
     expand_outer,
     recondition_eigenspaces,
@@ -36,7 +34,6 @@ class TestMatrix:
         self.tol = 5e-3
         self.approx = lambda out, ref: np.allclose(out, ref, atol=self.tol)
         np.random.seed(10)
-        torch.manual_seed(10)
 
 
         A = np.random.rand(10, 10)
@@ -51,85 +48,16 @@ class TestMatrix:
         self.B = np.random.rand(20, 10, 10)
         BLR = np.random.rand(20, 10, 2)
         self.BLR = BLR @ BLR.swapaxes(-1, -2)
-        self.At = torch.Tensor(self.A)
-        self.ct = torch.Tensor(self.c)
-        self.rt = torch.Tensor(self.r)
-        self.Ct = torch.Tensor(self.C)
-        self.Rt = torch.Tensor(self.R)
-        self.ft = torch.Tensor(self.f)
-        self.Bt = torch.rand(20, 10, 10)
-        BLRt = torch.rand(20, 10, 2)
-        self.BLRt = BLRt @ BLRt.transpose(-1, -2)
-
-        if torch.cuda.is_available():
-            self.AtC = self.At.clone().cuda()
-            self.BtC = self.Bt.clone().cuda()
-            self.BLRtC = self.BLRt.clone().cuda()
-            self.ctC = self.ct.clone().cuda()
-            self.rtC = self.rt.clone().cuda()
-            self.CtC = self.Ct.clone().cuda()
-            self.RtC = self.Rt.clone().cuda()
-            self.ftC = self.ft.clone().cuda()
 
     def test_cholesky_invert(self):
         out = cholesky_invert(cholesky_invert(self.A))
-        ref = self.At
+        ref = self.A
         assert np.allclose(out, ref, atol=1e-2)
 
     def test_symmetric(self):
         out = symmetric(self.B)
         ref = out.swapaxes(-1, -2)
         assert self.approx(out, ref)
-
-    def test_symmetric_sparse(self):
-        W = torch.tensor([0.3, -1., -0.1, 0.9])
-        edge_index = torch.tensor([
-            [0, 1, 2, 3],
-            [1, 2, 3, 4]
-        ])
-        W_out, E_out = symmetric_sparse(W, edge_index)
-        out = np.array(csr_matrix((W_out, E_out), (5, 5)).todense())
-        ref = torch.diag_embed(W, offset=1)
-        ref = (ref + ref.t()) / 2
-        assert np.allclose(out, ref)
-
-        n_edges = 1000
-        n_vertices = 100
-        n_obs = 5
-        edge_index = torch.randint(n_vertices, (2, n_edges))
-        W = torch.randn(n_obs, n_edges)
-        W_out, E_out = symmetric_sparse(W, edge_index, skew=True)
-        for o in range(n_obs):
-            ref = np.array(csr_matrix(
-                (W[o], edge_index), (n_vertices, n_vertices)
-            ).todense())
-            ref = (ref - ref.T) / 2
-            out = np.array(csr_matrix(
-                (W_out[o], E_out), (n_vertices, n_vertices)
-            ).todense())
-            assert np.allclose(ref, out, atol=1e-6)
-
-        W = torch.tensor([
-            [0.3, -1., -0.1, 0.9, 1, 0, -1, 1, 1, 1],
-            [-1, 0, -1, 1, -1, 1, -1, 1, 1, 0.5]
-        ])
-        edge_index = torch.tensor([
-            [0, 1, 2, 3, 0, 1, 2, 3, 4, 4],
-            [1, 2, 3, 4, 0, 1, 2, 3, 4, 3]
-        ])
-        ref_out = (
-            torch.diag_embed(W[..., :4], offset=1) +
-            torch.diag_embed(W[..., 4:9])
-        )
-        ref_out[..., 4, 3] += W[..., -1]
-        ref_out = (ref_out - ref_out.transpose(-1, -2)) / 2
-        W_out, E_out = symmetric_sparse(W, edge_index, skew=True)
-        for o in range(2):
-            ref = ref_out[o]
-            out = np.array(csr_matrix(
-                (W_out[o], E_out), (5, 5)
-            ).todense())
-            assert np.allclose(ref, out)
 
     def test_expand_outer(self):
         L = np.random.rand(8, 4, 10, 3)

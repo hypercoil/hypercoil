@@ -6,7 +6,6 @@ Special matrix functions.
 """
 import jax
 import jax.numpy as jnp
-import torch
 import math
 from functools import partial
 from typing import Literal, Optional, Tuple
@@ -87,81 +86,81 @@ def symmetric(
 #      When it's implemented, we should change symmetric to single dispatch.
 #      It unfortunately won't work with our top-k format for sparse tensors
 #      without potentially deleting some existing nonzero entries.
-def symmetric_sparse(
-    W: Tensor,
-    edge_index: Tensor,
-    skew: bool = False,
-    n_vertices: Optional[int] = None,
-    divide: bool = True,
-    return_coo: bool = False
-) -> Tensor:
-    r"""
-    Impose symmetry (undirectedness) on a weight-edge index pair
-    representation of a graph.
+# def symmetric_sparse(
+#     W: Tensor,
+#     edge_index: Tensor,
+#     skew: bool = False,
+#     n_vertices: Optional[int] = None,
+#     divide: bool = True,
+#     return_coo: bool = False
+# ) -> Tensor:
+#     r"""
+#     Impose symmetry (undirectedness) on a weight-edge index pair
+#     representation of a graph.
 
-    All edges are duplicated and their source and target vertices reversed.
+#     All edges are duplicated and their source and target vertices reversed.
 
-    .. note::
+#     .. note::
 
-        This operation is differentiable with respect to the weight tensor
-        ``W``.
+#         This operation is differentiable with respect to the weight tensor
+#         ``W``.
 
-    .. note::
+#     .. note::
 
-        The weight tensor ``W`` can have any number of batched elements, but
-        all must include the same edges as indexed in ``edge_index``. If
-        certain edges are missing in some of the batched examples but present
-        in others, the missing edges should explicitly be set to 0 in ``W``.
+#         The weight tensor ``W`` can have any number of batched elements, but
+#         all must include the same edges as indexed in ``edge_index``. If
+#         certain edges are missing in some of the batched examples but present
+#         in others, the missing edges should explicitly be set to 0 in ``W``.
 
-    :Dimension: **W :** :math:`(*, E)`
-                    ``*`` denotes any number of preceding dimensions. E
-                    denotes the number of nonzero edges.
-                **edge_index :** :math:`(2, E)`
-                    As above.
-                **W_out :** :math:`(*, E_{out})`
-                    :math:`E_{out}` denotes the number of nonzero edges after
-                    symmetrisation.
-                **edge_index :** :math:`(2, E_{out})`
-                    As above.
+#     :Dimension: **W :** :math:`(*, E)`
+#                     ``*`` denotes any number of preceding dimensions. E
+#                     denotes the number of nonzero edges.
+#                 **edge_index :** :math:`(2, E)`
+#                     As above.
+#                 **W_out :** :math:`(*, E_{out})`
+#                     :math:`E_{out}` denotes the number of nonzero edges after
+#                     symmetrisation.
+#                 **edge_index :** :math:`(2, E_{out})`
+#                     As above.
 
-    Parameters
-    ----------
-    W : tensor
-        List of weights corresponding to the edges in ``edge_index``
-        (potentially batched).
-    edge_index : ``LongTensor``
-        List of edges corresponding to the provided weights. Each column
-        contains the index of the source vertex and the index of the target
-        vertex for the corresponding weight in ``W``.
-    skew : bool (default False)
-        Indicates whether skew-symmetry (antisymmetry) should be imposed on
-        the input.
-    """
-    if n_vertices is None:
-        n_vertices = edge_index.max() + 1
-    if W.dim() > 1:
-        shape = (n_vertices, n_vertices, *W.shape[:-1])
-        W_in = W.transpose(0, -1)
-    else:
-        shape = (n_vertices, n_vertices)
-        W_in = W
-    base = torch.sparse_coo_tensor(
-        edge_index,
-        W_in,
-        shape
-    )
-    if not skew:
-        out = (base + base.transpose(0, 1)).coalesce()
-    else:
-        out = (base - base.transpose(0, 1)).coalesce()
-    if divide:
-        out = out / 2
-    if return_coo:
-        return out
-    elif W.dim() > 1:
-        return out.values().transpose(-1, 0), out.indices()
-    else:
-        return out.values(), out.indices()
+#     Parameters
+#     ----------
+#     W : tensor
+#         List of weights corresponding to the edges in ``edge_index``
+#         (potentially batched).
+#     edge_index : ``LongTensor``
+#         List of edges corresponding to the provided weights. Each column
+#         contains the index of the source vertex and the index of the target
+#         vertex for the corresponding weight in ``W``.
+#     skew : bool (default False)
+#         Indicates whether skew-symmetry (antisymmetry) should be imposed on
+#         the input.
+#     """
+#     if n_vertices is None:
+#         n_vertices = edge_index.max() + 1
+#     if W.dim() > 1:
+#         shape = (n_vertices, n_vertices, *W.shape[:-1])
+#         W_in = W.transpose(0, -1)
+#     else:
+#         shape = (n_vertices, n_vertices)
+#         W_in = W
+#     base = torch.sparse_coo_tensor(
+#         edge_index,
+#         W_in,
+#         shape
+#     )
+#     if not skew:
+#         out = (base + base.transpose(0, 1)).coalesce()
+#     else:
+#         out = (base - base.transpose(0, 1)).coalesce()
+#     if divide:
+#         out = out / 2
+#     if return_coo:
+#         return out
+#     elif W.dim() > 1:
+#         return out.values().transpose(-1, 0), out.indices()
+#     else:
+#         return out.values(), out.indices()
 
 
 def spd(
@@ -354,7 +353,6 @@ def fill_diagonal(A: Tensor, fill: float = 0, offset: int = 0) -> Tensor:
     dim = A.shape[-2:]
     mask = jnp.ones(max(dim) - abs(offset), dtype=bool)
     mask = vmap_over_outer(partial(jnp.diagflat, k=offset), 1)((mask,))
-    #mask = torch.diag_embed(mask, offset=offset)
     mask = mask[:dim[0], :dim[1]]
     mask = conform_mask(A, mask, axis=(-2, -1))
     return A.at[mask].set(fill)

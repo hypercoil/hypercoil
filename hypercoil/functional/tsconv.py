@@ -248,14 +248,14 @@ def polyconv2d(
         power should be included. The first channel of the weight sees the
         constant term.
     bias : Tensor or None
-        Bias term for convolution. See `torch.conv2d` documentation for
+        Bias term for convolution. See ``torch.conv2d`` documentation for
         details.
     padding : 2-tuple or None
-        Padding for convolution, as for `torch.conv2d`. If not explicitly
+        Padding for convolution, as for ``torch.conv2d``. If not explicitly
         specified, this will default to 'time series' padding: no padding in
         the penultimate axis, and R // 2 in the final axis.
     **params
-        Additional parameters can be passed to `torch.conv2d`.
+        Additional parameters can be passed to ``torch.conv2d``.
 
     Returns
     -------

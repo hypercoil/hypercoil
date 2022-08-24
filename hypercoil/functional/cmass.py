@@ -12,7 +12,6 @@ to different locations and accepts a second argument that indicates explicitly
 the coordinates of each location
 (:func:`cmass_coor`, :func:`diffuse`, :func:`cmass_reference_displacement`).
 """
-import torch
 import jax.numpy as jnp
 from typing import Any, Optional, Sequence
 from ..functional.sphere import spherical_geodesic

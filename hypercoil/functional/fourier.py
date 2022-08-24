@@ -5,11 +5,8 @@
 Convolve the signal via multiplication in the Fourier domain.
 """
 import math
-from typing import Callable, Optional, Sequence, Tuple
-import jax
 import jax.numpy as jnp
-import torch
-import torch.fft
+from typing import Callable, Optional, Sequence, Tuple
 from .cov import corr
 from .utils import complex_decompose, orient_and_conform, Tensor
 
@@ -42,8 +39,8 @@ def product_filter(
         apply different filters to different variables in the input signal
         according to tensor broadcasting rules.
     **params
-        Any additional parameters provided will be passed to ``torch.fft.rfft``
-        and ``torch.fft.irfft``.
+        Any additional parameters provided will be passed to ``jnp.fft.rfft``
+        and ``jnp.fft.irfft``.
 
     Returns
     -------
@@ -94,8 +91,8 @@ def product_filtfilt(
         apply different filters to different variables in the input signal
         according to tensor broadcasting rules.
     **params
-        Any additional parameters provided will be passed to `torch.fft.rfft`
-        and `torch.fft.irfft`.
+        Any additional parameters provided will be passed to `jnp.fft.rfft`
+        and `jnp.fft.irfft`.
 
     Returns
     -------

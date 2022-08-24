@@ -54,7 +54,7 @@ from .kernel import (
     gaussian_kernel, rbf_kernel, cosine_kernel
 )
 from .matrix import (
-    cholesky_invert, expand_outer, spd, symmetric, symmetric_sparse,
+    cholesky_invert, expand_outer, spd, symmetric,
     delete_diagonal, fill_diagonal, recondition_eigenspaces,
     toeplitz, sym2vec, vec2sym, squareform
 )

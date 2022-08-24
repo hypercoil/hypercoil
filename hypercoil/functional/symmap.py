@@ -101,7 +101,7 @@ def symmap(
     ----------
     input : Tensor
         Batch of symmetric tensors to transform.
-    map : dimension-conserving torch callable
+    map : dimension-conserving callable
         Transformation to apply as a matrix-valued function.
     spd : bool (default True)
         Indicates that the matrices in the input batch are symmetric positive
@@ -221,7 +221,7 @@ def symexp(input: Tensor) -> Tensor:
 
     Warnings
     --------
-    `torch.matrix_exp` is generally more stable and recommended over this.
+    ``jax.scipy.linalg.expm`` is generally more stable and recommended over this.
     """
     return symmap(input, jnp.exp)
 

@@ -4,11 +4,10 @@
 """
 Connectopic manifold mapping, based on ``brainspace``.
 """
-from typing import Tuple
-import torch
 import jax
 import jax.numpy as jnp
 
+from typing import Tuple
 from hypercoil.functional.utils import Tensor, vmap_over_outer
 from .graph import graph_laplacian
 from .matrix import symmetric
@@ -16,7 +15,8 @@ from .matrix import symmetric
 
 def _absmax(X: Tensor) -> Tensor:
     # Not sure the reason for this way of implementing this in brainspace, but
-    # I do believe they had a lot more time to evaluate different approaches.
+    # I do believe they had a lot more time to evaluate different approaches,
+    # so we'll go with theirs.
     return X[jnp.abs(X).argmax(axis=-2), jnp.arange(X.shape[-1])]
 
 
