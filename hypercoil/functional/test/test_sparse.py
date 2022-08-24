@@ -8,7 +8,7 @@ import jax
 import numpy as np
 import jax.numpy as jnp
 from hypercoil.functional.sparse import(
-    random_sparse, spdiagmm, dspdmm, spspmm_full, topk, as_topk,
+    random_sparse, spdiagmm, dspdmm, spspmm_full, spsymv, topk, as_topk,
     sparse_astype, trace_spspmm, _serialised_spspmm, spspmm, _ix,
     full_as_topk, spsp_pairdiff, select_indices, topkx, block_serialise,
     topk_to_bcoo, splr_hadamard, spsp_innerpaired,
@@ -383,6 +383,23 @@ class TestSparse:
 
         out = spsp_innerpaired(lhs.todense(), rhs)
         assert np.allclose(out, ref)
+
+    def test_sp_symv(self):
+        key = jax.random.PRNGKey(4839)
+        k0, k1 = jax.random.split(key)
+        lhs = random_sparse(
+            (4, 3, 100, 100),
+            k=5,
+            key=k0
+        )
+        rhs = jax.random.normal(key=k1, shape=(3, 100))
+
+        lhs_ref = lhs.todense()
+        lhs_ref = (lhs_ref + lhs_ref.swapaxes(-2, -1)) / 2
+        assert np.all(lhs_ref == lhs_ref.swapaxes(-2, -1))
+        ref = (lhs_ref @ rhs[..., None]).squeeze(-1)
+        out = spsymv(lhs, rhs)
+        assert np.allclose(out, ref, atol=1e-5)
 
     def test_topk_diagmods(self):
         X = random_sparse(

@@ -216,7 +216,7 @@ def spspmm_full(
         returns
         :math:`A B^\intercal` for LHS :math:`A` and RHS :math:`B`.
     """
-    if not isinstance(lhs, BCOO) or not isinstance(rhs, BCOO):
+    if not isinstance(rhs, BCOO):
         return lhs @ rhs.swapaxes(-2, -1)
     lhs, rhs = _spspmm_broadcast(lhs, rhs)
     contracting_dims = ((lhs.ndim - 1,), (rhs.ndim - 1,))
@@ -922,6 +922,26 @@ def spsp_innerpaired(
     ).data.squeeze(-1)
 
 
+def spsymv(
+    lhs: TopKTensor,
+    rhs: Tensor
+) -> Tensor:
+    """
+    Matrix-vector product between a top-k formatted sparse tensor and a
+    vector. The top-k tensor is implicitly symmetrised.
+
+    .. note::
+        This operation has applications in certain matrix-free methods.
+
+    .. note::
+        The implicit symmetrisation results in treatment of an input matrix
+        :math:`A` as though it were :math:`(A + A^\intercal) / 2`.
+    """
+    right = (lhs @ rhs[..., None]).squeeze(-1)
+    left = (rhs[..., None, :] @ lhs).squeeze(-2)
+    return (left + right) / 2
+
+
 def topk_diagzero(
     input: TopKTensor
 ) -> TopKTensor:
@@ -929,9 +949,11 @@ def topk_diagzero(
     Zero out the diagonal of a top-k sparse matrix.
     """
     diag_indices = jnp.arange(input.shape[-2])
-    xdim = [d for d in range(input.indices.ndim) if d != input.indices.ndim - 3]
+    xdim = [d for d in range(input.indices.ndim)
+            if d != input.indices.ndim - 3]
     diag_indices = jnp.expand_dims(diag_indices, xdim)
-    diag_indices = sparsify(jnp.broadcast_arrays)(diag_indices, input.indices)[0]
+    diag_indices = sparsify(jnp.broadcast_arrays)(
+        diag_indices, input.indices)[0]
     mask = diag_indices == input.indices
     new_data = jnp.where(mask.squeeze(-1), 0, input.data)
     return BCOO((new_data, input.indices), shape=input.shape)
@@ -947,6 +969,8 @@ def topk_diagaugment(
     Given a top-k sparse matrix :math:`A` and a diagonal matrix :math:`D`,
     the diagonal augmented matrix is :math:`A + D`.
     """
+    if diag.shape[-1] != 1:
+        diag = diag[..., None]
     diag_indices = _diag_indices(input)
     aug_data = jnp.concatenate((input.data, diag), -1)
     aug_indices = jnp.concatenate((input.indices, diag_indices), -2)

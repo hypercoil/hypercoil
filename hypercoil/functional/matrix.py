@@ -84,6 +84,9 @@ def symmetric(
 
 
 #TODO: marking this as an experimental function
+#      When it's implemented, we should change symmetric to single dispatch.
+#      It unfortunately won't work with our top-k format for sparse tensors
+#      without potentially deleting some existing nonzero entries.
 def symmetric_sparse(
     W: Tensor,
     edge_index: Tensor,
