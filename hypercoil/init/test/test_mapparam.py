@@ -10,25 +10,36 @@ import numpy as np
 import jax.numpy as jnp
 import equinox as eqx
 
-from hypercoil.init.mapparam import AffineMappedParameter, IdentityMappedParameter, MappedParameter, Clip, Renormalise
+from hypercoil.init.mapparam import (
+    MappedParameter, Clip, Renormalise,
+    IdentityMappedParameter, AffineMappedParameter,
+    AmplitudeTanhMappedParameter, TanhMappedParameter
+)
 
 
 class TestMappedParameters:
 
     @pytest.fixture(autouse=True)
     def setup_class(self):
-        key = jax.random.PRNGKey(0)
-        k0, k1 = jax.random.split(key)
-        A = np.array([-1.1, -0.5, 0, 0.5, 1, 7])
-        self.A = eqx.nn.Linear(
-            in_features=A.shape[-1],
-            out_features=1,
-            key=k0
+        A = np.array([-1.1, -0.5, 0, 0.5, 1, 7])[None, ...]
+        self.A = self._linear_with_weight(A)
+        C = (
+            np.array([-1.1, -0.5, 0, 0.5, 1, 7]) +
+            np.array([-0.7, -0.2, 1, 1, 0, -5]) * 1j
+        )[None, ...]
+        self.C = self._linear_with_weight(C)
+
+    def _linear_with_weight(self, W):
+        key = jax.random.PRNGKey(0) # not relevant for us
+        model = eqx.nn.Linear(
+            in_features=W.shape[-1],
+            out_features=W.shape[-2],
+            key=key
         )
-        self.A = eqx.tree_at(
+        return eqx.tree_at(
             lambda m: m.weight,
-            self.A,
-            replace=A
+            model,
+            replace=W
         )
 
     def test_clip(self):
@@ -59,6 +70,44 @@ class TestMappedParameters:
         assert np.allclose(out, ref)
         out = mapper.image_map(self.A.weight)
         ref = self.A.weight * 2 - 3
+        assert np.allclose(out, ref)
+
+    def test_atanh(self):
+        mapper = TanhMappedParameter(self.A, scale=2)
+        out = mapper.preimage_map(self.A.weight)
+        ref = jnp.arctanh(self.A.weight / 2)
+        ref = ref.at[self.A.weight < mapper.image_bound[0]].set(
+            mapper.preimage_bound[0])
+        ref = ref.at[ref < mapper.preimage_bound[0]].set(
+            mapper.preimage_bound[0])
+        ref = ref.at[self.A.weight > mapper.image_bound[1]].set(
+            mapper.preimage_bound[1])
+        ref = ref.at[ref > mapper.preimage_bound[1]].set(
+            mapper.preimage_bound[1])
+        assert np.allclose(out, ref)
+        out = mapper.image_map(self.A.weight)
+        ref = jnp.tanh(self.A.weight) * 2
+        assert np.allclose(out, ref)
+
+    def test_aatanh(self):
+        mapper = AmplitudeTanhMappedParameter(self.C, scale=2)
+        out = mapper.preimage_map(self.C.weight)
+        ampl, phase = jnp.abs(self.C.weight), jnp.angle(self.C.weight)
+        ref = jnp.arctanh(ampl / 2)
+        ref = ref.at[ampl < mapper.image_bound[0]].set(
+            mapper.preimage_bound[0])
+        ref = ref.at[ref < mapper.preimage_bound[0]].set(
+            mapper.preimage_bound[0])
+        ref = ref.at[ampl > mapper.image_bound[1]].set(
+            mapper.preimage_bound[1])
+        ref = ref.at[ref > mapper.preimage_bound[1]].set(
+            mapper.preimage_bound[1])
+        ref = ref * jnp.exp(phase * 1j)
+        assert np.allclose(out, ref)
+        out = mapper.image_map(self.C.weight)
+        ampl, phase = jnp.abs(self.C.weight), jnp.angle(self.C.weight)
+        ref = jnp.tanh(ampl) * 2
+        ref = ref * jnp.exp(phase * 1j)
         assert np.allclose(out, ref)
     
     def test_softmax_mapper(self):
