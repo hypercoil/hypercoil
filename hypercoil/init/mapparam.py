@@ -7,7 +7,7 @@ Generic image / preimage mapper.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple, Union
 from ..functional.utils import (
     Tensor, PyTree, complex_decompose, complex_recompose
 )
@@ -249,3 +249,52 @@ class MappedLogits(AffineDomainMappedParameter):
 
     def image_map_impl(self, param: Tensor) -> Tensor:
         return jax.nn.sigmoid(param)
+
+
+class NormSphereParameter(AffineDomainMappedParameter):
+    normalise_fn: Callable
+    order: Tensor = 2
+    axis: Union[int, Tuple[int, ...]] = -1
+
+    def __init__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        handler: Callable = None,
+        loc: float = 0.,
+        scale: float = 1.,
+        norm: float = 2.,
+        axis: Union[int, Tuple[int, ...]] = -1,
+    ):
+        self.order = norm
+        self.axis = axis
+        if isinstance(norm, jnp.ndarray):
+            def ellipse_norm(x, **params):
+                x = x.swapaxes(-1, axis)
+                norms = x[..., None, :] @ norm @ x[..., None]
+                return jnp.sqrt(norms).squeeze(-1).swapaxes(-1, axis)
+            f = ellipse_norm
+        else:
+            f = jnp.linalg.norm
+        def normalise(x):
+            n = f(
+                x,
+                ord=norm,
+                axis=axis,
+                keepdims=True
+            ) + jnp.finfo(x.dtype).eps
+            return x / n
+
+        self.normalise_fn = normalise
+
+        super().__init__(
+            model, param_name=param_name,
+            handler=handler, loc=loc, scale=scale
+        )
+
+    def preimage_map_impl(self, param: Tensor) -> Tensor:
+        return param
+
+    def image_map_impl(self, param: Tensor) -> Tensor:
+        return self.normalise_fn(param)

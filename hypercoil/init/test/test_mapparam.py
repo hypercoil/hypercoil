@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from hypercoil.init.mapparam import (
-    MappedParameter, Clip, Renormalise,
+    MappedParameter, Clip, NormSphereParameter, Renormalise,
     IdentityMappedParameter, AffineMappedParameter,
     AmplitudeTanhMappedParameter, TanhMappedParameter,
     MappedLogits
@@ -127,6 +127,20 @@ class TestMappedParameters:
         out = mapper.image_map(self.A.weight)
         ref = jax.nn.sigmoid(self.A.weight) * 2
         assert np.allclose(out, ref)
+
+    def test_unitsphere(self):
+        X = jax.random.normal(key=jax.random.PRNGKey(8439), shape=(4, 8))
+        X = self._linear_with_weight(X)
+        d = NormSphereParameter(X)
+        assert np.allclose((d.image_map(X.weight) ** 2).sum(-1), 1)
+        d = NormSphereParameter(X, axis=-2)
+        assert np.allclose((d.image_map(X.weight) ** 2).sum(0), 1)
+        d = NormSphereParameter(X, norm=1, axis=-2)
+        assert np.allclose(jnp.abs(d.image_map(X.weight)).sum(0), 1)
+        d = NormSphereParameter(X, norm=jnp.eye(8))
+        assert np.allclose((d.image_map(X.weight) ** 2).sum(-1), 1)
+        d = NormSphereParameter(X, norm=jnp.eye(4), axis=-2)
+        assert np.allclose((d.image_map(X.weight) ** 2).sum(0), 1)
     
     def test_softmax_mapper(self):
         @eqx.filter_jit
