@@ -219,3 +219,33 @@ class TanhMappedParameter(AffineDomainMappedParameter):
 
 class AmplitudeTanhMappedParameter(PhaseAmplitudeMixin, TanhMappedParameter):
     pass
+
+
+class MappedLogits(AffineDomainMappedParameter):
+    def __init__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        preimage_bound: Tuple[float, float] = (-4.5, 4.5),
+        handler: Callable = None,
+        loc: Optional[float] = None,
+        scale: float = 1.,
+    ):
+        if loc is None: loc = (scale / 2)
+        shift = loc - scale / 2
+        super().__init__(
+            model,
+            param_name=param_name,
+            preimage_bound=preimage_bound,
+            image_bound=(loc - scale / 2, loc + scale / 2),
+            handler=handler,
+            loc=shift,
+            scale=scale,
+        )
+
+    def preimage_map_impl(self, param: Tensor) -> Tensor:
+        return jax.scipy.special.logit(param)
+
+    def image_map_impl(self, param: Tensor) -> Tensor:
+        return jax.nn.sigmoid(param)

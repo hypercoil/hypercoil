@@ -13,7 +13,8 @@ import equinox as eqx
 from hypercoil.init.mapparam import (
     MappedParameter, Clip, Renormalise,
     IdentityMappedParameter, AffineMappedParameter,
-    AmplitudeTanhMappedParameter, TanhMappedParameter
+    AmplitudeTanhMappedParameter, TanhMappedParameter,
+    MappedLogits
 )
 
 
@@ -108,6 +109,23 @@ class TestMappedParameters:
         ampl, phase = jnp.abs(self.C.weight), jnp.angle(self.C.weight)
         ref = jnp.tanh(ampl) * 2
         ref = ref * jnp.exp(phase * 1j)
+        assert np.allclose(out, ref)
+
+    def test_logit(self):
+        mapper = MappedLogits(self.A, scale=2)
+        out = mapper.preimage_map(self.A.weight)
+        ref = jax.scipy.special.logit(self.A.weight / 2)
+        ref = ref.at[self.A.weight < mapper.image_bound[0]].set(
+            mapper.preimage_bound[0])
+        ref = ref.at[ref < mapper.preimage_bound[0]].set(
+            mapper.preimage_bound[0])
+        ref = ref.at[self.A.weight > mapper.image_bound[1]].set(
+            mapper.preimage_bound[1])
+        ref = ref.at[ref > mapper.preimage_bound[1]].set(
+            mapper.preimage_bound[1])
+        assert np.allclose(out, ref)
+        out = mapper.image_map(self.A.weight)
+        ref = jax.nn.sigmoid(self.A.weight) * 2
         assert np.allclose(out, ref)
     
     def test_softmax_mapper(self):
