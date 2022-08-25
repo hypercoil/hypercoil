@@ -11,10 +11,12 @@ import jax.numpy as jnp
 import equinox as eqx
 
 from hypercoil.init.mapparam import (
-    MappedParameter, Clip, NormSphereParameter, Renormalise,
+    _to_jax_array, Clip, Renormalise,
     IdentityMappedParameter, AffineMappedParameter,
     AmplitudeTanhMappedParameter, TanhMappedParameter,
-    MappedLogits
+    MappedLogits, NormSphereParameter,
+    ProbabilitySimplexParameter,
+    AmplitudeProbabilitySimplexParameter
 )
 
 
@@ -29,6 +31,22 @@ class TestMappedParameters:
             np.array([-0.7, -0.2, 1, 1, 0, -5]) * 1j
         )[None, ...]
         self.C = self._linear_with_weight(C)
+        AA = np.array([
+            [2., 2., 2., 1., 0.],
+            [0., 1., 1., 1., 2.]
+        ])
+        self.AA = self._linear_with_weight(AA)
+        ampl_CC = np.array([
+            [2, 2, 2, 1, 0, 0],
+            [0, 1, 1, 1, 2, 0]
+        ])
+        phase_CC = np.array([
+            [-0.7, -0.2, 1, 1, 0, -5],
+            [-1.1, -0.5, 0, 0.5, 1, 7]
+        ])
+        CC = ampl_CC * jnp.exp(phase_CC * 1j)
+        self.CC = self._linear_with_weight(CC)
+        Z = np.random.rand(5, 3, 4, 4)
 
     def _linear_with_weight(self, W):
         key = jax.random.PRNGKey(0) # not relevant for us
@@ -141,6 +159,33 @@ class TestMappedParameters:
         assert np.allclose((d.image_map(X.weight) ** 2).sum(-1), 1)
         d = NormSphereParameter(X, norm=jnp.eye(4), axis=-2)
         assert np.allclose((d.image_map(X.weight) ** 2).sum(0), 1)
+
+    def test_multilogit(self):
+        mapper = ProbabilitySimplexParameter(self.AA, axis=-1)
+        out = mapper.preimage_map(self.AA.weight)
+        r_in = jnp.array(self.AA.weight)
+        r_in = r_in.at[r_in < mapper.image_bound[0]].set(mapper.image_bound[0])
+        r_in = r_in.at[r_in > mapper.image_bound[1]].set(mapper.image_bound[1])
+        ref = jnp.log(r_in)
+        assert np.allclose(out, ref)
+        out = mapper.image_map(out)
+        ref = self.AA.weight / self.AA.weight.sum(-1, keepdims=True)
+        assert np.allclose(out, ref, atol=1e-2)
+
+    def test_amultilogit(self):
+        mapper = AmplitudeProbabilitySimplexParameter(self.CC, axis=0)
+        out = mapper.preimage_map(self.CC.weight)
+        ampl, phase = jnp.abs(self.CC.weight), jnp.angle(self.CC.weight)
+        ampl = ampl.at[ampl < mapper.image_bound[0]].set(mapper.image_bound[0])
+        ampl = ampl.at[ampl > mapper.image_bound[1]].set(mapper.image_bound[1])
+        ref = jnp.log(ampl)
+        ref = ref * jnp.exp(phase * 1j)
+        assert np.allclose(out, ref)
+        out = mapper.image_map(self.CC.weight)
+        ampl, phase = jnp.abs(self.CC.weight), jnp.angle(self.CC.weight)
+        ampl = jax.nn.softmax(ampl, 0)
+        ref = ampl * jnp.exp(phase * 1j)
+        assert np.allclose(out, ref)
     
     def test_softmax_mapper(self):
         @eqx.filter_jit
@@ -151,33 +196,37 @@ class TestMappedParameters:
 
         @eqx.filter_grad
         def loss_ref(model, x, y):
-            predict = lambda x: jax.nn.softmax(model.weight.original, -1) @ x + model.bias
+            predict = lambda x: jax.nn.softmax(
+                model.weight.original, -1) @ x + model.bias
             pred_y = jax.vmap(predict)(x)
             return jax.numpy.mean((y - pred_y) ** 2)
 
         key = jax.random.PRNGKey(0)
         mkey, xkey, ykey = jax.random.split(key, 3)
         batch_size, in_size, out_size = 32, 20, 10
-        model = eqx.nn.Linear(in_features=in_size, out_features=out_size, key=mkey)
-        model = eqx.tree_at(lambda m: m.weight, model, replace_fn=jnp.abs)
+        model = eqx.nn.Linear(
+            in_features=in_size, out_features=out_size, key=mkey)
 
-        mapper = MappedParameter(model)
+        mapper = ProbabilitySimplexParameter(model, axis=-1)
         model_mapped = eqx.tree_at(
             lambda m: m.__getattribute__(mapper.param_name),
             model,
             replace=mapper
         )
-        model_mapped_2 = MappedParameter.embed(model)
-        assert np.allclose(model_mapped.weight.original, model_mapped_2.weight.original)
+        model_mapped_2 = ProbabilitySimplexParameter.embed(model, axis=-1)
+        assert np.allclose(model_mapped.weight.original,
+                           model_mapped_2.weight.original)
+
+        assert np.allclose(jnp.sum(_to_jax_array(model_mapped.weight), -1), 1)
 
         x = jax.random.normal(key=xkey, shape=(batch_size, in_size))
         y = jax.random.normal(key=ykey, shape=(batch_size, out_size))
 
         for epoch in range(10):
-            print(epoch)
             grads = loss_fn(model_mapped, x, y)
             grads_ref = loss_ref(model_mapped, x, y)
-            assert np.allclose(grads.weight.original, grads_ref.weight.original)
+            assert np.allclose(
+                grads.weight.original, grads_ref.weight.original)
             param_old = model_mapped.weight.original
 
             model_mapped = eqx.apply_updates(model_mapped, grads)

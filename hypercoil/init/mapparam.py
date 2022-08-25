@@ -7,10 +7,22 @@ Generic image / preimage mapper.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from functools import partial
 from typing import Any, Callable, Optional, Tuple, Union
 from ..functional.utils import (
     Tensor, PyTree, complex_decompose, complex_recompose
 )
+
+
+# From ``equinox``:
+# TODO: remove this once JAX fixes the issue.
+# Working around JAX not always properly respecting __jax_array__ . . .
+# See JAX issue #10065
+def _to_jax_array(param: Tensor) -> Tensor:
+    if hasattr(param, "__jax_array__"):
+        return param.__jax_array__()
+    else:
+        return param
 
 
 class MappedParameter(eqx.Module):
@@ -298,3 +310,57 @@ class NormSphereParameter(AffineDomainMappedParameter):
 
     def image_map_impl(self, param: Tensor) -> Tensor:
         return self.normalise_fn(param)
+
+
+def paramlog(x: Tensor, temperature: float, smoothing: float) -> Tensor:
+    return temperature * jnp.log(x + smoothing)
+
+
+def paramsoftmax(
+    x: Tensor,
+    temperature: float,
+    axis: Union[int, Tuple[int, ...]]
+) -> Tensor:
+    return jax.nn.softmax(x / temperature, axis)
+
+
+class ProbabilitySimplexParameter(DomainMappedParameter):
+    _image_map_impl: Callable
+    _preimage_map_impl: Callable
+    axis: Union[int, Tuple[int, ...]] = -1
+    temperature: float = 1.
+
+    def __init__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        handler: Callable = None,
+        axis: int = -1,
+        minimum: float = 1e-3,
+        smoothing: float = 0,
+        temperature: float = 1.,
+    ):
+        self._image_map_impl = partial(
+            paramsoftmax, temperature=temperature, axis=axis)
+        self._preimage_map_impl = partial(
+            paramlog, temperature=temperature, smoothing=smoothing)
+        self.temperature = temperature
+        super().__init__(
+            model, param_name=param_name,
+            image_bound=(minimum, float('inf')), # 1 - minimum),
+            handler=handler
+        )
+
+    def preimage_map_impl(self, param: Tensor) -> Tensor:
+        return self._preimage_map_impl(param)
+
+    def image_map_impl(self, param: Tensor) -> Tensor:
+        return self._image_map_impl(param)
+
+
+class AmplitudeProbabilitySimplexParameter(
+    PhaseAmplitudeMixin,
+    ProbabilitySimplexParameter
+):
+    pass
