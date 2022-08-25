@@ -2,7 +2,8 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Generic image / preimage mapper.
+Parameter mappers / mapped parameters for ``equinox`` modules.
+Similar to PyTorch's ``torch.nn.utils.parametrize``.
 """
 import equinox as eqx
 import jax
@@ -364,3 +365,22 @@ class AmplitudeProbabilitySimplexParameter(
     ProbabilitySimplexParameter
 ):
     pass
+
+
+class OrthogonalParameter(MappedParameter):
+    def __init__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+    ):
+        super().__init__(
+            model,
+            param_name=param_name,
+        )
+
+    def preimage_map(self, param: Tensor) -> Tensor:
+        return param
+
+    def image_map(self, param: Tensor) -> Tensor:
+        return jnp.linalg.qr(param)[0]

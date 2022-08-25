@@ -16,7 +16,8 @@ from hypercoil.init.mapparam import (
     AmplitudeTanhMappedParameter, TanhMappedParameter,
     MappedLogits, NormSphereParameter,
     ProbabilitySimplexParameter,
-    AmplitudeProbabilitySimplexParameter
+    AmplitudeProbabilitySimplexParameter,
+    OrthogonalParameter
 )
 
 
@@ -186,8 +187,16 @@ class TestMappedParameters:
         ampl = jax.nn.softmax(ampl, 0)
         ref = ampl * jnp.exp(phase * 1j)
         assert np.allclose(out, ref)
-    
-    def test_softmax_mapper(self):
+
+    def test_orthogonal(self):
+        X = jax.random.normal(key=jax.random.PRNGKey(8439), shape=(8, 8))
+        X = self._linear_with_weight(X)
+        X = OrthogonalParameter.embed(X)
+        out = _to_jax_array(X.weight)
+        out = out.T @ out
+        assert np.allclose(out, jnp.eye(8), atol=1e-5)
+
+    def test_softmax_mapper_full_loop(self):
         @eqx.filter_jit
         @eqx.filter_grad
         def loss_fn(model, x, y):
