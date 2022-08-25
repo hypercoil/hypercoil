@@ -10,6 +10,8 @@ import jax
 import jax.numpy as jnp
 from functools import partial
 from typing import Any, Callable, Optional, Tuple, Union
+from ..functional.activation import isochor
+from ..functional.matrix import spd
 from ..functional.utils import (
     Tensor, PyTree, complex_decompose, complex_recompose
 )
@@ -89,6 +91,27 @@ class Renormalise(OutOfDomainHandler):
         out = x - x.mean(axis)
         out = out / ((upper - lower) / (unew - lnew))
         return out + lnew - out.min(axis)
+
+
+class ForcePositiveDefinite(OutOfDomainHandler):
+    spd_threshold: float = 1e-6
+
+    def __init__(self, spd_threshold:float = 1e-6):
+        self.spd_threshold = spd_threshold
+        super().__init__()
+
+    def apply(
+        self,
+        x: Tensor,
+        bound: None = None,
+        eps: Optional[float] = None,
+    ) -> Tensor:
+        if eps is None: eps = self.spd_threshold
+        x = jax.lax.stop_gradient(x)
+        return spd(x, eps=eps)
+
+    def test(self, *pparams, **params):
+        raise NotImplementedError()
 
 
 class DomainMappedParameter(MappedParameter):
@@ -380,7 +403,42 @@ class OrthogonalParameter(MappedParameter):
         )
 
     def preimage_map(self, param: Tensor) -> Tensor:
-        return param
+        return self.image_map(param)
 
     def image_map(self, param: Tensor) -> Tensor:
         return jnp.linalg.qr(param)[0]
+
+
+class IsochoricParameter(DomainMappedParameter):
+    volume: float = 1.
+    max_condition: Optional[float] = None
+    softmax_temp: Optional[float] = None
+
+    def __init__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        volume: float = 1.,
+        max_condition: Optional[float] = None,
+        softmax_temp: Optional[float] = None,
+        spd_threshold: float = 1e-3,
+    ):
+        self.volume = volume
+        self.max_condition = max_condition
+        self.softmax_temp = softmax_temp
+        super().__init__(
+            model, param_name=param_name,
+            handler=ForcePositiveDefinite(spd_threshold=spd_threshold),
+        )
+
+    def preimage_map_impl(self, param: Tensor) -> Tensor:
+        return self.image_map_impl(param)
+
+    def image_map_impl(self, param: Tensor) -> Tensor:
+        return isochor(
+            param,
+            volume=self.volume,
+            max_condition=self.max_condition,
+            softmax_temp=self.softmax_temp,
+        )

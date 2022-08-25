@@ -17,7 +17,7 @@ from hypercoil.init.mapparam import (
     MappedLogits, NormSphereParameter,
     ProbabilitySimplexParameter,
     AmplitudeProbabilitySimplexParameter,
-    OrthogonalParameter
+    OrthogonalParameter, IsochoricParameter
 )
 
 
@@ -195,6 +195,19 @@ class TestMappedParameters:
         out = _to_jax_array(X.weight)
         out = out.T @ out
         assert np.allclose(out, jnp.eye(8), atol=1e-5)
+
+    def test_isochoric(self):
+        volume = 5
+        max_condition = 10
+        X = jax.random.normal(key=jax.random.PRNGKey(8439), shape=(8, 8))
+        X = self._linear_with_weight(X)
+        X = IsochoricParameter.embed(
+            X, volume=volume, max_condition=max_condition)
+        out = _to_jax_array(X.weight)
+        det = jnp.linalg.det(out)
+        L = jnp.linalg.eigvalsh(out)
+        assert np.isclose(det, volume)
+        assert L.max() / L.min() < (max_condition * (1 + 1e5))
 
     def test_softmax_mapper_full_loop(self):
         @eqx.filter_jit
