@@ -9,10 +9,22 @@ import numpy as np
 import jax.numpy as jnp
 import equinox as eqx
 
-from hypercoil.init.mapparam import MappedParameter
+from hypercoil.init.mapparam import MappedParameter, Clip, Renormalise
 
 
 class TestMappedParameters:
+
+    def test_clip(self):
+        A = np.array([-0.7, 0.3, 1.2])
+        out = Clip().apply(A, bound=(-float('inf'), 1))
+        ref = np.array([-0.7, 0.3, 1])
+        assert np.allclose(out, ref)
+
+    def test_norm(self):
+        A = np.array([-0.5, 0, 0.5])
+        out = Renormalise().apply(A, bound=(0, 1))
+        ref = np.array([0, 0.25, 0.5])
+        assert np.allclose(out, ref)
     
     def test_softmax_mapper(self):
         @eqx.filter_jit
