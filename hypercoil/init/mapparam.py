@@ -94,19 +94,12 @@ class Renormalise(OutOfDomainHandler):
 
 
 class ForcePositiveDefinite(OutOfDomainHandler):
-    spd_threshold: float = 1e-6
-
-    def __init__(self, spd_threshold:float = 1e-6):
-        self.spd_threshold = spd_threshold
-        super().__init__()
-
     def apply(
         self,
         x: Tensor,
-        bound: None = None,
-        eps: Optional[float] = None,
+        bound: Tuple[float, float],
     ) -> Tensor:
-        if eps is None: eps = self.spd_threshold
+        eps = bound[0]
         x = jax.lax.stop_gradient(x)
         return spd(x, eps=eps)
 
@@ -429,7 +422,9 @@ class IsochoricParameter(DomainMappedParameter):
         self.softmax_temp = softmax_temp
         super().__init__(
             model, param_name=param_name,
-            handler=ForcePositiveDefinite(spd_threshold=spd_threshold),
+            handler=ForcePositiveDefinite(),
+            preimage_bound=(spd_threshold, float('inf')),
+            image_bound=(spd_threshold, float('inf')),
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:
