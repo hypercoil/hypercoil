@@ -35,34 +35,6 @@ def from_distr_init(
     return distr.sample(seed=key, sample_shape=shape)
 
 
-def uniform_init(
-    *,
-    shape: Tuple[int],
-    min: int = 0,
-    max: int = 1,
-    key: jax.random.PRNGKey,
-) -> Tensor:
-    """
-    Sample a tensor i.i.d. uniformly from a specified interval.
-
-    This is a convenience wrapper around ``from_distr_init``.
-
-    Parameters
-    ----------
-    shape : Tensor
-        Shape of the tensor to populate or initialise from the specified
-        distribution.
-    min : float
-        Lower bound of the interval from which the tensor's elements are
-        sampled.
-    max : float
-        Upper bound of the interval from which the tensor's elements are
-        sampled.
-    """
-    distr = distrax.Uniform(min, max)
-    return from_distr_init(shape=shape, distr=distr, key=key)
-
-
 def constant_init(
     *,
     shape: Tuple[int],
@@ -109,8 +81,6 @@ class Initialiser(eqx.Module):
         )
 
     def _init(self, shape, key, **params):
-        return uniform_init(
-            shape=shape, min=params['min'], max=params['max'], key=key)
         raise NotImplementedError
 
     @classmethod
@@ -241,6 +211,42 @@ class ConstantInitialiser(MappedInitialiser):
         **params,
     ):
         init = cls(mapper=mapper, value=value)
+        return super()._init_impl(
+            init=init, model=model, param_name=param_name, key=key, **params,
+        )
+
+
+class IdentityInitialiser(MappedInitialiser):
+    scale : float
+    shift : float
+
+    def __init__(
+        self,
+        scale: float = 1,
+        shift: float = 0,
+        mapper: Callable = None
+    ):
+        self.scale = scale
+        self.shift = shift
+        super().__init__(mapper=mapper)
+
+    def _init(self, shape, key):
+        return identity_init(
+            shape=shape, scale=self.scale, shift=self.shift, key=key)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Callable = None,
+        scale: float = 1,
+        shift: float = 0,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey = None,
+        **params,
+    ):
+        init = cls(mapper=mapper, scale=scale, shift=shift)
         return super()._init_impl(
             init=init, model=model, param_name=param_name, key=key, **params,
         )
