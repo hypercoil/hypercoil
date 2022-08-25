@@ -189,3 +189,33 @@ class AffineMappedParameter(AffineDomainMappedParameter):
 
     def image_map_impl(self, param: Tensor) -> Tensor:
         return param
+
+
+class TanhMappedParameter(AffineDomainMappedParameter):
+    def __init__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        preimage_bound: Tuple[float, float] = (-3., 3.),
+        handler: Callable = None,
+        scale: float = 1.,
+    ):
+        super().__init__(
+            model,
+            param_name=param_name,
+            preimage_bound=preimage_bound,
+            image_bound=(-scale, scale),
+            handler=handler,
+            scale=scale,
+        )
+
+    def preimage_map_impl(self, param: Tensor) -> Tensor:
+        return jnp.arctanh(param)
+
+    def image_map_impl(self, param: Tensor) -> Tensor:
+        return jnp.tanh(param)
+
+
+class AmplitudeTanhMappedParameter(PhaseAmplitudeMixin, TanhMappedParameter):
+    pass
