@@ -4,15 +4,32 @@
 """
 Unit tests for mapped parameters
 """
+import pytest
 import jax
 import numpy as np
 import jax.numpy as jnp
 import equinox as eqx
 
-from hypercoil.init.mapparam import MappedParameter, Clip, Renormalise
+from hypercoil.init.mapparam import AffineMappedParameter, IdentityMappedParameter, MappedParameter, Clip, Renormalise
 
 
 class TestMappedParameters:
+
+    @pytest.fixture(autouse=True)
+    def setup_class(self):
+        key = jax.random.PRNGKey(0)
+        k0, k1 = jax.random.split(key)
+        A = np.array([-1.1, -0.5, 0, 0.5, 1, 7])
+        self.A = eqx.nn.Linear(
+            in_features=A.shape[-1],
+            out_features=1,
+            key=k0
+        )
+        self.A = eqx.tree_at(
+            lambda m: m.weight,
+            self.A,
+            replace=A
+        )
 
     def test_clip(self):
         A = np.array([-0.7, 0.3, 1.2])
@@ -24,6 +41,24 @@ class TestMappedParameters:
         A = np.array([-0.5, 0, 0.5])
         out = Renormalise().apply(A, bound=(0, 1))
         ref = np.array([0, 0.25, 0.5])
+        assert np.allclose(out, ref)
+
+    def test_identity(self):
+        mapper = IdentityMappedParameter(self.A)
+        out = mapper.preimage_map(self.A.weight)
+        ref = self.A.weight
+        assert np.allclose(out, ref)
+        out = mapper.image_map(self.A.weight)
+        ref = self.A.weight
+        assert np.allclose(out, ref)
+
+    def test_linear(self):
+        mapper = AffineMappedParameter(self.A, loc=-3, scale=2)
+        out = mapper.preimage_map(self.A.weight)
+        ref = (self.A.weight + 3) / 2
+        assert np.allclose(out, ref)
+        out = mapper.image_map(self.A.weight)
+        ref = self.A.weight * 2 - 3
         assert np.allclose(out, ref)
     
     def test_softmax_mapper(self):
