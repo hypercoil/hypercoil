@@ -7,7 +7,10 @@ Generic image / preimage mapper.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from hypercoil.functional.utils import Tensor, PyTree
+from typing import Optional, Tuple
+from ..functional.utils import (
+    Tensor, PyTree
+)
 
 
 class MappedParameter(eqx.Module):
@@ -20,10 +23,10 @@ class MappedParameter(eqx.Module):
             model.__getattribute__(param_name))
 
     def preimage_map(self, param: Tensor) -> Tensor:
-        return jnp.log(param)
+        raise NotImplementedError()
 
     def image_map(self, param: Tensor) -> Tensor:
-        return jax.nn.softmax(param, axis=-1)
+        raise NotImplementedError()
 
     def __jax_array__(self):
         return self.image_map(self.original)
@@ -42,3 +45,34 @@ class MappedParameter(eqx.Module):
             model,
             replace=mapped
         )
+
+
+class OutOfDomainHandler(eqx.Module):
+    def test(self, x: Tensor, bound: Tuple[float, float]) -> Tensor:
+        return jnp.logical_and(
+            x <= bound[-1],
+            x >= bound[0]
+        )
+
+
+class Clip(OutOfDomainHandler):
+    def apply(self, x: Tensor, bound: Tuple[float, float]) -> Tensor:
+        x = jax.lax.stop_gradient(x)
+        return jnp.clip(x, bound[0], bound[-1])
+
+
+class Renormalise(OutOfDomainHandler):
+    def apply(
+        self,
+        x: Tensor,
+        bound: Tuple[float, float],
+        axis: Optional[Tuple[int, ...]] = None
+    ) -> Tensor:
+        x = jax.lax.stop_gradient(x)
+        upper = x.max(axis)
+        lower = x.min(axis)
+        unew = jnp.minimum(bound[-1], upper)
+        lnew = jnp.maximum(bound[0], lower)
+        out = x - x.mean(axis)
+        out = out / ((upper - lower) / (unew - lnew))
+        return out + lnew - out.min(axis)
