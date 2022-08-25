@@ -191,7 +191,7 @@ class TestMappedParameters:
     def test_orthogonal(self):
         X = jax.random.normal(key=jax.random.PRNGKey(8439), shape=(8, 8))
         X = self._linear_with_weight(X)
-        X = OrthogonalParameter.embed(X)
+        X = OrthogonalParameter.map(X)
         out = _to_jax_array(X.weight)
         out = out.T @ out
         assert np.allclose(out, jnp.eye(8), atol=1e-5)
@@ -201,7 +201,7 @@ class TestMappedParameters:
         max_condition = 10
         X = jax.random.normal(key=jax.random.PRNGKey(8439), shape=(8, 8))
         X = self._linear_with_weight(X)
-        X = IsochoricParameter.embed(
+        X = IsochoricParameter.map(
             X, volume=volume, max_condition=max_condition)
         out = _to_jax_array(X.weight)
         det = jnp.linalg.det(out)
@@ -235,7 +235,7 @@ class TestMappedParameters:
             model,
             replace=mapper
         )
-        model_mapped_2 = ProbabilitySimplexParameter.embed(model, axis=-1)
+        model_mapped_2 = ProbabilitySimplexParameter.map(model, axis=-1)
         assert np.allclose(model_mapped.weight.original,
                            model_mapped_2.weight.original)
 

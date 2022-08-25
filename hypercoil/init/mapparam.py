@@ -5,9 +5,9 @@
 Parameter mappers / mapped parameters for ``equinox`` modules.
 Similar to PyTorch's ``torch.nn.utils.parametrize``.
 """
-import equinox as eqx
 import jax
 import jax.numpy as jnp
+import equinox as eqx
 from functools import partial
 from typing import Any, Callable, Optional, Tuple, Union
 from ..functional.activation import isochor
@@ -44,7 +44,7 @@ class MappedParameter(eqx.Module):
         Rather than first instantiating a new ``MappedParameter`` and then
         creating an updated model, it is also possible to directly create an
         updated model that immediatelycontains the ``MappedParameter`` using
-        the ``embed`` class method.
+        the ``map`` class method.
 
     Parameters
     ----------
@@ -72,7 +72,7 @@ class MappedParameter(eqx.Module):
         return self.image_map(self.original)
 
     @classmethod
-    def embed(
+    def map(
         cls,
         model: PyTree,
         *pparams,
@@ -123,8 +123,8 @@ class OutOfDomainHandler(eqx.Module):
         Returns
         -------
         result : Tensor
-            Boolean-valued tensor indicating whether each entry of the input is
-            in the prescribed bounds.
+            Boolean-valued tensor indicating whether each entry of the input
+            is in the prescribed bounds.
         """
         return jnp.logical_and(
             x <= bound[-1],
@@ -412,8 +412,8 @@ class PhaseAmplitudeMixin:
     def preimage_map(self, param: Tensor) -> Tensor:
         """
         Map the amplitude of a complex-valued tensor to its preimage under the
-        transformation. Any values outside the transformation's range are first
-        handled.
+        transformation. Any values outside the transformation's range are
+        first handled.
         """
         ampl, phase = complex_decompose(param)
         ampl = super().preimage_map(ampl)

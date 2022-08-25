@@ -4,41 +4,54 @@
 """
 Base initialisers for module parameters.
 """
-import torch
-from functools import partial
-from .domainbase import Identity
+import jax
+import jax.numpy as jnp
+import distrax
+import equinox as eqx
+from typing import Callable, Optional, Tuple
+from ..functional.utils import PyTree, Tensor, Distribution
 
 
-def from_distr_init_(tensor, distr):
+def from_distr_init(
+    *,
+    shape: Tuple[int],
+    distr: Distribution,
+    key: jax.random.PRNGKey,
+) -> Tensor:
     """
-    Populate a tensor with values sampled from a specified distribution.
+    Sample a tensor from a specified distribution.
+
+    Thin wrapper around ``distrax``.
 
     Parameters
     ----------
-    tensor : Tensor
-        Tensor to populate or initialise from the specified distribution.
+    shape : Tensor
+        Shape of the tensor to populate or initialise from the specified
+        distribution.
     distr : Distribution
-        Pytorch distribution object from which to sample values used to
+        Distrax distribution object from which to sample values used to
         populate the tensor.
     """
-    val = distr.sample(tensor.shape).to(
-        dtype=tensor.dtype,
-        device=tensor.device
-    )
-    tensor[:] = val
+    return distr.sample(seed=key, sample_shape=shape)
 
 
-def uniform_init_(tensor, min=0, max=1):
+def uniform_init(
+    *,
+    shape: Tuple[int],
+    min: int = 0,
+    max: int = 1,
+    key: jax.random.PRNGKey,
+) -> Tensor:
     """
-    Populate a tensor with values uniformly sampled i.i.d. from a specified
-    interval. The tensor is updated in place.
+    Sample a tensor i.i.d. uniformly from a specified interval.
 
-    This is a convenience wrapper around ``from_distr_init_``.
+    This is a convenience wrapper around ``from_distr_init``.
 
     Parameters
     ----------
-    tensor : Tensor
-        Tensor to populate or initialise from the specified distribution.
+    shape : Tensor
+        Shape of the tensor to populate or initialise from the specified
+        distribution.
     min : float
         Lower bound of the interval from which the tensor's elements are
         sampled.
@@ -46,35 +59,194 @@ def uniform_init_(tensor, min=0, max=1):
         Upper bound of the interval from which the tensor's elements are
         sampled.
     """
-    distr = torch.distributions.Uniform(min, max)
-    from_distr_init_(tensor, distr)
+    distr = distrax.Uniform(min, max)
+    return from_distr_init(shape=shape, distr=distr, key=key)
 
 
-def constant_init_(tensor, value=0):
+def constant_init(
+    *,
+    shape: Tuple[int],
+    value: float = 0,
+    key: Optional[jax.random.PRNGKey] = None
+) -> Tensor:
     """
     Initialise a tensor to a constant value throughout. (The specified value
     doesn't actually have to be scalar as long as it is broadcastable to the
     tensor being initialised.)
     """
-    tensor[:] = value
+    return jnp.full(shape, value)
 
 
-def identity_init_(tensor, scale=1):
+def identity_init(
+    *,
+    shape: Tuple[int],
+    scale: float = 1,
+    shift: float = 0,
+    key: Optional[jax.random.PRNGKey] = None
+) -> Tensor:
     """
     Initialise a tensor such that each of its slices is an identity matrix.
     Currently this sets each slice defined by the last two axes to identity.
     If there is a use case for other slices, it can be made more flexible in
     the future.
     """
-    dim = tensor.size(-1)
-    tensor[:] = scale * torch.eye(
-        dim,
-        dtype=tensor.dtype,
-        device=tensor.device
-    )
+    return jnp.tile(jnp.eye(shape[-1]) * scale + shift, (*shape[:-2], 1, 1))
 
 
-class DomainInitialiser(object):
+class Initialiser(eqx.Module):
+    def __call__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ):
+        return self._init(
+            shape=model.__getattribute__(param_name).shape,
+            key=key,
+            **params,
+        )
+
+    def _init(self, shape, key, **params):
+        return uniform_init(
+            shape=shape, min=params['min'], max=params['max'], key=key)
+        raise NotImplementedError
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ):
+        init = cls()
+        init = init(
+            model=model, param_name=param_name, key=key, **params)
+        return eqx.tree_at(
+            lambda m: m.__getattribute__(param_name),
+            model,
+            replace=init
+        )
+
+
+class MappedInitialiser(Initialiser):
+    mapper: Callable
+
+    def __init__(
+        self,
+        mapper: Callable = None
+    ):
+        self.mapper = mapper
+
+    def _init(self, shape, key):
+        raise NotImplementedError
+
+    @staticmethod
+    def _init_impl(init, model, param_name, key, **params):
+        model = eqx.tree_at(
+            lambda m: m.__getattribute__(param_name),
+            model,
+            replace=init(
+                model=model, param_name=param_name, key=key)
+        )
+        if init.mapper is None:
+            return model
+        return init.mapper.map(model=model, param_name=param_name, **params)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Callable = None,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ):
+        init = cls(mapper=mapper)
+        return cls._init_impl(
+            init=init,
+            model=model,
+            param_name=param_name,
+            key=key,
+            **params,
+        )
+
+
+class DistributionInitialiser(MappedInitialiser):
+    """
+    Parameter initialiser from a distribution.
+
+    See :func:`from_distr_init` and :class:`MappedInitialiser` for usage
+    details.
+    """
+
+    distribution : Distribution
+
+    def __init__(
+        self,
+        distribution: Distribution,
+        mapper: Callable = None
+    ):
+        self.distribution = distribution
+        super().__init__(mapper=mapper)
+
+    def _init(self, shape, key):
+        return from_distr_init(
+            shape=shape, distr=self.distribution, key=key)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Callable = None,
+        distribution: Distribution = None,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ):
+        init = cls(mapper=mapper, distribution=distribution)
+        return super()._init_impl(
+            init=init, model=model, param_name=param_name, key=key, **params,
+        )
+
+
+class ConstantInitialiser(MappedInitialiser):
+    value : float
+
+    def __init__(
+        self,
+        value: float,
+        mapper: Callable = None
+    ):
+        self.value = value
+        super().__init__(mapper=mapper)
+
+    def _init(self, shape, key):
+        return constant_init(shape=shape, value=self.value, key=key)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Callable = None,
+        value: float = 0,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey = None,
+        **params,
+    ):
+        init = cls(mapper=mapper, value=value)
+        return super()._init_impl(
+            init=init, model=model, param_name=param_name, key=key, **params,
+        )
+
+
+class DomainInitialiser:
     """
     Initialiser for a tensor whose values are the preimage of some function.
 
@@ -110,14 +282,9 @@ class DomainInitialiser(object):
         explicitly specified, ``DomainInitialiser`` defaults to identity
         (preweight and weight are the same).
     """
-    def __init__(self, init=None, domain=None):
-        self.init = init or uniform_init_
-        self.domain = domain or Identity()
-
-    def __call__(self, tensor, **params):
-        with torch.no_grad():
-            self.init(tensor, **params)
-            tensor[:] = self.domain.preimage(tensor)
+    def __init__(self):
+        raise NotImplementedError(
+            'This deprecated functionality will be removed imminently')
 
 
 class BaseInitialiser(DomainInitialiser):
@@ -135,41 +302,40 @@ class BaseInitialiser(DomainInitialiser):
         ``BaseInitialiser`` defaults to a uniform initialisation in the
         interval (0, 1).
     """
-    def __init__(self, init=None):
-        self.init = init or uniform_init_
-        self.domain = Identity()
-
-    def __call__(self, tensor, **params):
-        with torch.no_grad():
-            self.init(tensor, **params)
+    def __init__(self):
+        raise NotImplementedError(
+            'This deprecated functionality will be removed imminently')
 
 
-class DistributionInitialiser(DomainInitialiser):
+class DistributionInitialiserDeprecated(DomainInitialiser):
     """
     Parameter initialiser from a distribution.
 
     See :func:`from_distr_init_` and :class:`DomainInitialiser` for argument
     details.
     """
-    def __init__(self, distr, domain=None):
-        self.distr = distr
-        init = partial(from_distr_init_, distr=self.distr)
-        super(DistributionInitialiser, self).__init__(
-            init=init,
-            domain=domain
-        )
+    def __init__(self):
+        raise NotImplementedError(
+            'This deprecated functionality will be removed imminently')
 
 
-class ConstantInitialiser(DomainInitialiser):
+class ConstantInitialiserDeprecated(DomainInitialiser):
     """
     Initialise a parameter to a constant value throughout.
 
     See :func:`constant_init_` and :class:`DomainInitialiser` for argument
     details.
     """
-    def __init__(self, value=1, domain=None):
-        init = partial(constant_init_, value=value)
-        super(ConstantInitialiser, self).__init__(
-            init=init,
-            domain=domain
-        )
+    def __init__(self):
+        raise NotImplementedError(
+            'This deprecated functionality will be removed imminently')
+
+
+def from_distr_init_():
+    raise NotImplementedError
+
+def constant_init_():
+    raise NotImplementedError
+
+def identity_init_():
+    raise NotImplementedError
