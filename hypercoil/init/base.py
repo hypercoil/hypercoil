@@ -8,7 +8,8 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 from abc import abstractmethod
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple, Type
+from .mapparam import MappedParameter
 from ..functional.utils import PyTree, Tensor, Distribution
 
 
@@ -66,6 +67,19 @@ def identity_init(
 
 
 class Initialiser(eqx.Module):
+    """
+    Initialiser base class.
+
+    This class must be subclassed to be used. Subclasses must implement the
+    ``_init`` method, which takes a desired output shape (``shape``) and a
+    random number generator key (``key``) and returns a tensor of the
+    requested shape.
+
+    To use an initialiser, do not instantiate it directly, but instead use the
+    ``init`` method of the module class that uses it. This will apply the
+    initialiser to the model parameter specified by ``param_name``.
+    """
+
     def __call__(
         self,
         model: PyTree,
@@ -81,7 +95,12 @@ class Initialiser(eqx.Module):
         )
 
     @abstractmethod
-    def _init(self, shape, key, **params):
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+        **params
+    ) -> Tensor:
         raise NotImplementedError
 
     @classmethod
@@ -92,7 +111,7 @@ class Initialiser(eqx.Module):
         param_name: str = "weight",
         key: jax.random.PRNGKey,
         **params,
-    ):
+    ) -> PyTree:
         init = cls()
         init = init(
             model=model, param_name=param_name, key=key, **params)
@@ -104,19 +123,57 @@ class Initialiser(eqx.Module):
 
 
 class MappedInitialiser(Initialiser):
-    mapper: Callable
+    """
+    Parameter initialiser base class that also admits an optional
+    :doc:`parameter map <api/hypercoil.init.mapparam>`.
+
+    This is useful for combining initialisation and re-parameterisation into a
+    single step. The supplied parameter map should not be an instance but a
+    class. If no map is supplied, the initialiser is applied as normal.
+
+    This class must be subclassed to be used. Subclasses must implement the
+    ``_init`` method, which takes a desired output shape (``shape``) and a
+    random number generator key (``key``) and returns a tensor of the
+    requested shape.
+
+    .. warning::
+        To use an initialiser, do not instantiate it directly, but instead use
+        the ``init`` method of the module class that uses it. This will apply
+        the initialiser to the model parameter specified by ``param_name``.
+
+    .. note::
+        The initialiser is first used to initialise the requested parameter,
+        and the mapping function is thereafter applied to the resulting
+        tensor. If the initialisation produces out-of-domain values for the
+        mapping function, the tensor that is ultimately instantiated might
+        not reflect the specifications of the initialiser, as the mapping
+        function will automatically apply any out-of-domain handlers.
+
+    .. note::
+        Any extra keyword arguments to the ``init`` method are passed to the
+        mapping function when it is applied.
+    """
+
+    mapper: Optional[Type[MappedParameter]] = None
 
     def __init__(
         self,
-        mapper: Callable = None
+        mapper: Optional[Type[MappedParameter]] = None
     ):
         self.mapper = mapper
 
+    @abstractmethod
     def _init(self, shape, key):
         raise NotImplementedError
 
     @staticmethod
-    def _init_impl(init, model, param_name, key, **params):
+    def _init_impl(
+        init: Initialiser,
+        model: PyTree,
+        param_name: str,
+        key: Optional[jax.random.PRNGKey],
+        **params
+    ) -> PyTree:
         model = eqx.tree_at(
             lambda m: m.__getattribute__(param_name),
             model,
@@ -132,11 +189,31 @@ class MappedInitialiser(Initialiser):
         cls,
         model: PyTree,
         *,
-        mapper: Callable = None,
+        mapper: Optional[Type[MappedParameter]] = None,
         param_name: str = "weight",
         key: jax.random.PRNGKey,
         **params,
-    ):
+    ) -> PyTree:
+        """
+        Initialise a parameter using the specified initialiser and mapper.
+
+        Parameters
+        ----------
+        model : PyTree
+            Model whose parameter to initialise.
+        mapper : Optional[Type[MappedParameter]] (default: None)
+            Mapping function to apply to the initialised parameter. This
+            should be a subclass of
+            :doc:`MappedParameter <api/hypercoil.init.mapparam.MappedParameter>`.
+            If this is ``None``, the initialiser is applied as normal.
+        param_name : str (default: "weight")
+            Name of the parameter to initialise.
+        key : jax.random.PRNGKey
+            Pseudo-random number generator key to use for initialisation.
+        **params : Any
+            Extra keyword arguments; these are forwarded to the mapper when it
+            is instantiated and applied.
+        """
         init = cls(mapper=mapper)
         return cls._init_impl(
             init=init,
@@ -160,12 +237,16 @@ class DistributionInitialiser(MappedInitialiser):
     def __init__(
         self,
         distribution: Distribution,
-        mapper: Callable = None
+        mapper: Optional[Type[MappedParameter]] = None
     ):
         self.distribution = distribution
         super().__init__(mapper=mapper)
 
-    def _init(self, shape, key):
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
         return from_distr_init(
             shape=shape, distr=self.distribution, key=key)
 
@@ -174,12 +255,12 @@ class DistributionInitialiser(MappedInitialiser):
         cls,
         model: PyTree,
         *,
-        mapper: Callable = None,
+        mapper: Optional[Type[MappedParameter]] = None,
         distribution: Distribution = None,
         param_name: str = "weight",
         key: jax.random.PRNGKey,
         **params,
-    ):
+    ) -> PyTree:
         init = cls(mapper=mapper, distribution=distribution)
         return super()._init_impl(
             init=init, model=model, param_name=param_name, key=key, **params,
@@ -187,17 +268,28 @@ class DistributionInitialiser(MappedInitialiser):
 
 
 class ConstantInitialiser(MappedInitialiser):
+    """
+    Initialise a parameter to a constant value throughout.
+
+    See :func:`constant_init` and :class:`MappedInitialiser` for argument
+    details.
+    """
+
     value : float
 
     def __init__(
         self,
         value: float,
-        mapper: Callable = None
+        mapper: Optional[Type[MappedParameter]] = None
     ):
         self.value = value
         super().__init__(mapper=mapper)
 
-    def _init(self, shape, key):
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
         return constant_init(shape=shape, value=self.value, key=key)
 
     @classmethod
@@ -205,12 +297,12 @@ class ConstantInitialiser(MappedInitialiser):
         cls,
         model: PyTree,
         *,
-        mapper: Callable = None,
+        mapper: Optional[Type[MappedParameter]] = None,
         value: float = 0,
         param_name: str = "weight",
         key: jax.random.PRNGKey = None,
         **params,
-    ):
+    ) -> PyTree:
         init = cls(mapper=mapper, value=value)
         return super()._init_impl(
             init=init, model=model, param_name=param_name, key=key, **params,
@@ -218,6 +310,14 @@ class ConstantInitialiser(MappedInitialiser):
 
 
 class IdentityInitialiser(MappedInitialiser):
+    """
+    Initialise a parameter such that all slices along the final two axes are
+    identity matrices.
+
+    See :func:`identity_init` and :class:`MappedInitialiser` for argument
+    details.
+    """
+
     scale : float
     shift : float
 
@@ -225,13 +325,17 @@ class IdentityInitialiser(MappedInitialiser):
         self,
         scale: float = 1,
         shift: float = 0,
-        mapper: Callable = None
+        mapper: Optional[Type[MappedParameter]] = None
     ):
         self.scale = scale
         self.shift = shift
         super().__init__(mapper=mapper)
 
-    def _init(self, shape, key):
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
         return identity_init(
             shape=shape, scale=self.scale, shift=self.shift, key=key)
 
@@ -240,13 +344,13 @@ class IdentityInitialiser(MappedInitialiser):
         cls,
         model: PyTree,
         *,
-        mapper: Callable = None,
+        mapper: Optional[Type[MappedParameter]] = None,
         scale: float = 1,
         shift: float = 0,
         param_name: str = "weight",
         key: jax.random.PRNGKey = None,
         **params,
-    ):
+    ) -> PyTree:
         init = cls(mapper=mapper, scale=scale, shift=shift)
         return super()._init_impl(
             init=init, model=model, param_name=param_name, key=key, **params,
@@ -254,89 +358,24 @@ class IdentityInitialiser(MappedInitialiser):
 
 
 class DomainInitialiser:
-    """
-    Initialiser for a tensor whose values are the preimage of some function.
-
-    For example, a layer can internally store a "preweight" that is passed
-    through a logistic function to produce the actual weight seen by data in
-    the forward pass. This constrains the actual weight to the interval (0, 1)
-    and makes the unconstrained preweight the learnable parameter. We might
-    often wish to initialise the actual weight from some distribution rather
-    than initialising the preweight; this class provides a convenient way to
-    do so.
-
-    A ``DomainInitialiser`` is callable with a single required argument: a
-    tensor to be initialised following the specified initialisation scheme.
-
-    Parameters
-    ----------
-    init : callable
-        A python callable that takes as its single required parameter the
-        tensor that is to be initialised; the callable should, when called,
-        initialise the tensor in place. Callables with additional arguments
-        can be constrained using ``partial`` from ``functools`` or an
-        appropriate lambda function. If no `init` is explicitly specified,
-        ``DomainInitialiser`` defaults to a uniform initialisation in the
-        interval (0, 1).
-    domain : Domain object
-        A representation of the function used to map between the learnable
-        preweight and the weight "seen" by the data. It must have a
-        ``preimage`` method that maps values in the weight domain to their
-        preimage under the function: the corresponding values in the preweight
-        domain. Examples are provided in
-        :doc:`init.domain <hypercoil.init.domain>`.
-        If no ``domain`` is
-        explicitly specified, ``DomainInitialiser`` defaults to identity
-        (preweight and weight are the same).
-    """
     def __init__(self):
         raise NotImplementedError(
             'This deprecated functionality will be removed imminently')
-
 
 class BaseInitialiser(DomainInitialiser):
-    """
-    Basic initialiser class. This class mostly exists to be subclassed.
-
-    Parameters
-    ----------
-    init : callable
-        A python callable that takes as its single required parameter the
-        tensor that is to be initialised; the callable should, when called,
-        initialise the tensor in place. Callables with additional arguments
-        can be constrained using ``partial`` from ``functools`` or an
-        appropriate lambda function. If no ``init`` is explicitly specified,
-        ``BaseInitialiser`` defaults to a uniform initialisation in the
-        interval (0, 1).
-    """
     def __init__(self):
         raise NotImplementedError(
             'This deprecated functionality will be removed imminently')
-
 
 class DistributionInitialiserDeprecated(DomainInitialiser):
-    """
-    Parameter initialiser from a distribution.
-
-    See :func:`from_distr_init_` and :class:`DomainInitialiser` for argument
-    details.
-    """
     def __init__(self):
         raise NotImplementedError(
             'This deprecated functionality will be removed imminently')
-
 
 class ConstantInitialiserDeprecated(DomainInitialiser):
-    """
-    Initialise a parameter to a constant value throughout.
-
-    See :func:`constant_init_` and :class:`DomainInitialiser` for argument
-    details.
-    """
     def __init__(self):
         raise NotImplementedError(
             'This deprecated functionality will be removed imminently')
-
 
 def from_distr_init_():
     raise NotImplementedError
