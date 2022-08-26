@@ -8,6 +8,7 @@ Similar to PyTorch's ``torch.nn.utils.parametrize``.
 import jax
 import jax.numpy as jnp
 import equinox as eqx
+from abc import abstractmethod
 from functools import partial
 from typing import Any, Callable, Optional, Tuple, Union
 from ..functional.activation import isochor
@@ -62,9 +63,11 @@ class MappedParameter(eqx.Module):
         self.original = self.preimage_map(
             model.__getattribute__(param_name))
 
+    @abstractmethod
     def preimage_map(self, param: Tensor) -> Tensor:
         raise NotImplementedError()
 
+    @abstractmethod
     def image_map(self, param: Tensor) -> Tensor:
         raise NotImplementedError()
 
@@ -307,9 +310,11 @@ class DomainMappedParameter(MappedParameter):
         """
         return self.image_map_impl(param)
 
+    @abstractmethod
     def preimage_map_impl(self, param: Tensor) -> Tensor:
         raise NotImplementedError()
 
+    @abstractmethod
     def image_map_impl(self, param: Tensor) -> Tensor:
         raise NotImplementedError()
 

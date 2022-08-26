@@ -6,8 +6,8 @@ Base initialisers for module parameters.
 """
 import jax
 import jax.numpy as jnp
-import distrax
 import equinox as eqx
+from abc import abstractmethod
 from typing import Callable, Optional, Tuple
 from ..functional.utils import PyTree, Tensor, Distribution
 
@@ -80,6 +80,7 @@ class Initialiser(eqx.Module):
             **params,
         )
 
+    @abstractmethod
     def _init(self, shape, key, **params):
         raise NotImplementedError
 
