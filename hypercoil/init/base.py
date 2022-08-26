@@ -184,6 +184,12 @@ class MappedInitialiser(Initialiser):
             return model
         return init.mapper.map(model=model, param_name=param_name, **params)
 
+    #TODO: This will be problematic if the mapper and the initialiser both
+    #      use the same parameter name. In this case the initialiser will
+    #      consume the parameter and it will fail to reach the mapper.
+    #
+    #      This is a major problem and should be addressed with highest
+    #      priority.
     @classmethod
     def init(
         cls,

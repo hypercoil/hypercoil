@@ -12,6 +12,7 @@ from hypercoil.init.base import (
     DistributionInitialiser, ConstantInitialiser, IdentityInitialiser
 )
 from hypercoil.init.deltaplus import DeltaPlusInitialiser
+from hypercoil.init.dirichlet import DirichletInitialiser
 from hypercoil.init.mapparam import MappedLogits, _to_jax_array
 
 
@@ -51,3 +52,11 @@ class TestBaseInit:
         model = DeltaPlusInitialiser.init(model, loc=(0,), scale=2, var=0.01, key=key)
         assert np.all(np.abs(model.weight[..., 0] - 2) < 0.05)
         assert np.var(model.weight[..., 1:]) < 0.05
+
+    def test_dirichlet_init(self):
+        key = jax.random.PRNGKey(0)
+        model = eqx.nn.Linear(key=key, in_features=3, out_features=5)
+        model = DirichletInitialiser.init(
+            model, concentration=(1e8,), num_classes=5, axis=0, key=key)
+        assert np.allclose(_to_jax_array(model.weight), 1 / 5, atol=1e-4)
+        assert np.allclose(model.weight.original, np.log(1 / 5), atol=1e-2)

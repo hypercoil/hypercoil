@@ -5,14 +5,21 @@
 Initialise a tensor such that elements along a given axis are Dirichlet
 samples.
 """
-import torch
-from functools import partial
-from torch.distributions.dirichlet import Dirichlet
-from .base import DomainInitialiser
-from .domain import MultiLogit
+import jax
+from typing import Optional, Sequence, Tuple, Type, Union
+from distrax import Distribution, Dirichlet
+from .base import MappedInitialiser
+from .mapparam import MappedParameter, ProbabilitySimplexParameter
+from ..functional.utils import PyTree, Tensor
 
 
-def dirichlet_init_(tensor, distr, axis=-1):
+def dirichlet_init(
+    *,
+    shape: Tuple[int],
+    distr: Distribution,
+    axis: int = -1,
+    key: jax.random.PRNGKey
+) -> Tensor:
     """
     Dirichlet sample initialisation.
 
@@ -23,70 +30,103 @@ def dirichlet_init_(tensor, distr, axis=-1):
 
     Parameters
     ----------
-    tensor : Tensor
-        Tensor to initialise in-place.
+    shape : tuple
+        Shape of the tensor to initialise.
     distr : instance of ``torch.distributions.Dirichlet``
         Parametrised Dirichlet distribution from which all 1D slices of the
         input tensor along the specified axis are sampled.
     axis : int (default -1)
         Axis along which slices are sampled from the specified Dirichlet
         distribution.
-
-    Returns
-    -------
-    None. The input tensor is initialised in-place.
-    """
-    dim = list(tensor.size())
-    del(dim[axis])
-    val = distr.sample(dim).to(dtype=tensor.dtype, device=tensor.device)
-    val = torch.movedim(val, -1, axis)
-    tensor.copy_(val)
-
-
-class DirichletInit(DomainInitialiser):
-    """
-    Dirichlet sample initialiser.
-
-    Initialise a tensor such that any 1D slice through that tensor along a
-    given axis is a sample from a specified Dirichlet distribution. Each 1D
-    slice can therefore be understood as encoding a categorical probability
-    distribution.
-
-    When this initialiser is coupled with a softmax domain
-    (:doc:`MultiLogit <hypercoil.init.domain.MultiLogit>`),
-    the parent module can ensure that 1D slices of the initialised weights
-    remain in the probability simplex as the module learns. This is currently
-    the default behaviour.
-
-    Parameters
-    ----------
-    n_classes : int
-        Number of classes in the distribution.
-    concentration : iterable
-        Concentration parameter for the Dirichlet distribution. This must have
-        length equal to ``n_classes``.
-    axis : int (default -1)
-        Axis along which slices are sampled from the specified Dirichlet
+    key : jax.random.PRNGKey
+        Pseudo-random number generator key for sampling the Dirichlet
         distribution.
-    domain : Domain object (default ``MultiLogit``)
-        Used in conjunction with an activation function to constrain or
-        transform the values of the initialised tensor. For instance, using
-        the MultiLogit domain constrains slices of the tensor (as seen by
-        data) to lie in the appropriate probability simplex. Domain objects
-        can be used with compatible modules and are documented further in
-        :doc:`hypercoil.init.domain <hypercoil.init.domain>`.
-        If no domain is specified, the ``MultiLogit`` domain is used.
     """
-    def __init__(self, n_classes, concentration=None, axis=-1, domain=None):
-        if isinstance(concentration, torch.Tensor):
-            self.concentration = concentration
-        else:
-            self.concentration = (
-                concentration or
-                torch.tensor([10.0] * n_classes)
+    if distr.event_shape[0] != shape[axis]:
+        raise ValueError(
+            f"Distribution event shape {distr.event_shape} does not match "
+            f"tensor shape {shape} along axis {axis}."
+        )
+    if axis == -1:
+        shape = shape[:axis]
+    else:
+        shape = shape[:axis] + shape[axis+1:]
+    val = distr.sample(seed=key, sample_shape=shape)
+    return val.swapaxes(-1, axis)
+
+
+class DirichletInitialiser(MappedInitialiser):
+    """
+    Initialise a parameter such that all slices along the final axis are
+    samples from a specified Dirichlet distribution.
+
+    See :func:`dirichlet_init` and :class:`MappedInitialiser` for argument
+    details.
+    """
+
+    distr : Distribution
+    axis : int = -1
+
+    def __init__(
+        self,
+        concentration: Sequence[float],
+        num_classes: Optional[int] = None,
+        axis: int = -1,
+        mapper: Optional[Type[MappedParameter]] = None
+    ):
+        if len(concentration) == 1:
+            concentration = (
+                concentration * num_classes
             )
-        assert len(self.concentration) == n_classes
-        self.distr = Dirichlet(concentration=self.concentration)
+        else:
+            concentration = concentration
+        self.distr = Dirichlet(concentration=concentration)
         self.axis = axis
-        self.init = partial(dirichlet_init_, distr=self.distr, axis=self.axis)
-        self.domain = domain or MultiLogit(axis=self.axis)
+        super().__init__(mapper=mapper)
+
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
+        return dirichlet_init(
+            shape=shape, distr=self.distr, axis=self.axis, key=key)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = ProbabilitySimplexParameter,
+        concentration: Union[Tensor, float],
+        num_classes: Optional[int] = None,
+        axis: int = -1,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ) -> PyTree:
+        #TODO: This is a hack to get around the fact that the initialiser uses
+        #      the same name for the parameter as the mapper. We need a better
+        #      solution; this only fixes the problem for the current use case.
+        #      e.g., if we subclass ProbabilitySimplexParameter, then this
+        #      doesn't work. Or if we use a NormSphereParameter, then it is
+        #      impossible to override the default axis value.
+        if mapper is ProbabilitySimplexParameter:
+            params.update(axis=axis)
+        init = cls(
+            mapper=mapper,
+            concentration=concentration,
+            num_classes=num_classes,
+            axis=axis
+        )
+        return super()._init_impl(
+            init=init, model=model, param_name=param_name, key=key, **params,
+        )
+
+
+def dirichlet_init_(tensor, distr, axis=-1):
+    raise NotImplementedError()
+
+class DirichletInit:
+    def __init__(self, n_classes, concentration=None, axis=-1, domain=None):
+        raise NotImplementedError()
