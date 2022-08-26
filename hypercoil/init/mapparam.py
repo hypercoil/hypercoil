@@ -72,7 +72,7 @@ class MappedParameter(eqx.Module):
         raise NotImplementedError()
 
     def __jax_array__(self):
-        return self.image_map(self.original)
+        return self.image_map(_to_jax_array(self.original))
 
     @classmethod
     def map(

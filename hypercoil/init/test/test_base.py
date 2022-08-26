@@ -13,6 +13,7 @@ from hypercoil.init.base import (
 )
 from hypercoil.init.deltaplus import DeltaPlusInitialiser
 from hypercoil.init.dirichlet import DirichletInitialiser
+from hypercoil.init.laplace import LaplaceInitialiser
 from hypercoil.init.mapparam import MappedLogits, _to_jax_array
 
 
@@ -49,7 +50,8 @@ class TestBaseInit:
     def test_deltaplus_init(self):
         key = jax.random.PRNGKey(0)
         model = eqx.nn.Linear(key=key, in_features=3, out_features=5)
-        model = DeltaPlusInitialiser.init(model, loc=(0,), scale=2, var=0.01, key=key)
+        model = DeltaPlusInitialiser.init(
+            model, loc=(0,), scale=2, var=0.01, key=key)
         assert np.all(np.abs(model.weight[..., 0] - 2) < 0.05)
         assert np.var(model.weight[..., 1:]) < 0.05
 
@@ -60,3 +62,24 @@ class TestBaseInit:
             model, concentration=(1e8,), num_classes=5, axis=0, key=key)
         assert np.allclose(_to_jax_array(model.weight), 1 / 5, atol=1e-4)
         assert np.allclose(model.weight.original, np.log(1 / 5), atol=1e-2)
+
+    def test_laplace_init(self):
+        key = jax.random.PRNGKey(0)
+        model = eqx.nn.Linear(key=key, in_features=3, out_features=5)
+        model = LaplaceInitialiser.init(
+            model, loc=(0, 0), normalise='max',
+            var=0., excl_axis=(0,), key=key)
+        assert np.all(model.weight[:, 0] == 1)
+        assert np.all(model.weight[:, [0]] >= model.weight)
+        model = LaplaceInitialiser.init(
+            model, normalise='max', var=0., key=key)
+        assert np.unravel_index(
+            model.weight.argmax(),
+            model.weight.shape
+        ) == (2, 1)
+        assert (
+            model.weight[1, 1] ==
+            model.weight[2, 0] ==
+            model.weight[2, 2] ==
+            model.weight[3, 1]
+        )
