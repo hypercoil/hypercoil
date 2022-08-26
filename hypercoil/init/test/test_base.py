@@ -11,6 +11,7 @@ from distrax import Normal
 from hypercoil.init.base import (
     DistributionInitialiser, ConstantInitialiser, IdentityInitialiser
 )
+from hypercoil.init.deltaplus import DeltaPlusInitialiser
 from hypercoil.init.mapparam import MappedLogits, _to_jax_array
 
 
@@ -43,3 +44,10 @@ class TestBaseInit:
         model = eqx.nn.Linear(key=key, in_features=5, out_features=5)
         model = IdentityInitialiser.init(model, scale=-1., shift=1.)
         assert np.all(model.weight == ~np.eye(5, dtype=bool))
+
+    def test_deltaplus_init(self):
+        key = jax.random.PRNGKey(0)
+        model = eqx.nn.Linear(key=key, in_features=3, out_features=5)
+        model = DeltaPlusInitialiser.init(model, loc=(0,), scale=2, var=0.01, key=key)
+        assert np.all(np.abs(model.weight[..., 0] - 2) < 0.05)
+        assert np.var(model.weight[..., 1:]) < 0.05

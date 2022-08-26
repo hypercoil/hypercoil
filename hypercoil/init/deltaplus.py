@@ -4,68 +4,120 @@
 """
 Initialise parameters as a set of delta functions, plus Gaussian noise.
 """
-import torch
-from functools import partial
-from .domain import Identity
-from .base import BaseInitialiser
+import jax
+import jax.numpy as jnp
+from typing import Optional, Tuple, Type
+from .base import MappedInitialiser
+from .mapparam import MappedParameter
+from ..functional.utils import PyTree, Tensor
 
 
-def deltaplus_init_(tensor, loc=None, scale=None, var=0.2, domain=None):
+def deltaplus_init(
+    *,
+    shape: Tuple[int, ...],
+    loc: Optional[Tuple[int, ...]] = None,
+    scale: float = 1,
+    var: Tensor = 0.2,
+    key: jax.random.PRNGKey,
+):
     """
     Delta-plus initialisation.
 
-    Initialise a tensor as a delta function added to Gaussian noise.
+    Initialise a tensor as a delta function added to Gaussian noise. This can
+    be used to initialise filters for time series convolutions. The
+    initialisation can be configured to produce a filter that approximately
+    returns the input signal (or a lagged version of the input signal).
 
     Parameters
     ----------
-    tensor : Tensor
-        Tensor to initialise in-place.
+    shape : tuple
+        Shape of the tensor to initialise.
     loc : tuple or None (default None)
-        Location of the delta function in array coordinates.
-    scale : float or None (default None)
-        Height of the delta function.
-    var : float
+        Location of the delta function expressed as an n-tuple of array
+        coordinates along the last n axes of the tensor. Defaults to the
+        centre of the tensor.
+    scale : float (default 1)
+        Magnitude of the delta function. Defaults to 1.
+    var : float or Tensor (default 0.2)
         Variance of the Gaussian distribution from which the random noise is
-        sampled.
-    domain : Domain object (default ``Identity``)
-        Used in conjunction with an activation function to constrain or
-        transform the values of the initialised tensor. For instance, using
-        the Atanh domain with default scale constrains the tensor as seen by
-        data to the range of the tanh function, (-1, 1). Domain objects can
-        be used with compatible modules and are documented further in
-        :doc:`hypercoil.init.domain <hypercoil.init.domain>`.
-        If no domain is specified, the ``Identity``
-        domain is used, which does not apply any transformations or
-        constraints.
+        sampled. By default, noise is sampled i.i.d. for all entries in the
+        tensor. To change the i.i.d. behaviour, use a tensor of floats that
+        is broadcastable to the specified shape.
+    key : jax.random.PRNGKey
+        Pseudo-random number generator key for sampling the Gaussian noise.
 
     Returns
     -------
     None. The input tensor is initialised in-place.
     """
-    domain = domain or Identity()
-    loc = loc or tuple([x // 2 for x in tensor.size()])
-    scale = scale or 1
-    val = torch.zeros_like(tensor)
-    val[(...,) + loc] += scale
-    val = domain.preimage(val)
-    val += torch.randn(
-        tensor.size(),
-        dtype=tensor.dtype,
-        device=tensor.device
-    ) * var
-    val.to(dtype=tensor.dtype, device=tensor.device)
-    tensor.copy_(val)
+    loc = loc or tuple([x // 2 for x in shape])
+    val = jnp.zeros(shape)
+    val = val.at[(...,) + loc].add(scale)
+    noise = jax.random.normal(key, shape=shape) * var
+    return val + noise
 
 
-class DeltaPlusInit(BaseInitialiser):
+class DeltaPlusInitialiser(MappedInitialiser):
     """
-    Delta-plus initialisation.
+    Parameter initialiser following the delta-plus-noise scheme.
 
     Initialise a tensor as a delta function added to Gaussian noise.
 
-    See :func:`deltaplus_init_` for argument details.
+    See :func:`deltaplus_init_` and :class:`MappedInitialiser` for usage
+    details.
     """
-    def __init__(self, loc=None, scale=None, var=0.2, domain=None):
-        init = partial(deltaplus_init_, loc=loc, scale=scale,
-                       var=var, domain=domain)
-        super(DeltaPlusInit, self).__init__(init=init)
+
+    loc: Optional[Tuple[int, ...]] = None
+    scale: float = 1
+    var: Tensor = 0.2
+
+    def __init__(
+        self,
+        loc: Optional[Tuple[int, ...]] = None,
+        scale: float = 1,
+        var: Tensor = 0.2,
+        mapper: Optional[Type[MappedParameter]] = None
+    ):
+        self.loc = loc
+        self.scale = scale
+        self.var = var
+        super().__init__(mapper=mapper)
+
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
+        return deltaplus_init(
+            shape=shape,
+            loc=self.loc,
+            scale=self.scale,
+            var=self.var,
+            key=key,
+        )
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        loc: Optional[Tuple[int, ...]] = None,
+        scale: float = 1,
+        var: Tensor = 0.2,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ) -> PyTree:
+        init = cls(mapper=mapper, loc=loc, scale=scale, var=var)
+        return super()._init_impl(
+            init=init, model=model, param_name=param_name, key=key, **params,
+        )
+
+
+class DeltaPlusInit:
+    def __init__(self):
+        raise NotImplementedError
+
+def deltaplus_init_():
+    raise NotImplementedError
