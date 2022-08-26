@@ -10,7 +10,7 @@ from typing import Optional, Sequence, Tuple, Type, Union
 from distrax import Distribution, Dirichlet
 from .base import MappedInitialiser
 from .mapparam import MappedParameter, ProbabilitySimplexParameter
-from ..functional.utils import PyTree, Tensor
+from ..functional.utils import PyTree, Tensor, sample_multivariate
 
 
 def dirichlet_init(
@@ -42,17 +42,8 @@ def dirichlet_init(
         Pseudo-random number generator key for sampling the Dirichlet
         distribution.
     """
-    if distr.event_shape[0] != shape[axis]:
-        raise ValueError(
-            f"Distribution event shape {distr.event_shape} does not match "
-            f"tensor shape {shape} along axis {axis}."
-        )
-    if axis == -1:
-        shape = shape[:axis]
-    else:
-        shape = shape[:axis] + shape[axis+1:]
-    val = distr.sample(seed=key, sample_shape=shape)
-    return val.swapaxes(-1, axis)
+    return sample_multivariate(
+        distr=distr, shape=shape, event_axes=(axis,), key=key)
 
 
 class DirichletInitialiser(MappedInitialiser):
