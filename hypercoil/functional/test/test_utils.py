@@ -7,12 +7,14 @@ Unit tests for utility functions.
 import jax
 import jax.numpy as jnp
 import numpy as np
+from distrax import MultivariateNormalFullCovariance
 from hypercoil.functional.utils import (
     apply_mask, wmean, orient_and_conform,
     conform_mask, mask_tensor, vmap_over_outer,
     promote_axis, demote_axis, fold_axis, unfold_axes,
     axis_complement, standard_axis_number,
-    fold_and_promote, demote_and_unfold
+    fold_and_promote, demote_and_unfold,
+    sample_multivariate
 )
 
 
@@ -52,6 +54,7 @@ class TestUtils:
     def test_mask(self):
         msk = jnp.array([1, 1, 0, 0, 0], dtype=bool)
         tsr = np.random.rand(5, 5, 5)
+        tsr = jnp.asarray(tsr)
         mskd = apply_mask(tsr, msk, axis=0)
         assert mskd.shape == (2, 5, 5)
         assert np.all(mskd == tsr[:2])
@@ -194,3 +197,17 @@ class TestUtils:
         ref = X[None, :, None, None, None]
         assert(out.shape == ref.shape)
         assert np.all(out == ref)
+
+    def test_multivariate_sample(self):
+        mu = np.array([100, 0, -100])
+        sigma = np.random.randn(3, 3)
+        sigma = sigma @ sigma.T
+        distr = MultivariateNormalFullCovariance(mu, sigma)
+        out = sample_multivariate(
+            distr=distr,
+            shape=(2, 3, 100),
+            event_axes=(-2,),
+            key=jax.random.PRNGKey(0),
+        )
+        assert out.shape == (2, 3, 100)
+        assert np.all(np.abs(out.mean((0, -1)) - mu) < 0.5)

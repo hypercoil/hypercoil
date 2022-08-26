@@ -286,6 +286,38 @@ def demote_and_unfold(
     return unfold_axes(demoted, axes)
 
 
+def argsort(seq):
+    # Sources:
+    # (1) https://stackoverflow.com/questions/3382352/ ...
+    #     equivalent-of-numpy-argsort-in-basic-python
+    # (2) http://stackoverflow.com/questions/3071415/ ...
+    #     efficient-method-to-calculate-the-rank-vector-of-a-list-in-python
+    return sorted(range(len(seq)), key=seq.__getitem__)
+
+
+def sample_multivariate(
+    *,
+    distr: Distribution,
+    shape: Tuple[int],
+    event_axes: Sequence[int],
+    key: jax.random.PRNGKey
+):
+    ndim = len(shape)
+    event_axes = tuple(
+        [standard_axis_number(axis, ndim) for axis in event_axes])
+    event_shape = tuple([shape[axis] for axis in event_axes])
+    sample_shape = tuple([shape[axis] for axis in range(ndim)
+                          if axis not in event_axes])
+    if distr.event_shape != event_shape:
+        raise ValueError(
+            f"Distribution event shape {distr.event_shape} does not match "
+            f"tensor shape {shape} along axes {event_axes}."
+        )
+    val = distr.sample(seed=key, sample_shape=sample_shape)
+    axis_order = argsort(axis_complement(ndim, event_axes) + event_axes)
+    return jnp.transpose(val, axes=axis_order)
+
+
 def conform_mask(
     tensor: Tensor,
     mask: Tensor,
@@ -305,6 +337,7 @@ def conform_mask(
     # Ideally, we should create a common underlying function for
     # the shared parts of both operations (i.e., identifying
     # aligning vs. expanding axes).
+    tensor = jnp.asarray(tensor)
     if batch and tensor.ndim == 1:
         batch = False
     if isinstance(axis, int):
@@ -349,6 +382,7 @@ def apply_mask(
     :func:`conform_mask`
     :func:`mask_tensor`
     """
+    tensor = jnp.asarray(tensor)
     shape_pfx = tensor.shape[:axis]
     if axis == -1:
         shape_sfx = ()
