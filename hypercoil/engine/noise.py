@@ -11,6 +11,308 @@ import torch
 from abc import ABC, abstractmethod
 from ..functional.matrix import toeplitz
 
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+from typing import Any, Optional, Tuple
+from ..functional.utils import (
+    Distribution, PyTree, Tensor,
+    sample_multivariate, standard_axis_number
+)
+from ..init.mapparam import _to_jax_array
+
+
+class StochasticSource(eqx.Module):
+    """
+    A wrapper for a pseudo-random number generator key.
+    """
+
+    key: jax.random.PRNGKey
+    code: Any = 0
+
+    def refresh(self):
+        key = jax.random.split(self.key, 1)[0]
+        return StochasticSource(key=key)
+
+
+def _refresh_srcs(src: Any, code: Any = 0) -> Any:
+    if isinstance(src, StochasticSource) and src.code == code:
+        out = src.refresh()
+    else:
+        out = None
+    return out
+
+
+def refresh(model: PyTree, code: Any = 0) -> PyTree:
+    stochastic_srcs = eqx.filter(
+        model,
+        filter_spec=lambda x: isinstance(x, StochasticSource),
+        is_leaf=lambda x: isinstance(x, StochasticSource)
+    )
+    stochastic_srcs = jax.tree_util.tree_map(
+        lambda x: _refresh_srcs(x, code=code),
+        stochastic_srcs,
+        is_leaf=lambda x: isinstance(x, StochasticSource)
+    )
+    return eqx.apply_updates(model, stochastic_srcs)
+
+
+class StochasticTransform(eqx.Module):
+
+    inference: bool = False
+    source: StochasticSource
+
+    def __init__(
+        self,
+        *,
+        inference: bool = False,
+        key: jax.random.PRNGKey,
+        refresh_code: Any = 0,
+    ):
+        self.inference = inference
+        self.source = StochasticSource(key=key, code=refresh_code)
+
+    @abstractmethod
+    def sample(
+        self,
+        *,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey
+    ) -> Tensor:
+        """
+        Sample from the source.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def inject(
+        self,
+        input: Tensor,
+        *,
+        key: jax.random.PRNGKey
+    ):
+        """
+        Inject stochasticity into the input.
+        """
+        raise NotImplementedError
+
+    def __call__(self, input: Tensor) -> Tensor:
+        if self.inference:
+            return input
+        return self.inject(input, key=self.source.key)
+
+
+class AdditiveNoiseMixin:
+    def inject(self, input: Tensor, *, key: jax.random.PRNGKey) -> Tensor:
+        return input + self.sample(shape=input.shape, key=key)
+
+
+class MultiplicativeNoiseMixin:
+    def inject(self, input: Tensor, *, key: jax.random.PRNGKey) -> Tensor:
+        return input * self.sample(shape=input.shape, key=key)
+
+
+class AxialSelectiveTransform(StochasticTransform):
+    """
+    Noise source for which it is possible to specify the tensor axes along
+    which there is randomness.
+    """
+
+    sample_axes : Tuple[int, ...] = None
+
+    def __init__(
+        self,
+        *,
+        sample_axes: Optional[Tuple[int, ...]] = None,
+        inference: bool = False,
+        key: jax.random.PRNGKey,
+        refresh_code: Any = 0
+    ):
+        self.sample_axes = sample_axes
+        super().__init__(
+            inference=inference,
+            key=key,
+            refresh_code=refresh_code
+        )
+
+    @abstractmethod
+    def sample_impl(
+        self,
+        *,
+        shape: Tuple[int],
+        key: jax.random.PRNGKey
+    ) -> Tensor:
+        raise NotImplementedError
+
+    def sample(self, *, shape: Tuple[int], key: jax.random.PRNGKey) -> Tensor:
+        shape = self.select_dimensions(shape)
+        return self.sample_impl(shape=shape, key=key)
+
+    def canonicalise_axis_numbers(
+        self,
+        ndim: int,
+        axes: Optional[Tuple[int, ...]] = None,
+    ) -> Tuple[int, ...]:
+        if axes is None:
+            if self.sample_axes is None:
+                return None
+            axes = self.sample_axes
+        return [
+            standard_axis_number(axis, ndim=ndim)
+            for axis in axes
+        ]
+
+    def select_dimensions(self, shape: Tuple[int]) -> Tuple[int, ...]:
+        """
+        Change the dimension of the sample such that randomness occurs only
+        along the specified axes.
+        """
+        if self.sample_axes is not None:
+            ndim = len(shape)
+            sample_axes = self.canonicalise_axis_numbers(
+                ndim, self.sample_axes)
+            shape = tuple([
+                shape[axis] if axis in sample_axes else 1
+                for axis in range(ndim)
+            ])
+        return shape
+
+
+class ScalarIIDStochasticTransform(AxialSelectiveTransform):
+    distribution : Distribution
+
+    def __init__(
+        self,
+        *,
+        distribution: Distribution,
+        sample_axes: Optional[Tuple[int, ...]] = None,
+        inference: bool = False,
+        key: jax.random.PRNGKey,
+        refresh_code: Any = 0
+    ):
+        self.distribution = distribution
+        super().__init__(
+            sample_axes=sample_axes,
+            inference=inference,
+            key=key,
+            refresh_code=refresh_code
+        )
+
+    def sample_impl(
+        self,
+        *,
+        shape: Tuple[int],
+        key: jax.random.PRNGKey
+    ):
+        return self.distribution.sample(seed=key, sample_shape=shape)
+
+
+class TensorIIDStochasticTransform(AxialSelectiveTransform):
+    distribution : Distribution
+    event_axes : Tuple[int, ...]
+
+    def __init__(
+        self,
+        *,
+        distribution: Distribution,
+        event_axes: Optional[Tuple[int, ...]] = None,
+        sample_axes: Optional[Tuple[int, ...]] = None,
+        inference: bool = False,
+        key: jax.random.PRNGKey,
+        refresh_code: Any = 0
+    ):
+        self.distribution = distribution
+        self.event_axes = event_axes
+        super().__init__(
+            sample_axes=sample_axes,
+            inference=inference,
+            key=key,
+            refresh_code=refresh_code
+        )
+
+    def conform_scale_factor_to_shape(
+        self,
+        rescale: Tensor,
+        shape: Tuple[int],
+    ):
+        """
+        Does nothing. Sufficient for scalar events. Override in subclasses to
+        conform the scale factor to the shape of the tensor.
+        """
+        return rescale
+
+    def sample_impl(
+        self,
+        *,
+        shape: Tuple[int],
+        key: jax.random.PRNGKey
+    ):
+        event_axes = self.canonicalise_axis_numbers(
+            ndim=len(shape), axes=self.event_axes)
+        return sample_multivariate(
+            distr=self.distribution,
+            shape=shape,
+            event_axes=event_axes,
+            key=key
+        )
+
+
+class ScalarIIDAddStochasticTransform(
+    AdditiveNoiseMixin,
+    ScalarIIDStochasticTransform,
+):
+    pass
+
+
+class TensorIIDAddStochasticTransform(
+    AdditiveNoiseMixin,
+    TensorIIDStochasticTransform,
+):
+    pass
+
+
+class ScalarIIDMulStochasticTransform(
+    MultiplicativeNoiseMixin,
+    ScalarIIDStochasticTransform,
+):
+    def sample_impl(
+        self,
+        *,
+        shape: Tuple[int],
+        key: jax.random.PRNGKey
+    ):
+        try:
+            mean_correction = 1 / (
+                self.distribution.mean() + jnp.finfo(jnp.float32).eps)
+        except AttributeError:
+            mean_correction = 1
+        return mean_correction * super().sample_impl(shape=shape, key=key)
+
+
+class TensorIIDMulStochasticTransform(
+    MultiplicativeNoiseMixin,
+    TensorIIDStochasticTransform,
+):
+    def sample_impl(
+        self,
+        *,
+        shape: Tuple[int],
+        key: jax.random.PRNGKey
+    ):
+        event_axes = self.canonicalise_axis_numbers(
+            ndim=len(shape), axes=self.event_axes)
+        return sample_multivariate(
+            distr=self.distribution,
+            shape=shape,
+            event_axes=event_axes,
+            mean_correction=True,
+            key=key
+        )
+
+
+
+
+
 
 class _IIDSource(torch.nn.Module, ABC):
     """
@@ -21,35 +323,7 @@ class _IIDSource(torch.nn.Module, ABC):
     assumption.
     """
     def __init__(self, distr, training):
-        super(_IIDSource, self).__init__()
-        self.distr = distr
-        self.training = training
-
-    def train(self, mode=True):
-        """
-        Switch the source into training mode.
-        """
-        self.training = mode
-
-    def eval(self):
-        """
-        Switch the source into inference mode.
-        """
-        self.train(False)
-
-    @abstractmethod
-    def inject(self, input):
-        pass
-
-    @abstractmethod
-    def sample(self, dim):
-        pass
-
-    def forward(self, input):
-        """
-        Inject noise sampled from the source into a tensor.
-        """
-        return self.inject(input)
+        raise NotImplementedError()
 
 
 class _IIDNoiseSource(_IIDSource):
@@ -66,32 +340,7 @@ class _IIDNoiseSource(_IIDSource):
     _IIDDropoutSource : For multiplicative sample injection.
     """
     def __init__(self, distr=None, training=True):
-        distr = distr or torch.distributions.Normal(0, 1)
-        super(_IIDNoiseSource, self).__init__(distr, training)
-
-    def inject(self, tensor):
-        """
-        Inject noise sampled from the source into an existing tensor block.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            Tensor block into which to introduce the noise sampled from the
-            source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor block with noise injected from the source.
-        """
-        if self.training:
-            return tensor + self.sample(
-                tensor.size()).to(dtype=tensor.dtype, device=tensor.device)
-        else:
-            return tensor
-
-    def extra_repr(self):
-        return f'{self.distr}'
+        raise NotImplementedError()
 
 
 class _IIDSquareNoiseSource(_IIDNoiseSource):
@@ -137,18 +386,7 @@ class _IIDDropoutSource(_IIDSource):
     _IIDNoiseSource : For additive sample injection.
     """
     def __init__(self, distr=None, training=True):
-        distr = distr or torch.distributions.bernoulli.Bernoulli(0.5)
-        super(_IIDDropoutSource, self).__init__(distr, training)
-
-    def inject(self, tensor):
-        if self.training:
-            return tensor * self.sample(
-                tensor.size()).to(dtype=tensor.dtype, device=tensor.device)
-        else:
-            return tensor
-
-    def extra_repr(self):
-        return f'{self.distr}'
+        raise NotImplementedError()
 
 
 class _IIDSquareDropoutSource(_IIDDropoutSource):
@@ -187,22 +425,7 @@ class _AxialSampler(_IIDSource):
     which there is randomness.
     """
     def __init__(self, distr=None, training=True, sample_axes=None):
-        self.sample_axes = sample_axes
-        super(_AxialSampler, self).__init__(distr, training)
-
-    def select_dim(self, dim):
-        """
-        Change the dimension of the sample such that randomness occurs only
-        along the specified axes.
-        """
-        if self.sample_axes is not None:
-            dim = list(dim)
-            n_axes = len(dim)
-            for ax in range(n_axes):
-                if not (ax in self.sample_axes or
-                    (ax - n_axes) in self.sample_axes):
-                    dim[ax] = 1
-        return dim
+        raise NotImplementedError()
 
 
 class UnstructuredNoiseSource(_AxialSampler, _IIDNoiseSource):
@@ -223,23 +446,6 @@ class UnstructuredNoiseSource(_AxialSampler, _IIDNoiseSource):
         samples are broadcast. If this is None, then sampling occurs along all
         axes.
     """
-    def sample(self, dim):
-        """
-        Sample a random tensor of the specified shape, in which the entries
-        are sampled i.i.d. from the specified distribution.
-
-        Parameters
-        ----------
-        dim : iterable
-            Dimension of the tensors sampled from the source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor sampled from the noise source.
-        """
-        dim = self.select_dim(dim)
-        return self.distr.sample(dim)
 
 
 class DiagonalNoiseSource(_IIDSquareNoiseSource):
@@ -421,23 +627,6 @@ class UnstructuredDropoutSource(_AxialSampler, _IIDDropoutSource):
         samples are broadcast. If this is None, then sampling occurs along all
         axes.
     """
-    def sample(self, dim):
-        """
-        Sample a random tensor of the specified shape, in which the entries
-        are sampled i.i.d. from the specified distribution.
-
-        Parameters
-        ----------
-        dim : iterable
-            Dimension of the tensors sampled from the source.
-
-        Returns
-        -------
-        output : Tensor
-            Tensor sampled from the noise source.
-        """
-        dim = self.select_dim(dim)
-        return self.distr.sample(dim).squeeze(-1) / self.distr.mean
 
 
 class DiagonalDropoutSource(_IIDSquareDropoutSource):
@@ -624,36 +813,13 @@ class SPSDDropoutSource(_IIDSquareDropoutSource):
 
 
 class IdentitySource(_IIDSource):
-    """
-    A source that does nothing at all.
-    """
     def __init__(self, training=True):
-        super(IdentitySource, self).__init__(training)
-
-    def inject(self, tensor):
-        return tensor
-
+        raise NotImplementedError()
 
 class IdentityNoiseSource(IdentitySource):
-    """
-    A source that does nothing at all, implemented with additive identity.
-    """
     def __init__(self, training=True):
-        super(IdentityNoiseSource, self).__init__(training)
-        self.std = 0
-
-    def sample(self, dim):
-        return 0
-
+        raise NotImplementedError()
 
 class IdentityDropoutSource(IdentitySource):
-    """
-    A source that does nothing at all, implemented with multiplicative
-    identity.
-    """
     def __init__(self, training=True):
-        super(IdentityDropoutSource, self).__init__(training)
-        self.p = 1
-
-    def sample(self, dim):
-        return 1
+        raise NotImplementedError()
