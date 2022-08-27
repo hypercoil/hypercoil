@@ -13,12 +13,14 @@ from ..functional.matrix import toeplitz
 
 import jax
 import jax.numpy as jnp
+import distrax
 import equinox as eqx
-from typing import Any, Optional, Tuple
+from typing import Any, Literal, Optional, Tuple
 from ..functional.utils import (
     Distribution, PyTree, Tensor,
     sample_multivariate, standard_axis_number
 )
+from ..functional.symmap import symlog
 from ..init.mapparam import _to_jax_array
 
 
@@ -110,6 +112,14 @@ class AdditiveNoiseMixin:
 class MultiplicativeNoiseMixin:
     def inject(self, input: Tensor, *, key: jax.random.PRNGKey) -> Tensor:
         return input * self.sample(shape=input.shape, key=key)
+
+
+class ConvexCombinationNoiseMixin:
+    def inject(self, input: Tensor, *, key: jax.random.PRNGKey) -> Tensor:
+        return (
+            (1 - self.c) * input +
+            self.c * self.sample(shape=input.shape, key=key)
+        )
 
 
 class AxialSelectiveTransform(StochasticTransform):
@@ -270,12 +280,14 @@ class ScalarIIDMulStochasticTransform(
         shape: Tuple[int],
         key: jax.random.PRNGKey
     ):
+        sample = super().sample_impl(shape=shape, key=key)
         try:
             mean_correction = 1 / (
                 self.distribution.mean() + jnp.finfo(jnp.float32).eps)
         except AttributeError:
-            mean_correction = 1
-        return mean_correction * super().sample_impl(shape=shape, key=key)
+            mean_correction = 1 / (
+                sample.mean() + jnp.finfo(jnp.float32).eps)
+        return mean_correction * sample
 
 
 class TensorIIDMulStochasticTransform(
@@ -299,11 +311,157 @@ class TensorIIDMulStochasticTransform(
         )
 
 
+class OuterProduct(distrax.Distribution):
+    def __init__(
+        self,
+        src_distribution: Distribution,
+        rank: int = 1,
+        multiplicity: int = 1,
+    ):
+        self.src_distribution = src_distribution
+        self.rank = rank
+        self.multiplicity = multiplicity
+        self.matrix_dim = self.multiplicity * jnp.prod(
+            jnp.asarray(self.src_distribution.event_shape, dtype=int))
+        super().__init__()
+
+    def _sample_n(self, key, n):
+        samples = self.src_distribution.sample(
+            seed=key, sample_shape=(n, self.rank, self.multiplicity))
+        samples = samples.reshape((n, self.rank, -1))
+        samples = samples.swapaxes(-1, -2) @ samples
+        return samples
+
+    def log_prob(self, value):
+        # There's not a systematic way to work this out, and it's nontrivial
+        # to figure out even for a simple distribution, e.g.
+        # https://math.stackexchange.com/questions/101062/ ...
+        #     is-the-product-of-two-gaussian-random-variables-also-a-gaussian
+        # -- and that's only for off-diagonals.
+        #
+        # So, we just return NaN.
+        return float('nan') * value
+
+    @property
+    def event_shape(self):
+        return (self.matrix_dim, self.matrix_dim)
+
+    def mean(self):
+        mu = jnp.atleast_1d(self.src_distribution.mean())
+        src_mean = jnp.concatenate(
+            (mu,) * self.multiplicity
+        )[..., None]
+        return self.rank * src_mean @ src_mean.T
+
+    @staticmethod
+    def rescale_std_for_normal(
+        std: Tensor,
+        rank: int,
+        matrix_dim: int
+    ) -> Tensor:
+        """
+        Find the standard deviation of a normal distribution such that the
+        outer product of its samples has approximately a specified standard
+        deviation.
+
+        This is a bit of a hack and isn't correct, but it's the best we can do
+        given we have more pressing problems to solve. In reality, the
+        diagonal entries tend to have a larger standard deviation than the
+        off-diagonal entries.
+
+        The output of this static method is intended to be used to initialise
+        the standard deviation of a normal distribution that can then be used
+        as the ``src_distribution`` argument to an ``OuterProduct``
+        distribution.
+
+        Parameters
+        ----------
+        std : Tensor
+            The desired standard deviation of the outer product of the samples.
+        rank : int
+            The rank of the samples.
+        matrix_dim : int
+            The dimension of the square matrices output by the outer product.
+        """
+        return math.sqrt(std / math.sqrt(rank + (rank ** 2) / matrix_dim))
 
 
+class Diagonal(distrax.Distribution):
+    def __init__(
+        self,
+        src_distribution: Distribution,
+        multiplicity: int = 1,
+    ):
+        self.src_distribution = src_distribution
+        self.multiplicity = multiplicity
+        self.matrix_dim = self.multiplicity * jnp.prod(
+            jnp.asarray(self.src_distribution.event_shape, dtype=int))
+        super().__init__()
+
+    def _sample_n(self, key, n):
+        samples = self.src_distribution.sample(
+            seed=key, sample_shape=(n, self.multiplicity))
+        samples = samples.reshape((n, -1))
+        samples = jax.vmap(jnp.diagflat, in_axes=(0,))(samples)
+        return samples
+
+    def log_prob(self, value):
+        # We set the log probability to 0 for any value that is not on the
+        # diagonal, because it is zero with expectation 1.
+        mask = jnp.eye(self.matrix_dim, dtype=jnp.bool_)[None, ...]
+        diags = jnp.diagonal(value, axis1=-2, axis2=-1)[..., None]
+        log_prob = self.src_distribution.log_prob(diags)
+        return jnp.where(mask, log_prob, 0.)
+
+    @property
+    def event_shape(self):
+        return (self.matrix_dim, self.matrix_dim)
+
+    def mean(self):
+        mu = jnp.atleast_1d(self.src_distribution.mean())
+        return jnp.concatenate(
+            (mu,) * self.multiplicity
+        ) * jnp.eye(self.matrix_dim)
 
 
-class _IIDSource(torch.nn.Module, ABC):
+class MatrixExponential(distrax.Distribution):
+    def __init__(
+        self,
+        src_distribution: Distribution,
+        rescale_var: bool = True,
+    ):
+        self.src_distribution = src_distribution
+        self.rescale_var = rescale_var
+        super().__init__()
+
+    def _sample_n(self, key, n):
+        samples = self.src_distribution.sample(
+            seed=key, sample_shape=(n,))
+        if self.rescale_var:
+            var_orig = samples.var(keepdims=True)
+        samples = jax.vmap(jax.scipy.linalg.expm, in_axes=(0,))(samples)
+        if self.rescale_var:
+            var_transformed = samples.var(keepdims=True)
+            samples = samples / jnp.sqrt(var_transformed / var_orig)
+        return samples
+
+    def log_prob(self, value):
+        samples = symlog(value)
+        return self.src_distribution.log_prob(samples)
+
+    def _sample_n_and_log_prob(self, key, n):
+        samples = self.src_distribution.sample(
+            seed=key, sample_shape=(n,))
+        log_prob = self.src_distribution.log_prob(samples)
+        samples = jax.vmap(jax.scipy.linalg.expm, in_axes=(0,))(samples)
+        return samples, log_prob
+
+    @property
+    def event_shape(self):
+        return (self.matrix_dim, self.matrix_dim)
+
+
+class _IIDSource():
     """
     Superclass for i.i.d. noise and dropout sources. Implements methods that
     toggle between test and train mode.
@@ -311,11 +469,10 @@ class _IIDSource(torch.nn.Module, ABC):
     There's nothing about this implementation level that requires the i.i.d.
     assumption.
     """
-    def __init__(self, distr, training):
+    def __init__():
         raise NotImplementedError()
 
-
-class _IIDNoiseSource(_IIDSource):
+class _IIDNoiseSource():
     """
     Superclass for i.i.d. noise sources. Implements a method for injecting
     sampled noise additively into an existing tensor.
@@ -328,11 +485,10 @@ class _IIDNoiseSource(_IIDSource):
     _IIDSquareNoiseSource : Noise source with a square matrix assumption.
     _IIDDropoutSource : For multiplicative sample injection.
     """
-    def __init__(self, distr=None, training=True):
+    def __init__():
         raise NotImplementedError()
 
-
-class _IIDSquareNoiseSource(_IIDNoiseSource):
+class _IIDSquareNoiseSource():
     """
     Superclass for i.i.d. noise sources. Implements a method for injecting
     sampled noise additively into an existing tensor.
@@ -346,22 +502,10 @@ class _IIDSquareNoiseSource(_IIDNoiseSource):
     _IIDNoiseSource : Does not assume samples are square matrices.
     _IIDSquareDropoutSource : For multiplicative sample injection.
     """
-    def inject(self, tensor):
-        try:
-            sz = tensor.size()
-            assert sz[-1] == sz[-2]
-        except AssertionError:
-            raise AssertionError('Cannot inject square noise into nonsquare '
-                                 'tensors. The tensors must be square along '
-                                 'the last two dimensions.')
-        if self.training:
-            return tensor + self.sample(
-                tensor.size()[:-1]).to(dtype=tensor.dtype, device=tensor.device)
-        else:
-            return tensor
+    def __init__():
+        raise NotImplementedError()
 
-
-class _IIDDropoutSource(_IIDSource):
+class _IIDDropoutSource():
     """
     Superclass for i.i.d. noise sources. Implements a method for injecting
     sampled noise multiplicatively into an existing tensor.
@@ -374,11 +518,10 @@ class _IIDDropoutSource(_IIDSource):
     _IIDSquareDropoutSource : Dropout source with a square matrix assumption.
     _IIDNoiseSource : For additive sample injection.
     """
-    def __init__(self, distr=None, training=True):
+    def __init__():
         raise NotImplementedError()
 
-
-class _IIDSquareDropoutSource(_IIDDropoutSource):
+class _IIDSquareDropoutSource():
     """
     Superclass for i.i.d. noise sources. Implements a method for injecting
     sampled noise multiplicatively into an existing tensor.
@@ -392,32 +535,18 @@ class _IIDSquareDropoutSource(_IIDDropoutSource):
     _IIDDropoutSource : Does not assume samples are square matrices.
     _IIDSquareNoiseSource : For additive sample injection.
     """
-    def inject(self, tensor):
-        try:
-            sz = tensor.size()
-            assert sz[-1] == sz[-2]
-        except AssertionError:
-            raise AssertionError('Cannot inject square noise into nonsquare '
-                                 'tensors. The tensors must be square along '
-                                 'the last two dimensions.')
-        if self.training:
-            return tensor * self.sample(
-                tensor.size()[:-1]).to(
-                    dtype=tensor.dtype, device=tensor.device)
-        else:
-            return tensor
+    def __init__():
+        raise NotImplementedError()
 
-
-class _AxialSampler(_IIDSource):
+class _AxialSampler():
     """
     Noise source for which it is possible to specify the tensor axes along
     which there is randomness.
     """
-    def __init__(self, distr=None, training=True, sample_axes=None):
+    def __init__():
         raise NotImplementedError()
 
-
-class UnstructuredNoiseSource(_AxialSampler, _IIDNoiseSource):
+class UnstructuredNoiseSource():
     """
     Additive noise source with no special structure, in which each element is
     sampled i.i.d.
@@ -435,9 +564,10 @@ class UnstructuredNoiseSource(_AxialSampler, _IIDNoiseSource):
         samples are broadcast. If this is None, then sampling occurs along all
         axes.
     """
+    def __init__():
+        raise NotImplementedError()
 
-
-class DiagonalNoiseSource(_IIDSquareNoiseSource):
+class DiagonalNoiseSource():
     """
     Diagonal noise source.
 
@@ -454,35 +584,10 @@ class DiagonalNoiseSource(_IIDSquareNoiseSource):
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
     """
-    def __init__(self, distr=None, offset=0, training=True):
-        super(DiagonalNoiseSource, self).__init__(distr, training)
-        self.offset = offset
+    def __init__():
+        raise NotImplementedError()
 
-    def sample(self, dim):
-        """
-        Sample a random matrix that is zero everywhere except for a single
-        diagonal band, along which the entries are sampled i.i.d. from the
-        specified distribution.
-
-        Parameters
-        ----------
-        dim : iterable
-            Dimension of the matrices sampled from the source.
-
-        Returns
-        -------
-        output : Tensor
-            Block of diagonal matrices sampled from the noise source.
-        """
-        dim = [*dim[:-1], dim[-1] - abs(self.offset)]
-        if self.training:
-            noise = self.distr.sample(dim).squeeze(-1)
-            return torch.diag_embed(noise, self.offset)
-        else:
-            return 0
-
-
-class LowRankNoiseSource(_IIDNoiseSource):
+class LowRankNoiseSource():
     """
     Low-rank symmetric positive semidefinite noise source. Note that diagonal
     entries are effectively sampled from a very different distribution than
@@ -505,56 +610,10 @@ class LowRankNoiseSource(_IIDNoiseSource):
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
     """
-    def __init__(self, var=1, rank=None, training=True):
-        super(LowRankNoiseSource, self).__init__(
-            distr=None, training=training)
-        self.rank = rank
-        self.var = var
+    def __init__():
+        raise NotImplementedError()
 
-    def sample(self, dim):
-        r"""
-        Sample a random matrix :math:`K \in \mathbb{R}^{d \times r}` and
-        computes the rank-r positive semidefinite product :math:`KK^\intercal`.
-        For the outcome entries to have standard deviation near :math:`\sigma`,
-        each entry in K (sampled i.i.d.) is distributed as
-
-        :math:`\mathcal{N}\left(0, \frac{\sigma}{\sqrt{r + \frac{r^2}{d}}}\right)`
-
-        The mean of this noise source is not exactly zero, but it trends
-        toward zero as the dimension d increases.
-
-        Parameters
-        ----------
-        dim : iterable
-            Dimension of the matrices sampled from the source.
-
-        Returns
-        -------
-        output : Tensor
-            Block of symmetric, positive semidefinite matrices sampled from
-            the low-rank noise source.
-
-        See also
-        --------
-        SPSDNoiseSource
-            Another way to sample noise from the cone of symmetric, positive
-            semidefinite matrices.
-        """
-        #TODO: revisit this later and work out what is going on
-        # mathematically. Here's a start:
-        # https://math.stackexchange.com/questions/101062/ ...
-        # is-the-product-of-two-gaussian-random-variables-also-a-gaussian
-        if self.training:
-            rank = self.rank or dim[-1]
-            noise = torch.empty((*dim, rank))
-            var = self.var / math.sqrt(rank + (rank ** 2) / dim[-1])
-            noise.normal_(std=math.sqrt(var))
-            return noise @ noise.transpose(-1, -2)
-        else:
-            return 0
-
-
-class SPSDNoiseSource(_IIDSquareNoiseSource):
+class SPSDNoiseSource():
     """
     Symmetric positive semidefinite noise source.
 
@@ -573,32 +632,10 @@ class SPSDNoiseSource(_IIDSquareNoiseSource):
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
     """
-    def sample(self, dim):
-        """
-        Sample a random symmetric positive (semi)definite matrix from the noise
-        source.
+    def __init__():
+        raise NotImplementedError()
 
-        Parameters
-        ----------
-        dim : iterable
-            Dimension of the matrices sampled from the source.
-
-        Returns
-        -------
-        output : Tensor
-            Block of symmetric, positive semidefinite matrices sampled from the
-            noise source.
-        """
-        if self.training:
-            noise = self.distr.sample((*dim, dim[-1])).squeeze(-1)
-            sym = noise + noise.transpose(-1, -2)
-            spd = torch.matrix_exp(sym)
-            return spd / (spd.std() / self.distr.scale)
-        else:
-            return 0
-
-
-class UnstructuredDropoutSource(_AxialSampler, _IIDDropoutSource):
+class UnstructuredDropoutSource():
     """
     Multiplicative noise source with no special structure, in which each
     element is sampled i.i.d.
@@ -616,9 +653,10 @@ class UnstructuredDropoutSource(_AxialSampler, _IIDDropoutSource):
         samples are broadcast. If this is None, then sampling occurs along all
         axes.
     """
+    def __init__():
+        raise NotImplementedError()
 
-
-class DiagonalDropoutSource(_IIDSquareDropoutSource):
+class DiagonalDropoutSource():
     """
     Diagonal dropout source.
 
@@ -635,121 +673,14 @@ class DiagonalDropoutSource(_IIDSquareDropoutSource):
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
     """
-    def __init__(self, distr=None, offset=0, training=True):
-        super(DiagonalDropoutSource, self).__init__(distr, training)
-        self.offset = offset
+    def __init__():
+        raise NotImplementedError()
 
-    def sample(self, dim):
-        """
-        Sample a random masking matrix from the dropout source.
+class BandDropoutSource():
+    def __init__():
+        raise NotImplementedError()
 
-        Parameters
-        ----------
-        dim : iterable
-            Dimension of the matrices sampled from the source.
-
-        Returns
-        -------
-        output : Tensor
-            Block of masking matrices sampled from the noise source.
-        """
-        dim = [*dim[:-1], dim[-1] - abs(self.offset)]
-        if self.training:
-            mask = self.distr.sample(dim).squeeze(-1) / self.distr.mean
-            return torch.diag_embed(mask, self.offset)
-        else:
-            return 1
-
-
-class BandDropoutSource(_IIDSquareDropoutSource):
-    """
-    Dropout source for matrices with banded structure.
-
-    This source applies dropout to a block of banded matrices (all nonzero
-    entries within some finite offset of the main diagonal.) It creates a
-    dropout mask by multiplying together the band mask with a dropout mask
-    in which a random subset of rows and columns are zeroed.
-
-    Parameters
-    ----------
-    distr : torch.distributions object
-        Distribution from which each element is sampled independently. If not
-        specified, this defaults to an equiprobable Bernoulli distribution. For
-        a Bernoulli distribution, then its parameter corresponds to the
-        approximate probability of dropout across columns in each symmetric
-        positive semidefinite masking matrix sampled from the source.
-    bandwidth : int or None (default None)
-        Maximum bandwidth of each masking matrix; maximum offset from the main
-        diagonal where nonzero entries are permitted. 0 indicates that the
-        matrix is diagonal (in which case `DiagonalDropoutSource` is faster and
-        more efficient).
-    training : bool
-        Indicates whether the source should operate under the assumption of
-        training or inference; at test time, a noise-free sample is returned.
-    norm : 'blanket' or 'diag' (default `diag`)
-        Entries along the main diagonal are sampled from a different
-        distribution compared with off-diagonal entries. In particular, the
-        probability of each entry along the diagonal surviving dropout is
-        1 - p, while the probability of each off diagonal entry surviving
-        dropout is :math:`(1 - p)^2`. This parameter indicates whether the same
-        correction term is applied to both on-diagonal and off-diagonal entries
-        (`blanket`) or whether a separate correction term is applied to
-        diagonal and off-diagonal entries after dropout.
-    generator, bandmask, bandnorm
-        Attributes related to a Boolean mask tensor indicating whether each
-        entry is in the permitted band.
-    normfact : float or Tensor
-        Dropout correction term.
-    """
-    def __init__(self, distr=None, bandwidth=0, training=True, norm='diag'):
-        super(BandDropoutSource, self).__init__(distr, training)
-        self.generator = torch.Tensor([1] * (1 + bandwidth))
-        self.bandwidth = bandwidth
-        self.n = float('nan')
-        self.norm = norm
-
-    def _create_bandmask(self, n):
-        self.n = n
-        self.bandmask = toeplitz(self.generator, dim=[self.n, self.n])
-        self.bandnorm = self.bandmask.sum()
-        if self.norm == 'blanket':
-            self.normfact = self.bandnorm / (self.n * (1 - self.distr.mean) +
-                (self.bandnorm - self.n) * (1 - self.distr.mean) ** 2)
-        elif self.norm == 'diag':
-            self.normfact = (torch.ones_like(self.bandmask) /
-                             (1 - self.distr.mean) ** 2)
-            self.normfact[torch.eye(self.n).bool()] = 1 / (1 - self.distr.mean)
-
-    def sample(self, dim):
-        """
-        Sample a random masking matrix from the dropout source.
-
-        Parameters
-        ----------
-        dim : iterable
-            Dimension of the matrices sampled from the source. Note that, every
-            time the source is queried to sample matrices of a different
-            dimension, there will be a delay as the band mask is rebuilt. If
-            you are sampling repeatedly from sources with multiple sizes, it is
-            thus more time-efficient to use multiple BandDropoutSources.
-
-        Returns
-        -------
-        output : Tensor
-            Block of masking matrices sampled from the noise source.
-        """
-        if self.training:
-            n = dim[-1]
-            if n != self.n:
-                self._create_bandmask(n)
-            mask = self.distr.sample((*dim, 1))
-            unnorm = mask @ mask.transpose(-1, -2) * self.bandmask
-            return unnorm * self.normfact
-        else:
-            return 1
-
-
-class SPSDDropoutSource(_IIDSquareDropoutSource):
+class SPSDDropoutSource():
     """
     Symmetric positive semidefinite dropout source. Note that diagonal entries
     are effectively sampled from a very different distribution than
@@ -775,40 +706,17 @@ class SPSDDropoutSource(_IIDSquareDropoutSource):
         Indicates whether the source should operate under the assumption of
         training or inference; at test time, a noise-free sample is returned.
     """
-    def __init__(self, distr=None, rank=1, training=True):
-        super(SPSDDropoutSource, self).__init__(distr, training)
-        self.rank = rank
-
-    def sample(self, dim):
-        """
-        Sample a random masking matrix from the dropout source.
-
-        Parameters
-        ----------
-        dim : iterable
-            Dimension of the matrices sampled from the source.
-
-        Returns
-        -------
-        output : Tensor
-            Block of masking matrices sampled from the noise source.
-        """
-        if self.training:
-            rank = self.rank or dim[-1]
-            mask = self.distr.sample(dim).squeeze(-1) / self.distr.mean
-            return mask @ mask.transpose(-1, -2) / rank
-        else:
-            return 1
-
+    def __init__():
+        raise NotImplementedError()
 
 class IdentitySource(_IIDSource):
-    def __init__(self, training=True):
+    def __init__():
         raise NotImplementedError()
 
 class IdentityNoiseSource(IdentitySource):
-    def __init__(self, training=True):
+    def __init__():
         raise NotImplementedError()
 
 class IdentityDropoutSource(IdentitySource):
-    def __init__(self, training=True):
+    def __init__():
         raise NotImplementedError()
