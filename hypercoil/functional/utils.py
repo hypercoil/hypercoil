@@ -310,18 +310,19 @@ def sample_multivariate(
     sample_shape = tuple([shape[axis] for axis in range(ndim)
                           if axis not in event_axes])
 
-    if distr.event_shape != event_shape:
-        raise ValueError(
-            f"Distribution event shape {distr.event_shape} does not match "
-            f"tensor shape {shape} along axes {event_axes}."
-        )
+    # This doesn't play well with JIT compilation.
+    # if distr.event_shape != event_shape:
+    #     raise ValueError(
+    #         f"Distribution event shape {distr.event_shape} does not match "
+    #         f"tensor shape {shape} along axes {event_axes}."
+    #     )
     val = distr.sample(seed=key, sample_shape=sample_shape)
 
     if mean_correction:
         try:
             correction = 1 / (distr.mean() + jnp.finfo(jnp.float32).eps)
         except AttributeError:
-            correction = 1
+            correction = 1 / (val.mean() + jnp.finfo(jnp.float64).eps)
         val = val * correction
 
     axis_order = argsort(axis_complement(ndim, event_axes) + event_axes)

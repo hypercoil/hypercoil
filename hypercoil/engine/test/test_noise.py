@@ -13,64 +13,11 @@ from hypercoil.engine.noise import (
     ScalarIIDMulStochasticTransform,
     TensorIIDAddStochasticTransform,
     TensorIIDMulStochasticTransform,
+    OuterProduct, Diagonal, MatrixExponential,
 )
 
 
-#TODO: There are many missing tests for noise and dropout sources.
-# We should have at minimum an injection test for each source
-# on CPU and CUDA that also verifies each source works given an input
-# of a reasonable but nontrivial shape.
-
-
-# def lr_std_mean(dim=100, rank=None, var=0.05, iter=1000):
-#     lrns = LowRankNoiseSource(rank=rank, var=var)
-#     return torch.Tensor(
-#         [lrns.sample([dim]).std() for _ in range(iter)
-#     ]).mean()
-
-
 class TestNoise:
-
-    # @pytest.fixture(autouse=True)
-    # def setup_class(self):
-    #     self.atol = 1e-3
-    #     self.rtol = 1e-4
-    #     self.approx = lambda out, ref: np.isclose(
-    #         out, ref, atol=self.atol, rtol=self.rtol)
-
-    # def test_lr_std(self):
-    #     out = lr_std_mean()
-    #     ref = 0.05
-    #     assert self.approx(out, ref)
-    #     out = lr_std_mean(var=0.2)
-    #     ref = 0.2
-    #     assert self.approx(out, ref)
-    #     out = lr_std_mean(var=0.03, rank=7)
-    #     ref = 0.03
-    #     assert self.approx(out, ref)
-
-    # def test_spsd_spsd(self):
-    #     spsdns = SPSDNoiseSource()
-    #     out = spsdns.sample([100])
-    #     assert torch.allclose(out, out.T, atol=1e-5)
-    #     L = torch.linalg.eigvalsh(out)
-    #     # ignore effectively-zero eigenvalues
-    #     L[torch.abs(L) < 1e-4] = 0
-    #     assert L.min() >= 0
-    #     assert torch.all(L >= 0)
-
-    # def test_band_correction(self):
-    #     bds = BandDropoutSource()
-    #     out = bds.sample([100]).sum()
-    #     ref = bds.bandmask.sum()
-    #     assert torch.abs((out - ref) / ref) <= 0.2
-
-    # def test_scalar_iid_noise(self):
-    #     sz = torch.Size([3, 8, 1, 21, 1])
-    #     inp = torch.rand(sz)
-    #     sins = UnstructuredNoiseSource()
-    #     out = sins(inp)
-    #     assert out.size() == sz
 
     def test_stochastic_sources(self):
         tr = (
@@ -150,7 +97,7 @@ class TestNoise:
         ) < 0.05)
         assert np.all(np.abs(
             np.cov(out.swapaxes(-1, -2).reshape((-1, 5)).T) - sigma
-        ) < 0.2)
+        ) < 0.25)
 
     def test_tensor_iid_dropout(self):
         key = jax.random.PRNGKey(9832)
@@ -166,3 +113,101 @@ class TestNoise:
         data = np.ones((100, 5, 100))
         out = src(data)
         assert np.isclose(out.mean(), 1)
+
+    def test_lowrank_distr(self):
+        key = jax.random.PRNGKey(9832)
+        inner_distr = distrax.Normal(3, 1)
+        distr = OuterProduct(
+            src_distribution=inner_distr,
+            rank=2,
+            multiplicity=10,
+        )
+
+        out, lp = distr.sample_and_log_prob(
+            seed=key,
+            sample_shape=(3, 5)
+        )
+        assert out.shape == (3, 5, 10, 10)
+        assert np.isnan(lp).all()
+
+        std = OuterProduct.rescale_std_for_normal(
+            std=3, rank=2, matrix_dim=100
+        )
+        inner_distr = distrax.Normal(0, std)
+        distr = OuterProduct(
+            src_distribution=inner_distr,
+            rank=2,
+            multiplicity=100,
+        )
+        out = distr.sample(seed=key, sample_shape=(10, 100))
+        assert np.abs(out.std(axis=(-2, -1)).mean() - 3) < 0.05
+
+        inner_distr = distrax.Bernoulli(probs=0.3)
+        distr = OuterProduct(
+            src_distribution=inner_distr,
+            multiplicity=100,
+        )
+        src = TensorIIDMulStochasticTransform(
+            distribution=distr,
+            event_axes=(0, -1),
+            key=key
+        )
+        data = np.ones((100, 100, 10, 100))
+        out = jax.jit(src.__call__)(data)
+        assert np.abs(out.mean() - 1) < 0.05
+
+    def test_diagonal_distr(self):
+        key = jax.random.PRNGKey(9832)
+        inner_distr = distrax.Normal(3, 1)
+        distr = Diagonal(
+            src_distribution=inner_distr,
+            multiplicity=10,
+        )
+
+        out, lp = distr.sample_and_log_prob(
+            seed=key,
+            sample_shape=(3, 5)
+        )
+        assert out.shape == (3, 5, 10, 10)
+        assert lp.shape == (3, 5, 10, 10)
+        assert ((out == 0) == (lp == 0)).all()
+
+        inner_distr = distrax.Bernoulli(probs=0.3)
+        distr = Diagonal(
+            src_distribution=inner_distr,
+            multiplicity=100,
+        )
+        src = TensorIIDMulStochasticTransform(
+            distribution=distr,
+            event_axes=(0, -1),
+            key=key
+        )
+        data = np.ones((100, 100, 10, 100))
+        out = jax.jit(src.__call__)(data)
+        assert np.abs(np.diagonal(out, axis1=0, axis2=-1).mean() - 1) < 0.05
+
+    def test_expm_distr(self):
+        key = jax.random.PRNGKey(9832)
+        inner_inner_distr = distrax.Normal(3, 1)
+        inner_distr = Diagonal(
+            src_distribution=inner_inner_distr,
+            multiplicity=10,
+        )
+        distr = MatrixExponential(
+            src_distribution=inner_distr,
+        )
+        out, lp = distr.sample_and_log_prob(
+            seed=key,
+            sample_shape=(3, 5)
+        )
+        assert out.shape == (3, 5, 10, 10)
+        assert lp.shape == (3, 5, 10, 10)
+
+        src = TensorIIDAddStochasticTransform(
+            distribution=distr,
+            event_axes=(0, -1),
+            key=key
+        )
+        data = np.zeros((10, 100, 100, 10))
+        out = jax.jit(src.__call__)(data)
+        assert (out >= 0).all()
