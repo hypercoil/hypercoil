@@ -7,21 +7,29 @@ Noise
 Additive and multiplicative noise sources.
 """
 import math
-import torch
-from abc import ABC, abstractmethod
-from ..functional.matrix import toeplitz
-
 import jax
 import jax.numpy as jnp
 import distrax
 import equinox as eqx
-from typing import Any, Literal, Optional, Tuple
+from abc import abstractmethod
+from typing import Any, Optional, Tuple
 from ..functional.utils import (
     Distribution, PyTree, Tensor,
     sample_multivariate, standard_axis_number
 )
 from ..functional.symmap import symlog
 from ..init.mapparam import _to_jax_array
+
+
+#TODO: eqx.filter isn't compatible with distrax.Distribution objects.
+#      To get around this, we currently set distributions as static fields.
+#      This is a hack, but it should work for most of our needs as long as
+#      the distribution is the same instance across epoch updates.
+#      In the long run, we will want to figure out the cause for this
+#      incompatibility.
+#
+#      Opened an issue on distrax:
+#      https://github.com/deepmind/distrax/issues/193
 
 
 class StochasticSource(eqx.Module):
@@ -38,23 +46,28 @@ class StochasticSource(eqx.Module):
 
 
 def _refresh_srcs(src: Any, code: Any = 0) -> Any:
-    if isinstance(src, StochasticSource) and src.code == code:
+    if _is_stochastic_source(src) and src.code == code:
         out = src.refresh()
     else:
         out = None
     return out
 
 
+def _is_stochastic_source(src: Any) -> bool:
+    return isinstance(src, StochasticSource)
+
+
 def refresh(model: PyTree, code: Any = 0) -> PyTree:
+    # We have to set the distributions as leaves. I'm not sure why this is.
     stochastic_srcs = eqx.filter(
         model,
-        filter_spec=lambda x: isinstance(x, StochasticSource),
-        is_leaf=lambda x: isinstance(x, StochasticSource)
+        filter_spec=_is_stochastic_source,
+        is_leaf=_is_stochastic_source
     )
     stochastic_srcs = jax.tree_util.tree_map(
         lambda x: _refresh_srcs(x, code=code),
         stochastic_srcs,
-        is_leaf=lambda x: isinstance(x, StochasticSource)
+        is_leaf=_is_stochastic_source
     )
     return eqx.apply_updates(model, stochastic_srcs)
 
@@ -189,7 +202,7 @@ class AxialSelectiveTransform(StochasticTransform):
 
 
 class ScalarIIDStochasticTransform(AxialSelectiveTransform):
-    distribution : Distribution
+    distribution : Distribution = eqx.static_field()
 
     def __init__(
         self,
@@ -218,7 +231,7 @@ class ScalarIIDStochasticTransform(AxialSelectiveTransform):
 
 
 class TensorIIDStochasticTransform(AxialSelectiveTransform):
-    distribution : Distribution
+    distribution : Distribution = eqx.static_field()
     event_axes : Tuple[int, ...]
 
     def __init__(
