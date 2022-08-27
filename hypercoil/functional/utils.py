@@ -300,6 +300,7 @@ def sample_multivariate(
     distr: Distribution,
     shape: Tuple[int],
     event_axes: Sequence[int],
+    mean_correction: bool = False,
     key: jax.random.PRNGKey
 ):
     ndim = len(shape)
@@ -314,6 +315,12 @@ def sample_multivariate(
             f"tensor shape {shape} along axes {event_axes}."
         )
     val = distr.sample(seed=key, sample_shape=sample_shape)
+    if mean_correction:
+        try:
+            correction = 1 / (distr.mean() + jnp.finfo(jnp.float32).eps)
+        except AttributeError:
+            correction = 1
+        val = val * correction
     axis_order = argsort(axis_complement(ndim, event_axes) + event_axes)
     return jnp.transpose(val, axes=axis_order)
 

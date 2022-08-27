@@ -211,3 +211,15 @@ class TestUtils:
         )
         assert out.shape == (2, 3, 100)
         assert np.all(np.abs(out.mean((0, -1)) - mu) < 0.5)
+
+        mu = np.array([100, 100, 100])
+        distr = MultivariateNormalFullCovariance(mu, sigma)
+        out = sample_multivariate(
+            distr=distr,
+            shape=(2, 3, 100),
+            event_axes=(-2,),
+            mean_correction=True,
+            key=jax.random.PRNGKey(0),
+        )
+        assert np.abs(out.mean() - 1) < 0.1
+        assert np.abs(out.mean() - 100) > 90
