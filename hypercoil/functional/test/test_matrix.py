@@ -123,23 +123,23 @@ class TestMatrix:
         assert self.approx(out, ref)
 
     def test_toeplitz_extend(self):
-        dim = (10, 8)
-        out = toeplitz(self.C, self.R, dim=dim)
+        shape = (10, 8)
+        out = toeplitz(self.C, self.R, shape=shape)
         assert out.shape == (3, 10, 8)
-        Cx, Rx = (np.zeros((self.C.shape[0], dim[0])),
-                  np.zeros((self.R.shape[0], dim[1])))
+        Cx, Rx = (np.zeros((self.C.shape[0], shape[0])),
+                  np.zeros((self.R.shape[0], shape[1])))
         Cx[:, :self.C.shape[-1]] = self.C
         Rx[:, :self.R.shape[-1]] = self.R
         ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx, Rx)])
         assert self.approx(out, ref)
 
     def test_toeplitz_fill(self):
-        dim = (8, 8)
-        out = toeplitz(self.C, self.R, dim=dim, fill_value=self.f)
+        shape = (8, 8)
+        out = toeplitz(self.C, self.R, shape=shape, fill_value=self.f)
         assert out.shape == (3, 8, 8)
-        #out = toeplitz(self.C, self.R, dim=dim, fill_value=self.f)
-        Cx, Rx = (np.zeros((self.C.shape[0], dim[0])) + self.f,
-                  np.zeros((self.R.shape[0], dim[1])) + self.f)
+        #out = toeplitz(self.C, self.R, shape=shape, fill_value=self.f)
+        Cx, Rx = (np.zeros((self.C.shape[0], shape[0])) + self.f,
+                  np.zeros((self.R.shape[0], shape[1])) + self.f)
         Cx[:, :self.C.shape[-1]] = self.C
         Rx[:, :self.R.shape[-1]] = self.R
         ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx, Rx)])

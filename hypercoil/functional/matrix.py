@@ -361,7 +361,7 @@ def fill_diagonal(A: Tensor, fill: float = 0, offset: int = 0) -> Tensor:
 def toeplitz_2d(
     c: Tensor,
     r: Optional[Tensor] = None,
-    dim: Optional[Tuple[int, int]] = None,
+    shape: Optional[Tuple[int, int]] = None,
     fill_value: float = 0
 ) -> Tensor:
     """
@@ -381,7 +381,7 @@ def toeplitz_2d(
     if r is None:
         r = c
     m_in, n_in = c.shape[-1], r.shape[-1]
-    m, n = dim if dim is not None else (m_in, n_in)
+    m, n = shape if shape is not None else (m_in, n_in)
     d = max(m, n)
     if (m != n) or (m_in != n_in != d):
         r_arg, c_arg = fill_value * jnp.ones(d), fill_value * jnp.ones(d)
@@ -406,7 +406,7 @@ def toeplitz_2d(
 def toeplitz(
     c: Tensor,
     r: Optional[Tensor] = None,
-    dim: Optional[Tuple[int, int]] = None,
+    shape: Optional[Tuple[int, int]] = None,
     fill_value: float = 0
 ) -> Tensor:
     r"""
@@ -467,7 +467,7 @@ def toeplitz(
         elements.
     """
     return vmap_over_outer(
-        partial(toeplitz_2d, dim=dim, fill_value=fill_value), 1
+        partial(toeplitz_2d, shape=shape, fill_value=fill_value), 1
     )((c, r))
 
 
