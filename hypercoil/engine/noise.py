@@ -230,17 +230,6 @@ class TensorIIDStochasticTransform(AxialSelectiveTransform):
             refresh_code=refresh_code
         )
 
-    def conform_scale_factor_to_shape(
-        self,
-        rescale: Tensor,
-        shape: Tuple[int],
-    ):
-        """
-        Does nothing. Sufficient for scalar events. Override in subclasses to
-        conform the scale factor to the shape of the tensor.
-        """
-        return rescale
-
     def sample_impl(
         self,
         *,
