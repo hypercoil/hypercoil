@@ -117,6 +117,49 @@ class StochasticTransform(eqx.Module):
         return self.inject(input, key=self.source.key)
 
 
+class StochasticParameter(eqx.Module):
+
+    original: Tensor
+    param_name: str = "weight"
+    transform: StochasticTransform
+
+    def __init__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        transform: StochasticTransform,
+    ):
+        self.original = model.__getattribute__(param_name)
+        self.param_name = param_name
+        self.transform = transform
+
+    def __jax_array__(self):
+        return self.transform(_to_jax_array(self.original))
+
+    @classmethod
+    def wrap(
+        cls,
+        model: PyTree,
+        *pparams,
+        param_name: str = "weight",
+        transform: StochasticTransform,
+        **params,
+    ) -> PyTree:
+        wrapped = cls(
+            model,
+            *pparams,
+            param_name=param_name,
+            transform=transform,
+            **params
+        )
+        return eqx.tree_at(
+            lambda m: m.__getattribute__(wrapped.param_name),
+            model,
+            replace=wrapped
+        )
+
+
 class AdditiveNoiseMixin:
     def inject(self, input: Tensor, *, key: jax.random.PRNGKey) -> Tensor:
         return input + self.sample(shape=input.shape, key=key)

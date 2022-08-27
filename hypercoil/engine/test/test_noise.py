@@ -5,10 +5,12 @@
 Unit tests for noise sources
 """
 import jax
+import jax.numpy as jnp
 import distrax
+import equinox as eqx
 import numpy as np
 from hypercoil.engine.noise import (
-    StochasticSource, refresh,
+    StochasticSource, refresh, StochasticParameter,
     ScalarIIDAddStochasticTransform,
     ScalarIIDMulStochasticTransform,
     TensorIIDAddStochasticTransform,
@@ -76,9 +78,10 @@ class TestNoise:
         ).all()
 
     def test_tensor_iid_noise(self):
-        key = jax.random.PRNGKey(9832)
-        mu = np.random.randn(5)
-        sigma = np.random.randn(5, 5)
+        key = jax.random.PRNGKey(392)
+        mkey, skey, tkey = jax.random.split(key, 3)
+        mu = jax.random.normal(key=mkey, shape=(5,))
+        sigma = jax.random.normal(key=skey, shape=(5, 5))
         sigma = sigma @ sigma.T
         distr = distrax.MultivariateNormalFullCovariance(
             loc=mu,
@@ -88,7 +91,7 @@ class TestNoise:
         src = TensorIIDAddStochasticTransform(
             distribution=distr,
             event_axes=(-2,),
-            key=key
+            key=tkey
         )
         data = np.zeros((100, 5, 100))
         out = src(data)
@@ -211,3 +214,175 @@ class TestNoise:
         data = np.zeros((10, 100, 100, 10))
         out = jax.jit(src.__call__)(data)
         assert (out >= 0).all()
+
+    def test_stochastic_parameter_loop(self):
+
+        @eqx.filter_jit
+        def fwd(model, x):
+            return jax.vmap(model)(x)
+
+        @eqx.filter_jit
+        @eqx.filter_grad
+        def loss_fn(model, x, y):
+            pred_y = jax.vmap(model)(x)
+            return jax.numpy.mean((y - pred_y) ** 2)
+
+        key = jax.random.PRNGKey(0)
+        mkey, skey, xkey, ykey = jax.random.split(key, 4)
+
+        batch_size, in_size, out_size = 32, 5, 3
+        model = eqx.nn.Linear(
+            in_features=in_size, out_features=out_size, key=mkey)
+        model = eqx.tree_at(
+            lambda m: m.weight,
+            model,
+            replace=jnp.zeros_like(model.weight)
+        )
+
+        transform = ScalarIIDAddStochasticTransform(
+            distribution=distrax.Normal(0, 1),
+            key=skey,
+        )
+        model = StochasticParameter.wrap(
+            model, transform=transform
+        )
+
+        x = jax.random.normal(key=xkey, shape=(batch_size, in_size))
+        y = jax.random.normal(key=ykey, shape=(batch_size, out_size))
+
+        out_prev = None
+        for epoch in range(10):
+            out = fwd(model, x) # jax.vmap(model)(x)
+            if out_prev is not None:
+                assert not np.allclose(out, out_prev)
+            out_prev = out
+            model = refresh(model)
+
+        model_update = model
+        for epoch in range(10):
+            grads = loss_fn(model_update, x, y)
+            prev_weight = model_update.weight.__jax_array__()
+            model_update = eqx.apply_updates(model_update, grads)
+            model_update = refresh(model_update)
+            assert not np.allclose(model_update.weight.__jax_array__(), prev_weight)
+            # We check to ensure the distribution is unchanged because we have
+            # to treat it as a static field, and updating it would require
+            # recompiling.
+            assert (
+                model_update.weight.transform.distribution is
+                model.weight.transform.distribution
+            )
+
+    #TODO: revisit or delete as deepmind/distrax#193 is resolved
+    # def test_minimal_fail(self):
+    #     import jax, distrax
+
+    #     minimal = distrax.Normal(0, 1)
+    #     null = jax.tree_util.tree_map(lambda _: None, minimal)
+
+    #     print(null)
+
+    #     from jax._src.lib import pytree
+    #     print(pytree.flatten(minimal)[-1])
+    #     print(pytree.flatten(null)[-1])
+
+    #     jax.tree_util.tree_map(
+    #         lambda l, r: l,
+    #         minimal,
+    #         null
+    #     )
+
+
+    #     from jax._src.lib import pytree
+    #     print(pytree.flatten(minimal)[-1])
+    #     print(pytree.flatten(null)[-1])
+    #     treedef = pytree.flatten(minimal)[-1]
+    #     treedef.flatten_up_to(null)
+
+        # minimal = (distrax.Normal(0, 1),)
+        # mask_tree = jax.tree_util.tree_map(lambda _: True, minimal)
+
+        # print(mask_tree[0].tree_flatten())
+        # print(minimal[0].tree_flatten())
+
+        # print(jax.tree_flatten(minimal[0].__dict__))
+        # print(jax.tree_util.tree_flatten(minimal[0].__dict__))
+
+        # jax.tree_util.tree_map(
+        #     lambda mask, x: x if bool(mask) != False else None,
+        #     mask_tree,
+        #     minimal)
+        # import jax; import distrax; from distrax._src.utils.jittable import _is_jax_data
+        # distr = distrax.Normal(0, 1)
+        # leaves, treedef = jax.tree_util.tree_flatten(distr.__dict__)
+        # switch = list(map(_is_jax_data, leaves))
+        # children = [leaf if s else None for leaf, s in zip(leaves, switch)]
+        # metadata = [None if s else leaf for leaf, s in zip(leaves, switch)]
+        # flat = children, (metadata, switch, treedef)
+
+
+
+        # minimal = (distrax.Normal(0, 1),)
+
+        # @eqx.filter_jit(args=(lambda x: isinstance(x, distrax.Distribution),))
+        # def noop(x):
+        #     return x
+
+        # noop(minimal)
+
+        # @jax.tree_util.register_pytree_node_class
+        # class JaxDataTree(distrax._src.utils.jittable.Jittable):
+        #     def __init__(self, param0, param1):
+        #         self.param0 = param0
+        #         self.param1 = param1
+
+        #     def tree_flatten(self):
+        #         leaves, treedef = jax.tree_util.tree_flatten(self.__dict__)
+        #         switch = list(map(_is_jax_data, leaves))
+        #         children = [leaf if s else None for leaf, s in zip(leaves, switch)]
+        #         metadata = [None if s else leaf for leaf, s in zip(leaves, switch)]
+        #         print('flatten: ', children, metadata)
+        #         return children, (metadata, switch, treedef)
+
+        #     @classmethod
+        #     def tree_unflatten(cls, aux_data, children):
+        #         metadata, switch, treedef = aux_data
+        #         leaves = [j if s else p for j, p, s in zip(children, metadata, switch)]
+        #         print('unflatten: ', children, metadata)
+        #         obj = object.__new__(cls)
+        #         obj.__dict__ = jax.tree_util.tree_unflatten(treedef, leaves)
+        #         return obj
+
+        # tr = JaxDataTree(None, 11)
+        # trmask = jax.tree_util.tree_map(lambda _: True, tr)
+
+        # tr = JaxDataTree(jnp.zeros((3, 2)), 11)
+        # trmask = jax.tree_util.tree_map(lambda _: True, tr)
+
+        # assert 0
+
+
+
+        # class PatchedNormal(distrax.Normal):
+        #     def tree_flatten(self):
+        #         leaves, treedef = jax.tree_util.tree_flatten(self.__dict__)
+        #         print(leaves)
+        #         print(treedef)
+        #         return leaves, (treedef,)
+
+        #     @classmethod
+        #     def tree_unflatten(cls, aux_data, children):
+        #         treedef, = aux_data
+        #         obj = object.__new__(cls)
+        #         obj.__dict__ = jax.tree_util.tree_unflatten(treedef, children)
+        #         return obj
+
+        # patched = (PatchedNormal(0, 1),)
+
+        # jax.tree_util.tree_flatten(eqx.partition(patched, eqx.is_array)[-1])
+
+        # @eqx.filter_jit
+        # def noop(x):
+        #     return x
+
+        # noop(patched)
