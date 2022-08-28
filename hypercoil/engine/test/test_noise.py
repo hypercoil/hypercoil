@@ -16,7 +16,7 @@ from hypercoil.engine.noise import (
     TensorIIDAddStochasticTransform,
     TensorIIDMulStochasticTransform,
     EigenspaceReconditionTransform,
-    OuterProduct, Diagonal, MatrixExponential,
+    OuterProduct, Diagonal, Symmetric, MatrixExponential,
 )
 
 
@@ -216,6 +216,57 @@ class TestNoise:
         out = jax.jit(src.__call__)(data)
         assert np.abs(np.diagonal(out, axis1=0, axis2=-1).mean() - 1) < 0.05
 
+    def test_symmetric_distr(self):
+        key = jax.random.PRNGKey(9832)
+        inner_distr = distrax.Normal(3, 1)
+        distr = Symmetric(
+            src_distribution=inner_distr,
+            multiplicity=10
+        )
+        out, lp = distr.sample_and_log_prob(
+            seed=key,
+            sample_shape=(5,)
+        )
+        assert out.shape == (5, 10, 10)
+        assert np.allclose(out, out.swapaxes(-2, -1))
+        assert (np.isnan(lp)).all()
+
+        inner_distr = distrax.MultivariateNormalDiag(
+            loc=jnp.arange(10),
+        )
+        distr = Symmetric(
+            src_distribution=inner_distr,
+            multiplicity=10
+        )
+        out, lp = distr.sample_and_log_prob(
+            seed=key,
+            sample_shape=(5,)
+        )
+        assert np.allclose(out, out.swapaxes(-2, -1))
+
+        # Three diagonals
+        inner_inner_distr = distrax.Normal(0, 1)
+        inner_distr = Diagonal(
+            src_distribution=inner_inner_distr,
+            multiplicity=5
+        )
+        distr = Symmetric(
+            src_distribution=inner_distr,
+            multiplicity=2
+        )
+        out, lp = distr.sample_and_log_prob(
+            seed=key,
+            sample_shape=(5,)
+        )
+        assert np.allclose(out, out.swapaxes(-2, -1))
+        sparsity = (
+            np.diagflat(np.ones(5), k=5) +
+            np.diagflat(np.ones(10)) +
+            np.diagflat(np.ones(5), k=-5)
+        )[None, ...]
+        assert (sparsity * out == out).all()
+        assert ((~sparsity.astype(bool)) * out == 0).all()
+
     def test_expm_distr(self):
         key = jax.random.PRNGKey(9832)
         inner_inner_distr = distrax.Normal(3, 1)
@@ -241,6 +292,33 @@ class TestNoise:
         data = np.zeros((10, 100, 100, 10))
         out = jax.jit(src.__call__)(data)
         assert (out >= 0).all()
+
+        # Project symmetric samples into PSD cone
+        inner_inner_distr = distrax.Normal(0, 0.01)
+        inner_distr = Symmetric(
+            src_distribution=inner_inner_distr,
+            multiplicity=10
+        )
+        distr = MatrixExponential(
+            src_distribution=inner_distr
+        )
+
+        inner_samples = inner_distr.sample(
+            seed=key,
+            sample_shape=(5,)
+        )
+        assert inner_samples.shape == (5, 10, 10)
+        out = distr.sample(
+            seed=key,
+            sample_shape=(5,)
+        )
+        assert out.shape == (5, 10, 10)
+        L_inner = np.linalg.eigvalsh(inner_samples)
+        L = np.linalg.eigvalsh(out)
+        assert L_inner.min() < 0
+        assert L.min() > 0
+        assert np.isclose(out.std(), inner_samples.std())
+
 
     def test_stochastic_parameter_loop(self):
 
