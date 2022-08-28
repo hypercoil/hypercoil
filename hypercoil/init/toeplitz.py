@@ -4,77 +4,64 @@
 """
 Initialise parameters as a stack of Toeplitz-structured banded matrices.
 """
-import torch
-from functools import partial
-from .base import BaseInitialiser
+import jax
+from typing import Optional, Tuple, Type
+from .base import BaseInitialiser, MappedInitialiser
+from .mapparam import MappedParameter
 from ..functional import toeplitz
-from .domain import Identity
+from ..functional.utils import PyTree, Tensor
 
 
-def toeplitz_init_(tensor, c, r=None, fill_value=0, domain=None):
-    """
-    Initialise a tensor as a stack of banded matrices with Toeplitz structure.
-
-    Parameters
-    ----------
-    c: Tensor
-        Tensor of entries in the first column of each Toeplitz matrix. The
-        first axis corresponds to a single matrix column; additional dimensions
-        correspond to concatenation of Toeplitz matrices into a stack or block
-        tensor.
-    r: Tensor or None (default None)
-        Tensor of entries in the first row of each Toeplitz matrix. The first
-        axis corresponds to a single matrix row; additional dimensions
-        correspond to concatenation of Toeplitz matrices into a stack or block
-        tensor. The first entry in each column should be the same as the first
-        entry in the corresponding column of ``c``; otherwise, it will be
-        ignored. If this is None, then a symmetric Toeplitz matrix will be
-        created using the same tensor for both the row and the column.
-    fill_value: Tensor or float (default 0)
-        Specifies the value that should be used to populate the off-diagonals
-        of each Toeplitz matrix if the specified row and column elements are
-        extended to conform with the specified `dim`. If this is a tensor, then
-        each entry corresponds to the fill value in a different data channel.
-        Has no effect if ``dim`` is None.
-    domain : Domain object (default :doc:`Identity <hypercoil.init.domainbase.Identity>`)
-        Used in conjunction with an activation function to constrain or
-        transform the values of the initialised tensor. For instance, using
-        the :doc:`Atanh <hypercoil.init.domain.Atanh>`
-        domain with default scale constrains the tensor as seen by
-        data to the range of the tanh function, (-1, 1). Domain objects can
-        be used with compatible modules and are documented further in
-        :doc:`hypercoil.init.domain <hypercoil.init.domain>`.
-        If no domain is specified, the Identity
-        domain is used, which does not apply any transformations or
-        constraints.
-
-    Returns
-    -------
-    None. The input tensor is initialised in-place.
-    """
-    domain = domain or Identity()
-    dim = tensor.size()[-2:]
-    val = toeplitz(
-        c=c, r=r, dim=dim,
-        fill_value=fill_value,
-        dtype=tensor.dtype,
-        device=tensor.device
-    )
-    val = domain.preimage(val)
-    tensor.copy_(val)
-
-
-class ToeplitzInit(BaseInitialiser):
+class ToeplitzInitialiser(MappedInitialiser):
     """
     Banded matrix initialisation.
 
     Initialise a tensor as a stack of banded matrices with Toeplitz structure.
 
-    See :func:`toeplitz_init_` for argument details.
+    See :func:`toeplitz` for argument details.
     """
-    def __init__(self, c, r=None, fill_value=0, domain=None):
-        init = partial(toeplitz_init_, c=c, r=r,
-                       fill_value=fill_value, domain=domain)
-        super(ToeplitzInit, self).__init__(init=init)
+
+    c : Tensor
+    r : Optional[Tensor] = None
+    fill_value : float = 0.
+
+    def __init__(
+        self, c, r=None, fill_value=0,
+        mapper: Optional[Type[MappedParameter]] = None):
+        self.c = c
+        self.r = r
         self.fill_value = fill_value
-        self.domain = domain
+        super().__init__(mapper=mapper)
+
+    def _init(
+        self,
+        shape: Tuple[int],
+        key: Optional[jax.random.PRNGKey] = None,
+    ) -> Tensor:
+        return toeplitz(
+            c=self.c, r=self.r, fill_value=self.fill_value, shape=shape)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        c: Tensor,
+        r: Optional[Tensor] = None,
+        fill_value: float = 0.,
+        param_name: str = "weight",
+        key: Optional[jax.random.PRNGKey] = None,
+    ):
+        init = cls(mapper=mapper, c=c, r=r, fill_value=fill_value)
+        return super()._init_impl(
+            init=init, model=model, param_name=param_name, key=key,
+        )
+
+
+class ToeplitzInit(BaseInitialiser):
+    def __init__(self):
+        raise NotImplementedError()
+
+def toeplitz_init_(tensor, c, r=None, fill_value=0, domain=None):
+    raise NotImplementedError()

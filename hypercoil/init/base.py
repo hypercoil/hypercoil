@@ -163,7 +163,8 @@ class MappedInitialiser(Initialiser):
         self.mapper = mapper
 
     @abstractmethod
-    def _init(self, shape, key):
+    def _init(self, shape: Tuple[int, ...],
+              key: jax.random.PRNGKey) -> Tensor:
         raise NotImplementedError
 
     @staticmethod

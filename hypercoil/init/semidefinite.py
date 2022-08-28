@@ -126,7 +126,7 @@ class TangencyInitialiser(MappedInitialiser):
         *,
         shape: Optional[Tuple[int, ...]] = None,
         key: jax.random.PRNGKey
-    ):
+    ) -> Tensor:
         return tangency_init(
             init_data=self.init_data,
             mean_specs=self.mean_specs,
@@ -144,7 +144,7 @@ class TangencyInitialiser(MappedInitialiser):
         mean_specs: Sequence[Callable],
         std: float = 0.,
         param_name: str = "weight",
-        key: jax.random.PRNGKey = None,
+        key: Optional[jax.random.PRNGKey] = None,
         **params,
     ) -> PyTree:
         init = cls(

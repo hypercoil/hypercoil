@@ -19,6 +19,7 @@ from hypercoil.init.semidefinite import (
     TangencyInitialiser,
     SPDEuclideanMean, SPDGeometricMean, SPDHarmonicMean, SPDLogEuclideanMean
 )
+from hypercoil.init.toeplitz import ToeplitzInitialiser
 
 
 class TestBaseInit:
@@ -105,3 +106,16 @@ class TestBaseInit:
 
         L = np.linalg.eigvalsh(model.weight)
         assert (L > 0).all()
+
+    def test_toeplitz_init(self):
+        key = jax.random.PRNGKey(0)
+        model = eqx.nn.Linear(key=key, in_features=3, out_features=5)
+        r = np.random.rand(3,)
+        c = np.random.rand(3,)
+        fill_value = 1.
+        model = ToeplitzInitialiser.init(
+            model, r=r, c=c, fill_value=fill_value, key=key)
+        assert model.weight[2, 0] == model.weight[3, 1] == model.weight[4, 2]
+        assert (
+            model.weight[3, 0] == model.weight[4, 1] ==
+            model.weight[4, 0] == fill_value)
