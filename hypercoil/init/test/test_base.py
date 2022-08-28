@@ -15,6 +15,10 @@ from hypercoil.init.deltaplus import DeltaPlusInitialiser
 from hypercoil.init.dirichlet import DirichletInitialiser
 from hypercoil.init.laplace import LaplaceInitialiser
 from hypercoil.init.mapparam import MappedLogits, _to_jax_array
+from hypercoil.init.semidefinite import (
+    TangencyInitialiser,
+    SPDEuclideanMean, SPDGeometricMean, SPDHarmonicMean, SPDLogEuclideanMean
+)
 
 
 class TestBaseInit:
@@ -83,3 +87,21 @@ class TestBaseInit:
             model.weight[2, 2] ==
             model.weight[3, 1]
         )
+
+    def test_tangency_init(self):
+        key = jax.random.PRNGKey(0)
+        model = eqx.nn.Conv2d(
+            key=key, in_channels=1, out_channels=4, kernel_size=10)
+        init_data = np.random.rand(5, 1, 10, 10)
+        init_data = init_data @ init_data.swapaxes(-2, -1)
+        init_spec = [
+            SPDEuclideanMean(),
+            SPDHarmonicMean(),
+            SPDLogEuclideanMean(psi=1e-3),
+            SPDGeometricMean(psi=1e-3),
+        ]
+        model = TangencyInitialiser.init(
+            model, init_data=init_data, mean_specs=init_spec, key=key)
+
+        L = np.linalg.eigvalsh(model.weight)
+        assert (L > 0).all()

@@ -2,19 +2,30 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Initialise and compute means and mean blocks in the positive semidefinite cone.
+Initialise and compute means and mean blocks in the positive semidefinite
+cone.
 """
-import torch
-from torch.nn import Module
-from functools import partial
-from .base import DomainInitialiser
-from ..functional import (
-    mean_euc_spd, mean_harm_spd, mean_logeuc_spd, mean_geom_spd,
+import jax
+import jax.numpy as jnp
+import distrax
+import equinox as eqx
+from typing import Callable, Optional, Sequence, Tuple, Type, Union
+from .base import MappedInitialiser
+from .mapparam import MappedParameter
+from ..engine.noise import (
+    Symmetric, MatrixExponential
 )
-from ..engine.noise import SPSDNoiseSource
+from ..functional import (
+    mean_euc_spd, mean_harm_spd,
+    mean_logeuc_spd, mean_geom_spd,
+)
+from ..functional.utils import PyTree, Tensor
 
 
-def mean_block_spd(mean_specs, data):
+def mean_block_spd(
+    mean_specs: list[Callable],
+    data: Tensor
+) -> Tensor:
     """
     Apply each mean from a list of specifications to all matrices in a block.
 
@@ -38,13 +49,16 @@ def mean_block_spd(mean_specs, data):
     data : Tensor
         Input dataset over which each mean is to be estimated.
     """
-    return torch.stack([spec(data) for spec in mean_specs]).squeeze(0)
+    return jnp.stack([spec(data) for spec in mean_specs])
 
 
-def mean_apply_block(mean_specs, data):
+def mean_apply_block(
+    mean_specs: list[Callable],
+    data: Tensor
+) -> Tensor:
     """
-    Apply each mean from a list of specifications to a different slice or block
-    of a dataset.
+    Apply each mean from a list of specifications to a different slice or
+    block of a dataset.
 
     Dimension
     ---------
@@ -66,81 +80,88 @@ def mean_apply_block(mean_specs, data):
     data : Tensor
         Input dataset over which each mean is to be estimated.
     """
-    return torch.stack([spec(d) for spec, d in zip(mean_specs, data)])
+    return jnp.stack([spec(d) for spec, d in zip(mean_specs, data)])
 
 
-def tangency_init_(tensor, mean_specs, init_data, std=0):
-    """
-    Initialise points of tangency for projection between the positive
-    semidefinite cone and a tangent subspace.
-
-    Dimension
-    ---------
-    - tensor : :math:`(K, *, D, D)`
-        K denotes the number of mean specs provided, D denotes the size of eac
-        square positive semidefinite matrix, and `*` denotes any number of
-        intervening dimensions.
-    - init_data : :math:`(N, *, D, D)`
-        N denotes the number of observations over which each mean is computed.
-        If the axis attribute of the mean specifications are configured
-        appropriately, N need not correspond to the first axis of the input
-        dataset.
-
-    Parameters
-    ----------
-    tensor : Tensor
-        Tangency point tensor to initialise to the specified means.
-    mean_specs : list(``_SemidefiniteMean`` objects)
-        List of specifications for estimating a measure of central tendency in
-        the positive semidefinite cone. ``_SemidefiniteMean`` subclasses are
-        found at
-        :doc:`hypercoil.init.semidefinite <hypercoil.init.semidefinite.SemidefiniteMean>`.
-    init_data : Tensor
-        Input dataset over which each mean is to be estimated.
-    std : float
-        Standard deviation of the positive semidefinite noise added to each
-        channel of the weight matrix. This can be used to ensure that different
-        channels initialised from the same mean receive different gradients
-        and differentiate from one another.
-
-    Returns
-    -------
-        None. The tensor is initialised in-place.
-    """
+def tangency_init(
+    init_data: Tensor,
+    *,
+    mean_specs: list[Callable],
+    std: float = 0.,
+    key: Optional[jax.random.PRNGKey] = None
+) -> Tensor:
     means = mean_block_spd(mean_specs, init_data)
     if std > 0:
-        means = SPSDNoiseSource(std=std).inject(means)
-    with torch.no_grad():
-        tensor.copy_(means)
+        src = MatrixExponential(
+            Symmetric(
+                src_distribution=distrax.Normal(0, 0.01),
+                multiplicity=init_data.shape[-1]
+            )
+        )
+        noise = src.sample(sample_shape=means.shape[:-2], seed=key)
+        factor = std / noise.std()
+        means = means + factor * noise
+    return means
 
 
-class TangencyInit(DomainInitialiser):
-    """
-    Initialise points of tangency for projection between the positive
-    semidefinite cone and a tangent subspace.
+class TangencyInitialiser(MappedInitialiser):
+    init_data : Tensor
+    mean_specs : Sequence[Callable]
+    std : float
 
-    See :func:`tangency_init_` for argument details.
-    """
-    def __init__(self, mean_specs, init_data, std=0, domain=None):
-        if domain is not None:
-            print('Warning: domain specified. If the domain mapping does not '
-                  'preserve positive semidefiniteness, then the module will '
-                  'likely fail on the forward pass.')
-        init = partial(tangency_init_, mean_specs=mean_specs,
-                       init_data=init_data, std=std)
-        super(TangencyInit, self).__init__(init=init, domain=domain)
+    def __init__(
+        self,
+        init_data: Tensor,
+        mean_specs: Sequence[Callable],
+        std: float = 0.,
+        mapper: Optional[Type[MappedParameter]] = None
+    ):
+        self.init_data = init_data
+        self.mean_specs = mean_specs
+        self.std = std
+        super().__init__(mapper)
+
+    def _init(
+        self,
+        *,
+        shape: Optional[Tuple[int, ...]] = None,
+        key: jax.random.PRNGKey
+    ):
+        return tangency_init(
+            init_data=self.init_data,
+            mean_specs=self.mean_specs,
+            std=self.std,
+            key=key
+        )
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        init_data: Tensor,
+        mean_specs: Sequence[Callable],
+        std: float = 0.,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey = None,
+        **params,
+    ) -> PyTree:
+        init = cls(
+            mapper=mapper,
+            init_data=init_data,
+            mean_specs=mean_specs,
+            std=std
+        )
+        return super()._init_impl(
+            init=init, model=model, param_name=param_name, key=key, **params)
 
 
-class _SemidefiniteMean(Module):
+class _SemidefiniteMean(eqx.Module):
     """
     Base class for modules that compute semidefinite means.
     """
-    def __init__(self, axis=0):
-        super(_SemidefiniteMean, self).__init__()
-        self.axis = axis
-
-    def extra_repr(self):
-        return f'axis={self.axis}'
+    axis: Union[int, Sequence[int]] = (0,)
 
 
 class SPDEuclideanMean(_SemidefiniteMean):
@@ -165,7 +186,7 @@ class SPDEuclideanMean(_SemidefiniteMean):
     axis : int (default 0)
         Axis corresponding to observations over which the mean is computed.
     """
-    def forward(self, input):
+    def __call__(self, input):
         return mean_euc_spd(input, axis=self.axis)
 
 
@@ -192,16 +213,17 @@ class SPDHarmonicMean(_SemidefiniteMean):
     axis : int (default 0)
         Axis corresponding to observations over which the mean is computed.
     """
-    def forward(self, input):
+    def __call__(self, input):
         return mean_harm_spd(input, axis=self.axis)
 
 
 class SPDLogEuclideanMean(_SemidefiniteMean):
     r"""
-    Batch-wise log-Euclidean mean of tensors in the positive semidefinite cone.
+    Batch-wise log-Euclidean mean of tensors in the positive semidefinite
+    cone.
 
-    The log-Euclidean mean is computed as the matrix exponential of the mean of
-    matrix logarithms.
+    The log-Euclidean mean is computed as the matrix exponential of the mean
+    of matrix logarithms.
 
     :math:`\exp_M \left(\frac{1}{N}\sum_{i=1}^N \log_M X_{i}\right)`
 
@@ -219,8 +241,11 @@ class SPDLogEuclideanMean(_SemidefiniteMean):
     axis : int (default 0)
         Axis corresponding to observations over which the mean is computed.
     """
-    def forward(self, input):
-        return mean_logeuc_spd(input, axis=self.axis)
+    psi: float = 0.
+
+    def __call__(self, input):
+        return mean_logeuc_spd(input, axis=self.axis, psi=self.psi,
+                               recondition='convexcombination')
 
 
 class SPDGeometricMean(_SemidefiniteMean):
@@ -237,8 +262,8 @@ class SPDGeometricMean(_SemidefiniteMean):
        tensors are projected into a tangent space.
      - The arithmetic mean of the tensors is computed in tangent space.
      - This mean is projected back into the positive semidefinite cone using
-       the same point of tangency. It now becomes a new working estimate of the
-       mean and thus a new point of tangency.
+       the same point of tangency. It now becomes a new working estimate of
+       the mean and thus a new point of tangency.
     Termination / convergence :
      - The algorithm terminates either when the Frobenius norm of the
        difference between the new estimate and the previous estimate is less
@@ -273,24 +298,66 @@ class SPDGeometricMean(_SemidefiniteMean):
     max_iter : nonnegative int
         The maximum number of iterations of gradient descent to run before
         termination.
-    axis : int
-        Axis or axes over which the mean is computed.
     """
-    def __init__(self, axis=0, psi=0, eps=1e-6, max_iter=10):
-        super(SPDGeometricMean, self).__init__(axis=axis)
-        self.psi = psi
-        self.eps = eps
-        self.max_iter = max_iter
+    psi: float = 0.
+    eps: float = 1e-5
+    max_iter: int = 10
 
-    def forward(self, input):
+    def __call__(self, input):
         return mean_geom_spd(
-            input, axis=self.axis, recondition=self.psi,
-            eps=self.eps, max_iter=self.max_iter
+            input, axis=self.axis, psi=self.psi,
+            eps=self.eps, max_iter=self.max_iter,
+            recondition='convexcombination'
         )
 
-    def extra_repr(self):
-        s = super(SPDGeometricMean, self).extra_repr()
-        if self.psi > 0:
-            s += f', psi={self.psi}'
-        s += f', max_iter={self.max_iter}'
-        return s
+
+class TangencyInit:
+    """
+    Initialise points of tangency for projection between the positive
+    semidefinite cone and a tangent subspace.
+
+    See :func:`tangency_init_` for argument details.
+    """
+    def __init__(self):
+        raise NotImplementedError
+
+def tangency_init_():
+    """
+    Initialise points of tangency for projection between the positive
+    semidefinite cone and a tangent subspace.
+
+    Dimension
+    ---------
+    - tensor : :math:`(K, *, D, D)`
+        K denotes the number of mean specs provided, D denotes the size of
+        each square positive semidefinite matrix, and `*` denotes any number
+        of intervening dimensions.
+    - init_data : :math:`(N, *, D, D)`
+        N denotes the number of observations over which each mean is computed.
+        If the axis attribute of the mean specifications are configured
+        appropriately, N need not correspond to the first axis of the input
+        dataset.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        Tangency point tensor to initialise to the specified means.
+    mean_specs : list(``_SemidefiniteMean`` objects)
+        List of specifications for estimating a measure of central tendency in
+        the positive semidefinite cone. ``_SemidefiniteMean`` subclasses are
+        found at
+        :doc:`hypercoil.init.semidefinite <hypercoil.init.semidefinite.SemidefiniteMean>`.
+    init_data : Tensor
+        Input dataset over which each mean is to be estimated.
+    std : float
+        Standard deviation of the positive semidefinite noise added to each
+        channel of the weight matrix. This can be used to ensure that
+        different channels initialised from the same mean receive different
+        gradients and differentiate from one another.
+
+    Returns
+    -------
+        None. The tensor is initialised in-place.
+    """
+    raise NotImplementedError(
+        'Deprecated in-place version of `tangency_init`')

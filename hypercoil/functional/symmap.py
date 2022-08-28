@@ -118,7 +118,7 @@ def symmap(
         if psi > 1:
             raise ValueError('Nonconvex combination. Select psi in [0, 1].')
         if recondition == 'convexcombination':
-            input = (1 - psi) * input + psi * jnp.eye(input.size(-1))
+            input = (1 - psi) * input + psi * jnp.eye(input.shape[-1])
         elif recondition == 'eigenspaces':
             input = recondition_eigenspaces(input, psi=psi, xi=psi, key=key)
     if not spd:
