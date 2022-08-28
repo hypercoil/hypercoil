@@ -32,20 +32,96 @@ from ..init.mapparam import _to_jax_array
 #      https://github.com/deepmind/distrax/issues/193
 
 
+def document_stochastic_transforms(func):
+    base_warning = """
+    .. warning::
+        When training models with stochastic features, you must apply the
+        :func:`refresh` function to the parent model to ensure that each
+        transform has a fresh random number generator key. Otherwise, any
+        stochastic transforms will produce the same stale samples across
+        epochs."""
+    base_param_spec = """
+    inference : bool, optional (default: ``False``)
+        Indicates that the transform (or its parent model) is in inference
+        mode. If False, the transform will inject noise into any inputs it
+        receives in its ``__call__`` method.
+    key : jax.random.PRNGKey
+        The random number generator key to use when sampling from the noise
+        distribution. To refresh stale keys so that they produce new noise,
+        you must use the :func:`refresh` function on the transform or its
+        parent model.
+    refresh_code : Any, optional (default: ``0``)
+        The code to use when filtering stochastic sources. The default code is
+        0. In nearly all cases, it is not necessary to change the default
+        value."""
+    axial_param_spec = """
+    sample_axes : Tuple[int, ...] (default: None)
+        By default, a sample is drawn from the distribution independently for
+        each element of the input. If ``sample_axes`` is a value other than
+        None, then a sample is drawn from the distribution only along the
+        specified axes; this sample is then broadcast across the remaining
+        axes of the input."""
+    iid_scalar_param_spec = """
+    distribution : ``distrax.Distribution``
+        The distribution to sample from. The ``event_shape`` of this
+        distribution should correspond to a scalar."""
+    iid_tensor_param_spec = """
+    distribution : ``distrax.Distribution``
+        The distribution to sample from. The ``event_shape`` of this
+        distribution should match the shape of the input along a set of axes,
+        which must be specified in the ``event_axes`` argument.
+    event_axes : Tuple[int, ...]
+        Specifies the axes of the input tensor that correspond to the event
+        shape of the distribution. Note that event axes are automatically
+        excluded from the sample axes."""
+    multiplicative_mean_correction = """
+    If the mean of the distribution is known, the transform rescales the
+    samples so that the mean of the output is the same as the mean of the
+    input in expectation. If the mean of the distribution is not known, then
+    the empirical mean of the sample is used instead. This is expected to help
+    with consistency between training and inference."""
+    func.__doc__ = func.__doc__.format(
+        base_param_spec=base_param_spec,
+        base_warning=base_warning,
+        axial_param_spec=axial_param_spec,
+        iid_scalar_param_spec=iid_scalar_param_spec,
+        iid_tensor_param_spec=iid_tensor_param_spec,
+        multiplicative_mean_correction=multiplicative_mean_correction
+    )
+    return func
+
+
 class StochasticSource(eqx.Module):
     """
     A wrapper for a pseudo-random number generator key.
+
+    In general, this is not exposed to the user. It is embedded in other
+    modules, such as ``StochasticTransform`` and its subclasses.
+
+    If your training loop includes stochastic sources, you should use
+    the :func:`refresh`` function to generate a new key for each epoch (or
+    as needed). Each ``StochasticSource`` instance also has a ``code`` field
+    that can be used to selectively refresh only a subset of the sources.
+    In most cases, it is not necessary to change the default value of
+    ``code``.
     """
 
     key: jax.random.PRNGKey
     code: Any = 0
 
     def refresh(self):
+        """
+        If you are calling this method, you are probably doing something
+        wrong. You should probably use the :func:`refresh` function instead.
+        """
         key = jax.random.split(self.key, 1)[0]
         return StochasticSource(key=key)
 
 
 def _refresh_srcs(src: Any, code: Any = 0) -> Any:
+    """
+    Filter function for a PyTree that refreshes selected stochastic sources.
+    """
     if _is_stochastic_source(src) and src.code == code:
         out = src.refresh()
     else:
@@ -58,7 +134,27 @@ def _is_stochastic_source(src: Any) -> bool:
 
 
 def refresh(model: PyTree, code: Any = 0) -> PyTree:
-    # We have to set the distributions as leaves. I'm not sure why this is.
+    """
+    Refresh all stochastic sources in a model.
+
+    This ensures that each stochastic source has a new random number generator
+    key and any stochastic transforms that depend on it will produce fresh
+    samples.
+
+    Parameters
+    ----------
+    model : PyTree
+        The model to refresh.
+    code : Any, optional
+        The code to use when filtering stochastic sources. The default code
+        is 0. In nearly all cases, it is not necessary to change the default
+        value.
+
+    Returns
+    -------
+    PyTree
+        The model with all stochastic sources refreshed.
+    """
     stochastic_srcs = eqx.filter(
         model,
         filter_spec=_is_stochastic_source,
@@ -72,7 +168,31 @@ def refresh(model: PyTree, code: Any = 0) -> PyTree:
     return eqx.apply_updates(model, stochastic_srcs)
 
 
+@document_stochastic_transforms
 class StochasticTransform(eqx.Module):
+    """
+    Base class for stochastic transforms.
+
+    Each stochastic transform must implement the following methods:
+
+    - ``sample``: Sample from the noise distribution. Required keyword
+                  parameters: ``key``, ``shape``.
+    - ``inject``: Inject noise into a tensor. Required positional parameter:
+                  ``input``. Required keyword parameters: ``key``.
+
+    A stochastic transform on its own can be used as a layer for noise
+    injection, regularisation or dropout (multiplicative noise). Its
+    ``__call__`` (forward) method will sample from the noise distribution and
+    inject it into the input depending on the value of the transform's
+    ``inference`` attribute.
+
+    Alternatively, it can be used to wrap a parameter of a model using the
+    :class:``StochasticParameter`` API.
+
+    Parameters
+    ----------\
+    {base_param_spec}
+    """
 
     inference: bool = False
     source: StochasticSource
@@ -118,6 +238,32 @@ class StochasticTransform(eqx.Module):
 
 
 class StochasticParameter(eqx.Module):
+    """
+    A wrapper for a parameter that introduces stochasticity.
+
+    .. note::
+        Do not instantiate this class directly. Use the :method:`wrap` class
+        method instead. This will return the model with the specified
+        parameter wrapped in a :class:`StochasticTransform`.
+
+    .. warning::
+        When training models with stochastic parameters, you must apply the
+        :func:`refresh` function to the parent model to ensure that each
+        parameter has a fresh random number generator key. Otherwise, any
+        stochastic transforms will produce the same stale samples across
+        epochs.
+
+    Parameters
+    ----------
+    model : PyTree
+        The model to wrap.
+    parameter : str
+        The name of the parameter to wrap.
+    transform : ``StochasticTransform``
+        The transform to use for introducing stochasticity to the parameter.
+        Inference mode and the kind of stochasticity are configured at the
+        level of the transform.
+    """
 
     original: Tensor
     param_name: str = "weight"
@@ -161,16 +307,39 @@ class StochasticParameter(eqx.Module):
 
 
 class AdditiveNoiseMixin:
+    """
+    Mixin for configuring a ``StochasticTransform`` to add noise to the input.
+
+    This implements the ``inject`` method for injecting noise additively.
+    Any subclasses are still responsible for implementing the ``sample``
+    method.
+    """
     def inject(self, input: Tensor, *, key: jax.random.PRNGKey) -> Tensor:
         return input + self.sample(shape=input.shape, key=key)
 
 
 class MultiplicativeNoiseMixin:
+    """
+    Mixin for configuring a ``StochasticTransform`` to multiply the input
+    with noise (i.e., apply dropout).
+
+    This implements the ``inject`` method for injecting noise
+    multiplicatively. Any subclasses are still responsible for implementing
+    the ``sample`` method.
+    """
     def inject(self, input: Tensor, *, key: jax.random.PRNGKey) -> Tensor:
         return input * self.sample(shape=input.shape, key=key)
 
 
 class ConvexCombinationNoiseMixin:
+    """
+    Mixin for configuring a ``StochasticTransform`` to combine the input with
+    noise as a convex combination.
+
+    This implements the ``inject`` method for injecting noise as a convex
+    combination. Any subclasses are still responsible for implementing the
+    ``sample`` method.
+    """
     def inject(self, input: Tensor, *, key: jax.random.PRNGKey) -> Tensor:
         return (
             (1 - self.c) * input +
@@ -182,6 +351,11 @@ class AxialSelectiveTransform(StochasticTransform):
     """
     Noise source for which it is possible to specify the tensor axes along
     which there is randomness.
+
+    This implements the ``sample`` method as a wrapper for sampling from the
+    noise distribution. Any subclasses are still responsible for implementing
+    the ``inject`` method. Additionally, subclasses are responsible for
+    implementing the ``sample_impl`` method, which is wrapped by ``sample``.
     """
 
     sample_axes : Tuple[int, ...] = None
@@ -244,7 +418,21 @@ class AxialSelectiveTransform(StochasticTransform):
         return shape
 
 
+@document_stochastic_transforms
 class ScalarIIDStochasticTransform(AxialSelectiveTransform):
+    """
+    Noise source where each sample is scalar-valued, independently drawn from
+    an identical distribution.
+    \
+    {base_warning}
+
+    Parameters
+    ----------\
+    {iid_scalar_param_spec}\
+    {axial_param_spec}\
+    {base_param_spec}
+    """
+
     distribution : Distribution = eqx.static_field()
 
     def __init__(
@@ -273,7 +461,21 @@ class ScalarIIDStochasticTransform(AxialSelectiveTransform):
         return self.distribution.sample(seed=key, sample_shape=shape)
 
 
+@document_stochastic_transforms
 class TensorIIDStochasticTransform(AxialSelectiveTransform):
+    """
+    Noise source where each sample is multivariate, independently drawn from
+    an identical distribution.
+    \
+    {base_warning}
+
+    Parameters
+    ----------\
+    {iid_tensor_param_spec}\
+    {axial_param_spec}\
+    {base_param_spec}
+    """
+
     distribution : Distribution = eqx.static_field()
     event_axes : Tuple[int, ...]
 
@@ -312,24 +514,63 @@ class TensorIIDStochasticTransform(AxialSelectiveTransform):
         )
 
 
+@document_stochastic_transforms
 class ScalarIIDAddStochasticTransform(
     AdditiveNoiseMixin,
     ScalarIIDStochasticTransform,
 ):
-    pass
+    """
+    Additive noise source where each sample is scalar-valued, independently
+    drawn from an identical distribution.
+    \
+    {base_warning}
+
+    Parameters
+    ----------\
+    {iid_scalar_param_spec}\
+    {axial_param_spec}\
+    {base_param_spec}
+    """
 
 
+@document_stochastic_transforms
 class TensorIIDAddStochasticTransform(
     AdditiveNoiseMixin,
     TensorIIDStochasticTransform,
 ):
-    pass
+    """
+    Additive noise source where each sample is multivariate, independently
+    drawn from an identical distribution.
+    \
+    {base_warning}
+
+    Parameters
+    ----------\
+    {iid_tensor_param_spec}\
+    {axial_param_spec}\
+    {base_param_spec}
+    """
 
 
+@document_stochastic_transforms
 class ScalarIIDMulStochasticTransform(
     MultiplicativeNoiseMixin,
     ScalarIIDStochasticTransform,
 ):
+    """
+    Multiplicative noise source (i.e., dropout) where each sample is scalar-
+    valued, independently drawn from an identical distribution.
+    \
+    {multiplicative_mean_correction}
+    \
+    {base_warning}
+
+    Parameters
+    ----------\
+    {iid_scalar_param_spec}\
+    {axial_param_spec}\
+    {base_param_spec}
+    """
     def sample_impl(
         self,
         *,
@@ -346,10 +587,25 @@ class ScalarIIDMulStochasticTransform(
         return mean_correction * sample
 
 
+@document_stochastic_transforms
 class TensorIIDMulStochasticTransform(
     MultiplicativeNoiseMixin,
     TensorIIDStochasticTransform,
 ):
+    """
+    Multiplicative noise source (i.e., dropout) where each sample is
+    multivariate, independently drawn from an identical distribution.
+    \
+    {multiplicative_mean_correction}
+    \
+    {base_warning}
+
+    Parameters
+    ----------\
+    {iid_scalar_param_spec}\
+    {axial_param_spec}\
+    {base_param_spec}
+    """
     def sample_impl(
         self,
         *,
@@ -368,6 +624,47 @@ class TensorIIDMulStochasticTransform(
 
 
 class OuterProduct(distrax.Distribution):
+    r"""
+    Outer-product transformed distribution.
+
+    This distribution ingests samples from a source distribution and
+    computes their outer product to produce a square, symmetric, and
+    positive semidefinite sample.
+
+    The dimensions of the sample from the source distribution are equal to
+    :math:`(E \cdot M) \times R`, where E is the event shape for the source
+    distribution (1 for a univariate distribution), M is a user-specified
+    multiplicity factor, and R is the specified matrix rank. The rank-R outer
+    product of this sample with itself is then computed to produce the output.
+
+    .. note::
+        To obtain an outer-product distribution whose entries have
+        approximately some approximate expected standard deviation, use a
+        normal distribution for  the source after calling the static method
+        ``rescale_std_for_normal`` to compute the standard deviation for
+        the source distribution.
+
+        For the transformed entries to have a standard deviation near
+        :math:`\sigma`, each entry in the source sample is distributed as
+
+        :math:`\mathcal{N}\left(0, \frac{\sigma}{\sqrt{r + \frac{r^2}{d}}}\right)`
+
+        Note that the variance and mean for this transformation in fact
+        belong to separate distributions for the on-diagonal and off-siagonal
+        entries. On-diagonal entries are formed as quadratic sums and will
+        have greater variance and mean.
+
+    Parameters
+    ----------
+    src_distribution: Distribution
+        The source distribution to sample from.
+    rank: int (default 1)
+        Matrix rank. If this is equal to the product of the multiplicity and
+        the source distribution's event shape, then the result will be a
+        positive definite matrix. Otherwise, it will be positive semidefinite.
+    multiplicity: int (default 1)
+        The multiplicity factor for source distribution samples.
+    """
     def __init__(
         self,
         src_distribution: Distribution,
@@ -443,6 +740,22 @@ class OuterProduct(distrax.Distribution):
 
 
 class Diagonal(distrax.Distribution):
+    """
+    Square diagonal transformed distribution.
+
+    This distribution ingests samples from a source distribution and embeds
+    them along the diagonal of its outputs. ``multiplicity`` samples are drawn
+    from the source distribution, each with shape ``event_shape`` (1 for
+    univariate/scalar distributions). The dimension of each output event is
+    thereby the product of ``multiplicity`` and ``event_shape``.
+
+    Parameters
+    ----------
+    src_distribution: Distribution
+        The source distribution to sample from.
+    multiplicity: int (default 1)
+        The multiplicity factor for source distribution samples.
+    """
     def __init__(
         self,
         src_distribution: Distribution,
@@ -481,6 +794,22 @@ class Diagonal(distrax.Distribution):
 
 
 class MatrixExponential(distrax.Distribution):
+    """
+    Matrix exponential transformed distribution.
+
+    This distribution ingests square matrix samples from a source distribution
+    and then projects them into the positive semidefinite cone by way of the
+    matrix exponential.
+
+    Parameters
+    ----------
+    src_distribution: Distribution
+        The source distribution to sample from.
+    rescale_var: bool (default: True)
+        Indicates that the entry-wise variance of the transformed samples
+        should be rescaled empirically to match the entry-wise variance of the
+        source samples.
+    """
     def __init__(
         self,
         src_distribution: Distribution,
@@ -517,262 +846,70 @@ class MatrixExponential(distrax.Distribution):
         return (self.matrix_dim, self.matrix_dim)
 
 
-class _IIDSource():
-    """
-    Superclass for i.i.d. noise and dropout sources. Implements methods that
-    toggle between test and train mode.
-
-    There's nothing about this implementation level that requires the i.i.d.
-    assumption.
-    """
+class _IIDSource:
     def __init__():
         raise NotImplementedError()
 
-class _IIDNoiseSource():
-    """
-    Superclass for i.i.d. noise sources. Implements a method for injecting
-    sampled noise additively into an existing tensor.
-
-    Subclasses are responsible for implementing the correct `sample` method
-    that accepts a dimension argument.
-
-    See also
-    --------
-    _IIDSquareNoiseSource : Noise source with a square matrix assumption.
-    _IIDDropoutSource : For multiplicative sample injection.
-    """
+class _IIDNoiseSource:
     def __init__():
         raise NotImplementedError()
 
-class _IIDSquareNoiseSource():
-    """
-    Superclass for i.i.d. noise sources. Implements a method for injecting
-    sampled noise additively into an existing tensor.
-
-    Subclasses are responsible for implementing the correct `sample` method
-    that accepts a dimension argument. For use when there is a square matrix
-    input assumption in the `inject` method.
-
-    See also
-    --------
-    _IIDNoiseSource : Does not assume samples are square matrices.
-    _IIDSquareDropoutSource : For multiplicative sample injection.
-    """
+class _IIDSquareNoiseSource:
     def __init__():
         raise NotImplementedError()
 
-class _IIDDropoutSource():
-    """
-    Superclass for i.i.d. noise sources. Implements a method for injecting
-    sampled noise multiplicatively into an existing tensor.
-
-    Subclasses are responsible for implementing the correct `sample` method
-    that accepts a dimension argument.
-
-    See also
-    --------
-    _IIDSquareDropoutSource : Dropout source with a square matrix assumption.
-    _IIDNoiseSource : For additive sample injection.
-    """
+class _IIDDropoutSource:
     def __init__():
         raise NotImplementedError()
 
-class _IIDSquareDropoutSource():
-    """
-    Superclass for i.i.d. noise sources. Implements a method for injecting
-    sampled noise multiplicatively into an existing tensor.
-
-    Subclasses are responsible for implementing the correct `sample` method
-    that accepts a dimension argument. Currently there is a square matrix
-    input assumption in the `inject` method that future work might revise.
-
-    See also
-    --------
-    _IIDDropoutSource : Does not assume samples are square matrices.
-    _IIDSquareNoiseSource : For additive sample injection.
-    """
+class _IIDSquareDropoutSource:
     def __init__():
         raise NotImplementedError()
 
-class _AxialSampler():
-    """
-    Noise source for which it is possible to specify the tensor axes along
-    which there is randomness.
-    """
+class _AxialSampler:
     def __init__():
         raise NotImplementedError()
 
-class UnstructuredNoiseSource():
-    """
-    Additive noise source with no special structure, in which each element is
-    sampled i.i.d.
-
-    Parameters
-    ----------
-    distr : torch.distributions object
-        Distribution from which each element is sampled independently. If not
-        specified, this defaults to the standard normal distribution.
-    training : bool
-        Indicates whether the source should operate under the assumption of
-        training or inference; at test time, a noise-free sample is returned.
-    sample_axes : list or None (default None)
-        Axes along which sampling is performed. Along all other axes, the same
-        samples are broadcast. If this is None, then sampling occurs along all
-        axes.
-    """
+class UnstructuredNoiseSource:
     def __init__():
         raise NotImplementedError()
 
-class DiagonalNoiseSource():
-    """
-    Diagonal noise source.
-
-    Parameters
-    ----------
-    distr : torch.distributions object
-        Distribution from which each element is sampled independently. If not
-        specified, this defaults to the standard normal distribution.
-    offset : int (default 0)
-        Diagonal along which the noise is to be embedded. The default value of
-        0 corresponds to the main diagonal of the matrix; positive values
-        indicate upper diagonals and negative values indicate lower diagonals.
-    training : bool
-        Indicates whether the source should operate under the assumption of
-        training or inference; at test time, a noise-free sample is returned.
-    """
+class DiagonalNoiseSource:
     def __init__():
         raise NotImplementedError()
 
-class LowRankNoiseSource():
-    """
-    Low-rank symmetric positive semidefinite noise source. Note that diagonal
-    entries are effectively sampled from a very different distribution than
-    off-diagonal entries. Be careful using this source; examine outputs for the
-    dimension that you will be using before using it, as it exhibits some
-    potentially very undesirable properties, particularly when the rank becomes
-    larger.
-
-    Parameters
-    ----------
-    var : torch.distributions object
-        Average variance across entries of the output matrix.
-    rank : int or None (default None)
-        Maximum rank of each sampled matrix; inner dimension of the positive
-        semidefinite product. If this is less than the sampled dimension, the
-        sampled matrices will be singular; if it is greater or equal, they will
-        likely be positive definite. Regardless of the value of this parameter,
-        the output rank cannot be greater than the matrix dimension.
-    training : bool
-        Indicates whether the source should operate under the assumption of
-        training or inference; at test time, a noise-free sample is returned.
-    """
+class LowRankNoiseSource:
     def __init__():
         raise NotImplementedError()
 
-class SPSDNoiseSource():
-    """
-    Symmetric positive semidefinite noise source.
-
-    Uses the matrix exponential to project a symmetric noise matrix into the
-    positive semidefinite cone. The symmetric matrix is diagonalised, its
-    eigenvalues are exponentiated thereby ensuring each is positive, and it
-    is recomposed. Note that due to numerical errors some extremely small
-    negative eigenvalues can occur in the sampled matrix.
-
-    Parameters
-    ----------
-    distr : torch.distributions object
-        Distribution from which each element is sampled independently. If not
-        specified, this defaults to the standard normal distribution.
-    training : bool
-        Indicates whether the source should operate under the assumption of
-        training or inference; at test time, a noise-free sample is returned.
-    """
+class SPSDNoiseSource:
     def __init__():
         raise NotImplementedError()
 
-class UnstructuredDropoutSource():
-    """
-    Multiplicative noise source with no special structure, in which each
-    element is sampled i.i.d.
-
-    Parameters
-    ----------
-    distr : torch.distributions object
-        Distribution from which each element is sampled independently. If not
-        specified, this defaults to the standard normal distribution.
-    training : bool
-        Indicates whether the source should operate under the assumption of
-        training or inference; at test time, a noise-free sample is returned.
-    sample_axes : list or None (default None)
-        Axes along which sampling is performed. Along all other axes, the same
-        samples are broadcast. If this is None, then sampling occurs along all
-        axes.
-    """
+class UnstructuredDropoutSource:
     def __init__():
         raise NotImplementedError()
 
-class DiagonalDropoutSource():
-    """
-    Diagonal dropout source.
-
-    Parameters
-    ----------
-    distr : torch.distributions object
-        Distribution from which each element is sampled independently. If not
-        specified, this defaults to an equiprobable Bernoulli distribution.
-    offset : int (default 0)
-        Diagonal along which the mask is to be embedded. The default value of
-        0 corresponds to the main diagonal of the matrix; positive values
-        indicate upper diagonals and negative values indicate lower diagonals.
-    training : bool
-        Indicates whether the source should operate under the assumption of
-        training or inference; at test time, a noise-free sample is returned.
-    """
+class DiagonalDropoutSource:
     def __init__():
         raise NotImplementedError()
 
-class BandDropoutSource():
+class BandDropoutSource:
     def __init__():
         raise NotImplementedError()
 
-class SPSDDropoutSource():
-    """
-    Symmetric positive semidefinite dropout source. Note that diagonal entries
-    are effectively sampled from a very different distribution than
-    off-diagonal entries. Be careful using this source; examine outputs for the
-    dimension that you will be using before using it, as it exhibits some
-    potentially very undesirable properties. This will be revisited in the
-    future to determine if a better source can be provided.
-
-    Parameters
-    ----------
-    distr : torch.distributions object
-        Distribution from which each element is sampled independently. If not
-        specified, this defaults to an equiprobable Bernoulli distribution. For
-        a Bernoulli distribution, then its parameter corresponds to the
-        approximate probability of dropout across columns in each symmetric
-        positive semidefinite masking matrix sampled from the source.
-    rank : int or None (default None)
-        Maximum rank of each masking matrix; inner dimension of the positive
-        semidefinite product. Only a rank of 1 will intuitively correspond to
-        standard dropout; any other rank might not yield a strictly on/off
-        masking matrix.
-    training : bool
-        Indicates whether the source should operate under the assumption of
-        training or inference; at test time, a noise-free sample is returned.
-    """
+class SPSDDropoutSource:
     def __init__():
         raise NotImplementedError()
 
-class IdentitySource(_IIDSource):
+class IdentitySource:
     def __init__():
         raise NotImplementedError()
 
-class IdentityNoiseSource(IdentitySource):
+class IdentityNoiseSource:
     def __init__():
         raise NotImplementedError()
 
-class IdentityDropoutSource(IdentitySource):
+class IdentityDropoutSource:
     def __init__():
         raise NotImplementedError()
