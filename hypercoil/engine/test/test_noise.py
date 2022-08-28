@@ -15,6 +15,7 @@ from hypercoil.engine.noise import (
     ScalarIIDMulStochasticTransform,
     TensorIIDAddStochasticTransform,
     TensorIIDMulStochasticTransform,
+    EigenspaceReconditionTransform,
     OuterProduct, Diagonal, MatrixExponential,
 )
 
@@ -116,6 +117,32 @@ class TestNoise:
         data = np.ones((100, 5, 100))
         out = src(data)
         assert np.isclose(out.mean(), 1)
+
+    def test_eigenspace_recondition(self):
+        key = jax.random.PRNGKey(9832)
+        psi = 0.01
+        src = EigenspaceReconditionTransform(
+            psi=psi,
+            matrix_dim=10,
+            key=key,
+        )
+        data = np.random.randn(100, 10, 2)
+        # Inputs clearly singular and degenerate
+        data = data @ data.swapaxes(-1, -2)
+        out = src(data)
+        L_in = jnp.linalg.eigvalsh(data)
+        L = jnp.linalg.eigvalsh(out)
+
+        # Test nonsingularity
+        assert (L > 0).all()
+        assert not (L_in > 0).all()
+
+        # And nondegeneracy
+        diffs = jnp.abs(L[:, None, :] - L[..., None])
+        diffs = (diffs + np.eye(10)).min()
+        diffs_in = jnp.abs(L_in[:, None, :] - L_in[..., None])
+        diffs_in = (diffs_in + np.eye(10)).min()
+        assert diffs > (1e3 * diffs_in)
 
     def test_lowrank_distr(self):
         key = jax.random.PRNGKey(9832)

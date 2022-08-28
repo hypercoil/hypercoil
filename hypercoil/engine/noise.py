@@ -623,6 +623,77 @@ class TensorIIDMulStochasticTransform(
         )
 
 
+@document_stochastic_transforms
+class EigenspaceReconditionTransform(
+    TensorIIDAddStochasticTransform
+):
+    """
+    Stochastic transform for reconditioning eigenspaces such there is neither
+    degeneracy nor singularity.
+
+    Differentiating through various numerical operations in linear algebra,
+    such as the singular value decomposition (SVD), often suffers from
+    numerical instability when the eigenvalues are close to degenerate
+    because the vector-Jacobian product includes terms that depend on the
+    reciprocal of the difference between eigenvalues. To mitigate this
+    instability while yielding a decomposition that is still approximately
+    correct, this transform stochastically introduces noise along the
+    diagonal of the input matrix. Each input matrix A is transformed
+    following:
+
+    :math:`A := A + \\left(\\psi - \\frac{{\\xi}}{{2}}\\right) I + I\\mathbf{{x}}`
+
+    :math:`x_i \\sim \\mathrm{{Uniform}}(0, \\xi) \\forall x_i`
+
+    :math:`\\psi > \\xi`
+    \
+    {base_warning}
+
+    Parameters
+    ----------
+    psi: float
+        Reconditioning parameter to promote nonsingularity.
+    xi: float
+        Reconditioning parameter to promote nondegeneracy.
+    matrix_dim: int
+        Dimension of the square matrices to be reconditioned.
+    event_axes : Tuple[int, ...] (default: (-2, -1))
+        Specifies the axes of the input tensor that correspond to the event
+        shape of the distribution (i.e., the slices along which matrices to be
+        reconditioned lie). Note that event axes are automatically excluded
+        from the sample axes.\
+    {axial_param_spec}\
+    {base_param_spec}
+    """
+    def __init__(
+        self,
+        *,
+        psi: float,
+        xi: float = None,
+        matrix_dim: int,
+        event_axes: Optional[Tuple[int, ...]] = (-2, -1),
+        sample_axes: Optional[Tuple[int, ...]] = None,
+        inference: bool = False,
+        key: jax.random.PRNGKey,
+        refresh_code: Any = 0
+    ):
+        if xi is None:
+            xi = psi
+        src_distribution = distrax.Uniform(low=(psi - xi), high=psi)
+        distribution = Diagonal(
+            src_distribution=src_distribution,
+            multiplicity=matrix_dim,
+        )
+        super().__init__(
+            distribution=distribution,
+            event_axes=event_axes,
+            sample_axes=sample_axes,
+            inference=inference,
+            key=key,
+            refresh_code=refresh_code,
+        )
+
+
 class OuterProduct(distrax.Distribution):
     r"""
     Outer-product transformed distribution.
@@ -846,6 +917,7 @@ class MatrixExponential(distrax.Distribution):
         return (self.matrix_dim, self.matrix_dim)
 
 
+# test import compatibility
 class _IIDSource:
     def __init__():
         raise NotImplementedError()
