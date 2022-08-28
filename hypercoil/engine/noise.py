@@ -749,14 +749,14 @@ class OuterProduct(distrax.Distribution):
             jnp.asarray(self.src_distribution.event_shape, dtype=int))
         super().__init__()
 
-    def _sample_n(self, key, n):
+    def _sample_n(self, key: jax.random.PRNGKey, n: int) -> Tensor:
         samples = self.src_distribution.sample(
             seed=key, sample_shape=(n, self.rank, self.multiplicity))
         samples = samples.reshape((n, self.rank, -1))
         samples = samples.swapaxes(-1, -2) @ samples
         return samples
 
-    def log_prob(self, value):
+    def log_prob(self, value: Tensor) -> Tensor:
         # There's not a systematic way to work this out, and it's nontrivial
         # to figure out even for a simple distribution, e.g.
         # https://math.stackexchange.com/questions/101062/ ...
@@ -838,14 +838,14 @@ class Diagonal(distrax.Distribution):
             jnp.asarray(self.src_distribution.event_shape, dtype=int))
         super().__init__()
 
-    def _sample_n(self, key, n):
+    def _sample_n(self, key: jax.random.PRNGKey, n: int) -> Tensor:
         samples = self.src_distribution.sample(
             seed=key, sample_shape=(n, self.multiplicity))
         samples = samples.reshape((n, -1))
         samples = jax.vmap(jnp.diagflat, in_axes=(0,))(samples)
         return samples
 
-    def log_prob(self, value):
+    def log_prob(self, value: Tensor) -> Tensor:
         # We set the log probability to 0 for any value that is not on the
         # diagonal, because it is zero with expectation 1.
         mask = jnp.eye(self.matrix_dim, dtype=jnp.bool_)[None, ...]
@@ -864,6 +864,63 @@ class Diagonal(distrax.Distribution):
         ) * jnp.eye(self.matrix_dim)
 
 
+class Symmetric(distrax.Distribution):
+    def __init__(
+        self,
+        src_distribution: Distribution,
+        multiplicity: int = 1,
+    ):
+        self.src_distribution = src_distribution
+        self.multiplicity = multiplicity
+        self.matrix_dim = self.multiplicity * jnp.prod(
+            jnp.asarray(self.src_distribution.event_shape, dtype=int))
+        self._determine_shape()
+        super().__init__()
+
+    def _determine_shape(self):
+        src_event_shape = self.src_distribution.event_shape
+        if len(src_event_shape) > 2:
+            raise ValueError('Invalid source distribution was provided: '
+                             'event_shape must be a scalar or a 1- or 2-D '
+                             'tensor.')
+        elif len(src_event_shape) == 0:
+            self.matrix_dim = self.multiplicity
+            self.row_multiplicity = self.col_multiplicity = self.multiplicity
+        elif len(src_event_shape) == 1:
+            self.matrix_dim = self.multiplicity * src_event_shape[0]
+            self.row_multiplicity = self.multiplicity
+            self.col_multiplicity = self.multiplicity * src_event_shape[0]
+        else:
+            self.matrix_dim = self.multiplicity * src_event_shape[-1]
+            self.row_multiplicity = self.multiplicity
+            self.col_multiplicity = self.matrix_dim // src_event_shape[0]
+
+    def _sample_n(self, key: jax.random.PRNGKey, n: int) -> Tensor:
+        src_event_shape = self.src_distribution.event_shape
+        samples = self.src_distribution.sample(
+            seed=key, sample_shape=(
+                n, self.row_multiplicity, self.col_multiplicity)
+        )
+        if len(src_event_shape) == 2:
+            samples = samples.swapaxes(-3, -2)
+        samples = samples.reshape(n, self.matrix_dim, -1)
+        return samples + samples.swapaxes(-2, -1)
+
+    def log_prob(self, value: Tensor) -> Tensor:
+        # In the general continuous case we need to do a convolution, but we
+        # might not have access to the PDFs, and there's no guarantee that the
+        # source distribution is continuous anyway, so we're leaving this as
+        # NaN
+        return float('nan') * value
+
+    @property
+    def event_shape(self):
+        return (self.matrix_dim, self.matrix_dim)
+
+    def mean(self):
+        return 2 * self.src_distribution.mean()
+
+
 class MatrixExponential(distrax.Distribution):
     """
     Matrix exponential transformed distribution.
@@ -871,6 +928,12 @@ class MatrixExponential(distrax.Distribution):
     This distribution ingests square matrix samples from a source distribution
     and then projects them into the positive semidefinite cone by way of the
     matrix exponential.
+
+    .. warning::
+        This transformation can substantially scale up the values sampled from
+        the input distribution. Overflow is possible if rescaling the variance
+        automatically. If you wish to do this, it is recommended to keep the
+        input distribution small.
 
     Parameters
     ----------
@@ -890,7 +953,7 @@ class MatrixExponential(distrax.Distribution):
         self.rescale_var = rescale_var
         super().__init__()
 
-    def _sample_n(self, key, n):
+    def _sample_n(self, key: jax.random.PRNGKey, n: int) -> Tensor:
         samples = self.src_distribution.sample(
             seed=key, sample_shape=(n,))
         if self.rescale_var:
@@ -901,11 +964,13 @@ class MatrixExponential(distrax.Distribution):
             samples = samples / jnp.sqrt(var_transformed / var_orig)
         return samples
 
-    def log_prob(self, value):
+    def log_prob(self, value: Tensor) -> Tensor:
         samples = symlog(value)
         return self.src_distribution.log_prob(samples)
 
-    def _sample_n_and_log_prob(self, key, n):
+    def _sample_n_and_log_prob(
+        self, key: jax.random.PRNGKey, n: int
+    ) -> Tensor:
         samples = self.src_distribution.sample(
             seed=key, sample_shape=(n,))
         log_prob = self.src_distribution.log_prob(samples)
