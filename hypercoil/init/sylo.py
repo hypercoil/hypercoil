@@ -4,23 +4,198 @@
 """
 Initialisations for sylo-based neural networks.
 """
-import torch
 import math
-from torch.nn.init import calculate_gain
+from operator import neg
+import jax
+import distrax
+from typing import Literal, Optional, Tuple, Type, Union
+from .base import MappedInitialiser
+from .mapparam import MappedParameter
+from ..functional.utils import PyTree, Tensor
 
 
-#TODO: This needs a lot of review/revision with a proper derivation. Right now
-# I think we're attributing to symmetry lots of consequences of PSD.
+def calculate_gain(
+    nonlinearity: str,
+    negative_slope: Optional[float] = None
+) -> float:
+    """
+    Port from PyTorch.
+
+    See ``torch.nn.init.calculate_gain``.
+    """
+    nonlinearity = nonlinearity.lower()
+    gain_map = {
+        'linear': 1.,
+        'conv1d': 1.,
+        'conv2d': 1.,
+        'conv3d': 1.,
+        'conv_transpose1d': 1.,
+        'conv_transpose2d': 1.,
+        'conv_transpose3d': 1.,
+        'tanh': 5.0 / 3,
+        'selu': 3.0 / 4,
+        'leaky_relu': (2.0 / (1 + negative_slope ** 2))
+    }
+    gain = gain_map.get(nonlinearity, None)
+    if gain is None:
+        raise ValueError(f'Unsupported nonlinearity {nonlinearity}')
+    return gain
 
 
-def sylo_init_(tensors, a=0, mode='fan_in', init='uniform',
-               nonlinearity='leaky_relu', symmetry=False):
+#TODO: mark this as experimental.
+#TODO: This needs a lot of review/revision with a proper derivation.
+def sylo_init(
+    *,
+    shape: Tuple[int, ...],
+    shape_R: Optional[Tuple[int, ...]] = None,
+    negative_slope: float = 0,
+    mode: Literal['fan_in', 'fan_out'] = 'fan_in',
+    init_distr: Literal['uniform', 'normal'] = 'uniform',
+    nonlinearity: str = 'leaky_relu',
+    psd: bool = False,
+    key: jax.random.PRNGKey,
+) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+
+    if shape_R is None: shape_R = shape
+    gain = calculate_gain(
+        nonlinearity=nonlinearity,
+        negative_slope=negative_slope
+    )
+    fan_crosshair = _calculate_correct_fan_crosshair(
+        shape=shape, shape_R=shape_R, mode=mode)
+    fan_expansion = _calculate_fan_in_expansion(
+        shape=shape,
+        psd=psd
+    )
+
+    # TODO: Does gain go inside or outside of the outer sqrt?
+    # Right now it's outside since we'd rather the std explode than vanish...
+    std = gain / math.sqrt(math.sqrt(fan_crosshair * fan_expansion))
+    if init_distr == 'normal':
+        distr = distrax.Normal(loc=0, scale=std)
+    elif init_distr == 'uniform':
+        bound = math.sqrt(3.) * std
+        distr = distrax.Uniform(low=-bound, high=bound)
+
+    if psd:
+        return distr.sample(seed=key, sample_shape=shape)
+    else:
+        key_L, key_R = jax.random.split(key)
+        return (
+            distr.sample(seed=key_L, sample_shape=shape),
+            distr.sample(seed=key_R, sample_shape=shape_R)
+        )
+
+
+def _calculate_correct_fan_crosshair(
+    shape: Tuple[int, ...],
+    shape_R: Tuple[int, ...],
+    mode: Literal['fan_in', 'fan_out'],
+) -> int:
+    mode = mode.lower()
+    fan_in, fan_out = _calculate_fan_in_and_fan_out_crosshair(shape, shape_R)
+    return fan_in if mode == 'fan_in' else fan_out
+
+
+def _calculate_fan_in_and_fan_out_crosshair(
+    shape: Tuple[int, ...],
+    shape_R: Tuple[int, ...]
+) -> Tuple[int, int]:
+    num_output_fmaps, num_input_fmaps = shape[:2]
+    receptive_field_size = shape[-2] + shape_R[-2] - 1
+    fan_in = num_input_fmaps * receptive_field_size
+    fan_out = num_output_fmaps * receptive_field_size
+    return fan_in, fan_out
+
+
+def _calculate_fan_in_expansion(shape: Tuple[int, ...], psd: bool) -> float:
+    rank = shape[-1]
+    # It could also have a value like ``skew`` or ``cross`` if we decide
+    # to pass some symmetry specification -- thus this weird-looking
+    # expression
+    if psd is True:
+        matrix_dim = shape[-2]
+        return rank + (rank ** 2) / matrix_dim
+    return rank
+
+
+class SyloInitialiser(MappedInitialiser):
+    negative_slope: float = 0
+    mode: Literal['fan_in', 'fan_out'] = 'fan_in'
+    init: Literal['uniform', 'normal'] = 'uniform'
+    nonlinearity: str = 'leaky_relu'
+    psd: bool = False
+
+    def __init__(
+        self,
+        negative_slope:float = 0,
+        mode: Literal['fan_in', 'fan_out'] = 'fan_in',
+        init_distr: Literal['uniform', 'normal'] = 'uniform',
+        nonlinearity: str = 'leaky_relu',
+        psd: bool = False,
+        mapper: Optional[Type[MappedParameter]] = None,
+    ):
+        self.negative_slope = negative_slope
+        self.mode = mode
+        self.init_distr = init_distr
+        self.nonlinearity = nonlinearity
+        self.psd = psd
+        super().__init__(mapper=mapper)
+
+    def _init(
+        self,
+        shape=Tuple[int, ...],
+        key=jax.random.PRNGKey
+    ):
+        return sylo_init(
+            shape=shape,
+            #shape_R=shape_R,
+            negative_slope=self.negative_slope,
+            mode=self.mode,
+            init_distr=self.init_distr,
+            nonlinearity=self.nonlinearity,
+            psd=self.psd,
+            key=key,
+        )
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        negative_slope:float = 0,
+        mode: Literal['fan_in', 'fan_out'] = 'fan_in',
+        init_distr: Literal['uniform', 'normal'] = 'uniform',
+        nonlinearity: str = 'leaky_relu',
+        psd: bool = False,
+        param_name: str = "{weight_L,weight_R}",
+        key: jax.random.PRNGKey,
+        **params,
+    ):
+        init = cls(
+            mapper=mapper,
+            negative_slope=negative_slope,
+            mode=mode,
+            init_distr=init_distr,
+            nonlinearity=nonlinearity,
+            psd=psd,
+        )
+        return super()._init_impl(
+            init=init, model=model, param_name=param_name, key=key, **params,
+        )
+
+
+def sylo_init_(*pparams, **params):
     """Kaiming-like initialisation for sylo module.
 
     Notes
     -----
+    * Revisiting these notes some years later, I think this needs to be
+      revisited before this functionality is migrated out of the experimental.
     * The overall fan is the square root of the product of
-      (1) the fan from raw weights (H x r, W x r) to expanded template (H x W),
+      (1) the fan from raw weights (H x r, W x r) to expanded template
+          (H x W),
       (2) the fan from expanded template to the output feature map.
     * Fan (1) is the rank r of the raw weights. If the operation is symmetric
       (the left and right weights are identical), we need to add an additional
@@ -37,67 +212,5 @@ def sylo_init_(tensors, a=0, mode='fan_in', init='uniform',
     * I believe that we need to take a double square root because the template
       is a product of the raw weights.
     """
-    gain = calculate_gain(nonlinearity, a)
-    fan_crosshair = _calculate_correct_fan_crosshair(tensors, mode)
-    fan_expansion = _calculate_fan_in_expansion(tensors, symmetry)
-    # TODO: Does gain go inside or outside of the outer sqrt?
-    # Right now it's outside since we'd rather the std explode than vanish...
-    std = gain / math.sqrt(math.sqrt(fan_crosshair * fan_expansion))
-    if init == 'normal':
-        for tensor in tensors:
-            with torch.no_grad():
-                tensor.normal_(0, std)
-        return
-
-    # Calculate uniform bounds from standard deviation
-    bound = math.sqrt(3.0) * std
-    for tensor in tensors:
-        with torch.no_grad():
-            tensor.uniform_(-bound, bound)
-
-
-def _calculate_correct_fan_crosshair(tensors, mode):
-    mode = mode.lower()
-    valid_modes = ['fan_in', 'fan_out']
-    if mode not in valid_modes:
-        raise ValueError('Mode {} not supported, please use one of '
-                         '{}'.format(mode, valid_modes))
-    fan_in, fan_out = _calculate_fan_in_and_fan_out_crosshair(tensors)
-    return fan_in if mode == 'fan_in' else fan_out
-
-
-def _calculate_fan_in_and_fan_out_crosshair(tensors):
-    num_input_fmaps = tensors[0].size(1)
-    num_output_fmaps = tensors[0].size(0)
-    receptive_field_size = tensors[0].size(-2) + tensors[1].size(-2) - 1
-    fan_in = num_input_fmaps * receptive_field_size
-    fan_out = num_output_fmaps * receptive_field_size
-    return fan_in, fan_out
-
-
-def _calculate_fan_in_expansion(tensors, symmetry=False):
-    L, R = tensors
-    rank = tensors[0].size(-1)
-    if symmetry is True:
-        dim = tensors[0].size(-2)
-        return rank + (rank ** 2) / dim
-    else:
-        return rank
-
-
-def sparse_kaiming_uniform_(tensor, mask=None, a=0, mode='fan_in',
-                            nonlinearity='leaky_relu'):
-    """Kaiming uniform initialisation for a linear weight that has many terms
-    fixed at zero.
-    """
-    if mask is None:
-        mask = tensor
-    fan = {}
-    pathways = (mask != 0)
-    fan['fan_in'] = pathways.sum(1).float().mean()
-    fan['fan_out'] = pathways.sum(0).float().mean()
-    gain = calculate_gain(nonlinearity, a)
-    std = gain / math.sqrt(fan[mode])
-    bound = math.sqrt(3.0) * std  # Calculate uniform bounds from standard deviation
-    with torch.no_grad():
-        tensor.uniform_(-bound, bound)
+    raise NotImplementedError(
+        'In-place initialisation is deprecated. Use ``sylo_init``.')
