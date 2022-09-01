@@ -5,9 +5,11 @@
 Unit tests for base initialisers
 """
 import jax
+import jax.numpy as jnp
 import equinox as eqx
 import numpy as np
 from distrax import Normal
+from hypercoil.functional.utils import Tensor
 from hypercoil.init.base import (
     DistributionInitialiser, ConstantInitialiser, IdentityInitialiser
 )
@@ -19,6 +21,7 @@ from hypercoil.init.semidefinite import (
     TangencyInitialiser,
     SPDEuclideanMean, SPDGeometricMean, SPDHarmonicMean, SPDLogEuclideanMean
 )
+from hypercoil.init.sylo import SyloInitialiser
 from hypercoil.init.toeplitz import ToeplitzInitialiser
 
 
@@ -91,9 +94,10 @@ class TestBaseInit:
 
     def test_tangency_init(self):
         key = jax.random.PRNGKey(0)
+        pkey, dkey = jax.random.split(key)
         model = eqx.nn.Conv2d(
             key=key, in_channels=1, out_channels=4, kernel_size=10)
-        init_data = np.random.rand(5, 1, 10, 10)
+        init_data = jax.random.uniform(dkey, shape=(5, 1, 10, 10))
         init_data = init_data @ init_data.swapaxes(-2, -1)
         init_spec = [
             SPDEuclideanMean(),
@@ -102,10 +106,48 @@ class TestBaseInit:
             SPDGeometricMean(psi=1e-3),
         ]
         model = TangencyInitialiser.init(
-            model, init_data=init_data, mean_specs=init_spec, key=key)
+            model, init_data=init_data, mean_specs=init_spec, key=pkey)
 
         L = np.linalg.eigvalsh(model.weight)
         assert (L > 0).all()
+
+    def test_sylo_init(self):
+        #TODO: replace this with an actual sylo module after it's
+        #      translated to jax
+        #TODO: add tests for a deep network: verify that the distribution of
+        #      activations remains reasonably bounded under these
+        #      initialisation schemes
+        class SyloModule(eqx.Module):
+            weight: dict[Tensor]
+            def __init__(self, key, in_channels, out_channels,
+                         dim_L, dim_R, rank):
+                self.weight = (
+                    jnp.zeros((out_channels, in_channels, dim_L, rank)),
+                    jnp.zeros((out_channels, in_channels, dim_R, rank)),
+                )
+        class SyloModulePSD(eqx.Module):
+            weight: dict[Tensor]
+            def __init__(self, key, in_channels, out_channels, dim, rank):
+                self.weight = jnp.zeros(
+                    (out_channels, in_channels, dim, rank))
+
+        key = jax.random.PRNGKey(0)
+        model = SyloModule(key=jax.random.PRNGKey(0), in_channels=2,
+                           out_channels=3, dim_L=5, dim_R=10, rank=3)
+        model = SyloInitialiser.init(model, key=key)
+        assert isinstance(model.weight, tuple)
+        assert len(model.weight) == 2
+        assert model.weight[0].shape == (3, 2, 5, 3)
+        assert model.weight[1].shape == (3, 2, 10, 3)
+        assert np.all(model.weight[0] != 0)
+        assert np.all(model.weight[1] != 0)
+
+        model = SyloModulePSD(key=jax.random.PRNGKey(0), in_channels=2,
+                                out_channels=3, dim=10, rank=3)
+        model = SyloInitialiser.init(model, key=key, psd=True)
+        assert isinstance(model.weight, jnp.DeviceArray)
+        assert model.weight.shape == (3, 2, 10, 3)
+        assert np.all(model.weight != 0)
 
     def test_toeplitz_init(self):
         key = jax.random.PRNGKey(0)

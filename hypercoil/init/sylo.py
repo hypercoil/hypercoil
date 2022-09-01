@@ -5,8 +5,8 @@
 Initialisations for sylo-based neural networks.
 """
 import math
-from operator import neg
 import jax
+import jax.numpy as jnp
 import distrax
 from typing import Literal, Optional, Tuple, Type, Union
 from .base import MappedInitialiser
@@ -122,7 +122,7 @@ def _calculate_fan_in_expansion(shape: Tuple[int, ...], psd: bool) -> float:
 class SyloInitialiser(MappedInitialiser):
     negative_slope: float = 0
     mode: Literal['fan_in', 'fan_out'] = 'fan_in'
-    init: Literal['uniform', 'normal'] = 'uniform'
+    init_distr: Literal['uniform', 'normal'] = 'uniform'
     nonlinearity: str = 'leaky_relu'
     psd: bool = False
 
@@ -142,14 +142,40 @@ class SyloInitialiser(MappedInitialiser):
         self.psd = psd
         super().__init__(mapper=mapper)
 
+    def __call__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ):
+        param = model.__getattribute__(param_name)
+        if (not isinstance(param, jnp.DeviceArray) and
+            not hasattr(param, '__jax_array__')):
+            shape = (param[0].shape, param[1].shape)
+        else:
+            shape = param.shape
+        return self._init(
+            shape=shape,
+            key=key,
+            **params,
+        )
+
     def _init(
         self,
-        shape=Tuple[int, ...],
+        shape=Union[Tuple[int, ...], Tuple[Tuple[int, ...], Tuple[int, ...]]],
         key=jax.random.PRNGKey
     ):
+        print(shape)
+        if isinstance(shape[0], tuple):
+            shape, shape_R = shape
+        else:
+            shape_R = None
+        print(shape, shape_R)
         return sylo_init(
             shape=shape,
-            #shape_R=shape_R,
+            shape_R=shape_R,
             negative_slope=self.negative_slope,
             mode=self.mode,
             init_distr=self.init_distr,
@@ -169,7 +195,7 @@ class SyloInitialiser(MappedInitialiser):
         init_distr: Literal['uniform', 'normal'] = 'uniform',
         nonlinearity: str = 'leaky_relu',
         psd: bool = False,
-        param_name: str = "{weight_L,weight_R}",
+        param_name: str = "weight",
         key: jax.random.PRNGKey,
         **params,
     ):
