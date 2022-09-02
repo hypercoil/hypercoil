@@ -5,13 +5,679 @@
 Tools for initialising parameters to emulate or replicate the transfer
 function of a filter in the frequency domain.
 """
-import torch
-import math
-from .domain import AmplitudeAtanh, Clip
-from ..functional.utils import complex_recompose
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+from dataclasses import field
+from functools import partial
+from typing import (
+    Callable, Dict, Literal, Optional, Sequence, Tuple, Type, Union)
+from .base import Initialiser, MappedInitialiser, retrieve_parameter
+from .mapparam import MappedParameter
+from ..functional.utils import PyTree, Tensor, complex_recompose
 
 
-class FreqFilterSpec(object):
+def document_frequency_spectrum(func):
+    iir_warning = """
+    .. danger::
+
+        Note that this provides **only an emulation** for IIR filters. Thus,
+        for instance, using the ``butterworth`` filter initialisation will not
+        in any sense initialise a Butterworth filter. It will return a
+        spectrum that approximately emulates the action of a Butterworth
+        filter in the frequency domain. In practice, the results are not even
+        close to a true IIR filter. For a true differentiable IIR filter, use
+        the
+        :doc:`IIRFilter <hypercoil.init.iirfilter>`
+        class instead (when it's operational)."""
+    base_param_spec = """
+    N : int or tuple of int
+        Filter order. If this is a tuple, then a separate filter will be
+        created for each entry in the tuple. Wn must be shaped to match or of
+        length 1.
+    Wn : float or tuple(float, float) or tuple thereof
+        Critical or cutoff frequency. If this is a band-pass filter, then this
+        should be a tuple, with the first entry specifying the high-pass
+        cutoff and the second entry specifying the low-pass frequency. This
+        should be specified relative to the Nyquist frequency if `fs` is not
+        provided, and should be in the same units as `fs` if it is provided.
+        To create multiple filters, specify a tuple (of floats or tuples)
+        containing the critical frequencies for each filter in a single entry.
+        N must be shaped to match or of length 1.
+    worN : int
+        Number of frequency bins to include in the computed spectrum.
+    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+        Filter type to emulate: low-pass, high-pass, or band-pass. The
+        interpretation of the critical frequency changes depending on the
+        filter type.
+    fs : float or None (default None)
+        Sampling frequency.
+    """
+    rp_param_spec = """
+    rp : float
+        Pass-band ripple parameter."""
+    rs_param_spec = """
+    rs : float
+        Stop-band ripple parameter."""
+    norm_param_spec = """
+    norm : ``'phase'``, ``'delay'``, or ``'amplitude'``
+        Critical frequency normalisation. Consult the ``scipy.signal.bessel``
+        documentation for details."""
+    randn_param_spec = """
+    ampl_loc : float
+        Mean of the normal distribution used to initialise the amplitudes.
+    ampl_scale : float
+        Standard deviation of the normal distribution used to initialise the
+        amplitudes.
+    phase_loc : float
+        Mean of the normal distribution used to initialise the phases.
+    phase_scale : float
+        Standard deviation of the normal distribution used to initialise the
+        phases.
+    """
+    func.__doc__ = func.__doc__.format(
+        iir_warning=iir_warning,
+        base_param_spec=base_param_spec,
+        rp_param_spec=rp_param_spec,
+        rs_param_spec=rs_param_spec,
+        norm_param_spec=norm_param_spec,
+        randn_param_spec=randn_param_spec
+    )
+    return func
+
+
+def filter_spectrum(
+    filter: Callable,
+    N: Sequence[int],
+    Wn: Sequence[Union[float, Tuple[float, float]]],
+    worN: int,
+    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    fs: Optional[float] = None,
+    filter_params: Optional[dict] = None,
+    spectrum_params: Optional[dict] = None
+) -> Tensor:
+    """
+    Transfer function for an IIR filter, obtained via import from scipy.
+    \
+    {iir_warning}
+
+    Parameters
+    ----------
+    filter : callable
+        `scipy.signal` filter function corresponding to the filter to be
+        estimated, for instance `butter` for a Butterworth filter.\
+    {base_param_spec}
+    filter_params : dict
+        Additional parameters to pass to the `filter` callable other than
+        those passed directly to this function (for instance, pass- and
+        stop-band ripples).
+    spectrum_params : dict
+        Additional parameters to pass to the `freqz` function that computes
+        the frequency response spectrum other than those passed directly to
+        this function.
+
+    Returns
+    -------
+    out : Tensor
+        The specified filter's transfer function.
+    """
+    from scipy.signal import freqz
+    N = jnp.array(N).astype(int)
+    Wn = jnp.array(Wn).astype(float)
+    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+        Wn = Wn.reshape(1, 2)
+    vals = [
+        filter(N=n, Wn=wn, btype=btype, fs=fs, **filter_params)
+        for n, wn in zip(N, Wn)
+    ]
+    fs = fs or 2 * jnp.pi
+    vals = [
+        freqz(b, a, worN=worN, fs=fs, include_nyquist=True, **spectrum_params)
+        for b, a in vals
+    ]
+    return jnp.stack([v for _, v in vals])
+
+
+@document_frequency_spectrum
+def butterworth_spectrum(
+    *,
+    N: Sequence[int],
+    Wn: Sequence[Union[float, Tuple[float, float]]],
+    worN: int,
+    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    fs: Optional[float] = None,
+    **params
+) -> Tensor:
+    """
+    Butterworth filter's transfer function obtained via import from scipy.
+    \
+    {iir_warning}
+
+    Parameters
+    ----------\
+    {base_param_spec}
+
+    Returns
+    -------
+    out : Tensor
+        The specified Butterworth transfer function.
+    """
+    from scipy.signal import butter
+    filter_params, spectrum_params = {}, {}
+    return filter_spectrum(
+        filter=butter,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+@document_frequency_spectrum
+def chebyshev1_spectrum(
+    *,
+    N: Sequence[int],
+    Wn: Sequence[Union[float, Tuple[float, float]]],
+    worN: int,
+    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    fs: Optional[float] = None,
+    rp: float,
+    **params):
+    """
+    Chebyshev I filter's transfer function obtained via import from scipy.
+    \
+    {iir_warning}
+
+    Parameters
+    ----------\
+    {base_param_spec}\
+    {rp_param_spec}
+
+    Returns
+    -------
+    out : Tensor
+        The specified Chebyshev I transfer function.
+    """
+    from scipy.signal import cheby1
+    filter_params = {
+        'rp': rp
+    }
+    spectrum_params = {}
+    return filter_spectrum(
+        filter=cheby1,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+@document_frequency_spectrum
+def chebyshev2_spectrum(
+    *,
+    N: Sequence[int],
+    Wn: Sequence[Union[float, Tuple[float, float]]],
+    worN: int,
+    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    fs: Optional[float] = None,
+    rs: float,
+    **params
+) -> Tensor:
+    """
+    Chebyshev II filter's transfer function obtained via import from scipy.
+    \
+    {iir_warning}
+
+    Parameters
+    ----------\
+    {base_param_spec}\
+    {rs_param_spec}
+
+    Returns
+    -------
+    out : Tensor
+        The specified Chebyshev II transfer function.
+    """
+    from scipy.signal import cheby2
+    filter_params = {
+        'rs': rs
+    }
+    spectrum_params = {}
+    return filter_spectrum(
+        filter=cheby2,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+@document_frequency_spectrum
+def elliptic_spectrum(
+    *,
+    N: Sequence[int],
+    Wn: Sequence[Union[float, Tuple[float, float]]],
+    worN: int,
+    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    fs: Optional[float] = None,
+    rp: float,
+    rs: float,
+    **params
+) -> Tensor:
+    """
+    Elliptic filter's transfer function obtained via import from scipy.
+    \
+    {iir_warning}
+
+    Parameters
+    ----------\
+    {base_param_spec}\
+    {rp_param_spec}\
+    {rs_param_spec}
+
+    Returns
+    -------
+    out : Tensor
+        The specified elliptic transfer function.
+    """
+    from scipy.signal import ellip
+    filter_params = {
+        'rp': rp,
+        'rs': rs
+    }
+    spectrum_params = {}
+    return filter_spectrum(
+        filter=ellip,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+def bessel_spectrum(
+    *,
+    N: Sequence[int],
+    Wn: Sequence[Union[float, Tuple[float, float]]],
+    worN: int,
+    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    fs: Optional[float] = None,
+    norm: Literal['mag', 'phase', 'delay', 'amplitude'] = 'phase',
+    **params
+) -> Tensor:
+    """
+    Bessel-Thompson filter's transfer function obtained via import from scipy.
+    \
+    {iir_warning}
+
+    Parameters
+    ----------\
+    {base_param_spec}\
+    {norm_param_spec}
+
+    Returns
+    -------
+    out : Tensor
+        The specified elliptic transfer function.
+    """
+    from scipy.signal import bessel
+    if norm == 'amplitude': norm = 'mag'
+    filter_params = {
+        'norm': norm
+    }
+    spectrum_params = {}
+    return filter_spectrum(
+        filter=bessel,
+        N=N, Wn=Wn, worN=worN,
+        btype=btype, fs=fs,
+        filter_params=filter_params,
+        spectrum_params=spectrum_params)
+
+
+def ideal_spectrum(
+    *,
+    Wn: Sequence[Union[float, Tuple[float, float]]],
+    worN: int,
+    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    fs: Optional[float] = None,
+    **params
+) -> Tensor:
+    """
+    Ideal filter transfer function.
+
+    Note that the exact specified cutoff frequencies are permitted to pass.
+
+    Parameters
+    ----------\
+    {base_param_spec}
+
+    Returns
+    -------
+    out : Tensor
+        The specified ideal transfer function.
+    """
+    Wn = jnp.array(Wn)
+    if fs is not None:
+        Wn = 2 * Wn / fs
+    frequencies = jnp.linspace(0, 1, worN)
+    if btype == 'lowpass':
+        response = frequencies <= Wn[..., None]
+    elif btype == 'highpass':
+        response = frequencies >= Wn[..., None]
+    elif btype == 'bandpass':
+        response_hp = frequencies >= Wn[:, 0][..., None]
+        response_lp = frequencies <= Wn[:, 1][..., None]
+        response = response_hp * response_lp
+    elif btype == 'bandstop':
+        response_hp = frequencies <= Wn[:, 0][..., None]
+        response_lp = frequencies >= Wn[:, 1][..., None]
+        response = response_hp + response_lp
+    return response.astype(jnp.float32)
+
+
+def randn_spectrum(
+    *,
+    worN: int,
+    key: 'jax.random.PRNGKey',
+    n_filters: int = 1,
+    ampl_loc: float = 0.5,
+    ampl_scale: float = 0.2,
+    phase_loc: float = 0.,
+    phase_scale: float = 0.2,
+    **params,
+) -> Tensor:
+    """
+    Transfer function drawn randomly from a normal distribution.
+
+    Parameters
+    ----------
+    worN : int
+        Number of frequencies at which to evaluate the transfer function.
+    n_filters : int, optional
+        Number of filters to generate. Default: 1.\
+    {randn_param_spec}
+
+    Returns
+    -------
+    out : Tensor
+        The specified random transfer function.
+    """
+    ampl = jax.random.normal(
+        key=key, shape=(n_filters, worN)) * ampl_scale + ampl_loc
+    phase = jax.random.normal(
+        key=key, shape=(n_filters, worN)) * phase_scale + phase_loc
+    return complex_recompose(ampl, phase)
+
+
+class _FreqFilterSpecDefaults(eqx.Module):
+    """
+    Dataclass default fields for the ``FreqFilterSpec`` class.
+    """
+
+    Wn: Optional[Union[
+        Tuple[float, ...], Tuple[Tuple[float, float], ...]
+    ]] = None
+    N: Tuple[int] = (1,)
+    ftype: Literal[
+        'ideal', 'butter', 'cheby1', 'cheby2',
+        'ellip', 'bessel', 'randn'] = 'ideal'
+    btype: Literal['lowpass', 'highpass', 'bandpass', 'bandstop'] = 'lowpass'
+    fs: Optional[float] = None
+    rp: float = 0.1
+    rs: float = 0.1
+    norm: Literal['phase', 'amplitude', 'delay'] = 'phase'
+    ampl_loc: float = 0.5
+    ampl_scale: float = 0.1
+    phase_loc: float = 0.
+    phase_scale: float = 0.02
+    clamps: Optional[Sequence[Dict[float, float]]] = None
+    bound: float = 3.
+    lookup: Dict[str, Callable] = field(default_factory = lambda: {
+        'ideal': ideal_spectrum,
+        'butter': butterworth_spectrum,
+        'cheby1': chebyshev1_spectrum,
+        'cheby2': chebyshev2_spectrum,
+        'ellip': elliptic_spectrum,
+        'bessel': bessel_spectrum,
+        'randn': randn_spectrum,
+    })
+
+
+class FreqFilterSpec(_FreqFilterSpecDefaults):
+    n_filters: int
+
+    def __init__(
+        self,
+        *,
+        Wn: Optional[Union[
+            float, Tuple[float, float],
+            Tuple[float, ...], Tuple[Tuple[float, float], ...]
+        ]] = None,
+        N: Union[int, Tuple[int, ...]] = 1,
+        ftype: Literal[
+            'ideal', 'butter', 'cheby1', 'cheby2',
+            'ellip', 'bessel', 'randn'] = 'ideal',
+        btype: Literal[
+            'lowpass', 'highpass', 'bandpass', 'bandstop'] = 'bandpass',
+        fs: Optional[float] = None,
+        rp: float = 0.1,
+        rs: float = 0.1,
+        norm: Literal['phase', 'amplitude', 'delay'] = 'phase',
+        ampl_loc: float = 0.5,
+        ampl_scale: float = 0.1,
+        phase_loc: float = 0.,
+        phase_scale: float = 0.02,
+        clamps: Optional[Sequence[Dict[float, float]]] = None,
+        bound: float = 3.,
+    ):
+        if isinstance(N, int):
+            N = (N,)
+        if Wn is not None:
+            if btype == 'bandpass' or btype == 'bandstop':
+                if isinstance(Wn[0], float):
+                    Wn = (Wn,)
+            else:
+                if isinstance(Wn, float):
+                    Wn = (Wn,)
+            if len(N) == 1 and len(Wn) > 1:
+                N = N * len(Wn)
+            elif len(N) > 1 and len(Wn) == 1:
+                Wn = Wn * len(N)
+        if clamps is not None:
+            if isinstance(clamps, dict):
+                clamps = (clamps,)
+            if len(N) > 1 and len(clamps) == 1:
+                clamps = clamps * len(N)
+        self.n_filters = len(Wn)
+        super().__init__(
+            Wn=Wn, N=N, ftype=ftype, btype=btype, fs=fs, rp=rp, rs=rs,
+            norm=norm, ampl_loc=ampl_loc, ampl_scale=ampl_scale,
+            phase_loc=phase_loc, phase_scale=phase_scale, clamps=clamps,
+            bound=bound
+        )
+
+    def get_clamps(
+        self,
+        *,
+        worN: int,
+    ):
+        frequencies = jnp.linspace(0, 1, worN)
+        if self.clamps is None or len(self.clamps) == 0:
+            null = jnp.zeros((self.n_filters, worN), dtype=bool)
+            return null, null
+        clamp_data = [
+            self._clamp_filter(clamps, frequencies, worN)
+            for clamps in self.clamps
+        ]
+        points, values = zip(*clamp_data)
+        return (
+            jnp.concatenate(points, axis=0),
+            jnp.concatenate(values, axis=0)
+        )
+
+    def _clamp_filter(
+        self,
+        clamps: Dict[float, float],
+        frequencies: jnp.ndarray,
+        worN: int,
+    ):
+        fs = self.fs or 1.
+        clamp_points = jnp.array(list(clamps.keys())) / fs
+        clamp_values = jnp.array(list(clamps.values()))
+        dist = jnp.abs(clamp_points[:, None] - frequencies[None, :])
+        mask = jax.nn.one_hot(dist.argmin(-1), num_classes=worN)
+        clamp_points = mask.sum(0, keepdims=True).astype(bool)
+        try:
+            assert clamp_points.sum() == len(clamp_values)
+        except AssertionError as e:
+            e.args += ('Unable to separately resolve clamped frequencies',)
+            e.args += ('Increase either the spacing or the number of bins',)
+            raise
+        clamp_values = jnp.where(
+            mask, clamp_values[:, None], 0.).sum(0, keepdims=True)
+        return clamp_points, clamp_values
+
+    def initialise_spectrum(
+        self,
+        *,
+        worN: int,
+        key: 'jax.random.PRNGKey',
+    ) -> Tensor:
+        """
+        Initialise the spectrum of the filter.
+        """
+        return self.lookup[self.ftype](
+            key=key,
+            worN=worN,
+            **self.__dict__,
+        )
+
+
+def freqfilter_init(
+    *,
+    shape: Tuple[int, ...],
+    filter_specs: Sequence[FreqFilterSpec],
+    key: 'jax.random.PRNGKey',
+) -> Tensor:
+    worN = shape[-1]
+    spectra = [
+        fspec.initialise_spectrum(worN=worN, key=key)
+        for fspec in filter_specs
+    ]
+    spectra = jnp.concatenate(spectra, axis=-2)
+    shape = list(shape)
+    shape[-2] = spectra.shape[-2]
+    return jnp.broadcast_to(spectra, shape)
+
+
+def clamp_init(
+    *,
+    shape: Tuple[int, ...],
+    filter_specs: Sequence[FreqFilterSpec],
+    key: Optional['jax.random.PRNGKey'] = None,
+):
+    worN = shape[-1]
+    clamps = [
+        fspec.get_clamps(worN=worN) for fspec in filter_specs
+    ]
+    points, values = zip(*clamps)
+    return jnp.concatenate(points, axis=0), jnp.concatenate(values, axis=0)
+
+
+class FreqFilterInitialiser(MappedInitialiser):
+    filter_specs: Sequence[FreqFilterSpec]
+
+    def __init__(
+        self,
+        filter_specs: Sequence[FreqFilterSpec],
+        mapper: Optional[Type[MappedParameter]] = None,
+    ):
+        self.filter_specs = filter_specs
+        super().__init__(mapper=mapper)
+
+    def __call__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        clamp: bool = False,
+        **params,
+    ):
+        if clamp:
+            shape = retrieve_parameter(model, param_name=param_name)[0].shape
+            init_fn = clamp_init
+            key = None
+        else:
+            shape = retrieve_parameter(model, param_name=param_name).shape
+            init_fn = freqfilter_init
+        return self._init(
+            shape=shape, key=key, init_fn=init_fn, **params,
+        )
+
+    def _init(
+        self,
+        shape=Tuple[int, ...],
+        key='jax.random.PRNGKey',
+        init_fn: Callable[..., Tensor] = freqfilter_init,
+    ):
+        return init_fn(
+            shape=shape, filter_specs=self.filter_specs, key=key
+        )
+
+    @staticmethod
+    def _init_impl(
+        init: Initialiser,
+        model: PyTree,
+        param_name: str,
+        clamp_name: str,
+        key: Optional[jax.random.PRNGKey],
+        **params
+    ) -> PyTree:
+        model = eqx.tree_at(
+            partial(retrieve_parameter, param_name=param_name),
+            model,
+            replace=init(
+                model=model, param_name=param_name, key=key)
+        )
+        if clamp_name is not None:
+            model = eqx.tree_at(
+                partial(retrieve_parameter, param_name=clamp_name),
+                model,
+                replace=init(
+                    model=model, param_name=clamp_name, key=key, clamp=True)
+            )
+        if init.mapper is None:
+            return model
+        return init.mapper.map(model=model, param_name=param_name, **params)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        filter_specs: Sequence[FreqFilterSpec],
+        param_name: str = 'weight',
+        clamp_name: Optional[str] = None,
+        key: 'jax.random.PRNGKey',
+        **params,
+    ):
+        init = cls(
+            mapper=mapper,
+            filter_specs=filter_specs,
+        )
+        return cls._init_impl(
+            init=init, model=model,
+            param_name=param_name,
+            clamp_name=clamp_name,
+            key=key, **params,
+        )
+
+
+class _FreqFilterSpec(object):
+    def __init__(self, Wn=None, N=1, ftype='butter', btype='bandpass', fs=None,
+                 rp=0.1, rs=20, norm='phase', ampl_loc=0.5, ampl_scale=0.1,
+                 phase_loc=0, phase_scale=0.02, clamps=None, bound=3):
+        raise NotImplementedError()
+
+
     """
     Specification for an approximate frequency response curve for various
     filter classes.
@@ -101,152 +767,53 @@ class FreqFilterSpec(object):
     spectrum : Tensor
         Populated when the ``initialise_spectrum`` method is called.
     """
-    def __init__(self, Wn=None, N=1, ftype='butter', btype='bandpass', fs=None,
-                 rp=0.1, rs=20, norm='phase', ampl_loc=0.5, ampl_scale=0.1,
-                 phase_loc=0, phase_scale=0.02, clamps=None, bound=3):
-        if Wn is not None:
-            N = _ensure_tensor(N)
-            Wn = _ensure_tensor(Wn)
-            if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
-                Wn = Wn.view(-1, 2)
-            if N.size(0) == 1 and Wn.size(0) > N.size(0):
-                N = N.repeat(Wn.size(0), 1)
-            elif Wn.size(0) == 1 and Wn.size(0) < N.size(0):
-                Wn = Wn.repeat(N.size(0), 1)
-        else:
-            assert(ftype == 'randn')
-        self.N = N
-        self.Wn = Wn
-        self.ftype = ftype
-        self.btype = btype
-        self.fs = fs
-        self.rp = rp
-        self.rs = rs
-        self.norm = norm
-        self.ampl_loc = ampl_loc
-        self.ampl_scale = ampl_scale
-        self.phase_loc = phase_loc
-        self.phase_scale = phase_scale
-        self.clamps = clamps or []
-        self.bound = bound
-        try:
-            self.n_filters = Wn.size(0)
-        except AttributeError:
-            self.n_filters = 1
+    """
+    Initialises a frequency spectrum or transfer function approximation
+    for the specified filter with ``worN`` frequency bins between 0 and
+    Nyquist, inclusive.
 
-    def initialise_spectrum(self, worN, domain=None):
-        """
-        Initialises a frequency spectrum or transfer function approximation
-        for the specified filter with ``worN`` frequency bins between 0 and
-        Nyquist, inclusive.
+    Parameters
+    ----------
+    worN : int
+        Number of frequency bins between 0 and Nyquist, inclusive.
+    domain : Domain object (default AmplitudeAtanh)
+        A domain object from
+        :doc:`hypercoil.init.domain <hypercoil.init.domain>`,
+        used to specify the domain of the output spectrum. An
+        :doc:`Identity <hypercoil.init.domain.Identity>`
+        object yields the raw transfer function, while an
+        :doc:`AmplitudeAtanh <hypercoil.init.domain.AmplitudeAtanh>`
+        object transforms the amplitudes of each bin by the inverse tanh
+        (atanh) function. This transformation can be useful if the
+        transfer function will be used as a learnable parameter whose
+        amplitude will be transformed by the tanh function, thereby
+        constraining it to [0, 1) and preventing explosive gain.
 
-        Parameters
-        ----------
-        worN : int
-            Number of frequency bins between 0 and Nyquist, inclusive.
-        domain : Domain object (default AmplitudeAtanh)
-            A domain object from
-            :doc:`hypercoil.init.domain <hypercoil.init.domain>`,
-            used to specify the domain of the output spectrum. An
-            :doc:`Identity <hypercoil.init.domain.Identity>`
-            object yields the raw transfer function, while an
-            :doc:`AmplitudeAtanh <hypercoil.init.domain.AmplitudeAtanh>`
-            object transforms the amplitudes of each bin by the inverse tanh
-            (atanh) function. This transformation can be useful if the
-            transfer function will be used as a learnable parameter whose
-            amplitude will be transformed by the tanh function, thereby
-            constraining it to [0, 1) and preventing explosive gain.
+    Returns
+    -------
+    None: the ``spectrum`` attribute is populated instead.
+    """
+    """
+    Returns a mask and a set of values that can be used to clamp each
+    filter's transfer function at a specified set of frequencies.
 
-        Returns
-        -------
-        None: the ``spectrum`` attribute is populated instead.
-        """
-        domain = domain or AmplitudeAtanh(handler=Clip())
-        if self.ftype == 'butter':
-            self.spectrum = butterworth_spectrum(
-                N=self.N, Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
-        elif self.ftype == 'cheby1':
-            self.spectrum = chebyshev1_spectrum(
-                N=self.N, Wn=self.Wn, rp=self.rp, btype=self.btype,
-                worN=worN, fs=self.fs)
-        elif self.ftype == 'cheby2':
-            self.spectrum = chebyshev2_spectrum(
-                N=self.N, Wn=self.Wn, rs=self.rs, btype=self.btype,
-                worN=worN, fs=self.fs)
-        elif self.ftype == 'ellip':
-            self.spectrum = elliptic_spectrum(
-                N=self.N, Wn=self.Wn, rp=self.rp, rs=self.rs,
-                btype=self.btype, worN=worN, fs=self.fs)
-        elif self.ftype == 'bessel':
-            self.spectrum = bessel_spectrum(
-                N=self.N, Wn=self.Wn, norm=self.norm,
-                btype=self.btype, worN=worN, fs=self.fs)
-        elif self.ftype == 'ideal':
-            self.spectrum = ideal_spectrum(
-                Wn=self.Wn, btype=self.btype, worN=worN, fs=self.fs)
-        elif self.ftype == 'randn':
-            self.spectrum = randn_spectrum(
-                worN=worN, ampl_loc=self.ampl_loc, ampl_scale=self.ampl_scale,
-                phase_loc=self.phase_loc, phase_scale=self.phase_scale,
-                n_filters=self.n_filters)
-        self.spectrum = domain.preimage(self.spectrum)
+    To apply the clamp, use:
 
-    def get_clamps(self, worN):
-        """
-        Returns a mask and a set of values that can be used to clamp each
-        filter's transfer function at a specified set of frequencies.
+    spectrum[points] = values
 
-        To apply the clamp, use:
+    Parameters
+    ----------
+    worN : int
+        Number of frequency bins between 0 and Nyquist, inclusive.
 
-        spectrum[points] = values
-
-        Parameters
-        ----------
-        worN : int
-            Number of frequency bins between 0 and Nyquist, inclusive.
-
-        Returns
-        -------
-        points : Tensor
-            Boolean mask indicating the frequency bins that are clampable.
-        values : Tensor
-            Values to which the response function is clampable at the specified
-            frequencies.
-        """
-        frequencies = torch.linspace(0, 1, worN)
-        points, values = [], []
-        if len(self.clamps) == 0:
-            return torch.zeros((self.n_filters, worN)).bool(), torch.Tensor([])
-        for clamps in self.clamps:
-            mask, vals = self._filter_clamps(clamps, frequencies, worN)
-            points.append(mask)
-            values.append(vals)
-        if len(points) > 1:
-            return torch.cat(points, 0), torch.cat(values)
-        return mask, vals
-
-    def _filter_clamps(self, clamps, frequencies, worN):
-        clamp_points = torch.Tensor(list(clamps.keys()))
-        clamp_values = torch.Tensor(list(clamps.values()))
-        if len(clamp_values) == 0:
-            return torch.zeros((1, worN)).bool(), torch.Tensor([])
-        fs = self.fs or 1
-        clamp_points /= fs
-        dist = torch.abs(clamp_points.view(-1, 1) - frequencies)
-        mask = torch.eye(worN)[dist.argmin(-1)]
-        clamp_points = mask.sum(0).view(1, -1).bool()
-        try:
-            assert clamp_points.sum() == len(clamp_values)
-        except AssertionError as e:
-            e.args += ('Unable to separately resolve clamped frequencies',)
-            e.args += ('Increase either the spacing or the number of bins',)
-            raise
-        return clamp_points, clamp_values
-
-    def __repr__(self):
-        s = (f'FreqFilterSpec(ftype={self.ftype}, n_filters={self.n_filters})')
-        return s
-
+    Returns
+    -------
+    points : Tensor
+        Boolean mask indicating the frequency bins that are clampable.
+    values : Tensor
+        Values to which the response function is clampable at the specified
+        frequencies.
+    """
 
 def freqfilter_init_(tensor, filter_specs, domain=None):
     """
@@ -296,13 +863,7 @@ def freqfilter_init_(tensor, filter_specs, domain=None):
     -------
     None. The input tensor is initialised in-place.
     """
-    with torch.no_grad():
-        worN = tensor.size(-1)
-        for fspec in filter_specs:
-            fspec.initialise_spectrum(worN, domain)
-        spectra = torch.cat([fspec.spectrum for fspec in filter_specs])
-        tensor[:] = spectra.to(dtype=tensor.dtype, device=tensor.device)
-
+    raise NotImplementedError()
 
 def clamp_init_(points_tensor, values_tensor, filter_specs):
     """
@@ -334,472 +895,4 @@ def clamp_init_(points_tensor, values_tensor, filter_specs):
     -------
     None. The input tensors are initialised in-place.
     """
-    rgp = points_tensor.requires_grad
-    rgv = values_tensor.requires_grad
-    points_tensor.requires_grad = False
-    values_tensor.requires_grad = False
-    worN = points_tensor.size(-1)
-    points, values = [], []
-    for fspec in filter_specs:
-        mask, vals = fspec.get_clamps(worN)
-        points.append(mask)
-        values.append(vals)
-    if len(points) > 1:
-        points, values = torch.cat(points, 0), torch.cat(values)
-    else:
-        points, values = points[0], values[0]
-    points_tensor[:] = points
-    values_tensor[:] = values
-    points_tensor.requires_grad = rgp
-    values_tensor.requires_grad = rgv
-
-
-def butterworth_spectrum(N, Wn, worN, btype='bandpass', fs=None):
-    """
-    Butterworth filter's transfer function obtained via import from scipy.
-
-    Note that this is only an emulation. An IIR filter cannot be represented
-    as a frequency product in this manner. For a true differentiable IIR
-    filter, use the IIRFilter layer.
-
-    Dimension
-    ---------
-    - N : :math:`(F)`
-      F denotes the total number of filter to initialise.
-    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
-
-    Parameters
-    ----------
-    N : int or Tensor
-        Filter order. If this is a tensor, then a separate filter will be
-        created for each entry in the tensor. Wn must be shaped to match.
-    Wn : float or tuple(float, float) or Tensor
-        Critical or cutoff frequency. If this is a band-pass filter, then this
-        should be a tuple, with the first entry specifying the high-pass cutoff
-        and the second entry specifying the low-pass frequency. This should be
-        specified relative to the Nyquist frequency if `fs` is not provided,
-        and should be in the same units as `fs` if it is provided. To create
-        multiple filters, specify a tensor containing the critical frequencies
-        for each filter in a single row.
-    worN : int
-        Number of frequency bins to include in the computed spectrum.
-    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
-        Filter type to emulate: low-pass, high-pass, or band-pass. The
-        interpretation of the critical frequency changes depending on the
-        filter type.
-    fs : float or None (default None)
-        Sampling frequency.
-
-    Returns
-    -------
-    out : Tensor
-        The specified Butterworth transfer function.
-    """
-    from scipy.signal import butter
-    filter_params, spectrum_params = {}, {}
-    return filter_spectrum(
-        filter=butter,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
-        filter_params=filter_params,
-        spectrum_params=spectrum_params)
-
-
-def chebyshev1_spectrum(N, Wn, worN, rp, btype='bandpass', fs=None):
-    """
-    Chebyshev I filter's transfer function obtained via import from scipy.
-
-    Note that this is only an emulation. An IIR filter cannot be represented
-    as a frequency product in this manner. For a true differentiable IIR
-    filter, use the IIRFilter layer.
-
-    Dimension
-    ---------
-    - N : :math:`(F)`
-      F denotes the total number of filter to initialise.
-    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
-
-    Parameters
-    ----------
-    N : int or Tensor
-        Filter order. If this is a tensor, then a separate filter will be
-        created for each entry in the tensor. Wn must be shaped to match.
-    Wn : float or tuple(float, float) or Tensor
-        Critical or cutoff frequency. If this is a band-pass filter, then this
-        should be a tuple, with the first entry specifying the high-pass cutoff
-        and the second entry specifying the low-pass frequency. This should be
-        specified relative to the Nyquist frequency if `fs` is not provided,
-        and should be in the same units as `fs` if it is provided. To create
-        multiple filters, specify a tensor containing the critical frequencies
-        for each filter in a single row.
-    worN : int
-        Number of frequency bins to include in the computed spectrum.
-    rp : float
-        Pass-band ripple parameter.
-    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
-        Filter type to emulate: low-pass, high-pass, or band-pass. The
-        interpretation of the critical frequency changes depending on the
-        filter type.
-    fs : float or None (default None)
-        Sampling frequency.
-
-    Returns
-    -------
-    out : Tensor
-        The specified Chebyshev I transfer function.
-    """
-    from scipy.signal import cheby1
-    filter_params = {
-        'rp': rp
-    }
-    spectrum_params = {}
-    return filter_spectrum(
-        filter=cheby1,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
-        filter_params=filter_params,
-        spectrum_params=spectrum_params)
-
-
-def chebyshev2_spectrum(N, Wn, worN, rs, btype='bandpass', fs=None):
-    """
-    Chebyshev II filter's transfer function obtained via import from scipy.
-
-    Note that this is only an emulation. An IIR filter cannot be represented
-    as a frequency product in this manner. For a true differentiable IIR
-    filter, use the IIRFilter layer.
-
-    Dimension
-    ---------
-    - N : :math:`(F)`
-      F denotes the total number of filter to initialise.
-    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
-
-    Parameters
-    ----------
-    N : int or Tensor
-        Filter order. If this is a tensor, then a separate filter will be
-        created for each entry in the tensor. Wn must be shaped to match.
-    Wn : float or tuple(float, float) or Tensor
-        Critical or cutoff frequency. If this is a band-pass filter, then this
-        should be a tuple, with the first entry specifying the high-pass cutoff
-        and the second entry specifying the low-pass frequency. This should be
-        specified relative to the Nyquist frequency if `fs` is not provided,
-        and should be in the same units as `fs` if it is provided. To create
-        multiple filters, specify a tensor containing the critical frequencies
-        for each filter in a single row.
-    worN : int
-        Number of frequency bins to include in the computed spectrum.
-    rs : float
-        Stop-band ripple parameter.
-    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
-        Filter type to emulate: low-pass, high-pass, or band-pass. The
-        interpretation of the critical frequency changes depending on the
-        filter type.
-    fs : float or None (default None)
-        Sampling frequency.
-
-    Returns
-    -------
-    out : Tensor
-        The specified Chebyshev II transfer function.
-    """
-    from scipy.signal import cheby2
-    filter_params = {
-        'rs': rs
-    }
-    spectrum_params = {}
-    return filter_spectrum(
-        filter=cheby2,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
-        filter_params=filter_params,
-        spectrum_params=spectrum_params)
-
-
-def elliptic_spectrum(N, Wn, worN, rp, rs, btype='bandpass', fs=None):
-    """
-    Elliptic filter's transfer function obtained via import from scipy.
-
-    Note that this is only an emulation. An IIR filter cannot be represented
-    as a frequency product in this manner. For a true differentiable IIR
-    filter, use the IIRFilter layer.
-
-    Dimension
-    ---------
-    - N : :math:`(F)`
-      F denotes the total number of filter to initialise.
-    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
-
-    Parameters
-    ----------
-    N : int or Tensor
-        Filter order. If this is a tensor, then a separate filter will be
-        created for each entry in the tensor. Wn must be shaped to match.
-    Wn : float or tuple(float, float) or Tensor
-        Critical or cutoff frequency. If this is a band-pass filter, then this
-        should be a tuple, with the first entry specifying the high-pass cutoff
-        and the second entry specifying the low-pass frequency. This should be
-        specified relative to the Nyquist frequency if `fs` is not provided,
-        and should be in the same units as `fs` if it is provided. To create
-        multiple filters, specify a tensor containing the critical frequencies
-        for each filter in a single row.
-    worN : int
-        Number of frequency bins to include in the computed spectrum.
-    rp : float
-        Pass-band ripple parameter.
-    rs : float
-        Stop-band ripple parameter.
-    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
-        Filter type to emulate: low-pass, high-pass, or band-pass. The
-        interpretation of the critical frequency changes depending on the
-        filter type.
-    fs : float or None (default None)
-        Sampling frequency.
-
-    Returns
-    -------
-    out : Tensor
-        The specified elliptic transfer function.
-    """
-    from scipy.signal import ellip
-    filter_params = {
-        'rp': rp,
-        'rs': rs
-    }
-    spectrum_params = {}
-    return filter_spectrum(
-        filter=ellip,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
-        filter_params=filter_params,
-        spectrum_params=spectrum_params)
-
-
-def bessel_spectrum(N, Wn, worN, norm='phase', btype='bandpass', fs=None):
-    """
-    Bessel-Thompson filter's transfer function obtained via import from scipy.
-
-    Note that this is only an emulation. An IIR filter cannot be represented
-    as a frequency product in this manner. For a true differentiable IIR
-    filter, use the IIRFilter layer.
-
-    Dimension
-    ---------
-    - N : :math:`(F)`
-      F denotes the total number of filter to initialise.
-    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
-
-    Parameters
-    ----------
-    N : int or Tensor
-        Filter order. If this is a tensor, then a separate filter will be
-        created for each entry in the tensor. Wn must be shaped to match.
-    Wn : float or tuple(float, float) or Tensor
-        Critical or cutoff frequency. If this is a band-pass filter, then this
-        should be a tuple, with the first entry specifying the high-pass cutoff
-        and the second entry specifying the low-pass frequency. This should be
-        specified relative to the Nyquist frequency if `fs` is not provided,
-        and should be in the same units as `fs` if it is provided. To create
-        multiple filters, specify a tensor containing the critical frequencies
-        for each filter in a single row.
-    worN : int
-        Number of frequency bins to include in the computed spectrum.
-    norm : 'phase', 'delay' or 'mag'
-        Critical frequency normalisation. Consult the `scipy.signal.bessel`
-        documentation for details.
-    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
-        Filter type to emulate: low-pass, high-pass, or band-pass. The
-        interpretation of the critical frequency changes depending on the
-        filter type.
-    fs : float or None (default None)
-        Sampling frequency.
-
-    Returns
-    -------
-    out : Tensor
-        The specified elliptic transfer function.
-    """
-    from scipy.signal import bessel
-    filter_params = {
-        'norm': norm
-    }
-    spectrum_params = {}
-    return filter_spectrum(
-        filter=bessel,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
-        filter_params=filter_params,
-        spectrum_params=spectrum_params)
-
-
-def ideal_spectrum(Wn, worN, btype='bandpass', fs=None):
-    """
-    Ideal filter transfer function.
-
-    Note that the exact specified cutoff frequencies are permitted to pass.
-
-    Dimension
-    ---------
-    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
-
-    Parameters
-    ----------
-    Wn : float or tuple(float, float) or Tensor
-        Critical or cutoff frequency. If this is a band-pass filter, then this
-        should be a tuple, with the first entry specifying the high-pass cutoff
-        and the second entry specifying the low-pass frequency. This should be
-        specified relative to the Nyquist frequency if `fs` is not provided,
-        and should be in the same units as `fs` if it is provided. To create
-        multiple filters, specify a tensor containing the critical frequencies
-        for each filter in a single row.
-    worN : int
-        Number of frequency bins to include in the computed spectrum.
-    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
-        Filter type to emulate: low-pass, high-pass, or band-pass. The
-        interpretation of the critical frequency changes depending on the
-        filter type.
-    fs : float or None (default None)
-        Sampling frequency.
-
-    Returns
-    -------
-    out : Tensor
-        The specified ideal transfer function.
-    """
-    Wn = _ensure_tensor(Wn)
-    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
-        Wn = Wn.view(-1, 2)
-    if fs is not None:
-        Wn = 2 * Wn / fs
-    frequencies = torch.linspace(0, 1, worN)
-    if btype == 'lowpass':
-        response = frequencies <= Wn.view(-1, 1)
-    elif btype == 'highpass':
-        response = frequencies >= Wn.view(-1, 1)
-    elif btype == 'bandpass':
-        response_hp = frequencies >= Wn[:, 0].view(-1, 1)
-        response_lp = frequencies <= Wn[:, 1].view(-1, 1)
-        response = response_hp * response_lp
-    elif btype == 'bandstop':
-        response_hp = frequencies <= Wn[:, 0].view(-1, 1)
-        response_lp = frequencies >= Wn[:, 1].view(-1, 1)
-        response = response_hp + response_lp
-    return response.float()
-
-
-def randn_spectrum(worN, n_filters=1, ampl_loc=0.5, ampl_scale=0.2,
-                   phase_loc=0, phase_scale=0.3):
-    ampl = torch.randn(size=(n_filters, worN)) * ampl_scale + ampl_loc
-    phase = torch.randn(size=(n_filters, worN)) * phase_scale + phase_loc
-    return complex_recompose(ampl, phase)
-
-
-def filter_spectrum(filter, N, Wn, worN, btype='bandpass', fs=None,
-                    filter_params=None, spectrum_params=None):
-    """
-    Transfer function for an IIR filter, obtained via import from scipy.
-
-    Note that this is only an emulation. An IIR filter cannot be represented
-    as a frequency product in this manner. For a true differentiable IIR
-    filter, use the IIRFilter layer.
-
-    Dimension
-    ---------
-    - N : :math:`(F)`
-      F denotes the total number of filter to initialise.
-    - Wn : :math:`(F, 2)` for bandpass or bandstop or :math:`(F)` otherwise
-
-    Parameters
-    ----------
-    filter : callable
-        `scipy.signal` filter function corresponding to the filter to be
-        estimated, for instance `butter` for a Butterworth filter.
-    N : int or Tensor
-        Filter order. If this is a tensor, then a separate filter will be
-        created for each entry in the tensor. Wn must be shaped to match.
-    Wn : float or tuple(float, float) or Tensor
-        Critical or cutoff frequency. If this is a band-pass filter, then this
-        should be a tuple, with the first entry specifying the high-pass cutoff
-        and the second entry specifying the low-pass frequency. This should be
-        specified relative to the Nyquist frequency if `fs` is not provided,
-        and should be in the same units as `fs` if it is provided. To create
-        multiple filters, specify a tensor containing the critical frequencies
-        for each filter in a single row.
-    worN : int
-        Number of frequency bins to include in the computed spectrum.
-    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
-        Filter type to emulate: low-pass, high-pass, or band-pass. The
-        interpretation of the critical frequency changes depending on the
-        filter type.
-    fs : float or None (default None)
-        Sampling frequency.
-    filter_params : dict
-        Additional parameters to pass to the `filter` callable other than
-        those passed directly to this function (for instance, pass- and
-        stop-band ripples).
-    spectrum_params : dict
-        Additional parameters to pass to the `freqz` function that computes
-        the frequency response spectrum other than those passed directly to
-        this function.
-
-    Returns
-    -------
-    out : Tensor
-        The specified filter's transfer function.
-    """
-    import numpy as np
-    from scipy.signal import freqz
-    N = _ensure_ndarray(N).astype(int)
-    Wn = _ensure_ndarray(Wn)
-    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
-        Wn = Wn.reshape(-1, 2)
-    vals = [
-        filter(N=n, Wn=wn, btype=btype, fs=fs, **filter_params)
-        for n, wn in zip(N, Wn)
-    ]
-    fs = fs or 2 * math.pi
-    vals = [
-        freqz(b, a, worN=worN, fs=fs, include_nyquist=True, **spectrum_params)
-        for b, a in vals
-    ]
-    vals = np.stack([v for _, v in vals])
-    return _import_complex_numpy(vals)
-
-
-def _ensure_ndarray(obj):
-    """
-    Ensure that the object is an iterable ndarray with dimension greater than
-    or equal to 1. Another function we'd do well to get rid of in the future.
-    """
-    import numpy as np
-    try:
-        i = iter(obj)
-        return np.array(obj)
-    except TypeError:
-        return np.array([obj])
-
-
-def _ensure_tensor(obj):
-    """
-    Ensure that the object is an iterable tensor with dimension greater than
-    or equal to 1. Another function we'd do well to get rid of in the future.
-    """
-    try:
-        i = iter(obj)
-        return torch.Tensor(obj)
-    except TypeError:
-        return torch.Tensor([obj])
-
-
-def _import_complex_numpy(array):
-    """
-    Hacky import of complex-valued array from numpy into torch. Hopefully this
-    can go away in the future. Simply calling torch.Tensor casts the input to
-    real, and we would otherwise have to specify a particular precision for the
-    import which might not match the precision desired.
-    """
-    real = torch.Tensor(array.real)
-    imag = torch.Tensor(array.imag)
-    val = torch.stack([real, imag], -1)
-    return torch.view_as_complex(val)
+    raise NotImplementedError()
