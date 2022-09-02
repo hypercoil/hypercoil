@@ -118,7 +118,7 @@ class TestBaseInit:
         #      activations remains reasonably bounded under these
         #      initialisation schemes
         class SyloModule(eqx.Module):
-            weight: dict[Tensor]
+            weight: tuple[Tensor, Tensor]
             def __init__(self, key, in_channels, out_channels,
                          dim_L, dim_R, rank):
                 self.weight = (
@@ -126,7 +126,7 @@ class TestBaseInit:
                     jnp.zeros((out_channels, in_channels, dim_R, rank)),
                 )
         class SyloModulePSD(eqx.Module):
-            weight: dict[Tensor]
+            weight: Tensor
             def __init__(self, key, in_channels, out_channels, dim, rank):
                 self.weight = jnp.zeros(
                     (out_channels, in_channels, dim, rank))

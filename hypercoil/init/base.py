@@ -4,6 +4,7 @@
 """
 Base initialisers for module parameters.
 """
+from functools import partial
 import jax
 import jax.numpy as jnp
 import equinox as eqx
@@ -11,6 +12,10 @@ from abc import abstractmethod
 from typing import Optional, Tuple, Type
 from .mapparam import MappedParameter
 from ..functional.utils import PyTree, Tensor, Distribution
+
+
+def retrieve_parameter(model, param_name):
+    return model.__getattribute__(param_name)
 
 
 def from_distr_init(
@@ -89,7 +94,7 @@ class Initialiser(eqx.Module):
         **params,
     ):
         return self._init(
-            shape=model.__getattribute__(param_name).shape,
+            shape=retrieve_parameter(model, param_name=param_name).shape,
             key=key,
             **params,
         )
@@ -116,7 +121,7 @@ class Initialiser(eqx.Module):
         init = init(
             model=model, param_name=param_name, key=key, **params)
         return eqx.tree_at(
-            lambda m: m.__getattribute__(param_name),
+            partial(retrieve_parameter, param_name=param_name),
             model,
             replace=init
         )
@@ -176,7 +181,7 @@ class MappedInitialiser(Initialiser):
         **params
     ) -> PyTree:
         model = eqx.tree_at(
-            lambda m: m.__getattribute__(param_name),
+            partial(retrieve_parameter, param_name=param_name),
             model,
             replace=init(
                 model=model, param_name=param_name, key=key)

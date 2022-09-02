@@ -167,12 +167,10 @@ class SyloInitialiser(MappedInitialiser):
         shape=Union[Tuple[int, ...], Tuple[Tuple[int, ...], Tuple[int, ...]]],
         key=jax.random.PRNGKey
     ):
-        print(shape)
         if isinstance(shape[0], tuple):
             shape, shape_R = shape
         else:
             shape_R = None
-        print(shape, shape_R)
         return sylo_init(
             shape=shape,
             shape_R=shape_R,
