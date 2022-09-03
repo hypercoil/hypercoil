@@ -10,9 +10,12 @@ specification subsystems.
 import re
 import equinox as eqx
 from abc import abstractclassmethod
+from collections import defaultdict
 from dataclasses import field
 from hashlib import sha256
-from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
+from typing import (
+    Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
+)
 
 
 class Literalisation(eqx.Module):
@@ -29,6 +32,17 @@ class TransformNode(eqx.Module):
     literals: Sequence[Literalisation]
     associative: bool = False
     commutative: bool = False
+
+    @property
+    def _key(self):
+        canonical_literal = self.literals[0]
+        return (
+            canonical_literal.affix,
+            canonical_literal.regex,
+        )
+
+    def __hash__(self):
+        return hash(self._key)
 
 
 import pandas as pd
@@ -78,10 +92,10 @@ class BackwardDifferenceNode(TransformNode):
     priority: int = 2
     canonical_literal: Literalisation = BackwardDifferenceEnumPrefixLiteralisation()
     literals: Sequence[Literalisation] = field(default_factory = lambda: [
-        BackwardDifferencePrefixLiteralisation(),
+        BackwardDifferenceEnumPrefixLiteralisation(),
         BackwardDifferenceInclPrefixLiteralisation(),
         BackwardDifferenceRangePrefixLiteralisation(),
-        BackwardDifferenceEnumPrefixLiteralisation(),
+        BackwardDifferencePrefixLiteralisation(),
     ])
 
     def __call__(self, *pparams, **params):
@@ -116,10 +130,10 @@ class PowerNode(TransformNode):
     priority: int = 1
     canonical_literal: Literalisation = PowerEnumSuffixLiteralisation()
     literals: Sequence[Literalisation] = field(default_factory = lambda: [
-        PowerSuffixLiteralisation(),
+        PowerEnumSuffixLiteralisation(),
         PowerInclSuffixLiteralisation(),
         PowerRangeSuffixLiteralisation(),
-        PowerEnumSuffixLiteralisation(),
+        PowerSuffixLiteralisation(),
     ])
 
     def __call__(self, *pparams, **params):
@@ -155,20 +169,26 @@ class IndexedNestedString(eqx.Module):
     def idx(self, key):
         return self.content.__getitem__(key)
 
-    def substitute(self, content, start, end=None):
+    def substitute(self, content, start, end=None, loc_type='index'):
         if end is None:
             end = start + len(content)
+        abs_start = start
+        abs_end = end
+        if loc_type == 'index':
+            start = self.index[start]
+            end = self.index[end]
+
         new_content = (
-            list(self.content[:self.index[start]]) +
+            list(self.content[:start]) +
             list(content) +
-            list(self.content[self.index[end]:])
+            list(self.content[end:])
         )
         new_index = (
-            list(self.index[:start]) +
+            list(self.index[:abs_start]) +
             [self.index[start]] * (end - start) +
             list(range(
-                self.index[start] + 1,
-                self.index[start] + 1 + len(self.index) - end
+                start + 1,
+                start + 1 + len(self.index) - abs_end
             ))
         )
         return IndexedNestedString(new_content, new_index)
@@ -181,6 +201,22 @@ class AbstractChild:
 
     def __repr__(self):
         return '⟨⟨{}⟩⟩'.format(self.hash[:4])
+
+    def __len__(self):
+        return self.length
+
+    def __iter__(self):
+        return iter([self])
+
+
+class TransformToken:
+    def __init__(self, string, metadata=None, length=1):
+        self.string = string
+        self.metadata = metadata
+        self.length = length
+
+    def __repr__(self):
+        return '⌈{}⌋'.format(self.string)
 
     def __len__(self):
         return self.length
@@ -202,8 +238,8 @@ class SyntacticTree:
             # self.content = content.content
             # self.index = content.index
             self.content = IndexedNestedString(
-                content=content.content,
-                index=content.index,
+                content=content.content.content,
+                index=content.content.index,
             )
             self.children = content.children
         else:
@@ -216,23 +252,30 @@ class SyntacticTree:
             self.children = {}
 
     def materialise(self, repr=False, recursive=False):
+        reprstr = self.content
         if repr:
             reprstr = [
                 c.__repr__()
-                if isinstance(c, AbstractChild) else c
-                for c in self.content
+                if isinstance(c, AbstractChild)
+                or isinstance(c, TransformToken) else c
+                for c in reprstr
             ]
         elif recursive:
+            reprstr = [
+                c.string if isinstance(c, TransformToken) else c
+                for c in reprstr
+            ]
             reprstr = [
                 self.children[c.hash].apply_circumfix(
                     self.children[c.hash].materialise(recursive=True))
                 if isinstance(c, AbstractChild) else c
-                for c in self.content
+                for c in reprstr
             ]
         else:
             reprstr = [
-                '▒' if isinstance(c, AbstractChild) else c
-                for c in self.content
+                '▒' if isinstance(c, AbstractChild)
+                or isinstance(c, TransformToken) else c
+                for c in reprstr
             ]
         return ''.join(reprstr)
 
@@ -260,6 +303,21 @@ class SyntacticTree:
         #     )
         # content += self.content[last:]
         # return content, index
+        return content
+
+    def _scan_content_and_embed_token(self, loc, content, metadata=None):
+        for start, end in loc:
+            new_token = TransformToken(
+                ''.join(content.idx(slice(start, end))),
+                metadata=metadata,
+                length=end - start
+            )
+            content = content.substitute(
+                content=new_token,
+                start=start,
+                end=end,
+                loc_type='content',
+            )
         return content
 
     def _child_carry_nested_content(self, loc, circumfix, drop_circumfix):
@@ -294,11 +352,12 @@ class SyntacticTree:
 
     def create_child(
         self,
-        query,
-        recursive=False,
-        nest=True,
-        drop_circumfix=False,
-    ):
+        query: str,
+        *,
+        recursive: bool = False,
+        nest: bool = True,
+        drop_circumfix: bool = False,
+    ) -> None:
         child_text = query
         circumfix = ('', '')
         if drop_circumfix:
@@ -327,6 +386,21 @@ class SyntacticTree:
         # self.index = tuple(index)
         self.content = content
         self.children[child_id] = child
+
+    def create_token(
+        self,
+        queries: Sequence[str],
+        metadata: Sequence[Dict[str, Any]] = None,
+        recursive: bool = False,
+    ):
+        content = self.content
+        for i, query in enumerate(queries):
+            contentstr = self.materialise(recursive=recursive)
+            loc = [m.span() for m in re.finditer(query, contentstr)]
+            meta = metadata[i] if metadata else None
+            content = self._scan_content_and_embed_token(
+                loc, self.content, metadata=meta)
+            self.content = content
 
     @classmethod
     def from_parsed(
@@ -389,9 +463,27 @@ class GroupingPool(eqx.Module):
         return 0, stack
 
 
+class TransformPool(eqx.Module):
+    transforms: Sequence[TransformNode]
+    transform_to_priority: Dict[TransformNode, int]
+    priority_to_transform: List[Sequence[TransformNode]]
+
+    def __init__(self, *transforms) -> None:
+        self.transforms = transforms
+        self.transform_to_priority = {
+            t: t.priority for t in self.transforms
+        }
+        priority_to_transform = defaultdict(list)
+        for t in self.transforms:
+            priority_to_transform[t.priority].append(t)
+        self.priority_to_transform = [
+            priority_to_transform[p] for p in sorted(priority_to_transform)
+        ]
+
+
 class Grammar(eqx.Module):
     groupings: GroupingPool
-    transforms: Sequence[TransformNode]
+    transforms: TransformPool
 
     @staticmethod
     def delete_whitespace(s: str) -> str:
@@ -415,13 +507,14 @@ class Grammar(eqx.Module):
                 )
         return tree
 
-
-class TestGrammar(Grammar):
-    groupings: GroupingPool = GroupingPool(
-        Grouping(open='(', close=')'),
-        Grouping(open='[', close=']'),
-        Grouping(open='{', close='}'),
-    )
-    transforms: Sequence[TransformNode] = (
-        ConcatenateNode(),
-    )
+    def tokenise_transforms(self, s: Union[str, SyntacticTree]) -> SyntacticTree:
+        tree = SyntacticTree(s)
+        for transform in self.transforms.transforms:
+            tree.create_token(
+                [l.regex for l in transform.literals],
+                metadata=[{
+                    'transform': transform,
+                    'literal': l,
+                } for l in transform.literals],
+            )
+        return tree
