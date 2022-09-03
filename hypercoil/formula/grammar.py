@@ -235,16 +235,9 @@ class SyntacticTree:
         self.hashfn = hashfn
         self.circumfix = circumfix
         if isinstance(content, SyntacticTree):
-            # self.content = content.content
-            # self.index = content.index
-            self.content = IndexedNestedString(
-                content=content.content.content,
-                index=content.content.index,
-            )
+            self.content = content.content
             self.children = content.children
         else:
-            # self.content = tuple(content)
-            # self.index = tuple(range(len(self.content) + 1))
             self.content = IndexedNestedString(
                 content=tuple(content),
                 index=tuple(range(len(content) + 1)),
@@ -283,9 +276,6 @@ class SyntacticTree:
         return self.circumfix[0] + s + self.circumfix[1]
 
     def _scan_content_and_embed_child(self, loc, child_id):
-        # content = []
-        # last = 0
-        # index = list(self.index)
         content = self.content
         for start, end in loc:
             content = content.substitute(
@@ -293,16 +283,6 @@ class SyntacticTree:
                 start=start,
                 end=end,
             )
-        #     content += list(self.content[self.index[last]:self.index[start]])
-        #     content += [AbstractChild(child_id, length=end - start)]
-        #     last = end
-        #     index[start:end] = [index[start]] * (end - start)
-        #     index[end:] = range(
-        #         index[start] + 1,
-        #         index[start] + 1 + len(index) - end
-        #     )
-        # content += self.content[last:]
-        # return content, index
         return content
 
     def _scan_content_and_embed_token(self, loc, content, metadata=None):
@@ -325,10 +305,6 @@ class SyntacticTree:
         if drop_circumfix:
             start += 1
             end -= 1
-        # child_index = tuple([
-        #     i - self.index[start] for i in self.index[start:end]
-        # ])
-        # child_content = self.content[self.index[start]:self.index[end]]
         low = self.content.index[start]
         child_index = tuple([
             i - low for i in self.content.index[start:end]
@@ -342,8 +318,6 @@ class SyntacticTree:
             if isinstance(child_content[0], AbstractChild):
                 return # already nested
         return SyntacticTree.from_parsed(
-            #content=child_content,
-            #index=child_index,
             content=child_str,
             children=self.children,
             circumfix=circumfix,
@@ -367,8 +341,6 @@ class SyntacticTree:
 
         contentstr = self.materialise(recursive=recursive)
         loc = [m.span() for m in re.finditer(re.escape(query), contentstr)]
-
-        # content, index = self._scan_content_and_embed_child(loc, child_id)
         content = self._scan_content_and_embed_child(loc, child_id)
 
         if nest:
@@ -381,9 +353,7 @@ class SyntacticTree:
                 circumfix=circumfix,
                 hashfn=self.hashfn
             )
-    
-        # self.content = tuple(content)
-        # self.index = tuple(index)
+
         self.content = content
         self.children[child_id] = child
 
@@ -406,7 +376,6 @@ class SyntacticTree:
     def from_parsed(
         cls,
         content,
-        #index,
         children=None,
         circumfix=('', ''),
         hashfn=sha256
@@ -419,7 +388,6 @@ class SyntacticTree:
                     if c in present_children}
         tree = object.__new__(cls)
         tree.content = content
-        #tree.index = index
         tree.children = children
         tree.circumfix = circumfix
         tree.hashfn = hashfn
@@ -458,7 +426,6 @@ class GroupingPool(eqx.Module):
             if not stack:
                 raise ValueError('Unmatched closing bracket')
             if stack[-1] == self.close_to_open[char]:
-                #stack.pop()
                 return -1, stack[:-1]
         return 0, stack
 
