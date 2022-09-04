@@ -72,11 +72,16 @@ parcels. See
 :doc:`the linear atlas module <hypercoil.nn.atlas>`
 for more details.
 """
-import torch
+import jax
+import jax.numpy as jnp
+import distrax
+import equinox as eqx
 import templateflow.api as tflow
-from functools import partial
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections import OrderedDict
+from functools import partial
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Type, Union
+
 from .atlasmixins import (
     _ObjectReferenceMixin,
     _SingleReferenceMixin,
@@ -96,17 +101,11 @@ from .atlasmixins import (
     _VertexCIfTIMeshMixin,
     _SpatialConvMixin,
 )
-from .base import DomainInitialiser
-from ..engine.noise import UnstructuredNoiseSource
-from .domain import MultiLogit
-
-
-import jax
-import jax.numpy as jnp
-import equinox as eqx
-from typing import Any, Callable, Dict, Optional, Sequence, Union
+from .base import MappedInitialiser
 from .dirichlet import DirichletInitialiser
-from ..functional.utils import Tensor
+from .mapparam import MappedParameter, ProbabilitySimplexParameter
+from ..engine.noise import ScalarIIDAddStochasticTransform
+from ..functional.utils import PyTree, Tensor
 
 
 class BaseAtlas(eqx.Module):
@@ -452,7 +451,7 @@ class DirichletInitBaseAtlas(
                          **kwargs)
         if default_init:
             for k, v in self.init.items():
-                v.domain = MultiLogit(axis=-2)
+                v.domain = partial(ProbabilitySimplexParameter, axis=-2)
 
     def _global_compartment_init(self, *, key: 'jax.random.PRNGKey') -> None:
         if self.init.get('_all'):
@@ -1013,9 +1012,19 @@ class _MemeAtlas(
                          **compartments_dict)
 
 
-def atlas_init_(tensor, compartment, atlas, normalise=False,
-                max_bin=10000, spherical_scale=1, truncate=None,
-                kernel_sigma=None, noise_sigma=None):
+def atlas_init(
+    *,
+    shape: Optional[Any] = None,
+    atlas: BaseAtlas,
+    compartment: str,
+    normalise: bool = False,
+    max_bin: int = 10000,
+    spherical_scale : float = 1.,
+    truncate : Optional[float] = None,
+    kernel_sigma : Optional[float] = None,
+    noise_sigma : Optional[float] = None,
+    key: 'jax.random.PRNGKey',
+):
     r"""
     Voxel-to-label mapping initialisation.
 
@@ -1024,16 +1033,12 @@ def atlas_init_(tensor, compartment, atlas, normalise=False,
     uses an existing atlas with the option of blurring labels or injecting
     noise.
 
-    Dimension
-    ---------
-    - tensor : :math:`(L, V)`
-      L denotes the total number of labels in the atlas, and V denotes the
-      number of voxels to be labelled.
+    .. note::
+        The ``shape`` argument is unused and is only present for compatibility
+        with the initialisation API.
 
     Parameters
     ----------
-    tensor : Tensor
-        Tensor to initialise in-place.
     atlas : Atlas object
         Atlas object to use for tensor initialisation.
     kernel_sigma : float or None (default None)
@@ -1044,21 +1049,20 @@ def atlas_init_(tensor, compartment, atlas, normalise=False,
         deviation is added to the label.
     """
     if noise_sigma is not None:
-        distr = torch.distributions.normal.Normal(0, noise_sigma)
-        noise = UnstructuredNoiseSource(distr=distr)
+        distr = distrax.Normal(0., noise_sigma)
+        noise = ScalarIIDAddStochasticTransform(distr, key=key)
     else:
         noise = None
-    val = atlas(compartments=compartment,
-                normalise=normalise,
-                sigma=kernel_sigma,
-                noise=noise,
-                max_bin=max_bin,
-                spherical_scale=spherical_scale,
-                truncate=truncate)
-    tensor.copy_(val[compartment[0]])
+    return atlas(compartments=compartment,
+                 normalise=normalise,
+                 sigma=kernel_sigma,
+                 noise=noise,
+                 max_bin=max_bin,
+                 spherical_scale=spherical_scale,
+                 truncate=truncate)
 
 
-class AtlasInit(DomainInitialiser):
+class AtlasInit(MappedInitialiser):
     r"""
     Voxel-to-label mapping initialisation.
 
@@ -1083,8 +1087,8 @@ class AtlasInit(DomainInitialiser):
         weighted average over each parcel.
     kernel_sigma : float or None (default None)
         If this is not None, then spatial smoothing using a Gaussian kernel is
-        applied over each parcel’s assignments. Distances are established by
-        the atlas’s coordinate system and the topology of each compartment.
+        applied over each parcel's assignments. Distances are established by
+        the atlas's coordinate system and the topology of each compartment.
         The value of sigma establishes the width of the Gaussian kernel.
     noise_sigma : float or None (default None)
         If this is not None, then Gaussian noise with the specified standard
@@ -1101,23 +1105,89 @@ class AtlasInit(DomainInitialiser):
         softmax so that the weights actually seen by data remain on the
         probability simplex as the parcellation is learned.
     """
-    def __init__(self, atlas, normalise=False, max_bin=10000,
-                 spherical_scale=1, truncate=None, kernel_sigma=None,
-                 noise_sigma=None, domain=None):
-        init = partial(atlas_init_, atlas=atlas, normalise=normalise,
-                       max_bin=max_bin, spherical_scale=spherical_scale,
-                       kernel_sigma=kernel_sigma, noise_sigma=noise_sigma,
-                       truncate=truncate)
-        if domain is None:
+
+    atlas: BaseAtlas
+    normalise: bool = False
+    max_bin: int = 10000
+    spherical_scale : float = 1.
+    truncate: Optional[float] = None
+    kernel_sigma: Optional[float] = None
+    noise_sigma: Optional[float] = None
+
+    def __init__(
+        self,
+        atlas: BaseAtlas,
+        normalise: bool = False,
+        max_bin: int = 10000,
+        spherical_scale : float = 1.,
+        truncate: Optional[float] = None,
+        kernel_sigma: Optional[float] = None,
+        noise_sigma: Optional[float] = None,
+        mapper: Optional[Type[MappedParameter]] = None,
+    ):
+        self.atlas = atlas
+        self.normalise = normalise
+        self.max_bin = max_bin
+        self.spherical_scale = spherical_scale
+        self.truncate = truncate
+        self.kernel_sigma = kernel_sigma
+        self.noise_sigma = noise_sigma
+        if mapper is None:
             try:
-                domain = atlas.init['_all'].domain
+                mapper = atlas.init['_all'].mapper
             except (AttributeError, KeyError):
                 pass
-        super(AtlasInit, self).__init__(init=init, domain=domain)
+        super().__init__(mapper=mapper)
 
-    def __call__(self, tensor):
-        for k, v in tensor.items():
-            super(AtlasInit, self).__call__(v, compartment=[k])
+    def _init(
+        self,
+        shape: Optional[Any],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
+        return atlas_init(
+            shape=shape,
+            atlas=self.atlas,
+            normalise=self.normalise,
+            max_bin=self.max_bin,
+            spherical_scale=self.spherical_scale,
+            kernel_sigma=self.kernel_sigma,
+            noise_sigma=self.noise_sigma,
+            truncate=self.truncate,
+            key=key,
+        )
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        atlas: BaseAtlas,
+        normalise: bool = False,
+        max_bin: int = 10000,
+        spherical_scale : float = 1.,
+        truncate: Optional[float] = None,
+        kernel_sigma: Optional[float] = None,
+        noise_sigma: Optional[float] = None,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ) -> PyTree:
+        init = cls(
+            mapper=mapper,
+            atlas=atlas,
+            normalise=normalise,
+            max_bin=max_bin,
+            spherical_scale=spherical_scale,
+            truncate=truncate,
+            kernel_sigma=kernel_sigma,
+            noise_sigma=noise_sigma,
+        )
+        #TODO: We're going to need our own version of _init_impl here to
+        #      handle the separation of compartments into a tensor dict.
+        return super()._init_impl(
+            init=init, model=model, param_name=param_name, key=key, **params,
+        )
 
 
 def _cifti_atlas_common_args(
@@ -1153,3 +1223,10 @@ def _cifti_atlas_common_args(
         'subcortex' : None
     }
     return surf, mask_source
+
+
+def atlas_init_(tensor, compartment, atlas, normalise=False,
+                max_bin=10000, spherical_scale=1, truncate=None,
+                kernel_sigma=None, noise_sigma=None):
+    raise NotImplementedError(
+        'In-place initialisation is deprecated. Use `atlas_init` instead.')

@@ -15,7 +15,14 @@ from ..functional.utils import PyTree, Tensor, Distribution
 
 
 def retrieve_parameter(model, param_name):
-    return model.__getattribute__(param_name)
+    if param_name is None:
+        return model
+    try:
+        print(model.__getattribute__(param_name))
+        return model.__getattribute__(param_name)
+    except AttributeError:
+        print(model.__getitem__(param_name))
+        return model.__getitem__(param_name)
 
 
 def from_distr_init(
