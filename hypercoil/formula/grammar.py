@@ -52,7 +52,7 @@ class ConcatenateInfixLiteralisation(Literalisation):
 
 class ConcatenatePrefixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'prefix'
-    regex : str = r'\+'
+    regex : str = r'\+\{[^\{^\}]+\}'
 
 class ConcatenateNode(TransformNode):
     min_arity: int = 2
@@ -172,25 +172,22 @@ class IndexedNestedString(eqx.Module):
     def substitute(self, content, start, end=None, loc_type='index'):
         if end is None:
             end = start + len(content)
-        abs_start = start
-        abs_end = end
         if loc_type == 'index':
             start = self.index[start]
             end = self.index[end]
-
         new_content = (
             list(self.content[:start]) +
             list(content) +
             list(self.content[end:])
         )
-        new_index = (
-            list(self.index[:abs_start]) +
-            [self.index[start]] * (end - start) +
-            list(range(
-                start + 1,
-                start + 1 + len(self.index) - abs_end
-            ))
-        )
+        new_index = []
+        for i in self.index:
+            if i < start:
+                new_index.append(i)
+            elif i < end:
+                new_index.append(start)
+            else:
+                new_index.append(i - (end - start) + 1)
         return IndexedNestedString(new_content, new_index)
 
 
@@ -198,6 +195,9 @@ class AbstractChild:
     def __init__(self, hash, length=1):
         self.hash = hash
         self.length = length
+
+    def __hash__(self):
+        return hash(self.hash)
 
     def __repr__(self):
         return '⟨⟨{}⟩⟩'.format(self.hash[:4])
@@ -214,6 +214,9 @@ class TransformToken:
         self.string = string
         self.metadata = metadata
         self.length = length
+
+    def __hash__(self):
+        return hash(id(self))
 
     def __repr__(self):
         return '⌈{}⌋'.format(self.string)
@@ -244,33 +247,45 @@ class SyntacticTree:
             )
             self.children = {}
 
+    @staticmethod
+    def materialise_recursive(content, children):
+        content = [
+            c.string if isinstance(c, TransformToken) else c
+            for c in content
+        ]
+        content = [
+            children[c.hash].apply_circumfix(
+                children[c.hash].materialise(recursive=True))
+            if isinstance(c, AbstractChild) else c
+            for c in content
+        ]
+        return ''.join(content)
+
+    @staticmethod
+    def materialise_masked(content):
+        content = [
+            '▒' if isinstance(c, AbstractChild)
+            or isinstance(c, TransformToken) else c
+            for c in content
+        ]
+        return ''.join(content)
+
+    @staticmethod
+    def materialise_repr(content):
+        content = [
+            repr(c) if isinstance(c, AbstractChild)
+            or isinstance(c, TransformToken) else c
+            for c in content
+        ]
+        return ''.join(content)
+
     def materialise(self, repr=False, recursive=False):
-        reprstr = self.content
         if repr:
-            reprstr = [
-                c.__repr__()
-                if isinstance(c, AbstractChild)
-                or isinstance(c, TransformToken) else c
-                for c in reprstr
-            ]
+            return self.materialise_repr(self.content)
         elif recursive:
-            reprstr = [
-                c.string if isinstance(c, TransformToken) else c
-                for c in reprstr
-            ]
-            reprstr = [
-                self.children[c.hash].apply_circumfix(
-                    self.children[c.hash].materialise(recursive=True))
-                if isinstance(c, AbstractChild) else c
-                for c in reprstr
-            ]
+            return self.materialise_recursive(self.content, self.children)
         else:
-            reprstr = [
-                '▒' if isinstance(c, AbstractChild)
-                or isinstance(c, TransformToken) else c
-                for c in reprstr
-            ]
-        return ''.join(reprstr)
+            return self.materialise_masked(self.content)
 
     def apply_circumfix(self, s):
         return self.circumfix[0] + s + self.circumfix[1]
@@ -282,6 +297,7 @@ class SyntacticTree:
                 content=AbstractChild(child_id, length=end - start),
                 start=start,
                 end=end,
+                loc_type='index',
             )
         return content
 
@@ -300,7 +316,12 @@ class SyntacticTree:
             )
         return content
 
-    def _child_carry_nested_content(self, loc, circumfix, drop_circumfix):
+    def _child_carry_nested_content(
+        self,
+        loc,
+        circumfix=('', ''),
+        drop_circumfix=False,
+    ):
         start, end = loc
         if drop_circumfix:
             start += 1
@@ -447,6 +468,20 @@ class TransformPool(eqx.Module):
             priority_to_transform[p] for p in sorted(priority_to_transform)
         ]
 
+    def eval_stack(self, stack, char, incr, accounted):
+        if isinstance(char, TransformToken):
+            return 0, stack, accounted
+        elif isinstance(char, AbstractChild):
+            if char in accounted:
+                return incr, stack, accounted
+            else:
+                accounted = accounted.union({char})
+        if incr == 1:
+            stack = stack + [char]
+        elif incr == -1:
+            stack = [char] + stack
+        return incr, stack, accounted
+
 
 class Grammar(eqx.Module):
     groupings: GroupingPool
@@ -458,7 +493,10 @@ class Grammar(eqx.Module):
         whitespace = re.compile(whitespace)
         return re.sub(whitespace, '', s)
 
-    def parse_groups(self, s: str) -> SyntacticTree:
+    def parse_groups(
+        self,
+        s: Union[str, SyntacticTree]
+    ) -> SyntacticTree:
         tree = SyntacticTree(s)
         stack = []
         pointer = 0
@@ -474,7 +512,10 @@ class Grammar(eqx.Module):
                 )
         return tree
 
-    def tokenise_transforms(self, s: Union[str, SyntacticTree]) -> SyntacticTree:
+    def tokenise_transforms(
+        self,
+        s: Union[str, SyntacticTree]
+    ) -> SyntacticTree:
         tree = SyntacticTree(s)
         for transform in self.transforms.transforms:
             tree.create_token(
@@ -485,3 +526,89 @@ class Grammar(eqx.Module):
                 } for l in transform.literals],
             )
         return tree
+
+    def make_transform_ledger(
+        self,
+        tree: SyntacticTree
+    ) -> Dict[str, TransformNode]:
+        ledger = defaultdict(list)
+        accounted = set()
+        for i, ix in enumerate(tree.content.index[:-1]): # null terminator
+            token = tree.content.content[ix]
+            if isinstance(token, TransformToken) and token not in accounted:
+                accounted = accounted.union({token})
+                ledger[token.metadata['transform']].append(i)
+        return ledger
+
+    def _transform_expr(self, tree, node, affix, args):
+        if affix == 'prefix':
+            expr = tree.materialise_recursive((node, *args), tree.children)
+        elif affix == 'suffix':
+            expr = tree.materialise_recursive((*args, node), tree.children)
+        if affix == 'infix':
+            expr = tree.materialise_recursive(
+                (args[0], node, args[1]),
+                tree.children
+            )
+        tree.create_child(expr, recursive=True)
+
+    def _specify_transform_arg_search(self, affix, pointer):
+        pfx = (pointer, [], 1)
+        sfx = (pointer, [], -1)
+        if affix == 'prefix':
+            search = (pfx,)
+        elif affix == 'suffix':
+            search = (sfx,)
+        elif affix == 'infix':
+            search = (sfx, pfx,)
+        elif affix == 'circumfix':
+            raise NotImplementedError(
+                'Circumfix parse is not yet implemented')
+        else:
+            raise ValueError(
+                'Invalid affix')
+        return search
+
+    def _search_for_transform_args(
+        self,
+        tree: SyntacticTree,
+        pointer: int,
+        incr: str,
+        stack: List[str],
+    ) -> Tuple[List[str], int]:
+        pointer += incr
+        accounted = set()
+        while True:
+            if pointer < 0 or pointer >= len(tree.content.index) - 1:
+                return stack
+            incr, stack, accounted = self.transforms.eval_stack(
+                stack, tree.content[pointer], incr, accounted=accounted)
+            if incr == 0:
+                return stack
+            pointer += incr
+
+    def parse_transforms(
+        self,
+        tree: SyntacticTree,
+        ledger: Dict[str, TransformNode]
+    ):
+        for priority in self.transforms.priority_to_transform:
+            for transform in priority:
+                idx = ledger.get(transform, [])
+                for i in idx:
+                    node = tree.content[i]
+                    affix = node.metadata['literal'].affix
+                    pointer = i
+                    search = self._specify_transform_arg_search(
+                        affix, pointer)
+                    args = []
+
+                    for s in search:
+                        pointer, stack, incr = s
+                        stack = self._search_for_transform_args(
+                            tree, pointer, incr, stack)
+                        if len(stack) > 1 or not isinstance(stack[0], AbstractChild):
+                            stack = tree.materialise_recursive(stack, tree.children)
+                            tree.create_child(stack, recursive=True)
+                        args += stack
+                    self._transform_expr(tree, node, affix, args)

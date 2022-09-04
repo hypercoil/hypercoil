@@ -46,13 +46,24 @@ class TestGrammar:
     def test_transform_parse(self):
         masked = '▒'
         test_str = 'x^^2 + x^2 + x^3-5'
+        test_str = MinimalGrammar().delete_whitespace(test_str)
         tree = MinimalGrammar().tokenise_transforms(test_str)
 
         assert tree.materialise(recursive=True) == test_str
         assert (
             tree.materialise(recursive=False) ==
-            f'x{masked} {masked} x{masked} {masked} x{masked}'
+            f'x{masked}{masked}x{masked}{masked}x{masked}'
         )
         assert tree.materialise(repr=True) == (
-            'x⌈^^2⌋ ⌈+⌋ x⌈^2⌋ ⌈+⌋ x⌈^3-5⌋'
+            'x⌈^^2⌋⌈+⌋x⌈^2⌋⌈+⌋x⌈^3-5⌋'
         )
+
+        ledger = MinimalGrammar().make_transform_ledger(tree)
+        MinimalGrammar().parse_transforms(tree, ledger)
+        children = set(tree.children.values())
+        out = set([
+            tree.materialise_recursive(c.content, tree.children)
+            for c in children
+        ])
+        ref = {'x^^2+x^2+x^3-5', 'x^^2+x^2', 'x^3-5', 'x^^2', 'x^2', 'x'}
+        assert out == ref
