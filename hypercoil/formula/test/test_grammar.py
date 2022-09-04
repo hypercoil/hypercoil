@@ -67,3 +67,17 @@ class TestGrammar:
         ])
         ref = {'x^^2+x^2+x^3-5', 'x^^2+x^2', 'x^3-5', 'x^^2', 'x^2', 'x'}
         assert out == ref
+
+        xdict = {
+            tree.materialise_recursive(
+                c.content, tree.children
+            ): (c.transform_root.metadata['transform']
+                if c.transform_root is not None else None)
+            for c in tree.children.values()
+        }
+        assert isinstance(xdict['x^^2+x^2+x^3-5'], ConcatenateNode)
+        assert isinstance(xdict['x^^2+x^2'], ConcatenateNode)
+        assert isinstance(xdict['x^3-5'], PowerNode)
+        assert isinstance(xdict['x^^2'], PowerNode)
+        assert isinstance(xdict['x^2'], PowerNode)
+        assert xdict['x'] is None

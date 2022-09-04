@@ -191,7 +191,7 @@ class IndexedNestedString(eqx.Module):
         return IndexedNestedString(new_content, new_index)
 
 
-class AbstractChild:
+class ChildToken:
     def __init__(self, hash, length=1):
         self.hash = hash
         self.length = length
@@ -240,12 +240,14 @@ class SyntacticTree:
         if isinstance(content, SyntacticTree):
             self.content = content.content
             self.children = content.children
+            self.transform_root = content.transform_root
         else:
             self.content = IndexedNestedString(
                 content=tuple(content),
                 index=tuple(range(len(content) + 1)),
             )
             self.children = {}
+        self.transform_root = None
 
     @staticmethod
     def materialise_recursive(content, children):
@@ -256,7 +258,7 @@ class SyntacticTree:
         content = [
             children[c.hash].apply_circumfix(
                 children[c.hash].materialise(recursive=True))
-            if isinstance(c, AbstractChild) else c
+            if isinstance(c, ChildToken) else c
             for c in content
         ]
         return ''.join(content)
@@ -264,7 +266,7 @@ class SyntacticTree:
     @staticmethod
     def materialise_masked(content):
         content = [
-            '▒' if isinstance(c, AbstractChild)
+            '▒' if isinstance(c, ChildToken)
             or isinstance(c, TransformToken) else c
             for c in content
         ]
@@ -273,7 +275,7 @@ class SyntacticTree:
     @staticmethod
     def materialise_repr(content):
         content = [
-            repr(c) if isinstance(c, AbstractChild)
+            repr(c) if isinstance(c, ChildToken)
             or isinstance(c, TransformToken) else c
             for c in content
         ]
@@ -294,7 +296,7 @@ class SyntacticTree:
         content = self.content
         for start, end in loc:
             content = content.substitute(
-                content=AbstractChild(child_id, length=end - start),
+                content=ChildToken(child_id, length=end - start),
                 start=start,
                 end=end,
                 loc_type='index',
@@ -336,7 +338,7 @@ class SyntacticTree:
             index=child_index,
         )
         if len(child_content) == 1:
-            if isinstance(child_content[0], AbstractChild):
+            if isinstance(child_content[0], ChildToken):
                 return # already nested
         return SyntacticTree.from_parsed(
             content=child_str,
@@ -377,6 +379,7 @@ class SyntacticTree:
 
         self.content = content
         self.children[child_id] = child
+        return child_id
 
     def create_token(
         self,
@@ -404,7 +407,7 @@ class SyntacticTree:
         if children is None:
             children = {}
         present_children = [c.hash for c in content
-                            if isinstance(c, AbstractChild)]
+                            if isinstance(c, ChildToken)]
         children = {c: v for c, v in children.items()
                     if c in present_children}
         tree = object.__new__(cls)
@@ -412,6 +415,7 @@ class SyntacticTree:
         tree.children = children
         tree.circumfix = circumfix
         tree.hashfn = hashfn
+        tree.transform_root = None
         return tree
 
     def __repr__(self):
@@ -507,7 +511,7 @@ class TransformPool(eqx.Module):
     def eval_stack(self, stack, char, incr, accounted):
         if isinstance(char, TransformToken):
             return 0, stack, accounted
-        elif isinstance(char, AbstractChild):
+        elif isinstance(char, ChildToken):
             if char in accounted:
                 return incr, stack, accounted
             else:
@@ -532,7 +536,7 @@ class TransformPool(eqx.Module):
             pointer, stack, incr = s
             stack = self.search_for_transform_args(
                 tree, pointer, incr, stack)
-            if len(stack) > 1 or not isinstance(stack[0], AbstractChild):
+            if len(stack) > 1 or not isinstance(stack[0], ChildToken):
                 stack = tree.materialise_recursive(stack, tree.children)
                 tree.create_child(stack, recursive=True)
             args += stack
@@ -627,4 +631,5 @@ class Grammar(eqx.Module):
                     )
                     expr = self.transforms.transform_expr(
                         tree=tree, token=token, affix=affix, args=args)
-                    tree.create_child(expr, recursive=True)
+                    ch = tree.create_child(expr, recursive=True)
+                    tree.children[ch].transform_root = token
