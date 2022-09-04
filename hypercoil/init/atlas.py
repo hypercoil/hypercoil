@@ -97,13 +97,19 @@ from .atlasmixins import (
     _SpatialConvMixin,
 )
 from .base import DomainInitialiser
-from .dirichlet import DirichletInit
 from ..engine.noise import UnstructuredNoiseSource
-from .domainbase import Identity
 from .domain import MultiLogit
 
 
-class BaseAtlas(ABC):
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+from typing import Any, Callable, Dict, Optional, Sequence, Union
+from .dirichlet import DirichletInitialiser
+from ..functional.utils import Tensor
+
+
+class BaseAtlas(eqx.Module):
     """
     Atlas object encoding linear mappings from voxels to labels.
     Base class inherited by discrete and continuous atlas containers.
@@ -183,58 +189,102 @@ class BaseAtlas(ABC):
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
-    def __init__(self, ref_pointer, mask_source, dtype=None, device=None,
-                 clear_cache=True, name=None, **kwargs):
+
+    name : str
+    ref_pointer : Any
+    ref : Tensor
+    mask : Tensor
+    compartments : Dict[str, Tensor]
+    decoder : Dict[str, Tensor]
+    maps : Dict[str, Tensor]
+    coors : Dict[str, Tensor]
+    topology : Dict[str, str]
+    cached_ref_data : Optional[Tensor]
+
+    def __init__(
+        self,
+        ref_pointer: Any,
+        mask_source: Any,
+        clear_cache: bool = True,
+        name: Optional[str] = None,
+        **kwargs
+    ):
         if name is None: name = ''
         self.name = name
         self.ref_pointer = ref_pointer
         self.ref = self._load_reference(ref_pointer)
 
-        self._create_mask(mask_source, device=device)
+        self._create_mask(mask_source)
         names_dict = self._compartment_names_dict(**kwargs)
         self._create_compartments(names_dict)
 
         self._configure_decoders()
-        self._configure_compartment_maps(dtype=dtype, device=device)
-        self._init_coors(source=mask_source, names_dict=names_dict,
-                         dtype=dtype, device=device)
+        self._configure_compartment_maps()
+        self._init_coors(source=mask_source, names_dict=names_dict)
         if clear_cache:
-            del self.cached_ref_data
+            self.cached_ref_data = None
 
     @abstractmethod
-    def _load_reference(self, ref_pointer):
+    def _load_reference(
+        self,
+        ref_pointer: Any,
+    ) -> Tensor:
         pass
 
     @abstractmethod
-    def _create_mask(self, mask_source, device=None):
+    def _create_mask(
+        self,
+        mask_source: Any,
+    ) -> None:
         pass
 
     @abstractmethod
-    def _compartment_names_dict(**kwargs):
+    def _compartment_names_dict(**kwargs) -> Dict[str, str]:
         pass
 
     @abstractmethod
-    def _create_compartments(self, names_dict, ref=None):
+    def _create_compartments(
+        self,
+        names_dict: Dict[str, str],
+        ref: Optional[Tensor] = None
+    ) -> None:
         pass
 
     @abstractmethod
-    def _configure_decoders(self, null_label=None):
+    def _configure_decoders(
+        self,
+        null_label: Optional[Any] = None
+    ) -> None:
         pass
 
     @abstractmethod
-    def _populate_map_from_ref(self, map, labels, mask, compartment=None):
+    def _populate_map_from_ref(
+        self,
+        map: Tensor,
+        labels: Tensor,
+        mask: Tensor,
+        compartment: Optional[str] = None
+    ) -> Tensor:
         pass
 
     @abstractmethod
-    def _init_coors(self, source=None, names_dict=None,
-                    dtype=None, device=None):
+    def _init_coors(
+        self,
+        source: Optional[Any] = None,
+        names_dict: Optional[Dict[str, str]] = None
+    ) -> None:
         pass
 
-    def __repr__(self):
-        return f'{type(self).__name__}({self.name})'
-
-    def __call__(self, compartments=True, normalise=False, sigma=None,
-                 noise=None, max_bin=10000, spherical_scale=1, truncate=None):
+    def __call__(
+        self,
+        compartments: Union[bool, Sequence[str]] = True,
+        normalise: bool = False,
+        sigma: Optional[float] = None,
+        noise: Optional[Callable] = None,
+        max_bin: int = 10000,
+        spherical_scale: float = 1,
+        truncate: Optional[float] = None
+    ) -> Dict[str, Tensor]:
         """
         Compute transformed maps for selected atlas subcompartments.
 
@@ -303,23 +353,23 @@ class BaseAtlas(ABC):
             ret[c] = c_map
         return ret
 
-    def _configure_compartment_maps(self, dtype=None, device=None):
+    def _configure_compartment_maps(self) -> None:
         self.maps = OrderedDict()
         for c, mask in self.compartments.items():
             labels = self.decoder[c]
             dim_out = len(labels)
             if dim_out == 0:
-                self.maps[c] = torch.tensor([], dtype=dtype, device=device)
+                self.maps[c] = jnp.array([])
                 continue
             dim_in = mask.sum()
-            map = torch.empty((dim_out, dim_in), dtype=dtype, device=device)
+            map = jnp.empty((dim_out, dim_in))
             self.maps[c] = self._populate_map_from_ref(map, labels, mask, c)
 
         mask = self.mask
         labels = self.decoder['_all']
         dim_out = len(labels)
         dim_in = self.mask.sum()
-        map = torch.empty((dim_out, dim_in), dtype=dtype, device=device)
+        map = jnp.empty((dim_out, dim_in))
         self.maps['_all'] = self._populate_map_from_ref(
             map, labels, mask, '_all')
 
@@ -359,50 +409,69 @@ class DirichletInitBaseAtlas(
     device
         Device on which all tensors created as part of the atlas reside.
     """
-    def __init__(self, mask_source, compartment_labels, conc=100.,
-                 template_image=None, init=None, dtype=None, device=None,
-                 name=None, **kwargs):
+
+    compartment_labels : Dict[str, int]
+    init : Dict[str, Callable]
+
+    def __init__(
+        self,
+        mask_source: Any,
+        compartment_labels: Dict[str, int],
+        conc: Optional[float] = 100.,
+        template_image: Optional[str] = None,
+        init: Optional[Dict[str, Callable]] = None,
+        name: Optional[str] = None,
+        *,
+        key: 'jax.random.PRNGKey',
+        **kwargs
+    ):
         if template_image is None:
             template_image = mask_source
         if isinstance(compartment_labels, int):
             compartment_labels = {'all', compartment_labels}
         self.compartment_labels = compartment_labels
+        keys = jax.random.split(key, len(compartment_labels))
         if init is None:
             default_init = True
             init = OrderedDict((
-                c, DirichletInit(
-                    n_classes=i,
-                    concentration=torch.tensor([conc for _ in range (i)]),
+                c, partial(DirichletInitialiser.init,
+                    concentration=(conc,),
+                    num_classes=i,
                     axis=-2,
-                    domain=Identity()
+                    mapper=None,
+                    key=k,
                 ))
-                for c, i in compartment_labels.items()
+                for k, (c, i) in zip(keys, compartment_labels.items())
             )
+        global_key = jax.random.split(key, 1)[0]
         self.init = init
-        self._global_compartment_init()
+        self._global_compartment_init(key=global_key)
         super().__init__(ref_pointer=template_image,
                          mask_source=mask_source,
                          name=name,
-                         dtype=dtype,
-                         device=device,
                          **kwargs)
         if default_init:
             for k, v in self.init.items():
                 v.domain = MultiLogit(axis=-2)
 
-    def _global_compartment_init(self):
+    def _global_compartment_init(self, *, key: 'jax.random.PRNGKey') -> None:
         if self.init.get('_all'):
             return
         if self.init.get('all'):
             self.init['_all'] = self.init['all']
             return
-        concentrations = [d.concentration for d in self.init.values()]
-        concentrations = torch.cat(concentrations)
-        self.init['_all'] = DirichletInit(
-            n_classes=len(concentrations),
+        concentrations = ()
+        for initialiser in self.init.values():
+            conc = initialiser.keywords['concentration']
+            num_classes = initialiser.keywords['num_classes']
+            concentrations = concentrations + conc * num_classes
+        self.init['_all'] = partial(
+            DirichletInitialiser.init,
             concentration=concentrations,
+            num_classes=len(concentrations),
             axis=-2,
-            domain=Identity()
+            mapper=None,
+            key=key,
         )
 
 
@@ -457,14 +526,16 @@ class DiscreteVolumetricAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
-    def __init__(self, ref_pointer, clear_cache=True, name=None,
-                 dtype=None, device=None,):
+    def __init__(
+        self,
+        ref_pointer: str,
+        clear_cache: bool = True,
+        name: Optional[str] = None,
+    ):
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=0,
                          clear_cache=clear_cache,
-                         name=name,
-                         dtype=dtype,
-                         device=device)
+                         name=name)
 
 
 class MultiVolumetricAtlas(
@@ -521,14 +592,16 @@ class MultiVolumetricAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
-    def __init__(self, ref_pointer, clear_cache=True, name=None,
-                 dtype=None, device=None,):
+    def __init__(
+        self,
+        ref_pointer: str,
+        clear_cache: bool = True,
+        name: Optional[str] = None,
+    ):
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=0,
                          clear_cache=clear_cache,
-                         name=name,
-                         dtype=dtype,
-                         device=device)
+                         name=name)
 
 
 class MultifileVolumetricAtlas(
@@ -551,7 +624,7 @@ class MultifileVolumetricAtlas(
     Parameters
     ----------
     ref_pointer
-        Path to a NIfTI file containing the atlas.
+        Paths to NIfTI files containing the atlas.
     dtype
         Datatype for non-Boolean (non-mask) and non-Long (non-label) tensors
         created as part of the atlas.
@@ -585,14 +658,15 @@ class MultifileVolumetricAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
-    def __init__(self, ref_pointer, clear_cache=True, name=None,
-                 dtype=None, device=None,):
+    def __init__(
+        self,
+        ref_pointer: Sequence[str],
+        clear_cache: bool = True,
+        name: Optional[str] = None,):
         super().__init__(ref_pointer=ref_pointer,
                          mask_source=0,
                          clear_cache=clear_cache,
-                         name=name,
-                         dtype=dtype,
-                         device=device)
+                         name=name,)
 
 
 class CortexSubcortexCIfTIAtlas(
@@ -669,11 +743,21 @@ class CortexSubcortexCIfTIAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
-    def __init__(self, ref_pointer,
-                 mask_L=None, mask_R=None, surf_L=None, surf_R=None,
-                 cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
-                 cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
-                 clear_cache=True, name=None, dtype=None, device=None):
+
+    surf : Dict[str, str]
+
+    def __init__(
+        self,
+        ref_pointer: str,
+        mask_L: Optional[str] = None,
+        mask_R: Optional[str] = None,
+        surf_L: Optional[str] = None,
+        surf_R: Optional[str] = None,
+        cortex_L: str = 'CIFTI_STRUCTURE_CORTEX_LEFT',
+        cortex_R: str = 'CIFTI_STRUCTURE_CORTEX_RIGHT',
+        clear_cache: bool = True,
+        name: Optional[str] = None,
+    ):
         self.surf, mask_source = _cifti_atlas_common_args(
             mask_L=mask_L,
             mask_R=mask_R,
@@ -684,8 +768,6 @@ class CortexSubcortexCIfTIAtlas(
                          mask_source=mask_source,
                          clear_cache=clear_cache,
                          name=name,
-                         dtype=dtype,
-                         device=device,
                          cortex_L=cortex_L,
                          cortex_R=cortex_R)
 
@@ -749,16 +831,24 @@ class DirichletInitVolumetricAtlas(
         Nothing here. The field exists for consistency with other atlas
         classes.
     """
-    def __init__(self, mask_source, n_labels, conc=100., name=None,
-                 init=None, dtype=None, device=None, **kwargs):
+    def __init__(
+        self,
+        mask_source: Union[str, Callable],
+        n_labels: Dict[str, int],
+        conc: Optional[float] = 100.,
+        name: Optional[str] = None,
+        init: Optional[Dict[str, DirichletInitialiser]] = None,
+        *,
+        key: 'jax.random.PRNGKey',
+        **kwargs
+    ):
         if init is not None: init = {'all': init}
         super().__init__(mask_source=mask_source,
                          compartment_labels={'all': n_labels},
                          conc=conc,
                          init=init,
                          name=name,
-                         dtype=dtype,
-                         device=device)
+                         key=key)
 
 
 class DirichletInitSurfaceAtlas(
@@ -844,11 +934,24 @@ class DirichletInitSurfaceAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
-    def __init__(self, cifti_template, compartment_labels,
-                 conc=100., init=None, name=None, dtype=None, device=None,
-                 mask_L=None, mask_R=None, surf_L=None, surf_R=None,
-                 cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
-                 cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT'):
+
+    surf : Dict[str, str]
+
+    def __init__(
+        self,
+        cifti_template: str,
+        compartment_labels: Dict[str, int],
+        conc: Optional[float] = 100.,
+        init: Optional[Dict[str, DirichletInitialiser]] = None,
+        name: Optional[str] = None,
+        mask_L: Optional[str] = None,
+        mask_R: Optional[str] = None,
+        surf_L: Optional[str] = None,
+        surf_R: Optional[str] = None,
+        cortex_L: str = 'CIFTI_STRUCTURE_CORTEX_LEFT',
+        cortex_R: str = 'CIFTI_STRUCTURE_CORTEX_RIGHT',
+        *,
+        key: 'jax.random.PRNGKey',):
         self.surf, mask_source = _cifti_atlas_common_args(
             mask_L=mask_L,
             mask_R=mask_R,
@@ -861,10 +964,9 @@ class DirichletInitSurfaceAtlas(
                          conc=conc,
                          init=init,
                          name=name,
-                         dtype=dtype,
-                         device=device,
                          cortex_L=cortex_L,
-                         cortex_R=cortex_R)
+                         cortex_R=cortex_R,
+                         key=key)
 
 
 class _MemeAtlas(

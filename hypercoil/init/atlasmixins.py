@@ -4,11 +4,14 @@
 """
 Mixins for designing atlas classes.
 """
-import torch
+import jax
 import numpy as np
 import nibabel as nb
+import jax.numpy as jnp
+import equinox as eqx
 from collections import OrderedDict
-from pathlib import PosixPath
+from pathlib import Path, PosixPath
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 from scipy.ndimage import (
     gaussian_filter,
     binary_dilation,
@@ -18,6 +21,7 @@ from scipy.ndimage import (
     binary_fill_holes
 )
 from ..functional.sphere import spherical_conv, euclidean_conv
+from ..functional.utils import Tensor
 
 
 #TODO: Consider caching the ref as a tensor for possible speedup/efficiency
@@ -444,7 +448,10 @@ class _ObjectReferenceMixin:
     For use when a NIfTI image object is already provided as the
     ``ref_pointer`` argument.
     """
-    def _load_reference(self, ref_pointer):
+    def _load_reference(
+        self,
+        ref_pointer: 'nb.nifti1.Nifti1Image',
+    ) -> 'nb.nifti1.Nifti1Image':
         self.cached_ref_data = ref_pointer.get_fdata()
         return ref_pointer
 
@@ -456,7 +463,10 @@ class _SingleReferenceMixin:
     For use when the ``ref_pointer`` object references a single path to an
     image on disk.
     """
-    def _load_reference(self, ref_pointer):
+    def _load_reference(
+        self,
+        ref_pointer: Union[str, Path],
+    ) -> 'nb.nifti1.Nifti1Image':
         ref = nb.load(ref_pointer)
         self.cached_ref_data = ref.get_fdata()
         return ref
@@ -469,7 +479,10 @@ class _MultiReferenceMixin:
     For use when the ``ref_pointer`` object is an iterable of paths to images
     on disk.
     """
-    def _load_reference(self, ref_pointer):
+    def _load_reference(
+        self,
+        ref_pointer: Sequence[Union[str, Path]],
+    ) -> 'nb.nifti1.Nifti1Image':
         ref = [nb.load(path) for path in ref_pointer]
         self.cached_ref_data = np.stack([r.get_fdata() for r in ref], -1)
         ref = nb.Nifti1Image(
@@ -489,7 +502,10 @@ class _PhantomReferenceMixin:
     distribution rather than from an existing reference. The reference is
     still used for inferring dimensions of the atlas and input images.
     """
-    def _load_reference(self, ref_pointer):
+    def _load_reference(
+        self,
+        ref_pointer: Union[str, Path],
+    ) -> 'nb.nifti1.Nifti1Image':
         try:
             ref = nb.load(ref_pointer)
         except TypeError:
@@ -507,12 +523,16 @@ class _PhantomReferenceMixin:
         return self.ref
 
 
-class _PhantomDataobj:
+class _PhantomDataobj(eqx.Module):
     """
     For tricking ``nibabel`` into instantiating ``Nifti1Image`` objects
     without any real data. Used to reduce data overhead when initialising
     atlases from distributions.
     """
+
+    shape : tuple
+    ndim : int
+
     def __init__(self, base):
         self.shape = base.shape
         self.ndim = base.ndim
@@ -526,30 +546,34 @@ class _CIfTIReferenceMixin:
     loader mixin like ``_ObjectReferenceMixin`` or ``_SingleReferenceMixin``.
     """
     @property
-    def axes(self):
+    def axes(self) -> Tuple:
         """
         Thanks to Chris Markiewicz for tutorials that shaped this
         implementation.
         """
-        return [
+        return tuple([
             self.ref.header.get_axis(i)
             for i in range(self.ref.ndim)
-        ]
+        ])
 
     @property
-    def model_axis(self):
+    def model_axis(self) -> int:
         return [a for a in self.axes
                 if isinstance(a, nb.cifti2.cifti2_axes.BrainModelAxis)][0]
 
-    def to_image(self, save=None, maps=None):
+    def to_image(
+        self,
+        save: Optional[str] = None,
+        maps: Optional[Dict[str, Tensor]] = None
+    ) -> Optional['nb.nifti1.Nifti1Image']:
         if maps is None:
             maps = self.maps
         offset = 1
         dataobj = np.zeros_like(self.ref.get_fdata())
         for k, v in maps.items():
             n_labels = v.shape[0]
-            mask = self.compartments[k][self.mask].unsqueeze(0).cpu().numpy()
-            data = v.argmax(0).cpu().detach().numpy() + offset
+            mask = self.compartments[k][self.mask][None, ...]
+            data = v.argmax(0) + offset
             dataobj[mask] = data
             offset += n_labels
         new_cifti = nb.Cifti2Image(
@@ -572,11 +596,14 @@ class _LogicMaskMixin:
     (comprising operation nodes such as ``MaskIntersection`` or
     ``MaskThreshold`` with filesystem paths as leaf nodes).
     """
-    def _create_mask(self, source, device=None):
+    def _create_mask(
+        self,
+        source: Union[str, Path, Callable],
+    ) -> None:
         if _is_path(source):
             source = MaskLeaf(source)
         init = source()
-        self.mask = torch.tensor(init.ravel(), device=device)
+        self.mask = jnp.asarray(init.ravel())
 
 
 class _CortexSubcortexCIfTIMaskMixin:
@@ -588,9 +615,12 @@ class _CortexSubcortexCIfTIMaskMixin:
     compartments, and when the provided mask source indicates medial wall
     regions of the cortical surface marked for exclusion from the atlas.
     """
-    def _create_mask(self, source, device=None):
+    def _create_mask(
+        self,
+        source: Dict[str, Union[str, Path]],
+    ) -> None:
         init = []
-        for k, v in source.items():
+        for v in source.values():
             try:
                 init += [
                     nb.load(v).darrays[0].data.round().astype(bool)
@@ -599,7 +629,7 @@ class _CortexSubcortexCIfTIMaskMixin:
                 init += [
                     np.ones(self.model_axis.volume_mask.sum()).astype(bool)
                 ]
-        self.mask = torch.tensor(np.concatenate(init), device=device)
+        self.mask = jnp.asarray(np.concatenate(init))
 
 
 class _FromNullMaskMixin:
@@ -615,13 +645,16 @@ class _FromNullMaskMixin:
     creates a mask that includes all locations that are greater than or equal
     to the provided source parameter after taking the sum across volumes.
     """
-    def _create_mask(self, source, device=None):
+    def _create_mask(
+        self,
+        source: float = 0.0,
+    ) -> None:
         if self.ref.ndim <= 3:
             init = (self.cached_ref_data.round() != source)
-            self.mask = torch.tensor(init.ravel(), device=device)
+            self.mask = jnp.asarray(init.ravel())
         else:
             init = (self.cached_ref_data.sum(-1) > source)
-            self.mask = torch.tensor(init.ravel(), device=device)
+            self.mask = jnp.asarray(init.ravel())
 
 
 class _SingleCompartmentMixin:
@@ -632,10 +665,17 @@ class _SingleCompartmentMixin:
     For use when no isolation is desired, and the entire atlased region is a
     single compartment.
     """
-    def _compartment_names_dict(self, **kwargs):
+    def _compartment_names_dict(
+        self,
+        **kwargs
+    ) -> Dict[str, str]:
         return {}
 
-    def _create_compartments(self, names_dict=None, ref=None):
+    def _create_compartments(
+        self,
+        names_dict: Dict[str, Tensor] = None,
+        ref: Optional['nb.nifti1.Nifti1Image'] = None
+    ) -> None:
         ref = ref or self.ref
 
         if ref.ndim == 2: # surface, time by vox greyordinates
@@ -661,26 +701,29 @@ class _MultiCompartmentMixin:
     mixin, each extra keyword argument passed to the atlas constructor is
     interpreted as a name-mask path pair defining an atlas compartment.
     """
-    def _compartment_names_dict(self, **kwargs):
+    def _compartment_names_dict(
+        self,
+        **kwargs
+    ) -> Dict[str, str]:
         return kwargs
 
-    def _create_compartments(self, names_dict=None, ref=None):
+    def _create_compartments(
+        self,
+        names_dict: Dict[Union[str, Tuple[str]], Tensor] = None,
+        ref: Optional['nb.nifti1.Nifti1Image'] = None
+    ) -> None:
         ref = ref or self.ref
-        dtype = self.mask.dtype # should be torch.bool
-        device = self.mask.device
 
         self.compartments = OrderedDict()
         for name, vol in names_dict.items():
             if isinstance(name, str):
-                self.compartments[name] = torch.tensor(
-                    _to_mask(vol), dtype=dtype, device=device
-                ).ravel()
+                self.compartments[name] = jnp.asarray(
+                    _to_mask(vol)).ravel()
             else:
                 init = _to_mask(vol)
                 for name, data in zip(name, init):
-                    self.compartments[name] = torch.tensor(
-                        data, dtype=dtype, device=device
-                    ).ravel()
+                    self.compartments[name] = jnp.asarray(
+                        data).ravel()
 
 
 class _CortexSubcortexCIfTICompartmentMixin:
@@ -691,33 +734,23 @@ class _CortexSubcortexCIfTICompartmentMixin:
     For use when creating a CIfTI-based atlas with separate subcompartments
     for the left and right cortical hemispheres and for subcortical locations.
     """
-    def _compartment_names_dict(self, **kwargs):
+    def _compartment_names_dict(self, **kwargs) -> Dict[str, str]:
         return kwargs
 
     def _create_compartments(self, names_dict, ref=None):
         ref = ref or self.ref
         self.compartments = OrderedDict([
-            ('cortex_L', torch.zeros(
-                self.mask.shape,
-                dtype=torch.bool,
-                device=self.mask.device)),
-            ('cortex_R', torch.zeros(
-                self.mask.shape,
-                dtype=torch.bool,
-                device=self.mask.device)),
-            ('subcortex', torch.zeros(
-                self.mask.shape,
-                dtype=torch.bool,
-                device=self.mask.device)),
+            ('cortex_L', jnp.zeros(
+                self.mask.shape, dtype=bool,)),
+            ('cortex_R', jnp.zeros(
+                self.mask.shape, dtype=bool,)),
+            ('subcortex', jnp.zeros(
+                self.mask.shape, dtype=bool,)),
         ])
         #TODO
         # This could not be more stupid. Gotta be a better way to do this.
         if self.mask.shape == self.ref.shape[-1]:
-            mask = torch.ones(
-                self.mask.shape,
-                dtype=torch.bool,
-                device=self.mask.device
-            )
+            mask = jnp.ones(self.mask.shape, dtype=bool,)
         else:
             mask = self.mask
         model_axis = self.model_axis
@@ -734,17 +767,19 @@ class _CortexSubcortexCIfTICompartmentMixin:
         except ValueError:
             pass
 
-    def _mask_hack(self, src_mask, struc, slc):
-        compartment_mask = src_mask.clone()
-        inner_compartment_mask = torch.zeros(
-            compartment_mask.sum(),
-            dtype=torch.bool,
-            device=compartment_mask.device
-        )
-        inner_compartment_mask[(slc,)] = True
-        compartment_mask[compartment_mask.clone()] = (
-            inner_compartment_mask)
-        self.compartments[struc][compartment_mask] = True
+    def _mask_hack(
+        self,
+        src_mask: Tensor,
+        struc: str,
+        slc: slice,
+    ) -> None:
+        compartment_mask = src_mask.copy()
+        inner_compartment_mask = jnp.zeros(
+            compartment_mask.sum(), dtype=bool,)
+        inner_compartment_mask = inner_compartment_mask.at[(slc,)].set(True)
+        compartment_mask = compartment_mask.at[compartment_mask].set(inner_compartment_mask)
+        self.compartments[struc] = jnp.where(compartment_mask, True, False)
+        #self.compartments[struc] = self.compartments[struc].at[compartment_mask].set(True)
 
 
 class _DiscreteLabelMixin:
@@ -755,43 +790,52 @@ class _DiscreteLabelMixin:
     For use when the label sets are encoded as discrete values in a single
     reference volume or surface.
     """
-    def _configure_decoders(self, null_label=0):
+    def _configure_decoders(
+        self,
+        null_label: int = 0
+    ) -> None:
         self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
             try:
-                mask = mask.reshape(self.ref.shape).cpu()
-            except RuntimeError:
-                mask = mask[self.mask].reshape(self.ref.shape).cpu()
-            labels_in_compartment = np.unique(self.cached_ref_data[mask])
+                mask = mask.reshape(self.ref.shape)
+            except jax.core.InconclusiveDimensionOperation:
+                mask = mask[self.mask].reshape(self.ref.shape)
+            labels_in_compartment = np.unique(
+                jnp.asarray(self.cached_ref_data)[mask])
             labels_in_compartment = labels_in_compartment[
                 labels_in_compartment != null_label]
-            self.decoder[c] = torch.tensor(
-                labels_in_compartment, dtype=torch.long, device=mask.device)
+            self.decoder[c] = jnp.asarray(
+                labels_in_compartment, dtype=int)
 
         try:
-            mask = self.mask.reshape(self.ref.shape).cpu()
-        except RuntimeError:
+            mask = self.mask.reshape(self.ref.shape)
+        except jax.core.InconclusiveDimensionOperation:
             # The reference is already masked. In this case, we're using a
             # CIfTI.
             assert self.mask.sum() == self.ref.shape[-1]
             mask = True
         unique_labels = np.unique(self.cached_ref_data[mask])
         unique_labels = unique_labels[unique_labels != null_label]
-        self.decoder['_all'] = torch.tensor(
-            unique_labels, dtype=torch.long, device=self.mask.device)
+        self.decoder['_all'] = jnp.asarray(
+            unique_labels, dtype=int)
 
-    def _populate_map_from_ref(self, map, labels, mask, compartment=None):
+    def _populate_map_from_ref(
+        self,
+        map: Dict[str, Tensor],
+        labels: Dict[int, int],
+        mask: Tensor,
+        compartment: Optional[str] = None
+    ) -> Dict[str, Tensor]:
         for i, l in enumerate(labels):
             try:
-                map[i] = torch.tensor(
-                    self.cached_ref_data.ravel()[mask.cpu()] == l.item())
+                map = map.at[i].set(jnp.asarray(
+                    self.cached_ref_data.ravel()[mask] == l))
             except IndexError:
                 # Again the reference is already masked. In this case, we
                 # assume we're using a CIfTI.
                 assert self.mask.sum() == len(self.cached_ref_data.ravel())
-                map[i] = torch.tensor(
-                    self.cached_ref_data.ravel()[mask[self.mask].cpu()] ==
-                    l.item())
+                map = map.at[i].set(jnp.asarray(
+                    self.cached_ref_data.ravel()[mask[self.mask]] == l))
         return map
 
 
@@ -806,34 +850,41 @@ class _ContinuousLabelMixin:
     If the reference uses a single volume or surface, use
     ``DiscreteLabelMixin`` instead.
     """
-    def _configure_decoders(self, null_label=None):
+    def _configure_decoders(
+        self,
+        null_label: Optional[int] = None
+    ) -> None:
         self.decoder = OrderedDict()
         for c, mask in self.compartments.items():
-            mask = mask.reshape(self.ref.shape[:-1]).cpu()
+            mask = mask.reshape(self.ref.shape[:-1])
             labels_in_compartment = np.where(
                 self.cached_ref_data[mask].sum(0))[0]
             labels_in_compartment = labels_in_compartment[
                 labels_in_compartment != null_label]
-            self.decoder[c] = torch.tensor(
+            self.decoder[c] = jnp.asarray(
                 labels_in_compartment + 1,
-                dtype=torch.long,
-                device=mask.device
+                dtype=int,
             )
 
-        mask = self.mask.reshape(self.ref.shape[:-1]).cpu()
+        mask = self.mask.reshape(self.ref.shape[:-1])
         unique_labels = np.where(self.cached_ref_data[mask].sum(0))[0]
         unique_labels = labels_in_compartment[unique_labels != null_label]
-        self.decoder['_all'] = torch.tensor(
-            unique_labels + 1, dtype=torch.long, device=self.mask.device)
+        self.decoder['_all'] = jnp.asarray(unique_labels + 1, dtype=int)
 
-    def _populate_map_from_ref(self, map, labels, mask, compartment=None):
+    def _populate_map_from_ref(
+        self,
+        map: Dict[str, Tensor],
+        labels: Dict[int, int],
+        mask: Tensor,
+        compartment: Optional[str] = None
+    ) -> Dict[str, Tensor]:
         ref_data = np.moveaxis(
             self.cached_ref_data,
             (0, 1, 2, 3),
             (1, 2, 3, 0)
         ).squeeze()
         for i, l in enumerate(labels):
-            map[i] = torch.tensor(ref_data[(l - 1).cpu()].ravel()[mask.cpu()])
+            map = map.at[i].set(jnp.asarray(ref_data[(l - 1)].ravel()[mask]))
         return map
 
 
@@ -852,23 +903,32 @@ class _DirichletLabelMixin:
     distributions are to be sampled. These mappings can be instantiated in the
     atlas class's constructor method, potentially from user arguments.
     """
-    def _configure_decoders(self, null_label=None):
+    def _configure_decoders(
+        self,
+        null_label: Optional[int] = None
+    ) -> None:
         self.decoder = OrderedDict()
         n_labels = 0
         for c, i in self.compartment_labels.items():
             if i == 0:
-                self.decoder[c] = torch.tensor(
-                    [], dtype=torch.long, device=self.mask.device)
+                self.decoder[c] = jnp.array([], dtype=int,)
                 continue
-            self.decoder[c] = torch.arange(
-                n_labels, n_labels + i,
-                dtype=torch.long, device=self.mask.device) + 1
+            self.decoder[c] = jnp.arange(
+                n_labels, n_labels + i, dtype=int,) + 1
             n_labels += i
-        self.decoder['_all'] = torch.arange(
-            0, n_labels, dtype=torch.long, device=self.mask.device) + 1
+        self.decoder['_all'] = jnp.arange(0, n_labels, dtype=int,) + 1
 
-    def _populate_map_from_ref(self, map, labels, mask, compartment=None):
-        self.init[compartment](map)
+    def _populate_map_from_ref(
+        self,
+        map: Dict[str, Tensor],
+        labels: Dict[int, int],
+        mask: Tensor,
+        compartment=None
+    ) -> Dict[str, Tensor]:
+        map = self.init[compartment](
+            model=map,
+            param_name=None
+        )
         return map
 
 
@@ -880,8 +940,11 @@ class _VolumetricMeshMixin:
     For use when the atlas reference comprises evenly spaced volumetric
     samples (i.e., voxels).
     """
-    def _init_coors(self, source=None, names_dict=None,
-                    dtype=None, device=None):
+    def _init_coors(
+        self,
+        source: Optional[Any] = None,
+        names_dict: Optional[Any] = None,
+    ) -> None:
         axes = None
         shape = self.ref.shape[:3]
         scale = self.ref.header.get_zooms()[:3]
@@ -897,10 +960,8 @@ class _VolumetricMeshMixin:
                 ], axis=0)
             else:
                 axes = np.expand_dims(ax, 0)
-        self.coors = torch.tensor(
+        self.coors = jnp.asarray(
             axes.reshape(i + 1, -1).T,
-            dtype=dtype,
-            device=device
         )
         self.topology = OrderedDict(
             (c, 'euclidean') for c in self.compartments.keys())
@@ -916,8 +977,11 @@ class _VertexCIfTIMeshMixin:
     topology for cortical samples and a Euclidean topology for subcortical
     samples.
     """
-    def _init_coors(self, source=None, names_dict=None,
-                    dtype=None, device=None):
+    def _init_coors(
+        self,
+        source: Optional[Any] = None,
+        names_dict: Optional[Any] = None,
+    ) -> None:
         model_axis = self.model_axis
         coor = np.empty(model_axis.voxel.shape)
         vox = model_axis.volume_mask
@@ -936,16 +1000,10 @@ class _VertexCIfTIMeshMixin:
                 mask = mask.darrays[0].data.astype(bool)
                 surf = surf[mask]
             coor[model_axis.name == name] = surf
-        self.coors = torch.tensor(
-            coor,
-            dtype=dtype,
-            device=device
-        )
+        self.coors = jnp.asarray(coor)
         self.topology = OrderedDict()
-        euc_mask = torch.tensor(
-            self.model_axis.volume_mask,
-            dtype=torch.bool, device=device
-        )
+        euc_mask = jnp.asarray(
+            self.model_axis.volume_mask, dtype=bool)
         for c, mask in self.compartments.items():
             if mask.shape != euc_mask.shape:
                 mask = mask[self.mask]
@@ -963,14 +1021,21 @@ class _EvenlySampledConvMixin:
     substantial extra code, although it is likely to perform better under
     many conditions. Its use is not currently advised.
     """
-    def _configure_sigma(self, sigma):
+    def _configure_sigma(
+        self,
+        sigma: Union[float, None],
+    ) -> Union[float, None]:
         if sigma is not None:
             scale = self.ref.header.get_zooms()[:3]
             sigma = [sigma / s for s in scale]
             sigma = [0] + [sigma]
         return sigma
 
-    def _convolve(self, sigma, map):
+    def _convolve(
+        self,
+        sigma: Union[float, None],
+        map: Tensor
+    ) -> Tensor:
         if sigma is not None:
             gaussian_filter(map, sigma=sigma, output=map)
         return map
@@ -984,11 +1049,21 @@ class _SpatialConvMixin:
     Euclidean or spherical topologies are assigned to each of its
     compartments.
     """
-    def _configure_sigma(self, sigma):
+    def _configure_sigma(
+        self,
+        sigma: Union[float, None],
+    ) -> Union[float, None]:
         return sigma
 
-    def _convolve(self, map, compartment, sigma, max_bin=10000,
-                  spherical_scale=1, truncate=None):
+    def _convolve(
+        self,
+        map: Tensor,
+        compartment: str,
+        sigma: Union[float, None],
+        max_bin: int = 10000,
+        spherical_scale: float = 1,
+        truncate: Optional[float] = None
+    ) -> Tensor:
         compartment_mask = self.compartments[compartment]
         if len(self.coors) < len(compartment_mask):
             compartment_mask = compartment_mask[self.mask]
