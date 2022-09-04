@@ -149,7 +149,7 @@ class IndexedNestedString(eqx.Module):
     def __init__(self, content, index=None):
         if index is None:
             total_length = sum(len(c) for c in content)
-            index = range(total_length)
+            index = range(total_length + 1)
         self.content = tuple(content)
         self.index = tuple(index)
 
@@ -169,12 +169,16 @@ class IndexedNestedString(eqx.Module):
     def idx(self, key):
         return self.content.__getitem__(key)
 
-    def substitute(self, content, start, end=None, loc_type='index'):
+    def substitute(
+        self, content, start, end=None, loc_type='index'
+    ):
         if end is None:
             end = start + len(content)
         if loc_type == 'index':
             start = self.index[start]
             end = self.index[end]
+        if start == end:
+            return self
         new_content = (
             list(self.content[:start]) +
             list(content) +
@@ -232,21 +236,22 @@ class SyntacticTree:
     def __init__(
         self,
         content: str,
-        circumfix: Tuple[str, str] = ('', ''),
+        circumfix: Optional[Tuple[str, str]] = None,
         hashfn: Callable = sha256,
     ):
         self.hashfn = hashfn
-        self.circumfix = circumfix
         if isinstance(content, SyntacticTree):
             self.content = content.content
             self.children = content.children
             self.transform_root = content.transform_root
+            self.circumfix = circumfix or content.circumfix
         else:
             self.content = IndexedNestedString(
                 content=tuple(content),
                 index=tuple(range(len(content) + 1)),
             )
             self.children = {}
+            self.circumfix = circumfix or ('', '')
         self.transform_root = None
 
     @staticmethod
@@ -330,7 +335,7 @@ class SyntacticTree:
             end -= 1
         low = self.content.index[start]
         child_index = tuple([
-            i - low for i in self.content.index[start:end]
+            i - low for i in self.content.index[start:(end + 1)]
         ])
         child_content = self.content[start:end]
         child_str = IndexedNestedString(
@@ -396,6 +401,22 @@ class SyntacticTree:
                 loc, self.content, metadata=meta)
             self.content = content
 
+    @staticmethod
+    def find_present_children(content):
+        return tuple([c.hash for c in content if isinstance(c, ChildToken)])
+
+    @staticmethod
+    def prune_children(content, children):
+        present = SyntacticTree.find_present_children(content)
+        return {c: v for c, v in children.items()
+                if c in present}
+
+    def prune(self):
+        self.children = SyntacticTree.prune_children(
+            self.content, self.children)
+        for c in self.children.values():
+            c.prune()
+
     @classmethod
     def from_parsed(
         cls,
@@ -406,10 +427,7 @@ class SyntacticTree:
     ):
         if children is None:
             children = {}
-        present_children = [c.hash for c in content
-                            if isinstance(c, ChildToken)]
-        children = {c: v for c, v in children.items()
-                    if c in present_children}
+        children = cls.prune_children(content, children)
         tree = object.__new__(cls)
         tree.content = content
         tree.children = children
@@ -559,6 +577,7 @@ class TransformPool(eqx.Module):
 class Grammar(eqx.Module):
     groupings: GroupingPool
     transforms: TransformPool
+    whitespace: bool = False
 
     @staticmethod
     def delete_whitespace(s: str) -> str:
@@ -573,11 +592,13 @@ class Grammar(eqx.Module):
         tree = SyntacticTree(s)
         stack = []
         pointer = 0
-        for i, c in enumerate(s):
+        for i, c in enumerate(tree.content):
             val, stack = self.groupings.eval_stack(stack, c)
             if val == 1 and len(stack) == 1:
                 pointer = i
             elif val == -1 and not stack:
+                s = tree.materialise_recursive(
+                    tree.content, tree.children)
                 tree.create_child(
                     s[pointer:i + 1],
                     drop_circumfix=True,
@@ -631,5 +652,47 @@ class Grammar(eqx.Module):
                     )
                     expr = self.transforms.transform_expr(
                         tree=tree, token=token, affix=affix, args=args)
-                    ch = tree.create_child(expr, recursive=True)
-                    tree.children[ch].transform_root = token
+                    if (tree.materialise_recursive(expr, tree.children)
+                        != tree.materialise(recursive=True)):
+                        ch = tree.create_child(expr, recursive=True)
+                        tree.children[ch].transform_root = token
+                    else:
+                        tree.transform_root = token
+        return tree
+
+    @staticmethod
+    def recur_depth_first(tree, f, skip_transform_roots=False):
+        if (not skip_transform_roots) or (tree.transform_root is None):
+            tree = f(tree)
+        tree.children = tree.prune_children(tree.content, tree.children)
+        for key, child in tree.children.items():
+            tree.children[key] = Grammar.recur_depth_first(
+                tree=child,
+                f=f,
+                skip_transform_roots=skip_transform_roots
+            )
+        return tree
+
+    def parse_level(
+        self,
+        tree: SyntacticTree,
+    ) -> SyntacticTree:
+        tree = self.parse_groups(tree)
+        tree = self.tokenise_transforms(tree)
+        ledger = self.make_transform_ledger(tree)
+        tree = self.parse_transforms(tree, ledger)
+        return tree
+
+    def parse(
+        self,
+        s: str,
+    ):
+        if not self.whitespace:
+            s = self.delete_whitespace(s)
+        tree = SyntacticTree(s)
+        tree = Grammar.recur_depth_first(
+            tree=tree,
+            f=self.parse_level,
+            skip_transform_roots=True
+        )
+        return tree
