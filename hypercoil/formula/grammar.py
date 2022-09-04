@@ -468,6 +468,42 @@ class TransformPool(eqx.Module):
             priority_to_transform[p] for p in sorted(priority_to_transform)
         ]
 
+    @staticmethod
+    def specify_transform_arg_search(affix, pointer):
+        pfx = (pointer, [], 1)
+        sfx = (pointer, [], -1)
+        if affix == 'prefix':
+            search = (pfx,)
+        elif affix == 'suffix':
+            search = (sfx,)
+        elif affix == 'infix':
+            search = (sfx, pfx,)
+        elif affix == 'circumfix':
+            raise NotImplementedError(
+                'Circumfix parse is not yet implemented')
+        else:
+            raise ValueError(
+                'Invalid affix')
+        return search
+
+    def search_for_transform_args(
+        self,
+        tree: SyntacticTree,
+        pointer: int,
+        incr: str,
+        stack: List[str],
+    ) -> Tuple[List[str], int]:
+        pointer += incr
+        accounted = set()
+        while True:
+            if pointer < 0 or pointer >= len(tree.content.index) - 1:
+                return stack
+            incr, stack, accounted = self.eval_stack(
+                stack, tree.content[pointer], incr, accounted=accounted)
+            if incr == 0:
+                return stack
+            pointer += incr
+
     def eval_stack(self, stack, char, incr, accounted):
         if isinstance(char, TransformToken):
             return 0, stack, accounted
@@ -481,6 +517,39 @@ class TransformPool(eqx.Module):
         elif incr == -1:
             stack = [char] + stack
         return incr, stack, accounted
+
+    def transform_args(
+        self,
+        tree: SyntacticTree,
+        pointer: int,
+        affix: str,
+    ):
+        search = self.specify_transform_arg_search(
+            affix, pointer)
+        args = []
+
+        for s in search:
+            pointer, stack, incr = s
+            stack = self.search_for_transform_args(
+                tree, pointer, incr, stack)
+            if len(stack) > 1 or not isinstance(stack[0], AbstractChild):
+                stack = tree.materialise_recursive(stack, tree.children)
+                tree.create_child(stack, recursive=True)
+            args += stack
+        return args
+
+    @staticmethod
+    def transform_expr(tree, token, affix, args):
+        if affix == 'prefix':
+            expr = tree.materialise_recursive((token, *args), tree.children)
+        elif affix == 'suffix':
+            expr = tree.materialise_recursive((*args, token), tree.children)
+        if affix == 'infix':
+            expr = tree.materialise_recursive(
+                (args[0], token, args[1]),
+                tree.children
+            )
+        return expr
 
 
 class Grammar(eqx.Module):
@@ -540,53 +609,6 @@ class Grammar(eqx.Module):
                 ledger[token.metadata['transform']].append(i)
         return ledger
 
-    def _transform_expr(self, tree, node, affix, args):
-        if affix == 'prefix':
-            expr = tree.materialise_recursive((node, *args), tree.children)
-        elif affix == 'suffix':
-            expr = tree.materialise_recursive((*args, node), tree.children)
-        if affix == 'infix':
-            expr = tree.materialise_recursive(
-                (args[0], node, args[1]),
-                tree.children
-            )
-        tree.create_child(expr, recursive=True)
-
-    def _specify_transform_arg_search(self, affix, pointer):
-        pfx = (pointer, [], 1)
-        sfx = (pointer, [], -1)
-        if affix == 'prefix':
-            search = (pfx,)
-        elif affix == 'suffix':
-            search = (sfx,)
-        elif affix == 'infix':
-            search = (sfx, pfx,)
-        elif affix == 'circumfix':
-            raise NotImplementedError(
-                'Circumfix parse is not yet implemented')
-        else:
-            raise ValueError(
-                'Invalid affix')
-        return search
-
-    def _search_for_transform_args(
-        self,
-        tree: SyntacticTree,
-        pointer: int,
-        incr: str,
-        stack: List[str],
-    ) -> Tuple[List[str], int]:
-        pointer += incr
-        accounted = set()
-        while True:
-            if pointer < 0 or pointer >= len(tree.content.index) - 1:
-                return stack
-            incr, stack, accounted = self.transforms.eval_stack(
-                stack, tree.content[pointer], incr, accounted=accounted)
-            if incr == 0:
-                return stack
-            pointer += incr
-
     def parse_transforms(
         self,
         tree: SyntacticTree,
@@ -596,19 +618,13 @@ class Grammar(eqx.Module):
             for transform in priority:
                 idx = ledger.get(transform, [])
                 for i in idx:
-                    node = tree.content[i]
-                    affix = node.metadata['literal'].affix
-                    pointer = i
-                    search = self._specify_transform_arg_search(
-                        affix, pointer)
-                    args = []
-
-                    for s in search:
-                        pointer, stack, incr = s
-                        stack = self._search_for_transform_args(
-                            tree, pointer, incr, stack)
-                        if len(stack) > 1 or not isinstance(stack[0], AbstractChild):
-                            stack = tree.materialise_recursive(stack, tree.children)
-                            tree.create_child(stack, recursive=True)
-                        args += stack
-                    self._transform_expr(tree, node, affix, args)
+                    token = tree.content[i]
+                    affix = token.metadata['literal'].affix
+                    args = self.transforms.transform_args(
+                        tree=tree,
+                        pointer=i,
+                        affix=affix,
+                    )
+                    expr = self.transforms.transform_expr(
+                        tree=tree, token=token, affix=affix, args=args)
+                    tree.create_child(expr, recursive=True)
