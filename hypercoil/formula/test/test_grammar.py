@@ -44,10 +44,11 @@ class TestGrammar:
         assert intermediate.children == final
 
     def test_transform_parse(self):
+        grammar = MinimalGrammar()
         masked = '▒'
         test_str = 'x^^2 + x^2 + x^3-5'
-        test_str = MinimalGrammar().delete_whitespace(test_str)
-        tree = MinimalGrammar().tokenise_transforms(test_str)
+        test_str = grammar.delete_whitespace(test_str)
+        tree = grammar.tokenise_transforms(test_str)
 
         assert tree.materialise(recursive=True) == test_str
         assert (
@@ -58,14 +59,14 @@ class TestGrammar:
             'x⌈^^2⌋⌈+⌋x⌈^2⌋⌈+⌋x⌈^3-5⌋'
         )
 
-        ledger = MinimalGrammar().make_transform_ledger(tree)
-        MinimalGrammar().parse_transforms(tree, ledger)
+        ledger = grammar.make_transform_ledger(tree)
+        tree = grammar.parse_transforms(tree, ledger)
         children = set(tree.children.values())
         out = set([
             tree.materialise_recursive(c.content, tree.children)
             for c in children
         ])
-        ref = {'x^^2+x^2+x^3-5', 'x^^2+x^2', 'x^3-5', 'x^^2', 'x^2', 'x'}
+        ref = {'x^^2+x^2', 'x^3-5', 'x^^2', 'x^2', 'x'}
         assert out == ref
 
         xdict = {
@@ -75,9 +76,41 @@ class TestGrammar:
                 if c.transform_root is not None else None)
             for c in tree.children.values()
         }
-        assert isinstance(xdict['x^^2+x^2+x^3-5'], ConcatenateNode)
+        assert isinstance(tree.transform_root.metadata['transform'],
+                          ConcatenateNode)
         assert isinstance(xdict['x^^2+x^2'], ConcatenateNode)
         assert isinstance(xdict['x^3-5'], PowerNode)
         assert isinstance(xdict['x^^2'], PowerNode)
         assert isinstance(xdict['x^2'], PowerNode)
         assert xdict['x'] is None
+
+    def test_parse(self):
+        def recursive_children(tree):
+            return [
+                (c.materialise(recursive=True), c.transform_root.__repr__(), recursive_children(c))
+                for c in tree.children.values()
+            ]
+
+        grammar = MinimalGrammar()
+        test_str = 'x^^2 + (x^2 + x)^3-5'
+        tree = grammar.parse(test_str)
+        out = [(
+            tree.materialise(recursive=True),
+            tree.transform_root.__repr__(),
+            recursive_children(tree),
+        )]
+        ref = [
+            ('x^^2+(x^2+x)^3-5', '⌈+⌋', [
+                ('x^^2', '⌈^^2⌋', [
+                    ('x', 'None', [])]),
+                ('(x^2+x)^3-5', '⌈^3-5⌋', [
+                    ('x^2+x', '⌈+⌋', [
+                        ('x', 'None', []),
+                        ('x^2', '⌈^2⌋', [
+                            ('x', 'None', [])
+                        ])
+                    ])
+                ])
+            ])
+        ]
+        assert out == ref
