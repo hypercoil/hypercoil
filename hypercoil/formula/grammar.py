@@ -14,7 +14,7 @@ from collections import defaultdict
 from dataclasses import field
 from hashlib import sha256
 from typing import (
-    Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
+    Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 )
 
 
@@ -30,14 +30,13 @@ class Literalisation(eqx.Module):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix']
     regex : str
 
-    #@abstractmethod
-    def parse_params(self, params):
+    @abstractmethod
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         pass
 
-    def parameterise(self, string):
+    def parameterise(self, string: str) -> Dict[str, Any]:
         params = re.search(self.regex, string).groupdict()
         return self.parse_params(params)
-
 
 
 class TransformPrimitive(eqx.Module):
@@ -74,9 +73,15 @@ class ConcatenateInfixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
     regex : str = r'\+'
 
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        return params
+
 class ConcatenatePrefixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'prefix'
     regex : str = r'\+\{[^\{^\}]+\}'
+
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        return params
 
 class ConcatenateNode(TransformPrimitive):
     min_arity: int = 2
@@ -96,19 +101,36 @@ class ConcatenateNode(TransformPrimitive):
 
 class BackwardDifferencePrefixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'prefix'
-    regex : str = r'd[0-9]+'
+    regex : str = r'd(?P<order>[0-9]+)'
+
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        params['order'] = (int(params['order']),)
+        return params
 
 class BackwardDifferenceInclPrefixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'prefix'
-    regex : str = r'dd[0-9]+'
+    regex : str = r'dd(?P<order>[0-9]+)'
+
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        params['order'] = tuple(range(int(params['order']) + 1))
+        return params
 
 class BackwardDifferenceRangePrefixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'prefix'
-    regex : str = r'd[0-9]+\-[0-9]+'
+    regex : str = r'd(?P<order>[0-9]+\-[0-9]+)'
+
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        lim = [int(z) for z in params['order'].split('-')]
+        params['order'] = tuple(range(lim[0], lim[1] + 1))
+        return params
 
 class BackwardDifferenceEnumPrefixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'prefix'
-    regex : str = r'd\{[0-9\,]+\}'
+    regex : str = r'd\{(?P<order>[0-9\,]+)\}'
+
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        params['order'] = tuple(int(z) for z in params['order'].split(','))
+        return params
 
 class BackwardDifferenceNode(TransformPrimitive):
     min_arity: int = 1
@@ -136,7 +158,7 @@ class PowerSuffixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
     regex : str = r'\^(?P<order>[0-9]+)'
 
-    def parse_params(self, params):
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['order'] = (int(params['order']),)
         return params
 
@@ -144,7 +166,7 @@ class PowerInclSuffixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
     regex : str = r'\^\^(?P<order>[0-9]+)'
 
-    def parse_params(self, params):
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['order'] = tuple(range(1, int(params['order']) + 1))
         return params
 
@@ -152,7 +174,7 @@ class PowerRangeSuffixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
     regex : str = r'\^(?P<order>[0-9]+\-[0-9]+)'
 
-    def parse_params(self, params):
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         lim = [int(z) for z in params['order'].split('-')]
         params['order'] = tuple(range(lim[0], lim[1] + 1))
         return params
@@ -161,7 +183,7 @@ class PowerEnumSuffixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
     regex : str = r'\^\{(?P<order>[0-9\,]+)\}'
 
-    def parse_params(self, params):
+    def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['order'] = tuple(int(z) for z in params['order'].split(','))
         return params
 
@@ -187,7 +209,11 @@ class IndexedNestedString(eqx.Module):
     content: Tuple[Any]
     index: Tuple[int]
 
-    def __init__(self, content, index=None):
+    def __init__(
+        self,
+        content: Sequence[Any],
+        index: Sequence[int] = None,
+    ):
         if index is None:
             total_length = sum(len(c) for c in content)
             index = range(total_length + 1)
@@ -197,7 +223,7 @@ class IndexedNestedString(eqx.Module):
     def __len__(self):
         return len(self.index)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Union[int, slice]) -> Any:
         if isinstance(key, slice):
             start, stop, step = key.indices(len(self))
             return self.content[self.index[start]:self.index[stop]:step]
@@ -207,12 +233,16 @@ class IndexedNestedString(eqx.Module):
     def __iter__(self):
         return iter(self.content)
 
-    def idx(self, key):
+    def idx(self, key: Union[int, slice]) -> Any:
         return self.content.__getitem__(key)
 
     def substitute(
-        self, content, start, end=None, loc_type='index'
-    ):
+        self,
+        content: Sequence[Any],
+        start: int,
+        end: Optional[int] = None,
+        loc_type: Literal['index', 'content'] = 'index',
+    ) -> 'IndexedNestedString':
         if end is None:
             end = start + len(content)
         if loc_type == 'index':
@@ -237,7 +267,11 @@ class IndexedNestedString(eqx.Module):
 
 
 class ChildToken:
-    def __init__(self, hash, length=1):
+    def __init__(
+        self,
+        hash: str,
+        length: int = 1,
+    ):
         self.hash = hash
         self.length = length
 
@@ -255,7 +289,12 @@ class ChildToken:
 
 
 class TransformToken:
-    def __init__(self, string, metadata=None, length=1):
+    def __init__(
+        self,
+        string: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        length: int = 1,
+    ):
         self.string = string
         self.metadata = metadata
         self.length = length
@@ -276,7 +315,7 @@ class TransformToken:
 class SyntacticTree:
     def __init__(
         self,
-        content: str,
+        content: Union[str, 'SyntacticTree'],
         circumfix: Optional[Tuple[str, str]] = None,
         hashfn: Callable = sha256,
     ):
@@ -296,7 +335,10 @@ class SyntacticTree:
         self.transform_root = None
 
     @staticmethod
-    def materialise_recursive(content, children):
+    def materialise_recursive(
+        content: Sequence[Any],
+        children: Dict[str, 'SyntacticTree'],
+    ) -> str:
         content = [
             c.string if isinstance(c, TransformToken) else c
             for c in content
@@ -310,7 +352,7 @@ class SyntacticTree:
         return ''.join(content)
 
     @staticmethod
-    def materialise_masked(content):
+    def materialise_masked(content: Sequence[Any]) -> str:
         content = [
             '▒' if isinstance(c, ChildToken)
             or isinstance(c, TransformToken) else c
@@ -319,7 +361,7 @@ class SyntacticTree:
         return ''.join(content)
 
     @staticmethod
-    def materialise_repr(content):
+    def materialise_repr(content: Sequence[Any]) -> str:
         content = [
             repr(c) if isinstance(c, ChildToken)
             or isinstance(c, TransformToken) else c
@@ -327,7 +369,11 @@ class SyntacticTree:
         ]
         return ''.join(content)
 
-    def materialise(self, repr=False, recursive=False):
+    def materialise(
+        self,
+        repr: bool = False,
+        recursive: bool = False,
+    ) -> str:
         if repr:
             return self.materialise_repr(self.content)
         elif recursive:
@@ -335,10 +381,14 @@ class SyntacticTree:
         else:
             return self.materialise_masked(self.content)
 
-    def apply_circumfix(self, s):
+    def apply_circumfix(self, s: str) -> str:
         return self.circumfix[0] + s + self.circumfix[1]
 
-    def _scan_content_and_embed_child(self, loc, child_id):
+    def _scan_content_and_embed_child(
+        self,
+        loc: Tuple[int, int],
+        child_id: str,
+    ) -> IndexedNestedString:
         content = self.content
         for start, end in loc:
             content = content.substitute(
@@ -349,7 +399,12 @@ class SyntacticTree:
             )
         return content
 
-    def _scan_content_and_embed_token(self, loc, content, metadata=None):
+    def _scan_content_and_embed_token(
+        self,
+        loc: Tuple[int, int],
+        content: IndexedNestedString,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> IndexedNestedString:
         for start, end in loc:
             new_token = TransformToken(
                 ''.join(content.idx(slice(start, end))),
@@ -366,10 +421,10 @@ class SyntacticTree:
 
     def _child_carry_nested_content(
         self,
-        loc,
-        circumfix=('', ''),
-        drop_circumfix=False,
-    ):
+        loc: Tuple[int, int],
+        circumfix: Tuple[str, str] = ('', ''),
+        drop_circumfix: bool = False,
+    ) -> 'SyntacticTree':
         start, end = loc
         if drop_circumfix:
             start += 1
@@ -400,7 +455,7 @@ class SyntacticTree:
         recursive: bool = False,
         nest: bool = True,
         drop_circumfix: bool = False,
-    ) -> None:
+    ) -> str:
         child_text = query
         circumfix = ('', '')
         if drop_circumfix:
@@ -432,7 +487,7 @@ class SyntacticTree:
         queries: Sequence[str],
         metadata: Sequence[Dict[str, Any]] = None,
         recursive: bool = False,
-    ):
+    ) -> None:
         content = self.content
         for i, query in enumerate(queries):
             contentstr = self.materialise(recursive=recursive)
@@ -443,11 +498,14 @@ class SyntacticTree:
             self.content = content
 
     @staticmethod
-    def find_present_children(content):
+    def find_present_children(content: IndexedNestedString) -> Tuple[str]:
         return tuple([c.hash for c in content if isinstance(c, ChildToken)])
 
     @staticmethod
-    def prune_children(content, children):
+    def prune_children(
+        content: IndexedNestedString,
+        children: Dict[str, 'SyntacticTree'],
+    ) -> Dict[str, 'SyntacticTree']:
         present = SyntacticTree.find_present_children(content)
         return {c: v for c, v in children.items()
                 if c in present}
@@ -461,11 +519,11 @@ class SyntacticTree:
     @classmethod
     def from_parsed(
         cls,
-        content,
-        children=None,
-        circumfix=('', ''),
-        hashfn=sha256
-    ):
+        content: IndexedNestedString,
+        children: Optional[Dict[str, 'SyntacticTree']] = None,
+        circumfix: Tuple[str, str] = ('', ''),
+        hashfn: Callable = sha256
+    ) -> 'SyntacticTree':
         if children is None:
             children = {}
         children = cls.prune_children(content, children)
@@ -477,7 +535,7 @@ class SyntacticTree:
         tree.transform_root = None
         return tree
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.materialise(repr=True)
 
 
@@ -509,7 +567,7 @@ class GroupingPool(eqx.Module):
         open, close = zip(*[(g.open, g.close) for g in self.groupings])
         return tuple(open), tuple(close)
 
-    def eval_stack(self, stack, char):
+    def eval_stack(self, stack: List[str], char: str) -> Tuple[int, Sequence]:
         if char in self.open:
             return 1, stack + [char]
         elif char in self.close:
@@ -538,7 +596,10 @@ class TransformPool(eqx.Module):
         ]
 
     @staticmethod
-    def specify_transform_arg_search(affix, pointer):
+    def specify_transform_arg_search(
+        affix: Literal['prefix', 'suffix', 'infix'],
+        pointer: int,
+    ) -> Tuple[Tuple[int, Sequence, int], ...]:
         pfx = (pointer, [], 1)
         sfx = (pointer, [], -1)
         if affix == 'prefix':
@@ -557,7 +618,7 @@ class TransformPool(eqx.Module):
 
     def search_for_transform_args(
         self,
-        tree: SyntacticTree,
+        tree: 'SyntacticTree',
         pointer: int,
         incr: str,
         stack: List[str],
@@ -573,7 +634,13 @@ class TransformPool(eqx.Module):
                 return stack
             pointer += incr
 
-    def eval_stack(self, stack, char, incr, accounted):
+    def eval_stack(
+        self,
+        stack: List[str],
+        char: Union[str, 'ChildToken', 'TransformToken'],
+        incr: int,
+        accounted: Set,
+    ) -> Tuple[int, List[str], Set]:
         if isinstance(char, TransformToken):
             return 0, stack, accounted
         elif isinstance(char, ChildToken):
@@ -592,7 +659,7 @@ class TransformPool(eqx.Module):
         tree: SyntacticTree,
         pointer: int,
         affix: str,
-    ):
+    ) -> List:
         search = self.specify_transform_arg_search(
             affix, pointer)
         args = []
@@ -608,7 +675,12 @@ class TransformPool(eqx.Module):
         return args
 
     @staticmethod
-    def transform_expr(tree, token, affix, args):
+    def transform_expr(
+        tree: 'SyntacticTree',
+        token: 'TransformToken',
+        affix: Literal['prefix', 'suffix', 'infix'],
+        args: Sequence,
+    ) -> str:
         if affix == 'prefix':
             expr = tree.materialise_recursive((token, *args), tree.children)
         elif affix == 'suffix':
@@ -685,7 +757,7 @@ class Grammar(eqx.Module):
         self,
         tree: SyntacticTree,
         ledger: Dict[str, TransformPrimitive]
-    ):
+    ) -> SyntacticTree:
         for priority in self.transforms.priority_to_transform:
             for transform in priority:
                 idx = ledger.get(transform, [])
@@ -708,7 +780,11 @@ class Grammar(eqx.Module):
         return tree
 
     @staticmethod
-    def recur_depth_first(tree, f, skip_transform_roots=False):
+    def recur_depth_first(
+        tree: 'SyntacticTree',
+        f: Callable,
+        skip_transform_roots: bool = False
+    ) -> 'SyntacticTree':
         if (not skip_transform_roots) or (tree.transform_root is None):
             tree = f(tree)
         tree.children = tree.prune_children(tree.content, tree.children)
@@ -733,7 +809,7 @@ class Grammar(eqx.Module):
     def parse(
         self,
         s: str,
-    ):
+    ) -> SyntacticTree:
         if not self.whitespace:
             s = self.delete_whitespace(s)
         tree = SyntacticTree(s)
@@ -747,7 +823,7 @@ class Grammar(eqx.Module):
     def verify_level(
         self,
         tree: SyntacticTree,
-    ):
+    ) -> SyntacticTree:
         if len(tree.children) != 0:
             raise UnparsedTreeError(
                 f'Unparsed non-transform node {tree} '
@@ -770,7 +846,7 @@ class Grammar(eqx.Module):
     def transform_impl(
         self,
         tree: SyntacticTree,
-    ):
+    ) -> TransformTree:
         if tree.transform_root:
             transform = tree.transform_root.metadata['transform']
             if len(tree.children) > transform.max_arity:
@@ -803,7 +879,8 @@ class Grammar(eqx.Module):
                 num_kept_children = 0
                 for child in children:
                     if child.transform_root:
-                        child_transform = child.transform_root.metadata['transform']
+                        child_transform = (
+                            child.transform_root.metadata['transform'])
                         if child_transform == transform:
                             child_children = list(child.children.values())
                             new_children += child_children
