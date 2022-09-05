@@ -703,9 +703,9 @@ class Grammar(eqx.Module):
         self,
         s: str,
     ) -> SyntacticTree:
+        s = self.expand_shorthand(s)
         if not self.whitespace:
             s = self.delete_whitespace(s)
-        s = self.expand_shorthand(s)
         tree = SyntacticTree(s)
         tree = Grammar.recur_depth_first(
             tree=tree,
