@@ -7,9 +7,11 @@ Unit tests for formula grammar
 import pandas as pd
 from hypercoil.formula.grammar import (
     Grammar, UnparsedTreeError,
-    GroupingPool, Grouping,
-    TransformPool, ConcatenateNode, BackwardDifferenceNode, PowerNode,
+    GroupingPool, Grouping, TransformPool,
+)
+from hypercoil.formula.dfops import (
     ColumnSelectInterpreter,
+    ConcatenateNode, PowerNode,
 )
 
 
@@ -21,7 +23,6 @@ class MinimalGrammar(Grammar):
     )
     transforms: TransformPool = TransformPool(
         ConcatenateNode(),
-        BackwardDifferenceNode(),
         PowerNode(),
     )
 
@@ -44,6 +45,13 @@ class TestGrammar:
             if len(v.children) == 0
         }
         assert intermediate.children == final
+
+    def test_shorthand(self):
+        grammar = MinimalGrammar(shorthand={'vars': '(x + y + z)'})
+        test_str = 'vars^^2 + vars + (vars^2 + vars)^3-5'
+        test_str = grammar.expand_shorthand(test_str)
+        test_str = grammar.delete_whitespace(test_str)
+        assert test_str == '(x+y+z)^^2+(x+y+z)+((x+y+z)^2+(x+y+z))^3-5'
 
     def test_transform_parse(self):
         grammar = MinimalGrammar()
@@ -151,7 +159,7 @@ class TestGrammar:
         tree = grammar.parse(test_str)
         tree = grammar.transform(tree)
         f = tree.compile(interpreter=ColumnSelectInterpreter())
-        out = f(data)
+        out, _ = f(data)
         cols = set(out.columns)
         ref_cols = {
             'x', 'x_power2', 'x_power3', 'x_power4', 'x_power5',

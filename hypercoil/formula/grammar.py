@@ -582,12 +582,20 @@ class Grammar(eqx.Module):
     groupings: GroupingPool
     transforms: TransformPool
     whitespace: bool = False
+    shorthand: Optional[Dict[str, str]] = None
 
     @staticmethod
     def delete_whitespace(s: str) -> str:
         whitespace = r'[\s]+'
         whitespace = re.compile(whitespace)
         return re.sub(whitespace, '', s)
+
+    def expand_shorthand(self, s: str) -> str:
+        if not self.shorthand:
+            return s
+        for k, v in self.shorthand.items():
+            s = re.sub(k, v, s)
+        return s
 
     def parse_groups(
         self,
@@ -697,6 +705,7 @@ class Grammar(eqx.Module):
     ) -> SyntacticTree:
         if not self.whitespace:
             s = self.delete_whitespace(s)
+        s = self.expand_shorthand(s)
         tree = SyntacticTree(s)
         tree = Grammar.recur_depth_first(
             tree=tree,
