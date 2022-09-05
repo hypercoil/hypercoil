@@ -4,10 +4,12 @@
 """
 Unit tests for formula grammar
 """
+import pandas as pd
 from hypercoil.formula.grammar import (
     Grammar, UnparsedTreeError,
     GroupingPool, Grouping,
     TransformPool, ConcatenateNode, BackwardDifferenceNode, PowerNode,
+    ColumnSelectInterpreter,
 )
 
 
@@ -137,3 +139,23 @@ class TestGrammar:
         assert len(child.children) == 1
         assert isinstance(child.children[0].transform, ConcatenateNode)
         assert len(child.children[0].children) == 2
+
+    def test_compile(self):
+        data = {
+            'x': [1, 2, 3, 4, 5],
+        }
+        data = pd.DataFrame(data)
+
+        grammar = MinimalGrammar()
+        test_str = 'x^^2 + x + (x^2 + x)^3-5'
+        tree = grammar.parse(test_str)
+        tree = grammar.transform(tree)
+        f = tree.compile(interpreter=ColumnSelectInterpreter())
+        out = f(data)
+        cols = set(out.columns)
+        ref_cols = {
+            'x', 'x_power2', 'x_power3', 'x_power4', 'x_power5',
+            'x_power2_power3', 'x_power2_power4', 'x_power2_power5',
+        }
+        assert cols == ref_cols
+        assert (out['x_power2_power5'] == (data['x']**2)**5).all()
