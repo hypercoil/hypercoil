@@ -5,9 +5,9 @@
 Unit tests for formula grammar
 """
 from hypercoil.formula.grammar import (
-    Grammar,
+    Grammar, UnparsedTreeError,
     GroupingPool, Grouping,
-    TransformPool, ConcatenateNode, BackwardDifferenceNode, PowerNode
+    TransformPool, ConcatenateNode, BackwardDifferenceNode, PowerNode,
 )
 
 
@@ -93,6 +93,14 @@ class TestGrammar:
 
         grammar = MinimalGrammar()
         test_str = 'x^^2 + (x^2 + x)^3-5'
+
+        tree = grammar.parse_groups(test_str)
+        try:
+            grammar.verify_parse(tree)
+            assert 0
+        except UnparsedTreeError:
+            pass
+
         tree = grammar.parse(test_str)
         out = [(
             tree.materialise(recursive=True),
@@ -114,3 +122,18 @@ class TestGrammar:
             ])
         ]
         assert out == ref
+        grammar.verify_parse(tree)
+
+    def test_transform(self):
+        grammar = MinimalGrammar()
+        test_str = 'x^^2 + x + (x^2 + x)^3-5'
+        tree = grammar.parse(test_str)
+        tree = grammar.transform(tree)
+        assert isinstance(tree.transform, ConcatenateNode)
+        assert len(tree.children) == 3
+        child = tree.children[0]
+        assert isinstance(child.transform, PowerNode)
+        assert child.parameters == {'order': (3, 4, 5)}
+        assert len(child.children) == 1
+        assert isinstance(child.children[0].transform, ConcatenateNode)
+        assert len(child.children[0].children) == 2
