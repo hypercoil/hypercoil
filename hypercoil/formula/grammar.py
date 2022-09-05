@@ -9,7 +9,7 @@ specification subsystems.
 """
 import re
 import equinox as eqx
-from abc import abstractmethod
+from abc import abstractmethod, abstractstaticmethod
 from collections import defaultdict
 from dataclasses import field
 from hashlib import sha256
@@ -43,7 +43,6 @@ class TransformPrimitive(eqx.Module):
     min_arity : int
     max_arity : int
     priority : int
-    canonical_literal: Literalisation
     literals: Sequence[Literalisation]
     associative: bool = False
     commutative: bool = False
@@ -61,11 +60,26 @@ class TransformPrimitive(eqx.Module):
 
 
 class LeafTransform(TransformPrimitive):
+    leaf: Any = None
     min_arity: int = 0
     max_arity: int = 0
     priority: float = float('nan')
-    canonical_literal: Optional[Literalisation] = None
     literals: Sequence[Literalisation] = ()
+    associative: bool = False
+    commutative: bool = False
+
+
+class LeafInterpreter(eqx.Module):
+    @abstractstaticmethod
+    def __call__(leaf: Any) -> Callable:
+        pass
+
+
+class ColumnSelectInterpreter(LeafInterpreter):
+    def __call__(self, leaf: Any) -> Callable:
+        def select_column(df: pd.DataFrame) -> pd.DataFrame:
+            return df[[leaf]]
+        return select_column
 
 
 import pandas as pd
@@ -89,14 +103,15 @@ class ConcatenateNode(TransformPrimitive):
     priority: int = 3
     associative: bool = True
     commutative: bool = True
-    canonical_literal: Literalisation = ConcatenatePrefixLiteralisation()
     literals: Sequence[Literalisation] = field(default_factory = lambda: [
         ConcatenatePrefixLiteralisation(),
         ConcatenateInfixLiteralisation(),
     ])
 
-    def __call__(self, *pparams, **params):
-        return pd.concat(pparams, axis=1)
+    def ascend(self, *pparams, **params) -> Callable:
+        def concatenate(arg: Any) -> pd.DataFrame:
+            return pd.concat(tuple(f(arg) for f in pparams), axis=1)
+        return concatenate
 
 
 class BackwardDifferencePrefixLiteralisation(Literalisation):
@@ -136,7 +151,6 @@ class BackwardDifferenceNode(TransformPrimitive):
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 2
-    canonical_literal: Literalisation = BackwardDifferenceEnumPrefixLiteralisation()
     literals: Sequence[Literalisation] = field(default_factory = lambda: [
         BackwardDifferenceEnumPrefixLiteralisation(),
         BackwardDifferenceInclPrefixLiteralisation(),
@@ -144,14 +158,19 @@ class BackwardDifferenceNode(TransformPrimitive):
         BackwardDifferencePrefixLiteralisation(),
     ])
 
-    def __call__(self, *pparams, **params):
-        arg = pparams[0]
-        acc = [arg]
-        for o in range(max(params['order'])):
-            arg = arg.diff()
-            if o in params['order']:
-                acc.append(arg)
-        return pd.concat(acc, axis=1)
+    def ascend(self, *pparams, **params) -> Callable:
+        f = pparams[0]
+        def backward_difference(arg: Any) -> pd.DataFrame:
+            arg = f(arg)
+            acc = [arg]
+            for o in range(max(params['order'])):
+                arg = arg.diff()
+                if o in params['order']:
+                    arg.columns = [f'{c}_derivative{o}' if o != 0 else c
+                                   for c in arg.columns]
+                    acc.append(arg)
+            return pd.concat(acc, axis=1)
+        return backward_difference
 
 
 class PowerSuffixLiteralisation(Literalisation):
@@ -191,7 +210,6 @@ class PowerNode(TransformPrimitive):
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 1
-    canonical_literal: Literalisation = PowerEnumSuffixLiteralisation()
     literals: Sequence[Literalisation] = field(default_factory = lambda: [
         PowerEnumSuffixLiteralisation(),
         PowerInclSuffixLiteralisation(),
@@ -199,10 +217,16 @@ class PowerNode(TransformPrimitive):
         PowerSuffixLiteralisation(),
     ])
 
-    def __call__(self, *pparams, **params):
-        arg = pparams[0]
-        acc = [arg ** o for o in params['order']]
-        return pd.concat(acc, axis=1)
+    def ascend(self, *pparams, **params) -> Callable:
+        f = pparams[0]
+        def power(arg: Any) -> pd.DataFrame:
+            arg = f(arg)
+            acc = [arg ** o for o in params['order']]
+            for df, o in zip(acc, params['order']):
+                df.columns = [f'{c}_power{o}' if o != 1 else c
+                              for c in df.columns]
+            return pd.concat(acc, axis=1)
+        return power
 
 
 class IndexedNestedString(eqx.Module):
@@ -544,6 +568,22 @@ class TransformTree(eqx.Module):
     parameters: Dict[str, Any]
     children: List['TransformTree']
 
+    def descend(
+        self,
+        interpreter: Optional[LeafInterpreter] = None,
+    ) -> Callable:
+        if isinstance(self.transform, LeafTransform):
+            return interpreter(self.transform.leaf)
+        functions = [c.descend(interpreter=interpreter)
+                     for c in self.children]
+        return self.transform.ascend(*functions, **self.parameters)
+
+    def compile(
+        self,
+        interpreter: Optional[LeafInterpreter] = None
+    ) -> Callable:
+        return self.descend(interpreter=interpreter)
+
 
 class Grouping(eqx.Module):
     open: str
@@ -862,7 +902,7 @@ class Grammar(eqx.Module):
                     f'{transform.min_arity}.'
                 )
         else:
-            transform = LeafTransform()
+            transform = LeafTransform(leaf=tree.materialise())
 
         children = list(tree.children.values())
         if transform.associative:
