@@ -9,7 +9,7 @@ specification subsystems.
 """
 import re
 import equinox as eqx
-from abc import abstractclassmethod
+from abc import abstractmethod
 from collections import defaultdict
 from dataclasses import field
 from hashlib import sha256
@@ -18,13 +18,29 @@ from typing import (
 )
 
 
+class UnparsedTreeError(Exception):
+    pass
+
+
+class TransformArityError(Exception):
+    pass
+
+
 class Literalisation(eqx.Module):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix']
     regex : str
 
+    #@abstractmethod
+    def parse_params(self, params):
+        pass
+
+    def parameterise(self, string):
+        params = re.search(self.regex, string).groupdict()
+        return self.parse_params(params)
 
 
-class TransformNode(eqx.Module):
+
+class TransformPrimitive(eqx.Module):
     min_arity : int
     max_arity : int
     priority : int
@@ -45,6 +61,14 @@ class TransformNode(eqx.Module):
         return hash(self._key)
 
 
+class LeafTransform(TransformPrimitive):
+    min_arity: int = 0
+    max_arity: int = 0
+    priority: float = float('nan')
+    canonical_literal: Optional[Literalisation] = None
+    literals: Sequence[Literalisation] = ()
+
+
 import pandas as pd
 class ConcatenateInfixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
@@ -54,7 +78,7 @@ class ConcatenatePrefixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'prefix'
     regex : str = r'\+\{[^\{^\}]+\}'
 
-class ConcatenateNode(TransformNode):
+class ConcatenateNode(TransformPrimitive):
     min_arity: int = 2
     max_arity: int = float('inf')
     priority: int = 3
@@ -86,7 +110,7 @@ class BackwardDifferenceEnumPrefixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'prefix'
     regex : str = r'd\{[0-9\,]+\}'
 
-class BackwardDifferenceNode(TransformNode):
+class BackwardDifferenceNode(TransformPrimitive):
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 2
@@ -110,21 +134,38 @@ class BackwardDifferenceNode(TransformNode):
 
 class PowerSuffixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'\^[0-9]+'
+    regex : str = r'\^(?P<order>[0-9]+)'
+
+    def parse_params(self, params):
+        params['order'] = (int(params['order']),)
+        return params
 
 class PowerInclSuffixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'\^\^[0-9]+'
+    regex : str = r'\^\^(?P<order>[0-9]+)'
+
+    def parse_params(self, params):
+        params['order'] = tuple(range(1, int(params['order']) + 1))
+        return params
 
 class PowerRangeSuffixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'\^[0-9]+\-[0-9]+'
+    regex : str = r'\^(?P<order>[0-9]+\-[0-9]+)'
+
+    def parse_params(self, params):
+        lim = [int(z) for z in params['order'].split('-')]
+        params['order'] = tuple(range(lim[0], lim[1] + 1))
+        return params
 
 class PowerEnumSuffixLiteralisation(Literalisation):
     affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'\^\{[0-9\,]+\}'
+    regex : str = r'\^\{(?P<order>[0-9\,]+)\}'
 
-class PowerNode(TransformNode):
+    def parse_params(self, params):
+        params['order'] = tuple(int(z) for z in params['order'].split(','))
+        return params
+
+class PowerNode(TransformPrimitive):
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 1
@@ -440,6 +481,12 @@ class SyntacticTree:
         return self.materialise(repr=True)
 
 
+class TransformTree(eqx.Module):
+    transform: TransformPrimitive
+    parameters: Dict[str, Any]
+    children: List['TransformTree']
+
+
 class Grouping(eqx.Module):
     open: str
     close: str
@@ -474,9 +521,9 @@ class GroupingPool(eqx.Module):
 
 
 class TransformPool(eqx.Module):
-    transforms: Sequence[TransformNode]
-    transform_to_priority: Dict[TransformNode, int]
-    priority_to_transform: List[Sequence[TransformNode]]
+    transforms: Sequence[TransformPrimitive]
+    transform_to_priority: Dict[TransformPrimitive, int]
+    priority_to_transform: List[Sequence[TransformPrimitive]]
 
     def __init__(self, *transforms) -> None:
         self.transforms = transforms
@@ -624,7 +671,7 @@ class Grammar(eqx.Module):
     def make_transform_ledger(
         self,
         tree: SyntacticTree
-    ) -> Dict[str, TransformNode]:
+    ) -> Dict[str, TransformPrimitive]:
         ledger = defaultdict(list)
         accounted = set()
         for i, ix in enumerate(tree.content.index[:-1]): # null terminator
@@ -637,7 +684,7 @@ class Grammar(eqx.Module):
     def parse_transforms(
         self,
         tree: SyntacticTree,
-        ledger: Dict[str, TransformNode]
+        ledger: Dict[str, TransformPrimitive]
     ):
         for priority in self.transforms.priority_to_transform:
             for transform in priority:
@@ -696,3 +743,94 @@ class Grammar(eqx.Module):
             skip_transform_roots=True
         )
         return tree
+
+    def verify_level(
+        self,
+        tree: SyntacticTree,
+    ):
+        if len(tree.children) != 0:
+            raise UnparsedTreeError(
+                f'Unparsed non-transform node {tree} '
+                f'(full version: {tree.materialise(recursive=True)}) '
+                f'has children: {[v for v in tree.children.values()]}. '
+                'All nodes must be either transforms or terminal (leaves).'
+            )
+        return tree
+
+    def verify_parse(
+        self,
+        tree: SyntacticTree,
+    ) -> None:
+        Grammar.recur_depth_first(
+            tree=tree,
+            f=self.verify_level,
+            skip_transform_roots=True
+        )
+
+    def transform_impl(
+        self,
+        tree: SyntacticTree,
+    ):
+        if tree.transform_root:
+            transform = tree.transform_root.metadata['transform']
+            if len(tree.children) > transform.max_arity:
+                raise TransformArityError(
+                    f'Transform {transform} has arity '
+                    f'{len(tree.children)} but max arity is '
+                    f'{transform.max_arity}.'
+                )
+            elif len(tree.children) < transform.min_arity:
+                raise TransformArityError(
+                    f'Transform {transform} has arity '
+                    f'{len(tree.children)} but min arity is '
+                    f'{transform.min_arity}.'
+                )
+        else:
+            transform = LeafTransform()
+
+        children = list(tree.children.values())
+        if transform.associative:
+            new_children = children
+            running_arity = len(children)
+            num_children = len(children)
+            num_kept_children = 0
+            while running_arity < transform.max_arity:
+                if num_children == num_kept_children:
+                    break
+                children = new_children
+                num_children = len(children)
+                new_children = []
+                num_kept_children = 0
+                for child in children:
+                    if child.transform_root:
+                        child_transform = child.transform_root.metadata['transform']
+                        if child_transform == transform:
+                            child_children = list(child.children.values())
+                            new_children += child_children
+                            running_arity += len(child_children) - 1
+                        else:
+                            new_children.append(child)
+                            num_kept_children += 1
+                    else:
+                        new_children.append(child)
+                        num_kept_children += 1
+
+        if tree.transform_root:
+            parser = tree.transform_root.metadata['literal']
+            string = tree.transform_root.string
+            parameters = parser.parameterise(string)
+        else:
+            parameters = {}
+
+        return TransformTree(
+            transform=transform,
+            children=tuple(self.transform_impl(c) for c in children),
+            parameters=parameters,
+        )
+
+    def transform(
+        self,
+        tree: SyntacticTree,
+    ) -> TransformTree:
+        self.verify_parse(tree)
+        return self.transform_impl(tree)
