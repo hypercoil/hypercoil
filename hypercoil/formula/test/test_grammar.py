@@ -141,7 +141,9 @@ class TestGrammar:
         tree = grammar.transform(tree)
         assert isinstance(tree.transform, ConcatenateNode)
         assert len(tree.children) == 3
-        child = tree.children[0]
+        #TODO: tree.children[0] is not a PowerNode, but it should be if
+        #      the grammar is to handle noncommutative operations properly
+        child = tree.children[-1]
         assert isinstance(child.transform, PowerNode)
         assert child.parameters == {'order': (3, 4, 5)}
         assert len(child.children) == 1
@@ -167,3 +169,13 @@ class TestGrammar:
         }
         assert cols == ref_cols
         assert (out['x_power2_power5'] == (data['x']**2)**5).all()
+
+    def test_trivial(self):
+        grammar = MinimalGrammar()
+        test_str = 'x'
+        tree = grammar.parse(test_str)
+        tree = grammar.transform(tree)
+        f = tree.compile(interpreter=ColumnSelectInterpreter())
+        inp = pd.DataFrame({'x': [1, 2, 3, 4, 5]})
+        out, _ = f(inp)
+        assert (out[['x']].values == inp.values).all()

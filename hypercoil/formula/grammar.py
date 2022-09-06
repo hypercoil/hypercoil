@@ -553,10 +553,12 @@ class TransformPool(eqx.Module):
             pointer, stack, incr = s
             stack = self.search_for_transform_args(
                 tree, pointer, incr, stack)
-            if len(stack) > 1 or not isinstance(stack[0], ChildToken):
+            if len(stack) == 0:
+                pass
+            elif len(stack) > 1 or not isinstance(stack[0], ChildToken):
                 stack = tree.materialise_recursive(stack, tree.children)
                 tree.create_child(stack, recursive=True)
-            args += stack
+            args += [stack]
         return args
 
     @staticmethod
@@ -567,12 +569,12 @@ class TransformPool(eqx.Module):
         args: Sequence,
     ) -> str:
         if affix == 'prefix':
-            expr = tree.materialise_recursive((token, *args), tree.children)
+            expr = tree.materialise_recursive((token, *args[0]), tree.children)
         elif affix == 'suffix':
-            expr = tree.materialise_recursive((*args, token), tree.children)
+            expr = tree.materialise_recursive((*args[0], token), tree.children)
         if affix == 'infix':
             expr = tree.materialise_recursive(
-                (args[0], token, args[1]),
+                (*args[0], token, *args[1]),
                 tree.children
             )
         return expr
@@ -583,6 +585,7 @@ class Grammar(eqx.Module):
     transforms: TransformPool
     whitespace: bool = False
     shorthand: Optional[Dict[str, str]] = None
+    default_interpreter: Optional[LeafInterpreter] = None
 
     @staticmethod
     def delete_whitespace(s: str) -> str:
@@ -649,27 +652,30 @@ class Grammar(eqx.Module):
     def parse_transforms(
         self,
         tree: SyntacticTree,
-        ledger: Dict[str, TransformPrimitive]
+        ledger: Dict[str, TransformPrimitive],
+        parse_order: Literal['left', 'right'] = 'right',
     ) -> SyntacticTree:
         for priority in self.transforms.priority_to_transform:
+            idx = []
             for transform in priority:
-                idx = ledger.get(transform, [])
-                for i in idx:
-                    token = tree.content[i]
-                    affix = token.metadata['literal'].affix
-                    args = self.transforms.transform_args(
-                        tree=tree,
-                        pointer=i,
-                        affix=affix,
-                    )
-                    expr = self.transforms.transform_expr(
-                        tree=tree, token=token, affix=affix, args=args)
-                    if (tree.materialise_recursive(expr, tree.children)
-                        != tree.materialise(recursive=True)):
-                        ch = tree.create_child(expr, recursive=True)
-                        tree.children[ch].transform_root = token
-                    else:
-                        tree.transform_root = token
+                idx += ledger.get(transform, [])
+            idx = sorted(idx, reverse=(parse_order == 'left'))
+            for i in idx:
+                token = tree.content[i]
+                affix = token.metadata['literal'].affix
+                args = self.transforms.transform_args(
+                    tree=tree,
+                    pointer=i,
+                    affix=affix,
+                )
+                expr = self.transforms.transform_expr(
+                    tree=tree, token=token, affix=affix, args=args)
+                if (tree.materialise_recursive(expr, tree.children)
+                    != tree.materialise(recursive=True)):
+                    ch = tree.create_child(expr, recursive=True)
+                    tree.children[ch].transform_root = token
+                else:
+                    tree.transform_root = token
         return tree
 
     @staticmethod
@@ -758,12 +764,18 @@ class Grammar(eqx.Module):
         else:
             transform = LeafTransform(leaf=tree.materialise())
 
-        children = list(tree.children.values())
-        if transform.associative:
+        children = [tree.children[token.hash] for token in tree.content
+                    if isinstance(token, ChildToken)]
+        #TODO: check that children are in the right order for noncommutative
+        #      transforms when there are nested groups
+        if transform.associative and transform.commutative:
             new_children = children
             running_arity = len(children)
             num_children = len(children)
             num_kept_children = 0
+            #TODO: Careful! We can exceed the max arity here! We should check
+            #      that the arity is correct with a lookahead before adding
+            #      children.
             while running_arity < transform.max_arity:
                 if num_children == num_kept_children:
                     break
@@ -805,3 +817,14 @@ class Grammar(eqx.Module):
     ) -> TransformTree:
         self.verify_parse(tree)
         return self.transform_impl(tree)
+
+    def compile(
+        self,
+        s: str,
+        interpreter: Optional[LeafInterpreter] = None,
+    ) -> Callable:
+        if interpreter is None:
+            interpreter = self.default_interpreter
+        tree = self.parse(s)
+        transform = self.transform(tree)
+        return transform.compile(interpreter=interpreter)
