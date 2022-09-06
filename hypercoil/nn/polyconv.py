@@ -2,18 +2,19 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Polynomial convolution
-~~~~~~~~~~~~~~~~~~~~~~
-Modules supporting polynomial convolution of time series and other data.
+Modules supporting convolution of time series data.
 """
-import math
-import torch
-from torch.nn import Module, Parameter, init
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+from typing import Literal, Optional, Sequence, Tuple, Union
+import equinox as eqx
 from ..functional import polyconv2d
-from ..init.laplace import LaplaceInit
+from ..functional.utils import Tensor
+from ..init.mapparam import _to_jax_array
 
 
-class PolyConv2D(Module):
+class PolyConv2D(eqx.Module):
     r"""
     2D convolution over a polynomial expansion of an input signal.
 
@@ -55,103 +56,83 @@ class PolyConv2D(Module):
         expansion. This is almost equivalent to `bias`, and it is advised to
         use `bias` instead because it both is more efficient and exhibits more
         appropriate edge behaviours.
-    future_sight : bool (default False)
-        Indicates that the kernel should also view a number of observations
-        equal to `memory` in the future.
-    init : in-place callable (default LaplaceInit)
-        Function for initialising the filter weight. By default, the filter
-        weight is initialised as a discretised double exponential centred on
-        the present time point and the first power such that it approximates
-        identity, with a small amount of Gaussian noise added.
 
     Attributes
     ----------
-    weight : Tensor :math:`(C_{out}, C_{in}, 2M + 1, W)`
-        Learnable kernel weights for polynomial convolution. :math:`C_{out}` is
-        the total number of learnable kernels; :math:`C_{in}` is the number of
-        input channels (most often the maximum polynomial degree); M is the
-        kernel memory, and W is the kernel width. The values are initialised
-        following the `init_` function.
-    bias : Tensor :math:`(C_{out})`
-        Learnable bias for polynomial convolution. If `bias` is True, then the
-        values of these weights are sampled from a uniform distribution whose
-        bounds are the positive and negative inverse square root of the
-        fan-out.
-    mask : Tensor :math:`(C_{out}, C_{in}, 2M + 1, W)`
-        Used to limit future sight by zeroing entries in the weight that
-        correspond to future observations.
+    weight : Tensor
+        Learnable kernel weights for polynomial convolution.
+    bias : Tensor
+        Learnable bias for polynomial convolution.
     """
-    def __init__(self, degree=2, out_channels=1, memory=3, kernel_width=1,
-                 padding=None, bias=False, include_const=False,
-                 future_sight=False, init=None, dtype=None, device=None):
-        super(PolyConv2D, self).__init__()
-        factory_kwargs = {'device': device, 'dtype': dtype}
+    weight: Tensor
+    bias: Optional[Tensor]
+    padding: Optional[Union[Literal['initial', 'final'],
+                      Sequence[Tuple[int, int]]]]
+    in_channels: int
+    out_channels: int
+    include_const: bool
+
+    def __init__(
+        self,
+        degree: int = 2,
+        out_channels: int = 1,
+        memory: int = 3,
+        kernel_width: int = 1,
+        padding: Optional[Union[Literal['initial', 'final'],
+                          Sequence[Tuple[int, int]]]] = None,
+        use_bias: bool = False,
+        include_const: bool = False,
+        *,
+        key: jax.random.PRNGKey,
+    ):
+        super().__init__()
 
         self.in_channels = degree + include_const
         self.out_channels = out_channels
-        self.memory = memory
-        self.kernel_length = 2 * memory + 1
-        self.kernel_width = kernel_width
-        self.padding = padding
-        self.degree = degree
         self.include_const = include_const
-        self.future_sight = future_sight
-        if include_const:
-            self.init = init or LaplaceInit(loc=(1, 0, memory))
+        self.padding = padding
+
+        if padding == 'initial' or padding == 'final':
+            kernel_duration = memory + 1
         else:
-            self.init = init or LaplaceInit(loc=(0, 0, memory))
-
-        self.weight = Parameter(torch.empty(
-            self.out_channels,
-            self.in_channels,
-            self.kernel_width,
-            self.kernel_length,
-            **factory_kwargs
-        ))
-
-        if bias:
-            self.bias = Parameter(torch.empty(out_channels, **factory_kwargs))
-        else:
-            self.register_parameter('bias', None)
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.init(self.weight)
-        if self.bias is not None:
-            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in)
-            init.uniform_(self.bias, -bound, bound)
-
-        if self.future_sight:
-            self.mask = None
-        else:
-            self.mask = Parameter(torch.ones_like(self.weight))
-            with torch.no_grad():
-                self.mask[:, :, :, (self.memory + 1):] = 0
-                self.weight[:] = self.weight * self.mask
-
-    def __repr__(self):
-        s = (
-            f'{self.__class__.__name__}(degree={self.degree}, out_channels='
-            f'{self.out_channels}, memory={self.memory}'
+            kernel_duration = memory * 2 + 1
+        wkey, bkey = jax.random.split(key, 2)
+        lim = 1 / jnp.sqrt(
+            self.in_channels * kernel_width * kernel_duration)
+        self.weight = jax.random.uniform(
+            key=wkey,
+            shape=(
+                out_channels,
+                self.in_channels,
+                kernel_width,
+                kernel_duration,
+            ),
+            minval=-lim,
+            maxval=lim,
         )
-        if self.future_sight:
-            s += f', future_sight={self.memory}'
-        if self.kernel_width > 1:
-            s += f', width={self.kernel_width}'
-        if self.bias is not None:
-            s += ', bias=True'
-        s += ')'
-        return s
-
-    def forward(self, input):
-        """
-        Convolve a polynomial expansion of a signal with the module kernel.
-        """
-        if self.future_sight:
-            weight = self.weight
+        if use_bias:
+            self.bias = jax.random.uniform(
+                key=bkey,
+                shape=(self.out_channels,),
+                minval=-lim,
+                maxval=lim,
+            )
         else:
-            weight = self.weight * self.mask
+            self.bias = None
+
+    def __call__(
+        self,
+        input: Tensor,
+    ):
+        weight = _to_jax_array(self.weight)
+        if self.bias is not None:
+            bias = _to_jax_array(self.bias)
+        else:
+            bias = None
         return polyconv2d(
-            input, weight=weight, bias=self.bias, padding=self.padding,
-            include_const=self.include_const)
+            X=input,
+            weight=weight,
+            bias=bias,
+            include_const=self.include_const,
+            padding=self.padding
+        )

@@ -5,34 +5,34 @@
 Unit tests for polynomial convolution layer
 """
 import pytest
-import numpy as np
-import torch
+
+import jax
+import jax.numpy as jnp
+
 from hypercoil.nn import PolyConv2D
-from hypercoil.init.deltaplus import DeltaPlusInit
+from hypercoil.init.deltaplus import DeltaPlusInitialiser
 
 
 class TestPolyConv:
 
     @pytest.fixture(autouse=True)
     def setup_class(self):
-        self.X = torch.rand(4, 13, 100)
-
-        self.approx = torch.allclose
+        key = jax.random.PRNGKey(0)
+        self.X = jax.random.uniform(key=key, shape=(4, 1, 13, 100))
+        self.approx = jnp.allclose
 
     def test_polyconv_identity(self):
-        init = DeltaPlusInit(var=0, loc=(0, 0, 3))
-        poly = PolyConv2D(2, 4, init=init)
-        out = poly(self.X)
-        ref = self.X.unsqueeze(1).repeat(1, 4, 1, 1)
-        assert self.approx(out, ref)
+        key = jax.random.PRNGKey(0)
+        model = PolyConv2D(degree=2, out_channels=4, key=key)
+        model = DeltaPlusInitialiser.init(
+            model, loc=(0, 0, 3), var=0, key=key)
+        out = model(self.X)
+        ref = jnp.tile(self.X, (1, 4, 1, 1))
+        assert self.approx(out, ref, atol=1e-5)
 
     def test_polyconv_shapes(self):
-        poly = PolyConv2D(7, 3)
-        out = poly(self.X).size()
-        ref = torch.Size([4, 3, 13, 100])
+        key = jax.random.PRNGKey(0)
+        model = PolyConv2D(degree=7, out_channels=3, key=key)
+        out = model(self.X).shape
+        ref = (4, 3, 13, 100)
         assert out == ref
-
-    @pytest.mark.cuda
-    def test_cuda_forward(self):
-        poly = PolyConv2D(7, 3, device='cuda', dtype=torch.half)
-        out = poly(self.X.clone().cuda().half())
