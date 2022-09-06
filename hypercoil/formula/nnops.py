@@ -32,20 +32,9 @@ class ParameterAddressGrammar(Grammar):
     default_interpreter: Optional[LeafInterpreter] = field(
         default_factory = lambda: ParameterSelectInterpreter()
     )
-
-    def compile(
-        self,
-        s: str,
-        interpreter: Optional[LeafInterpreter] = None,
-    ) -> Callable:
-        f = super().compile(s, interpreter=interpreter)
-
-        def compiled(
-            model: PyTree
-        ) -> PyTree:
-            return f((model,))
-
-        return compiled
+    default_root_transform: Optional[TransformPrimitive] = field(
+        default_factory = lambda: ParameterAddressRootNode()
+    )
 
 
 class ParameterSelectInterpreter(LeafInterpreter):
@@ -61,6 +50,25 @@ class ParameterSelectInterpreter(LeafInterpreter):
                 return (model.__getitem__(leaf),)
 
         return retrieve_parameter
+
+
+class ParameterAddressRootNode(TransformPrimitive):
+    min_arity: int = 1
+    max_arity: int = 1
+    priority: float = float('inf')
+    associative: bool = False
+    commutative: bool = False
+    literals: Sequence[Literalisation] = ()
+
+    def __call__(self, *pparams, **params) -> Callable:
+        f = pparams[0]
+
+        def compiled(
+            arg: Any
+        ) -> PyTree:
+            return f((arg,))
+
+        return compiled
 
 
 #------------------------------ Concatenation ------------------------------#

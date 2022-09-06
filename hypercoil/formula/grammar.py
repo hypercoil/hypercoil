@@ -425,9 +425,12 @@ class TransformTree(eqx.Module):
 
     def compile(
         self,
-        interpreter: Optional[LeafInterpreter] = None
+        interpreter: Optional[LeafInterpreter] = None,
+        root_transform: Optional[TransformPrimitive] = None,
     ) -> Callable:
-        return self.descend(interpreter=interpreter)
+        if root_transform is None:
+            return self.descend(interpreter=interpreter)
+        return root_transform(self.descend(interpreter=interpreter))
 
 
 class Grouping(eqx.Module):
@@ -586,6 +589,7 @@ class Grammar(eqx.Module):
     whitespace: bool = False
     shorthand: Optional[Dict[str, str]] = None
     default_interpreter: Optional[LeafInterpreter] = None
+    default_root_transform: Optional[TransformPrimitive] = None
 
     @staticmethod
     def delete_whitespace(s: str) -> str:
@@ -822,9 +826,14 @@ class Grammar(eqx.Module):
         self,
         s: str,
         interpreter: Optional[LeafInterpreter] = None,
+        root_transform: Optional[TransformPrimitive] = None,
     ) -> Callable:
         if interpreter is None:
             interpreter = self.default_interpreter
+        if root_transform is None:
+            root_transform = self.default_root_transform
         tree = self.parse(s)
         transform = self.transform(tree)
-        return transform.compile(interpreter=interpreter)
+        return transform.compile(
+            interpreter=interpreter,
+            root_transform=root_transform)
