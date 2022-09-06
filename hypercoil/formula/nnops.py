@@ -49,7 +49,16 @@ class ParameterSelectInterpreter(LeafInterpreter):
             except AttributeError:
                 return (model.__getitem__(leaf),)
 
-        return retrieve_parameter
+        def retrieve_parameters(
+            arg: Any
+        ) -> PyTree:
+            if isinstance(arg, tuple):
+                return reduce(
+                    lambda x, y: x + y,
+                    tuple(retrieve_parameter(v) for v in arg))
+            return retrieve_parameter(arg)
+
+        return retrieve_parameters
 
 
 class ParameterAddressRootNode(TransformPrimitive):

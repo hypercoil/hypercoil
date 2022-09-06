@@ -32,6 +32,17 @@ class TestAddress:
     def param_zero_assert(f, model_test, model_ref):
         assert (f(model_test) == jnp.zeros_like(f(model_ref))).all()
 
+    def test_trivial(self):
+        grammar = ParameterAddressGrammar()
+
+        key = jax.random.PRNGKey(0)
+        model = eqx.nn.Linear(in_features=1, out_features=1, key=key)
+        search_str = 'weight'
+        f = grammar.compile(search_str)
+        model_zero = self.model_zero(f, model)
+        self.param_zero_assert(
+            lambda m: m.weight, model_zero, model)
+
     def test_address(self):
         grammar = ParameterAddressGrammar()
 
