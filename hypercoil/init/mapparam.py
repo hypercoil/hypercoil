@@ -11,6 +11,7 @@ import equinox as eqx
 from abc import abstractmethod
 from functools import partial
 from typing import Any, Callable, Optional, Tuple, Union
+from ..formula.nnops import retrieve_parameter
 from ..functional.activation import isochor
 from ..functional.matrix import spd
 from ..functional.utils import (
@@ -27,6 +28,10 @@ def _to_jax_array(param: Tensor) -> Tensor:
         return param.__jax_array__()
     else:
         return param
+
+
+def where_weight(model: PyTree) -> Tensor:
+    return model.weight
 
 
 class MappedParameter(eqx.Module):
@@ -51,17 +56,17 @@ class MappedParameter(eqx.Module):
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     """
 
     original: Tensor
-    param_name: str = "weight"
 
-    def __init__(self, model: PyTree, *, param_name: str = "weight"):
-        self.param_name = param_name
-        self.original = self.preimage_map(
-            model.__getattribute__(param_name))
+    def __init__(self, model: PyTree, *, where: Callable = where_weight):
+        self.original = self.preimage_map(where(model))
 
     @abstractmethod
     def preimage_map(self, param: Tensor) -> Tensor:
@@ -98,9 +103,21 @@ class MappedParameter(eqx.Module):
         model : PyTree
             The updated model containing the mapped parameter.
         """
-        mapped = cls(model=model, *pparams, param_name=param_name, **params)
+        #TODO: We're inefficiently making a lot of repeated calls to
+        #      ``retrieve_parameter`` here. We might be able to do this more
+        #      efficiently, but this is low-priority as each call usually has
+        #      very little overhead.
+        parameters = retrieve_parameter(model, param_name)
+        mapped = ()
+        for i, _ in enumerate(parameters):
+            where = lambda model: retrieve_parameter(model, param_name)[i]
+            mapped += (cls(
+                model=model,
+                *pparams,
+                where=where,
+                **params),)
         return eqx.tree_at(
-            lambda m: m.__getattribute__(mapped.param_name),
+            lambda m: retrieve_parameter(m, param_name),
             model,
             replace=mapped
         )
@@ -257,8 +274,11 @@ class DomainMappedParameter(MappedParameter):
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     image_bound : Tuple[float, float]
         Minimum and maximum prescribed values for the image map. Note that
         these are not necessarily the same as the minimum and maximum (or
@@ -274,7 +294,6 @@ class DomainMappedParameter(MappedParameter):
     """
 
     original: Tensor
-    param_name: str = "weight"
     image_bound: Any = None
     preimage_bound: Any = None
     handler: Any = None
@@ -283,7 +302,7 @@ class DomainMappedParameter(MappedParameter):
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Callable = where_weight,
         image_bound: Any = None,
         preimage_bound: Any = None,
         handler: Callable = None
@@ -291,8 +310,7 @@ class DomainMappedParameter(MappedParameter):
         self.handler = handler or Clip()
         self.image_bound = image_bound or (-float('inf'), float('inf'))
         self.preimage_bound = preimage_bound or (-float('inf'), float('inf'))
-        super(DomainMappedParameter, self).__init__(
-            model=model, param_name=param_name)
+        super(DomainMappedParameter, self).__init__(model=model, where=where)
 
     def preimage_map(self, param: Tensor) -> Tensor:
         """
@@ -344,8 +362,11 @@ class AffineDomainMappedParameter(DomainMappedParameter):
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     image_bound : Tuple[float, float]
         Minimum and maximum prescribed values for the image map. See the
         documentation for :class:`DomainMappedParameter` for more details.
@@ -361,7 +382,6 @@ class AffineDomainMappedParameter(DomainMappedParameter):
     """
 
     original: Tensor
-    param_name: str = "weight"
     loc: Tensor = 0.
     scale: Tensor = 1.
     image_bound: Any = None
@@ -374,7 +394,7 @@ class AffineDomainMappedParameter(DomainMappedParameter):
         *,
         loc: Tensor = 0.,
         scale: Tensor = 1.,
-        param_name: str = "weight",
+        where: Callable = where_weight,
         image_bound: Any = None,
         preimage_bound: Any = None,
         handler: Callable = None
@@ -383,7 +403,7 @@ class AffineDomainMappedParameter(DomainMappedParameter):
         self.scale = scale
         super(AffineDomainMappedParameter, self).__init__(
             model=model,
-            param_name=param_name,
+            where=where,
             image_bound=image_bound,
             preimage_bound=preimage_bound,
             handler=handler
@@ -463,8 +483,11 @@ class TanhMappedParameter(AffineDomainMappedParameter):
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     preimage_bound : (float min, float max) (default -3, 3)
         Minimum and maximum prescribed values for the preimage map. Note that
         these are not necessarily the same as the minimum and maximum (or
@@ -480,14 +503,14 @@ class TanhMappedParameter(AffineDomainMappedParameter):
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Callable = where_weight,
         preimage_bound: Tuple[float, float] = (-3., 3.),
         handler: Callable = None,
         scale: float = 1.,
     ):
         super().__init__(
             model,
-            param_name=param_name,
+            where=where,
             preimage_bound=preimage_bound,
             image_bound=(-scale, scale),
             handler=handler,
@@ -511,8 +534,11 @@ class AmplitudeTanhMappedParameter(PhaseAmplitudeMixin, TanhMappedParameter):
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     preimage_bound : (float min, float max) (default -3, 3)
         Minimum and maximum prescribed values for the preimage map. Note that
         these are not necessarily the same as the minimum and maximum (or
@@ -536,8 +562,11 @@ class MappedLogits(AffineDomainMappedParameter):
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     preimage_bound : (float min, float max) (default -3, 3)
         Minimum and maximum prescribed values for the preimage map. Note that
         these are not necessarily the same as the minimum and maximum (or
@@ -556,7 +585,7 @@ class MappedLogits(AffineDomainMappedParameter):
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Callable = where_weight,
         preimage_bound: Tuple[float, float] = (-4.5, 4.5),
         handler: Callable = None,
         loc: Optional[float] = None,
@@ -566,7 +595,7 @@ class MappedLogits(AffineDomainMappedParameter):
         shift = loc - scale / 2
         super().__init__(
             model,
-            param_name=param_name,
+            where=where,
             preimage_bound=preimage_bound,
             image_bound=(loc - scale / 2, loc + scale / 2),
             handler=handler,
@@ -597,8 +626,11 @@ class NormSphereParameter(AffineDomainMappedParameter):
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
         Object specifying a method for handling out-of-domain entries.
     loc : float or tensor
@@ -627,7 +659,7 @@ class NormSphereParameter(AffineDomainMappedParameter):
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Callable = where_weight,
         handler: Callable = None,
         loc: float = 0.,
         scale: float = 1.,
@@ -656,7 +688,7 @@ class NormSphereParameter(AffineDomainMappedParameter):
         self.normalise_fn = normalise
 
         super().__init__(
-            model, param_name=param_name,
+            model, where=where,
             handler=handler, loc=loc, scale=scale
         )
 
@@ -693,8 +725,11 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
         Object specifying a method for handling out-of-domain entries.
     axis : int (default -1)
@@ -718,7 +753,7 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Callable = where_weight,
         handler: Callable = None,
         axis: int = -1,
         minimum: float = 1e-3,
@@ -731,7 +766,7 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
             paramlog, temperature=temperature, smoothing=smoothing)
         self.temperature = temperature
         super().__init__(
-            model, param_name=param_name,
+            model, where=where,
             image_bound=(minimum, float('inf')), # 1 - minimum),
             handler=handler
         )
@@ -759,8 +794,11 @@ class AmplitudeProbabilitySimplexParameter(
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
         Object specifying a method for handling out-of-domain entries.
     axis : int (default -1)
@@ -777,28 +815,31 @@ class AmplitudeProbabilitySimplexParameter(
 
 
 class OrthogonalParameter(MappedParameter):
+    """
+    Parameter whose constituent slices are orthogonal vectors.
+
+    Currently, this is implemented in a crude manner using a QR
+    decomposition.
+
+    Parameters
+    ----------
+    model : PyTree
+        The model to which the parameter belongs.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
+    """
     def __init__(
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Callable = where_weight,
     ):
-        """
-        Parameter whose constituent slices are orthogonal vectors.
-
-        Currently, this is implemented in a crude manner using a QR
-        decomposition.
-
-        Parameters
-        ----------
-        model : PyTree
-            The model to which the parameter belongs.
-        param_name : str (default: `"weight"`)
-            The name of the parameter in the model.
-        """
         super().__init__(
             model,
-            param_name=param_name,
+            where=where,
         )
 
     def preimage_map(self, param: Tensor) -> Tensor:
@@ -821,8 +862,11 @@ class IsochoricParameter(DomainMappedParameter):
     ----------
     model : PyTree
         The model to which the parameter belongs.
-    param_name : str (default: `"weight"`)
-        The name of the parameter in the model.
+    where : Callable
+        As in ``equinox.tree_at``: a function that takes a model (or generally
+        a PyTree) and returns the parameter tensor to be mapped. For example:
+        ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
+        ``weight`` attribute of the model is retrieved.
     volume : nonnegative float (default 1)
         Parameter volume. The determinant of the parameter is set to this
         value.
@@ -849,7 +893,7 @@ class IsochoricParameter(DomainMappedParameter):
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Callable = where_weight,
         volume: float = 1.,
         max_condition: Optional[float] = None,
         softmax_temp: Optional[float] = None,
@@ -859,7 +903,7 @@ class IsochoricParameter(DomainMappedParameter):
         self.max_condition = max_condition
         self.softmax_temp = softmax_temp
         super().__init__(
-            model, param_name=param_name,
+            model, where=where,
             handler=ForcePositiveDefinite(),
             preimage_bound=(spd_threshold, float('inf')),
             image_bound=(spd_threshold, float('inf')),

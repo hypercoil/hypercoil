@@ -231,7 +231,7 @@ class TestMappedParameters:
 
         mapper = ProbabilitySimplexParameter(model, axis=-1)
         model_mapped = eqx.tree_at(
-            lambda m: m.__getattribute__(mapper.param_name),
+            lambda m: m.__getattribute__('weight'),
             model,
             replace=mapper
         )
