@@ -20,7 +20,7 @@ from hypercoil.init.freqfilter import (
 )
 
 
-class TestIIRFilter:
+class TestFreqFilter:
 
     def plot_ampl_response(self, spectra, names, path):
         fig = plt.figure(figsize=(10, 10))

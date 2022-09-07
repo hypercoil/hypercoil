@@ -10,7 +10,7 @@ from functools import reduce
 from typing import Literal, Optional, Tuple, Type, Sequence
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
-from ..functional.utils import Tensor, PyTree
+from ..engine import Tensor, PyTree
 
 
 def laplace_init(

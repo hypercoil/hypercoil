@@ -2,19 +2,18 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Frequency-domain filter
-~~~~~~~~~~~~~~~~~~~~~~~
 Modules supporting filtering/convolution as a product in the frequency domain.
 """
-import torch
-from torch.nn import Module, Parameter
-from itertools import chain
-from ..functional import product_filtfilt
-from ..init.domain import AmplitudeAtanh, Clip
-from ..init.freqfilter import freqfilter_init_, clamp_init_
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+from typing import Callable, List, Optional, Tuple
+from ..engine import Tensor
+from ..functional import product_filtfilt, complex_recompose
+from ..init.freqfilter import FreqFilterInitialiser, FreqFilterSpec
 
 
-class FrequencyDomainFilter(Module):
+class FrequencyDomainFilter(eqx.Module):
     r"""
     Filtering or convolution via transfer function multiplication in the
     frequency domain.
@@ -92,89 +91,121 @@ class FrequencyDomainFilter(Module):
         `V` denotes the total number of values to be clamped across all
         transfer functions. If this is None, then no clamp is applied.
     """
-    def __init__(self, filter_specs, dim=None, time_dim=None,
-                 filter=product_filtfilt, domain=None,
-                 device=None, dtype=None):
-        super(FrequencyDomainFilter, self).__init__()
-        factory_kwargs = {'device': device, 'dtype': dtype}
+    weight: Tensor
+    clamp: Optional[Tuple[Tensor, Tensor]]
+    filter: Callable = product_filtfilt
+    num_channels: int
+    dim: int
 
-        self.filter_specs = filter_specs
-        self.dim = self._set_dimension(dim, time_dim)
-        self.channels = sum([spec.n_filters for spec in self.filter_specs])
+    def __init__(
+        self,
+        num_channels: int,
+        clamp_points: Optional[Tensor] = None,
+        clamp_values: Optional[Tensor] = None,
+        freq_dim: Optional[int] = None,
+        time_dim: Optional[int] = None,
+        filter: Callable = product_filtfilt,
+        *,
+        key: 'jax.random.PRNGKey',
+    ):
+        self.dim = self._set_dimension(freq_dim, time_dim)
+        self.num_channels = num_channels
         self.filter = filter
-        self.domain = domain or AmplitudeAtanh(handler=Clip())
 
-        self.preweight = Parameter(torch.complex(
-            torch.empty(self.channels, self.dim, **factory_kwargs),
-            torch.empty(self.channels, self.dim, **factory_kwargs)
-        ))
-        self.clamp_points, self.clamp_values = self._check_clamp(
-            **factory_kwargs)
+        akey, pkey = jax.random.split(key, 2)
+        amplitude = jax.random.uniform(
+            akey, (num_channels, self.dim), minval=0.45, maxval=0.55)
+        phase = jax.random.uniform(
+            pkey, (num_channels, self.dim), minval=-0.05, maxval=0.05)
+        self.weight = complex_recompose(amplitude, phase)
 
-        self.reset_parameters()
+        if clamp_points is not None and clamp_values is not None:
+            self.clamp = (clamp_points, clamp_values)
+        else:
+            self.clamp = None
 
-    def reset_parameters(self):
-        freqfilter_init_(self.preweight, self.filter_specs, domain=self.domain)
-        if self.clamp_points is not None:
-            clamp_init_(self.clamp_points,
-                        self.clamp_values,
-                        self.filter_specs)
+    @classmethod
+    def from_specs(
+        cls,
+        filter_specs: List[FreqFilterSpec],
+        freq_dim: Optional[int] = None,
+        time_dim: Optional[int] = None,
+        filter: Callable = product_filtfilt,
+        *,
+        key: 'jax.random.PRNGKey',
+    ) -> 'FrequencyDomainFilter':
 
-    def _set_dimension(self, dim, time_dim):
-        if dim is None:
+        num_channels = sum([len(s.Wn) for s in filter_specs])
+        clamp = any([s.clamps is not None for s in filter_specs])
+        freq_dim = cls._set_dimension(freq_dim, time_dim)
+        if clamp:
+            clamp_points, clamp_values = (
+                jnp.empty(
+                    (num_channels, freq_dim),
+                    dtype=jnp.complex64
+                ),
+                jnp.empty(
+                    (num_channels, freq_dim),
+                    dtype=jnp.complex64
+                ),
+            )
+        else:
+            clamp_points, clamp_values = None, None
+
+        init_key, null_key = jax.random.split(key)
+        model = cls(
+            num_channels=num_channels,
+            freq_dim=freq_dim,
+            time_dim=None,
+            filter=filter,
+            clamp_points=clamp_points,
+            clamp_values=clamp_values,
+            key=null_key,
+        )
+
+        wkey, ckey = jax.random.split(init_key, 2)
+        model = FreqFilterInitialiser.init(
+            model,
+            filter_specs=filter_specs,
+            key=wkey
+        )
+        if clamp:
+            model = FreqFilterInitialiser.init(
+                model,
+                filter_specs=filter_specs,
+                clamp_name='clamp',
+                key=jax.random.PRNGKey(0)
+            )
+        return model
+
+    @staticmethod
+    def _set_dimension(freq_dim, time_dim):
+        if freq_dim is None:
             if time_dim is None:
                 raise ValueError('You must specify the dimension in either '
                                  'the frequency or time domain')
             else:
                 dim = time_dim // 2 + 1
+        else:
+            dim = freq_dim
         return dim
 
-    def _check_clamp(self, **factory_kwargs):
-        clamps = list(chain.from_iterable(
-            [[len(f.keys()) for f in spec.clamps]
-             for spec in self.filter_specs]))
-        n_clamps = int(torch.Tensor(clamps).sum().item())
-        if n_clamps <= 0:
-            self.register_parameter('clamp_points', None)
-            self.register_parameter('clamp_values', None)
-            return None, None
-        clamp_points = Parameter(
-            torch.empty(
-                self.channels, self.dim,
-                dtype=torch.bool,
-                device=self.preweight.device
-            ),
-            requires_grad=False)
-        clamp_values = Parameter(torch.complex(
-            torch.empty(n_clamps, **factory_kwargs),
-            torch.empty(n_clamps, **factory_kwargs)
-        ), requires_grad=False)
-        return clamp_points, clamp_values
-
-    def _apply_clamps(self, weight):
-        if self.clamp_points is not None:
-            weight[self.clamp_points] = self.clamp_values
+    @property
+    def clamped_weight(self):
+        weight = self.weight
+        if self.clamp is not None:
+            clamp_points, clamp_values = self.clamp
+            weight = jnp.where(clamp_points, clamp_values, weight)
         return weight
 
-    @property
-    def weight(self):
-        return self._apply_clamps(self.domain.image(self.preweight))
-
-    def __repr__(self):
-        s = f'{self.__class__.__name__}(domain={self.domain}, filters=[\n'
-        s += ',\n'.join([f'  {spec.__repr__()}'
-                         for spec in self.filter_specs])
-        s += '\n])'
-        return s
-
-    def forward(self, input):
+    def __call__(self, input):
         """
         Transform the input into the frequency domain, filter it, and
         transform the filtered signal back.
         """
-        if input.dim() > 1 and input.size(-2) > 1:
-            input = input.unsqueeze(-3)
-            weight = self.weight.unsqueeze(-2)
+        if input.ndim > 1 and input.shape[-2] > 1:
+            input = input[..., None, :, :]
+            weight = self.clamped_weight[..., None, :]
         else:
-            weight = self.weight
+            weight = self.clamped_weight
         return self.filter(input, weight)

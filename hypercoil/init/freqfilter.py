@@ -361,6 +361,8 @@ def ideal_spectrum(
         The specified ideal transfer function.
     """
     Wn = jnp.array(Wn)
+    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+        Wn = Wn.reshape(1, 2)
     if fs is not None:
         Wn = 2 * Wn / fs
     frequencies = jnp.linspace(0, 1, worN)
