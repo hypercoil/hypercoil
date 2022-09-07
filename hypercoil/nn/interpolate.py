@@ -4,36 +4,33 @@
 """
 Modules for performing interpolation.
 """
-import torch
+import equinox as eqx
+from ..engine import Tensor
 from ..functional import (
     spectral_interpolate,
-    weighted_interpolate,
+    linear_interpolate,
     hybrid_interpolate
 )
 
 
-class SpectralInterpolate(torch.nn.Module):
+class SpectralInterpolate(eqx.Module):
     """
     :doc:`Spectral interpolation <hypercoil.functional.interpolate.spectral_interpolate>`
     module.
     """
-    def __init__(
-        self,
-        oversampling_frequency=8,
-        maximum_frequency=1,
-        sampling_period=1,
-        thresh=0
-    ):
-        super().__init__()
-        self.oversampling_frequency = oversampling_frequency
-        self.maximum_frequency = maximum_frequency
-        self.sampling_period = sampling_period
-        self.thresh = thresh
+    oversampling_frequency: float = 8
+    maximum_frequency: float = 1
+    sampling_period: float = 1
+    thresh: float = 0
 
-    def forward(self, input, mask):
+    def __call__(
+        self,
+        input: Tensor,
+        mask: Tensor
+    ) -> Tensor:
         return spectral_interpolate(
             data=input,
-            tmask=mask,
+            mask=mask,
             oversampling_frequency=self.oversampling_frequency,
             maximum_frequency=self.maximum_frequency,
             sampling_period=self.sampling_period,
@@ -41,58 +38,41 @@ class SpectralInterpolate(torch.nn.Module):
         )
 
 
-class WeightedInterpolate(torch.nn.Module):
+class LinearInterpolate(eqx.Module):
     """
-    :doc:`Weighted interpolation <hypercoil.functional.interpolate.weighted_interpolate>`
+    :doc:`Linear interpolation <hypercoil.functional.interpolate.linear_interpolate>`
     module.
     """
-    def __init__(
+    def __call__(
         self,
-        start_stage=1,
-        max_stage=None,
-        map_to_kernel=None
-    ):
-        super().__init__()
-        self.start_stage = start_stage
-        self.max_stage = max_stage
-        self.map_to_kernel = map_to_kernel
-
-    def forward(self, input, mask):
-        return weighted_interpolate(
+        input: Tensor,
+        mask: Tensor
+    ) -> Tensor:
+        return linear_interpolate(
             data=input,
             mask=mask,
-            start_stage=self.start_stage,
-            max_stage=self.max_stage,
-            map_to_kernel=self.map_to_kernel
         )
 
 
-class HybridInterpolate(torch.nn.Module):
+class HybridInterpolate(eqx.Module):
     """
     :doc:`Hybrid interpolation <hypercoil.functional.interpolate.hybrid_interpolate>`
     module.
     """
-    def __init__(
-        self,
-        max_weighted_stage=3,
-        map_to_kernel=None,
-        oversampling_frequency=8,
-        maximum_frequency=1,
-        frequency_thresh=0.3
-    ):
-        super().__init__()
-        self.max_weighted_stage = max_weighted_stage
-        self.map_to_kernel = map_to_kernel
-        self.oversampling_frequency = oversampling_frequency
-        self.maximum_frequency = maximum_frequency
-        self.frequency_thresh = frequency_thresh
+    max_consecutive_linear: int = 3
+    oversampling_frequency: float = 8
+    maximum_frequency: float = 1
+    frequency_thresh: float = 0.3
 
-    def forward(self, input, mask):
+    def __call__(
+        self,
+        input: Tensor,
+        mask: Tensor
+    ) -> Tensor:
         return hybrid_interpolate(
             data=input,
             mask=mask,
-            max_weighted_stage=self.max_weighted_stage,
-            map_to_kernel=self.map_to_kernel,
+            max_consecutive_linear=self.max_consecutive_linear,
             oversampling_frequency=self.oversampling_frequency,
             maximum_frequency=self.maximum_frequency,
             frequency_thresh=self.frequency_thresh
