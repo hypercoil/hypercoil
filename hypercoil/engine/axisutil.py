@@ -7,16 +7,22 @@ Miscellaneous utility functions for tensor axis manipulation.
 import jax
 import jax.numpy as jnp
 from functools import partial, reduce
-from typing import Any, Callable, Generator, Tuple, Union
+from typing import Any, Callable, Generator, Optional, Tuple, Union
 from jax import vmap
 from jax.tree_util import tree_map, tree_reduce
 from .paramutil import PyTree, Tensor
 
 
-def _dim_or_none(x, i):
+def _dim_or_none(x, align, i, ndmax):
+    if not align:
+        i = i - ndmax
+    else:
+        i = -i
     proposal = i + x
     if proposal < 0:
         return None
+    elif align:
+        return -i
     return proposal
 
 
@@ -25,6 +31,20 @@ def _compose(
     g: Callable,
 ) -> Any:
     return g(f)
+
+
+def _seq_pad(
+    x: Tuple[Any, ...],
+    n: int,
+    pad: str = 'last',
+    pad_value: Any = None,
+) -> Tuple[Any, ...]:
+    padding = [pad_value for _ in range(n + 1 - len(x))]
+    if pad == 'last':
+        return tuple((*x, *padding))
+    elif pad == 'first':
+        return tuple((*padding, *x))
+    raise ValueError(f"Invalid padding: {pad}")
 
 
 def atleast_4d(*pparams) -> Tensor:
@@ -51,34 +71,75 @@ def atleast_4d(*pparams) -> Tensor:
 def apply_vmap_over_outer(
     x: PyTree,
     f: Callable,
-    f_dim: int
+    f_dim: int,
+    align_outer: bool = False,
+    structuring_arg: Optional[Union[Callable, int]] = None,
 ) -> Tensor:
     """
     Apply a tensor-valued function to the outer dimensions of a tensor.
     """
-    ndim = tree_map(lambda x: x.ndim - f_dim - 1, x)
+    if isinstance(f_dim, int):
+        f_dim = tree_map(lambda _: f_dim, x)
+    if isinstance(align_outer, bool):
+        align_outer = tree_map(lambda _: align_outer, x)
+    ndim = tree_map(lambda x, f: x.ndim - f - 1, x, f_dim)
     ndmax = tree_reduce(max, ndim)
-    #print([(
-    #    tree_map(partial(_dim_or_none, i=i - ndmax), ndim), i)
-    #    for i in range(0, ndmax + 1)
-    #])
+    if structuring_arg is None:
+        output_structure = range(0, ndmax + 1)
+    else:
+        if isinstance(structuring_arg, int):
+            output_structure = range(
+                0, x[structuring_arg].ndim - f_dim[structuring_arg])
+            criterion = align_outer[structuring_arg]
+        else:
+            output_structure = range(
+                0, structuring_arg(x).ndim - structuring_arg(f_dim))
+            criterion = structuring_arg(align_outer)
+        if criterion:
+            output_structure = _seq_pad(output_structure, ndmax, 'last')
+        else:
+            output_structure = _seq_pad(output_structure, ndmax, 'first')
+    # print(ndim, tuple(range(ndmax + 1)))
+    # print([(
+    #    tree_map(
+    #         partial(_dim_or_none, i=i, ndmax=ndmax),
+    #         ndim,
+    #         align_outer
+    #     ), i, o)
+    #     for i, o in zip(range(0, ndmax + 1), output_structure)
+    # ])
     return reduce(
         _compose,
         #lambda x, g: g(x),
         [partial(
             vmap,
-            in_axes=tree_map(partial(_dim_or_none, i=i - ndmax), ndim),
-            out_axes=i
-        ) for i in range(0, ndmax + 1)],
+            in_axes=tree_map(
+                partial(_dim_or_none, i=i, ndmax=ndmax),
+                ndim,
+                align_outer
+            ),
+            out_axes=o
+        ) for i, o in zip(range(0, ndmax + 1), output_structure)],
         f
     )(*x)
 
 
-def vmap_over_outer(f: Callable, f_dim: int) -> Callable:
+def vmap_over_outer(
+    f: Callable,
+    f_dim: int,
+    align_outer: bool = False,
+    structuring_arg: Optional[Union[Callable, int]] = None,
+) -> Callable:
     """
     Transform a function to apply to the outer dimensions of a tensor.
     """
-    return partial(apply_vmap_over_outer, f=f, f_dim=f_dim)
+    return partial(
+        apply_vmap_over_outer,
+        f=f,
+        f_dim=f_dim,
+        align_outer=align_outer,
+        structuring_arg=structuring_arg,
+    )
 
 
 def axis_complement(
@@ -115,44 +176,6 @@ def promote_axis(
     if isinstance(axis, int): axis = (axis,)
     axis = [standard_axis_number(ax, ndim) for ax in axis]
     return (*axis, *axis_complement(ndim, axis))
-
-
-# def _ax_out(ax, compl, ax_idx, compl_idx, out_idx):
-#     return (out_idx + 1, ax_idx + 1, compl_idx), ax[ax_idx]
-
-
-# def _compl_out(ax, compl, ax_idx, compl_idx, out_idx):
-#     return (out_idx + 1, ax_idx, compl_idx + 1), compl[compl_idx]
-
-
-# def _demote_ax_impl(carry, pred, out, ax, compl) -> Tensor:
-#     out_idx, ax_idx, compl_idx = carry
-#     #pred = (out_idx in out)
-#     carry, ret = jax.lax.cond(
-#         pred, _ax_out, _compl_out,
-#         ax, compl, ax_idx, compl_idx, out_idx)
-#     return carry, ret
-
-
-# def demote_axis(
-#     ndim: int,
-#     axis: Union[int, Tuple[int, ...]],
-# ) -> Tuple[int, ...]:
-#     """
-#     Demote the outermost axis or axes to the specified dimension(s).
-#     """
-#     if isinstance(axis, int): axis = (axis,)
-#     out = [standard_axis_number(ax, ndim) for ax in axis]
-#     ax = jnp.arange(len(axis))
-#     compl = jnp.arange(len(axis), ndim)
-#     pred = (jnp.array(out) == jnp.arange(ndim)[..., None]).any(-1)
-#     _, ax = jax.lax.scan(
-#         partial(_demote_ax_impl, out=out, ax=ax, compl=compl),
-#         init=(0, 0, 0),
-#         xs=pred,
-#         length=ndim
-#     )
-#     return ax
 
 
 def _demote_axis(
@@ -220,17 +243,6 @@ def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
     """
     if isinstance(axes, int):
         return tensor
-    # shape = jnp.array(tensor.shape)
-    # ndim = len(shape)
-    # ax = jnp.array(axes)[..., None]
-    # pred = (jnp.arange(ndim) == ax).any(0)
-    # #prod = jnp.prod(jnp.where(pred, shape, 1)).item()
-    # print(pred, shape)
-    # prod, _ = jax.lax.scan(
-    #     partial(_reduce_cond, f=_prod, identity=_id_mul),
-    #     1,
-    #     (tensor.shape, pred))
-    # print(prod)
     shape = tensor.shape
     axes = [standard_axis_number(ax, tensor.ndim) for ax in axes]
     current = [shape[ax] for ax in axes]
