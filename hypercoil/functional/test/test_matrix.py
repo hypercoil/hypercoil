@@ -8,9 +8,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from functools import partial
 from scipy.linalg import toeplitz as toeplitz_ref
-from scipy.sparse import csr_matrix
 from hypercoil.functional import (
     cholesky_invert,
     toeplitz,
@@ -24,7 +22,7 @@ from hypercoil.functional import (
     vec2sym,
     squareform
 )
-from hypercoil.functional.utils import vmap_over_outer
+from hypercoil.engine import vmap_over_outer
 
 
 class TestMatrix:

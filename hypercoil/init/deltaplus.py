@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from typing import Optional, Tuple, Type
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
-from ..functional.utils import PyTree, Tensor
+from ..engine import PyTree, Tensor
 
 
 def deltaplus_init(

@@ -11,27 +11,15 @@ import equinox as eqx
 from abc import abstractmethod
 from functools import partial
 from typing import Any, Callable, Optional, Tuple, Union
+from ..engine.paramutil import (
+    PyTree, Tensor, _to_jax_array, where_weight
+)
 from ..formula.nnops import retrieve_parameter
 from ..functional.activation import isochor
 from ..functional.matrix import spd
 from ..functional.utils import (
-    Tensor, PyTree, complex_decompose, complex_recompose
+    complex_decompose, complex_recompose
 )
-
-
-# From ``equinox``:
-# TODO: remove this once JAX fixes the issue.
-# Working around JAX not always properly respecting __jax_array__ . . .
-# See JAX issue #10065
-def _to_jax_array(param: Tensor) -> Tensor:
-    if hasattr(param, "__jax_array__"):
-        return param.__jax_array__()
-    else:
-        return param
-
-
-def where_weight(model: PyTree) -> Tensor:
-    return model.weight
 
 
 class MappedParameter(eqx.Module):

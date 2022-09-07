@@ -7,10 +7,14 @@ Unit tests for utility functions.
 import jax
 import jax.numpy as jnp
 import numpy as np
-from distrax import MultivariateNormalFullCovariance
 from hypercoil.functional.utils import (
     apply_mask, wmean, orient_and_conform,
-    conform_mask, mask_tensor, vmap_over_outer,
+    conform_mask, mask_tensor,
+)
+#TODO: Move these tests!
+from distrax import MultivariateNormalFullCovariance
+from hypercoil.engine import (
+    vmap_over_outer,
     promote_axis, demote_axis, fold_axis, unfold_axes,
     axis_complement, standard_axis_number,
     fold_and_promote, demote_and_unfold,

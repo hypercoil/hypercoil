@@ -6,7 +6,7 @@ Diff terminals
 ~~~~~~~~~~~~~~
 Differentiable program terminals. Currently minimal functionality.
 """
-from ..functional import conform_mask
+#from hypercoil.functional.utils import conform_mask
 from .conveyance import Conveyance
 from .argument import ModelArgument, UnpackingModelArgument
 
@@ -106,6 +106,8 @@ class ReactiveTerminal(Terminal):
         slc = [slice(None) for _ in range(slice_target.dim())]
         total = slice_target.shape[self.slice_axis]
         if axis_mask is not None:
+            raise NotImplementedError(
+                'The refactor has not yet reached this point.')
             axis_mask = conform_mask(
                 slice_target,
                 axis_mask,

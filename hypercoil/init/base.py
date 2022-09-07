@@ -11,14 +11,10 @@ import equinox as eqx
 from abc import abstractmethod
 from typing import Optional, Tuple, Type
 from .mapparam import MappedParameter
-from ..formula.nnops import ParameterAddressGrammar
-from ..functional.utils import PyTree, Tensor, Distribution
-
-
-def retrieve_parameter(model, param_name):
-    if param_name is None:
-        return model
-    return ParameterAddressGrammar().compile(param_name)(model)
+from ..engine.paramutil import (
+    Distribution, PyTree, Tensor
+)
+from ..formula.nnops import retrieve_parameter
 
 
 def from_distr_init(

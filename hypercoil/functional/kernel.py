@@ -13,8 +13,9 @@ from .sparse import (
     TopKTensor, spsp_pairdiff, spsp_innerpaired, spspmm, spdiagmm, topkx
 )
 from .utils import (
-    Tensor, is_sparse, _conform_vector_weight
+    is_sparse, _conform_vector_weight
 )
+from ..engine import Tensor
 
 
 def _default_gamma(X: Tensor, *, gamma: Optional[float]) -> float:

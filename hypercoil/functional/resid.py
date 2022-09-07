@@ -5,7 +5,7 @@
 Residualise tensor block via least squares.
 """
 import jax.numpy as jnp
-from hypercoil.functional.utils import Tensor, vmap_over_outer
+from ..engine import Tensor, vmap_over_outer
 
 
 def residualise(

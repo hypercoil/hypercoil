@@ -12,14 +12,26 @@ import jax.numpy as jnp
 import distrax
 import equinox as eqx
 from abc import abstractmethod
-from typing import Any, Callable, Optional, Tuple
-from ..formula.nnops import retrieve_parameter
-from ..functional.utils import (
-    Distribution, PyTree, Tensor,
-    sample_multivariate, standard_axis_number
+from typing import Any, Callable, Optional, Sequence, Tuple
+from .paramutil import (
+    Distribution, PyTree, Tensor, _to_jax_array, where_weight
 )
-from ..functional.symmap import symlog
-from ..init.mapparam import _to_jax_array, where_weight
+from .axisutil import argsort, standard_axis_number, axis_complement
+from ..formula.nnops import retrieve_parameter
+
+
+def _symlog(input):
+    """
+    Symmetric logarithmic transform. The bare functionality here is
+    necessary so we don't import from ``functional``. In practice, the
+    ``symlog`` function in ``functional`` is more robust and flexible, and
+    should be favoured where possible.
+    """
+    L, Q = jnp.linalg.eigh((input + input.swapaxes(-2, -1)) / 2)
+    Lmap = map(L)
+    Lmap = jnp.where(jnp.isnan(Lmap), 0, Lmap)
+    output = (Q @ (Lmap[..., None] * Q.swapaxes(-1, -2)))
+    return (output + output.swapaxes(-2, -1)) / 2
 
 
 #TODO: eqx.filter isn't compatible with distrax.Distribution objects.
@@ -90,6 +102,40 @@ def document_stochastic_transforms(func):
         multiplicative_mean_correction=multiplicative_mean_correction
     )
     return func
+
+
+def sample_multivariate(
+    *,
+    distr: Distribution,
+    shape: Tuple[int],
+    event_axes: Sequence[int],
+    mean_correction: bool = False,
+    key: jax.random.PRNGKey
+):
+    ndim = len(shape)
+    event_axes = tuple(
+        [standard_axis_number(axis, ndim) for axis in event_axes])
+    event_shape = tuple([shape[axis] for axis in event_axes])
+    sample_shape = tuple([shape[axis] for axis in range(ndim)
+                          if axis not in event_axes])
+
+    # This doesn't play well with JIT compilation.
+    # if distr.event_shape != event_shape:
+    #     raise ValueError(
+    #         f"Distribution event shape {distr.event_shape} does not match "
+    #         f"tensor shape {shape} along axes {event_axes}."
+    #     )
+    val = distr.sample(seed=key, sample_shape=sample_shape)
+
+    if mean_correction:
+        try:
+            correction = 1 / (distr.mean() + jnp.finfo(jnp.float32).eps)
+        except AttributeError:
+            correction = 1 / (val.mean() + jnp.finfo(jnp.float64).eps)
+        val = val * correction
+
+    axis_order = argsort(axis_complement(ndim, event_axes) + event_axes)
+    return jnp.transpose(val, axes=axis_order)
 
 
 class StochasticSource(eqx.Module):
@@ -971,7 +1017,7 @@ class MatrixExponential(distrax.Distribution):
         return samples
 
     def log_prob(self, value: Tensor) -> Tensor:
-        samples = symlog(value)
+        samples = _symlog(value)
         return self.src_distribution.log_prob(samples)
 
     def _sample_n_and_log_prob(

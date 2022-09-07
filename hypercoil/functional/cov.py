@@ -12,7 +12,8 @@ correlation.
 import jax
 import jax.numpy as jnp
 from typing import Literal, Optional, Sequence, Tuple, Union
-from .utils import Tensor, _conform_vector_weight, vmap_over_outer
+from .utils import _conform_vector_weight
+from ..engine import Tensor, vmap_over_outer
 
 
 def document_covariance(func):

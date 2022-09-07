@@ -11,7 +11,7 @@ import distrax
 from typing import Literal, Optional, Tuple, Type, Union
 from .base import MappedInitialiser, retrieve_parameter
 from .mapparam import MappedParameter
-from ..functional.utils import PyTree, Tensor
+from ..engine import PyTree, Tensor
 
 
 def calculate_gain(

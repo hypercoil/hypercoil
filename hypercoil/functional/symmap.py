@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 from typing import Callable, Literal, Optional
 from . import symmetric, recondition_eigenspaces
-from .utils import Tensor
+from ..engine import Tensor
 
 
 #TODO: Look here more closely:

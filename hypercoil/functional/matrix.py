@@ -9,7 +9,8 @@ import jax.numpy as jnp
 import math
 from functools import partial
 from typing import Literal, Optional, Tuple
-from .utils import Tensor, conform_mask, vmap_over_outer
+from .utils import conform_mask
+from ..engine import Tensor, vmap_over_outer
 
 
 def cholesky_invert(X: Tensor) -> Tensor:

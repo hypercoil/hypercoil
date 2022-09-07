@@ -16,7 +16,7 @@ from hypercoil.functional.sparse import(
     random_sparse_batchfinal, to_batch_batchfinal, spspmm_batchfinal,
     sp_block_serialise, embed_params_in_diagonal, embed_params_in_sparse
 )
-from hypercoil.functional.utils import vmap_over_outer
+from hypercoil.engine import vmap_over_outer
 
 
 class TestSparse:

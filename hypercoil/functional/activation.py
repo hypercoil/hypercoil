@@ -7,9 +7,8 @@ Additional activation functions for neural network layers.
 import jax
 import jax.numpy as jnp
 from typing import Literal, Optional, Tuple, Union
-from .utils import (
-    complex_decompose, complex_recompose, vmap_over_outer, Tensor
-)
+from .utils import complex_decompose, complex_recompose
+from ..engine import vmap_over_outer, Tensor
 
 
 def laplace(

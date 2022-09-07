@@ -12,6 +12,7 @@ import equinox as eqx
 from typing import Callable, Optional, Sequence, Tuple, Type, Union
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
+from ..engine import PyTree, Tensor
 from ..engine.noise import (
     Symmetric, MatrixExponential
 )
@@ -19,7 +20,6 @@ from ..functional import (
     mean_euc_spd, mean_harm_spd,
     mean_logeuc_spd, mean_geom_spd,
 )
-from ..functional.utils import PyTree, Tensor
 
 
 def mean_block_spd(

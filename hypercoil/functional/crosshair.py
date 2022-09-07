@@ -7,9 +7,16 @@ Crosshair kernel
 Elementary operations over a crosshair kernel.
 """
 import jax.numpy as jnp
+from typing import Tuple
+from ..engine import Tensor
 
 
-def crosshair_dot(A, B, row=-2, col=-1):
+def crosshair_dot(
+    A: Tensor,
+    B: Tensor,
+    row: int = -2,
+    col: int = -1
+) -> Tensor:
     """
     Local dot product between two matrices over a crosshair kernel.
 
@@ -51,7 +58,11 @@ def crosshair_dot(A, B, row=-2, col=-1):
     return rows + cols - prod
 
 
-def crosshair_norm_l2(A, row=-2, col=-1):
+def crosshair_norm_l2(
+    A: Tensor,
+    row: int = -2,
+    col: int = -1
+) -> Tensor:
     """
     Compute the local L2 norm on a matrix over a crosshair kernel.
 
@@ -83,7 +94,11 @@ def crosshair_norm_l2(A, row=-2, col=-1):
     return jnp.sqrt(crosshair_dot(A, A, row=row, col=col))
 
 
-def crosshair_norm_l1(A, row=-2, col=-1):
+def crosshair_norm_l1(
+    A: Tensor,
+    row: int = -2,
+    col: int = -1
+) -> Tensor:
     """
     Compute the local L1 norm on a matrix over a crosshair kernel.
 
@@ -119,7 +134,11 @@ def crosshair_norm_l1(A, row=-2, col=-1):
 
 
 #TODO: marking this as an experimental function
-def crosshair_dot_gen(A, B, axes=(-2, -1)):
+def crosshair_dot_gen(
+    A: Tensor,
+    B: Tensor,
+    axes: Tuple[int, int] = (-2, -1)
+) -> Tensor:
     """
     A generalised version of the crosshair dot product where the crosshair can
     be extended over any number of dimensions. As it suffers poor performance

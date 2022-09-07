@@ -10,13 +10,13 @@ import distrax
 from typing import Any, Callable, Optional, Tuple, Union
 from jax.nn import softmax
 from .base import MappedInitialiser
+from ..engine import Tensor
 from ..functional import (
     delete_diagonal,
     pairedcorr,
     sym2vec,
     vec2sym
 )
-from ..functional.utils import Tensor
 
 
 def corr_criterion(

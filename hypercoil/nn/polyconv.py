@@ -9,9 +9,8 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import Literal, Optional, Sequence, Tuple, Union
 import equinox as eqx
+from ..engine.paramutil import Tensor, _to_jax_array
 from ..functional import polyconv2d
-from ..functional.utils import Tensor
-from ..init.mapparam import _to_jax_array
 
 
 class PolyConv2D(eqx.Module):

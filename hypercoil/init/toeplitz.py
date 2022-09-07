@@ -8,8 +8,8 @@ import jax
 from typing import Optional, Tuple, Type
 from .base import BaseInitialiser, MappedInitialiser
 from .mapparam import MappedParameter
+from ..engine import PyTree, Tensor
 from ..functional import toeplitz
-from ..functional.utils import PyTree, Tensor
 
 
 class ToeplitzInitialiser(MappedInitialiser):

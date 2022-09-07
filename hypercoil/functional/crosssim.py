@@ -11,12 +11,13 @@ from .crosshair import (
     crosshair_norm_l1,
     crosshair_norm_l2
 )
+from ..engine import Tensor
 
 
 #TODO: There are no tests run for correctness of any of these functions.
 
 
-def crosshair_similarity(X, W):
+def crosshair_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
     Crosshair kernel inner product between a tensor block and a reference block
     of template tensors.
@@ -57,7 +58,7 @@ def crosshair_similarity(X, W):
     return crosshair_dot(X[..., None, :, :, :], W).sum(-3)
 
 
-def crosshair_cosine_similarity(X, W):
+def crosshair_cosine_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
     Crosshair kernel cosine similarity between a tensor block and a reference
     block of template tensors.
@@ -103,7 +104,7 @@ def crosshair_cosine_similarity(X, W):
     return (num / (denom0 * denom1)).sum(-3)
 
 
-def crosshair_l1_similarity(X, W):
+def crosshair_l1_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
     Crosshair kernel L1 distance between a tensor block and a reference block
     of template tensors.
@@ -145,7 +146,7 @@ def crosshair_l1_similarity(X, W):
     return crosshair_norm_l1(diff).sum(-3)
 
 
-def crosshair_l2_similarity(X, W):
+def crosshair_l2_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
     Crosshair kernel L2 distance between a tensor block and a reference block
     of template tensors.

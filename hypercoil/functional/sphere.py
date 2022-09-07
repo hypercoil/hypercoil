@@ -7,7 +7,7 @@ Operations supporting spherical coordinate systems.
 import jax.numpy as jnp
 from functools import partial
 from typing import Callable, Optional
-from hypercoil.functional.utils import Tensor
+from ..engine import Tensor
 
 
 #TODO: Switch to using kernel.gaussian_kernel instead of this everywhere

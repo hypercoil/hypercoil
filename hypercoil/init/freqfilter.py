@@ -14,7 +14,8 @@ from typing import (
     Callable, Dict, Literal, Optional, Sequence, Tuple, Type, Union)
 from .base import Initialiser, MappedInitialiser, retrieve_parameter
 from .mapparam import MappedParameter
-from ..functional.utils import PyTree, Tensor, complex_recompose
+from ..engine import PyTree, Tensor
+from ..functional.utils import complex_recompose
 
 
 def document_frequency_spectrum(func):

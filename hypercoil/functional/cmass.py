@@ -14,8 +14,8 @@ the coordinates of each location
 """
 import jax.numpy as jnp
 from typing import Any, Optional, Sequence
-from ..functional.sphere import spherical_geodesic
-from ..functional.utils import Tensor
+from .sphere import spherical_geodesic
+from ..engine import Tensor
 
 
 def cmass(

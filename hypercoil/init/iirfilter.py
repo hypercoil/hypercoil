@@ -9,7 +9,7 @@ import equinox as eqx
 from typing import Literal, Optional, Tuple, Union
 from scipy import signal
 from numpy.random import uniform
-from ..functional.utils import Tensor
+from ..engine import Tensor
 
 
 #TODO: mark this as experimental until the IIR filter module is properly

@@ -9,11 +9,11 @@ import jax.numpy as jnp
 from functools import partial, singledispatch
 from jax.nn import relu
 from jax.experimental.sparse import BCOO
-from typing import Callable, Literal, Optional, Union
-from hypercoil.functional.sparse import (
-    TopKTensor, dspdmm, topk_diagaugment, topk_diagzero)
+from typing import Any, Callable, Literal, Optional, Union
+from .sparse import TopKTensor, dspdmm, topk_diagaugment, topk_diagzero
 from .matrix import delete_diagonal, fill_diagonal
-from hypercoil.functional.utils import Tensor, vmap_over_outer, is_sparse
+from .utils import is_sparse
+from ..engine import Tensor, vmap_over_outer
 
 
 def girvan_newman_null(A: Tensor) -> Tensor:
@@ -442,7 +442,7 @@ def _sparse_append_selfloops(
     return edge_index, edge_weight
 
 
-def _sparse_laplacian(W, normalise=True):
+def _sparse_laplacian(W: Any, normalise: bool = True) -> Any:
     num_nodes = W.shape[-1]
     edge_index, edge_weight = W.indices, W.data
     edge_index, edge_weight = _sparse_delete_selfloops(edge_index, edge_weight)

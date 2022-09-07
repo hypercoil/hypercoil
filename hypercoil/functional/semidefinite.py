@@ -12,8 +12,8 @@ subspace tangent to the Riemann manifold.
 import jax.numpy as jnp
 from typing import Literal, Optional, Sequence, Union
 from . import symmap, symlog, symexp, symsqrt, spd
-from hypercoil.functional.symmap import document_symmetric_map
-from hypercoil.functional.utils import Tensor
+from .symmap import document_symmetric_map
+from ..engine import Tensor
 
 
 @document_symmetric_map

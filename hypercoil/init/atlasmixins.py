@@ -20,8 +20,8 @@ from scipy.ndimage import (
     binary_closing,
     binary_fill_holes
 )
+from ..engine import Tensor
 from ..functional.sphere import spherical_conv, euclidean_conv
-from ..functional.utils import Tensor
 
 
 #TODO: Consider caching the ref as a tensor for possible speedup/efficiency

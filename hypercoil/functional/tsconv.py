@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from collections.abc import Iterable
 from itertools import repeat
 from typing import Callable, List, Literal, Optional, Sequence, Tuple, Union
-from .utils import Tensor, atleast_4d
+from ..engine import Tensor, atleast_4d
 
 
 torch_dims = {

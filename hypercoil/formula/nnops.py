@@ -9,12 +9,18 @@ Transformations and grammar for addressing neural network parameters.
 from dataclasses import field
 from functools import reduce
 from typing import Any, Callable, Dict, Literal, Optional, Sequence
-from ..functional.utils import PyTree
+from ..engine.paramutil import PyTree
 from .grammar import (
     Grammar,
     Literalisation, TransformPrimitive,
     LeafInterpreter, Grouping, GroupingPool, TransformPool,
 )
+
+
+def retrieve_parameter(model, param_name):
+    if param_name is None:
+        return (model,)
+    return ParameterAddressGrammar().compile(param_name)(model)
 
 
 class ParameterAddressGrammar(Grammar):

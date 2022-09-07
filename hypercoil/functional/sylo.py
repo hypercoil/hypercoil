@@ -9,13 +9,22 @@ that should be favourable for learning on a set of unordered dense matrices,
 and designed with analogy to convolutional layers. There are still a lot of
 quirks to work out before it's usable.
 """
+from typing import Callable, Literal, Optional
 from .matrix import expand_outer
 from .crosssim import crosshair_similarity
+from ..engine import Tensor
 
 
 #TODO: marking this as an experimental function (or add some tests)
-def sylo(X, L, R=None, C=None, bias=None, symmetry=None,
-         similarity=crosshair_similarity):
+def sylo(
+    X: Tensor,
+    L: Tensor,
+    R: Optional[Tensor] = None,
+    C: Optional[Tensor] = None,
+    bias: Optional[Tensor] = None,
+    symmetry: Optional[Literal['cross', 'skew']] = None,
+    similarity: Callable = crosshair_similarity
+) -> Tensor:
     r"""
     Sylo transformation of a tensor block.
 

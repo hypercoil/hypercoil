@@ -104,8 +104,8 @@ from .atlasmixins import (
 from .base import MappedInitialiser
 from .dirichlet import DirichletInitialiser
 from .mapparam import MappedParameter, ProbabilitySimplexParameter
+from ..engine import PyTree, Tensor
 from ..engine.noise import ScalarIIDAddStochasticTransform
-from ..functional.utils import PyTree, Tensor
 
 
 class BaseAtlas(eqx.Module):

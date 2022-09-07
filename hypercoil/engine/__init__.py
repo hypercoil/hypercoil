@@ -18,6 +18,19 @@ from .accumulate import (
     AccumulatingFunction,
     Accumuline
 )
+from .axisutil import (
+    atleast_4d,
+    apply_vmap_over_outer,
+    vmap_over_outer,
+    axis_complement,
+    standard_axis_number,
+    fold_axis,
+    unfold_axes,
+    promote_axis,
+    demote_axis,
+    fold_and_promote,
+    demote_and_unfold,
+)
 from .conveyance import (
     Conveyance,
     Origin,
@@ -29,7 +42,15 @@ from .noise import (
     DiagonalNoiseSource, SPSDNoiseSource,
     DiagonalDropoutSource, SPSDDropoutSource,
     LowRankNoiseSource, BandDropoutSource,
-    UnstructuredNoiseSource, UnstructuredDropoutSource
+    UnstructuredNoiseSource, UnstructuredDropoutSource,
+    sample_multivariate,
+)
+from .paramutil import (
+    Tensor,
+    PyTree,
+    Distribution,
+    where_weight,
+    _to_jax_array,
 )
 from .report import (
     LossArchive,

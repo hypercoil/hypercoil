@@ -9,8 +9,9 @@ import jax
 import jax.numpy as jnp
 from functools import partial
 from typing import Callable, Literal, Optional, Sequence, Tuple, Union
-from .utils import atleast_4d, conform_mask, vmap_over_outer, PyTree, Tensor
+from .utils import conform_mask
 from .tsconv import tsconv2d
+from ..engine import atleast_4d, vmap_over_outer, PyTree, Tensor
 
 
 #TODO: get lambdas out of cond and other lax functions. Right now we're almost

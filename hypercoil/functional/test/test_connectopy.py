@@ -4,13 +4,9 @@
 """
 Unit tests for connectopic gradient mapping.
 """
-import pytest
-import torch
 import jax
-import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.sparse import csr_matrix
 from brainspace import datasets
 from brainspace.gradient.embedding import(
     laplacian_eigenmaps as le_ref,

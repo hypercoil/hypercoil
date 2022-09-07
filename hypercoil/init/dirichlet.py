@@ -10,7 +10,8 @@ from typing import Optional, Sequence, Tuple, Type, Union
 from distrax import Distribution, Dirichlet
 from .base import MappedInitialiser
 from .mapparam import MappedParameter, ProbabilitySimplexParameter
-from ..functional.utils import PyTree, Tensor, sample_multivariate
+from ..engine import PyTree, Tensor
+from ..engine.noise import sample_multivariate
 
 
 def dirichlet_init(

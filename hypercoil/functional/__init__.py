@@ -90,7 +90,6 @@ from .tsconv import (
     conv, polychan, polyconv2d, basischan, basisconv2d, tsconv2d
 )
 from .utils import (
-    atleast_4d,
     complex_decompose,
     complex_recompose,
     conform_mask,
@@ -98,9 +97,5 @@ from .utils import (
     mask_tensor,
     wmean,
     orient_and_conform,
-    vmap_over_outer,
-    apply_vmap_over_outer,
-    fold_and_promote,
-    demote_and_unfold,
     amplitude_apply
 )

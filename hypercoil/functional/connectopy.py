@@ -8,9 +8,9 @@ import jax
 import jax.numpy as jnp
 
 from typing import Tuple
-from hypercoil.functional.utils import Tensor, vmap_over_outer
 from .graph import graph_laplacian
 from .matrix import symmetric
+from ..engine import Tensor, vmap_over_outer
 
 
 def _absmax(X: Tensor) -> Tensor:

@@ -29,7 +29,7 @@ from itertools import cycle
 from jax.experimental.sparse import BCOO, sparsify
 from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
-from .utils import (
+from ..engine import (
     Tensor, standard_axis_number, unfold_axes, vmap_over_outer,
     fold_and_promote, demote_and_unfold
 )
