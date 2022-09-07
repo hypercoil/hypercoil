@@ -14,7 +14,7 @@ from .freqfilter import (
 )
 from .interpolate import (
     SpectralInterpolate,
-    WeightedInterpolate,
+    LinearInterpolate,
     HybridInterpolate
 )
 from .iirfilter import (

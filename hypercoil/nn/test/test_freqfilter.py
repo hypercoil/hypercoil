@@ -5,18 +5,10 @@
 Unit tests for frequency-domain filter layer
 """
 import pytest
-import numpy as np
-import torch
-from hypercoil.nn import FrequencyDomainFilter
-from hypercoil.init.freqfilter import (
-    FreqFilterSpec,
-    freqfilter_init,
-    clamp_init
-)
-
-
 import jax
 import jax.numpy as jnp
+from hypercoil.nn import FrequencyDomainFilter
+from hypercoil.init.freqfilter import FreqFilterSpec
 
 
 class TestFreqFilter:

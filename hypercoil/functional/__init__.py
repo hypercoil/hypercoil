@@ -45,6 +45,7 @@ from .graph import (
 )
 from .interpolate import (
     hybrid_interpolate,
+    linear_interpolate,
     spectral_interpolate,
     weighted_interpolate
 )

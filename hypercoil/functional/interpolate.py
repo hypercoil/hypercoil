@@ -9,9 +9,11 @@ import jax
 import jax.numpy as jnp
 from functools import partial
 from typing import Callable, Literal, Optional, Sequence, Tuple, Union
+
 from .utils import conform_mask
 from .tsconv import tsconv2d
 from ..engine import atleast_4d, vmap_over_outer, PyTree, Tensor
+from ..engine.axisutil import demote_axis, promote_axis
 
 
 #TODO: get lambdas out of cond and other lax functions. Right now we're almost
@@ -39,7 +41,8 @@ def max_number_consecutive(x: Tensor) -> Tensor:
 
 
 def first(x: Tensor, mask: Tensor) -> Tensor:
-    return x[tuple(jnp.argwhere(mask, size=1))]
+    idx = jnp.argwhere(mask, size=1)[0, -1]
+    return x[..., [idx]]
 
 
 def first_and_last(x: Tensor, mask: Tensor) -> Tensor:
@@ -122,10 +125,16 @@ def hybrid_interpolate(
     data = atleast_4d(data)
     mask = atleast_4d(mask)
     #linear_mask, spectral_mask = vmap_over_outer(
-    linear_mask, _ = vmap_over_outer(
+    linear_mask_fwd, _ = vmap_over_outer(
         partial(_partition_mask,
         max_consecutive=max_consecutive_linear), f_dim=1
     )((~mask,))
+    linear_mask_bwd, _ = vmap_over_outer(
+        partial(_partition_mask,
+        max_consecutive=max_consecutive_linear), f_dim=1
+    )((~jnp.flip(mask, axis=-1),))
+    linear_mask_bwd = jnp.flip(linear_mask_bwd, axis=-1)
+    linear_mask = linear_mask_fwd | linear_mask_bwd
     rec = spectral_interpolate(
         data=data, mask=mask,
         oversampling_frequency=oversampling_frequency,
@@ -216,20 +225,30 @@ def linear_interpolate(
     """
     data = atleast_4d(data)
     mask = atleast_4d(mask)
-    init = vmap_over_outer(first, 1)((data, mask))
-    delta_zero = jnp.zeros_like(init)
+    init = vmap_over_outer(first, (1, 3), align_outer=True)((data, mask))
+    delta_zero = jnp.zeros((*data.shape[:-1], 1))
     n_frames_interpolate = jnp.flip(
         vmap_over_outer(number_consecutive, 1)((jnp.flip(~mask, axis=-1),)),
         axis=-1)
     init_frames = (jnp.diff(n_frames_interpolate, axis=-1) > 0)
-    deltas = vmap_over_outer(delta_lookahead, 1)((
+    deltas = vmap_over_outer(
+        delta_lookahead,
+        (3, 1, 1, 1),
+        align_outer=True,
+    )((
         data,
         init_frames,
         mask,
         n_frames_interpolate[..., 1:],
     ))
+    #TODO: Find a better way to do this
+    deltas = deltas.squeeze(1).squeeze(1)
     deltas = jnp.concatenate((delta_zero, deltas), axis=-1)
-    return vmap_over_outer(_interpolate_from_deltas, 1)((
+    return vmap_over_outer(
+        _interpolate_from_deltas,
+        (1, 3, 1, 1,),
+        align_outer=True,
+    )((
         data, mask, deltas, init
     ))
 
@@ -242,8 +261,8 @@ def _delta_lookahead_fn(
 ) -> Tensor:
     return jax.lax.cond(
         mask[i + lookahead],
-        lambda: data[i + lookahead] - data[i],
-        lambda: 0.
+        lambda: data[..., i + lookahead] - data[..., i],
+        lambda: jnp.zeros(data.shape[:-1]),
     )
 
 
@@ -257,21 +276,20 @@ def _delta_lookahead_impl(
     total_step_size = jax.lax.cond(
         mask,
         lambda fr, i: lookahead_fn(i, fr + 1),
-        lambda _, __: 0.,
+        lambda _, __: jnp.zeros_like(rem),
         frames, idx
     )
     new_step = jnp.array(total_step_size != 0)
-    rem = jax.lax.cond(
+    rem = jnp.where(
         new_step,
-        lambda s: total_step_size,
-        lambda _: rem,
-        total_step_size)
+        total_step_size,
+        rem
+    )
     incr = jnp.array(rem != 0)
-    y = jax.lax.cond(
+    y = jnp.where(
         incr,
-        lambda fr, rem: rem / fr,
-        lambda _, __: 0.,
-        frames, rem
+        rem / (frames + 1),
+        0.
     )
     rem = rem - y
     rem = jnp.sign(rem) * jnp.maximum(jnp.abs(rem), 0.)
@@ -288,8 +306,10 @@ def delta_lookahead(
         _delta_lookahead_impl,
         lookahead_fn=partial(_delta_lookahead_fn, data=data, mask=data_mask)
     )
-    _, diffs = jax.lax.scan(f, (0, 0.), (diff_mask, frames))
-    return diffs
+    rem = jnp.zeros_like(data[..., 0])
+    _, diffs = jax.lax.scan(f, (0, rem), (diff_mask, frames))
+    perm = demote_axis(diffs.ndim, -1)
+    return diffs.transpose(perm)
 
 
 def _interpolate_from_deltas_impl(carry: Tensor, x: Tensor) -> Tensor:
@@ -309,10 +329,12 @@ def _interpolate_from_deltas(
     deltas: Tensor,
     initial_value: Tensor,
 ) -> Tensor:
+    mask = mask.squeeze()
+    perm = promote_axis(data.ndim, -1)
     return jax.lax.scan(
         _interpolate_from_deltas_impl,
         initial_value.squeeze(),
-        (data, mask, deltas)
+        (data.transpose(perm), mask, deltas.transpose(perm))
     )[1]
 
 
@@ -734,7 +756,7 @@ def _interpolate_spectral(
     # normalise the reconstructed time series.
     recon_seen = jnp.where(tmask, recon, 0)
     seen_data = jnp.where(tmask, data, 0)
-    norm_fac = jnp.sum(recon_seen * seen_data, axis=-1) / \
-        jnp.sum(seen_data ** 2, axis=-1)
+    norm_fac = jnp.sum(recon_seen * seen_data, axis=-1, keepdims=True) / \
+        jnp.sum(seen_data ** 2, axis=-1, keepdims=True)
 
     return recon / (norm_fac + jnp.finfo(data.dtype).eps)
