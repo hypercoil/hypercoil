@@ -12,13 +12,14 @@ import jax.numpy as jnp
 import distrax
 import equinox as eqx
 from abc import abstractmethod
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
+from ..formula.nnops import retrieve_parameter
 from ..functional.utils import (
     Distribution, PyTree, Tensor,
     sample_multivariate, standard_axis_number
 )
 from ..functional.symmap import symlog
-from ..init.mapparam import _to_jax_array
+from ..init.mapparam import _to_jax_array, where_weight
 
 
 #TODO: eqx.filter isn't compatible with distrax.Distribution objects.
@@ -257,7 +258,7 @@ class StochasticParameter(eqx.Module):
     ----------
     model : PyTree
         The model to wrap.
-    parameter : str
+    param_name : str
         The name of the parameter to wrap.
     transform : ``StochasticTransform``
         The transform to use for introducing stochasticity to the parameter.
@@ -266,18 +267,16 @@ class StochasticParameter(eqx.Module):
     """
 
     original: Tensor
-    param_name: str = "weight"
     transform: StochasticTransform
 
     def __init__(
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Callable = where_weight,
         transform: StochasticTransform,
     ):
-        self.original = model.__getattribute__(param_name)
-        self.param_name = param_name
+        self.original = where(model)
         self.transform = transform
 
     def __jax_array__(self):
@@ -292,17 +291,24 @@ class StochasticParameter(eqx.Module):
         transform: StochasticTransform,
         **params,
     ) -> PyTree:
-        wrapped = cls(
-            model,
-            *pparams,
-            param_name=param_name,
-            transform=transform,
-            **params
-        )
+        #TODO: We're inefficiently making a lot of repeated calls to
+        #      ``retrieve_parameter`` here. We might be able to do this more
+        #      efficiently, but this is low-priority as each call usually has
+        #      very little overhead.
+        parameters = retrieve_parameter(model, param_name)
+        wrapped = ()
+        for i, _ in enumerate(parameters):
+            where = lambda model: retrieve_parameter(model, param_name)[i]
+            wrapped += (cls(
+                model=model,
+                *pparams,
+                where=where,
+                transform=transform,
+                **params),)
         return eqx.tree_at(
-            lambda m: m.__getattribute__(wrapped.param_name),
+            lambda m: retrieve_parameter(m, param_name),
             model,
-            replace=wrapped
+            replace=wrapped,
         )
 
 

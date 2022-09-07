@@ -119,7 +119,7 @@ class MappedParameter(eqx.Module):
         return eqx.tree_at(
             lambda m: retrieve_parameter(m, param_name),
             model,
-            replace=mapped
+            replace=mapped,
         )
 
 
