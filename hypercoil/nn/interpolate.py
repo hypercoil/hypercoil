@@ -4,7 +4,9 @@
 """
 Modules for performing interpolation.
 """
+import jax
 import equinox as eqx
+from typing import Optional
 from ..engine import Tensor
 from ..functional import (
     spectral_interpolate,
@@ -26,7 +28,9 @@ class SpectralInterpolate(eqx.Module):
     def __call__(
         self,
         input: Tensor,
-        mask: Tensor
+        mask: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         return spectral_interpolate(
             data=input,
@@ -46,7 +50,9 @@ class LinearInterpolate(eqx.Module):
     def __call__(
         self,
         input: Tensor,
-        mask: Tensor
+        mask: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         return linear_interpolate(
             data=input,
@@ -67,7 +73,9 @@ class HybridInterpolate(eqx.Module):
     def __call__(
         self,
         input: Tensor,
-        mask: Tensor
+        mask: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         return hybrid_interpolate(
             data=input,

@@ -198,7 +198,12 @@ class FrequencyDomainFilter(eqx.Module):
             weight = jnp.where(clamp_points, clamp_values, weight)
         return weight
 
-    def __call__(self, input):
+    def __call__(
+        self,
+        input: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
         """
         Transform the input into the frequency domain, filter it, and
         transform the filtered signal back.

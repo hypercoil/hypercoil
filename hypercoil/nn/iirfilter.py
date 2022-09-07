@@ -13,6 +13,7 @@ machine learning applications. DAFx2020, Vienna, Austria, September 2020-21.
 .. warning::
     A stable backward pass is not yet implemented.
 """
+import jax
 import jax.numpy as jnp
 import equinox as eqx
 from typing import Optional, Tuple
@@ -74,8 +75,10 @@ class DTDF(eqx.Module):
         self,
         input: Tensor,
         initial_states: Optional[Tensor] = None,
-        feature_ax: bool = False
-    ):
+        feature_ax: bool = False,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
         if not feature_ax:
             input = input[..., None]
         else:
@@ -107,12 +110,14 @@ class IIRFilter(DTDF):
 
 
 class IIRFiltFilt(IIRFilter):
-    def forward(
+    def __call__(
         self,
         input: Tensor,
         initial_states: Optional[Tensor] = None,
-        feature_ax: bool = False
-    ):
+        feature_ax: bool = False,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
         raise NotImplementedError('Zero-phase filter not yet implemented')
         out = super()(
             input=input,

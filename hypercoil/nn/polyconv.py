@@ -122,7 +122,9 @@ class PolyConv2D(eqx.Module):
     def __call__(
         self,
         input: Tensor,
-    ):
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
         weight = _to_jax_array(self.weight)
         if self.bias is not None:
             bias = _to_jax_array(self.bias)
