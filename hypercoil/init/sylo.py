@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import distrax
 from typing import Literal, Optional, Tuple, Type, Union
-from .base import MappedInitialiser
+from .base import MappedInitialiser, retrieve_parameter
 from .mapparam import MappedParameter
 from ..functional.utils import PyTree, Tensor
 
@@ -150,17 +150,21 @@ class SyloInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
         **params,
     ):
-        param = model.__getattribute__(param_name)
-        if (not isinstance(param, jnp.DeviceArray) and
-            not hasattr(param, '__jax_array__')):
-            shape = (param[0].shape, param[1].shape)
-        else:
-            shape = param.shape
-        return self._init(
-            shape=shape,
-            key=key,
-            **params,
-        )
+        params_init = ()
+        parameters = retrieve_parameter(model, param_name=param_name)
+        keys = jax.random.split(key, len(parameters))
+        for key, parameter in zip(keys, parameters):
+            if (not isinstance(parameter, jnp.DeviceArray) and
+                not hasattr(parameter, '__jax_array__')):
+                shape = (parameter[0].shape, parameter[1].shape)
+            else:
+                shape = parameter.shape
+            params_init += (self._init(
+                shape=shape,
+                key=key,
+                **params,
+            ),)
+        return params_init
 
     def _init(
         self,
@@ -193,7 +197,7 @@ class SyloInitialiser(MappedInitialiser):
         init_distr: Literal['uniform', 'normal'] = 'uniform',
         nonlinearity: str = 'leaky_relu',
         psd: bool = False,
-        param_name: str = "weight",
+        param_name: str = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ):

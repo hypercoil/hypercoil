@@ -11,18 +11,14 @@ import equinox as eqx
 from abc import abstractmethod
 from typing import Optional, Tuple, Type
 from .mapparam import MappedParameter
+from ..formula.nnops import ParameterAddressGrammar
 from ..functional.utils import PyTree, Tensor, Distribution
 
 
 def retrieve_parameter(model, param_name):
     if param_name is None:
         return model
-    try:
-        print(model.__getattribute__(param_name))
-        return model.__getattribute__(param_name)
-    except AttributeError:
-        print(model.__getitem__(param_name))
-        return model.__getitem__(param_name)
+    return ParameterAddressGrammar().compile(param_name)(model)
 
 
 def from_distr_init(
@@ -100,11 +96,16 @@ class Initialiser(eqx.Module):
         key: jax.random.PRNGKey,
         **params,
     ):
-        return self._init(
-            shape=retrieve_parameter(model, param_name=param_name).shape,
+        parameters = retrieve_parameter(model, param_name=param_name)
+        if key is not None:
+            keys = jax.random.split(key, len(parameters))
+        else:
+            keys = (None,) * len(parameters)
+        return tuple(self._init(
+            shape=parameter.shape,
             key=key,
             **params,
-        )
+        ) for key, parameter in zip(keys, parameters))
 
     @abstractmethod
     def _init(

@@ -745,16 +745,24 @@ class FreqFilterInitialiser(MappedInitialiser):
         clamp: bool = False,
         **params,
     ):
-        if clamp:
-            shape = retrieve_parameter(model, param_name=param_name)[0].shape
-            init_fn = clamp_init
-            key = None
+        parameters = retrieve_parameter(model, param_name=param_name)
+        if key is not None:
+            keys = jax.random.split(key, len(parameters))
         else:
-            shape = retrieve_parameter(model, param_name=param_name).shape
-            init_fn = freqfilter_init
-        return self._init(
-            shape=shape, key=key, init_fn=init_fn, **params,
-        )
+            keys = (None,) * len(parameters)
+        params_init = ()
+        for parameter, key in zip(parameters, keys):
+            if clamp:
+                shape = parameter[0].shape
+                init_fn = clamp_init
+                key = None
+            else:
+                shape = parameter.shape
+                init_fn = freqfilter_init
+            params_init += (self._init(
+                shape=shape, key=key, init_fn=init_fn, **params,
+            ),)
+        return params_init
 
     def _init(
         self,

@@ -66,7 +66,9 @@ class TestIIRFilter:
         out = freqfilter_init(
             shape=(3, 1, 200),
             filter_specs=filter_specs,
-            key=jax.random.PRNGKey(0))
+            # Key is split for consistency with the call inside the
+            # initialiser
+            key=jax.random.split(jax.random.PRNGKey(0), 1)[0])
         n_filters = sum([len(s.Wn) for s in filter_specs])
         assert out.shape == (3, n_filters, 200)
 
