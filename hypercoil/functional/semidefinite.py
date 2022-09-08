@@ -339,8 +339,6 @@ def mean_geom_spd(
         ref = cone_project_spd(
             reftan, ref, psi=psi, key=key, recondition=recondition,
             fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
-        if jnp.all(jnp.linalg.norm(ref - ref_old, ord='fro', axis=(-1, -2)) < eps):
-            break
     return ref
 
 

@@ -5,47 +5,67 @@
 Modules that project data between the positive semidefinite cone proper
 subspaces tangent to the cone.
 """
-import torch
-from torch.nn import Module, Parameter
+import jax
+import equinox as eqx
+from typing import Literal, Sequence, Tuple
+
+from ..engine.axisutil import unfold_axes
+from ..engine.paramutil import Tensor, _to_jax_array
 from ..functional import (
     cone_project_spd, tangent_project_spd
 )
 from ..init.semidefinite import (
     mean_block_spd,
-    TangencyInit,
-    SPDEuclideanMean
+    TangencyInitialiser,
+    _SemidefiniteMean,
 )
 
 
-class _TangentProject(Module):
+class _TangentProject(eqx.Module):
     """
     Base class for modules that project symmetric matrix data between the
     positive semidefinite cone and proper subspaces tangent to the cone.
     """
-    def __init__(self, mean_specs=None, recondition=0):
-        super(_TangentProject, self).__init__()
-        self.dest = 'tangent'
-        self.mean_specs = mean_specs or [SPDEuclideanMean()]
-        self.out_channels = len(self.mean_specs)
+    dest: Literal['tangent', 'cone']
+    out_channels: int
+    matrix_size: int
+    recondition: float = 0.
+
+    def __init__(
+        self,
+        out_channels: int,
+        matrix_size: int,
+        dest: Literal['tangent', 'cone'] = 'tangent',
+        recondition: float = 0.,
+        *,
+        key: 'jax.random.PRNGKey' = None,
+    ):
+        self.dest = dest
+        self.out_channels = out_channels
+        self.matrix_size = matrix_size
         self.recondition = recondition
 
-    def extra_repr(self):
-        s = ',\n'.join([f'(mean) {spec.__repr__()}'
-                         for spec in self.mean_specs])
-        if self.recondition != 0:
-            s += f',\npsi={self.recondition}'
-        if self.out_channels > 1:
-            s += f',\nout_channels={self.out_channels}'
-        return s
-
-    def forward(self, input, dest=None):
-        if self.out_channels > 1:
-            input = input.unsqueeze(-3)
+    def __call__(
+        self,
+        input: Tensor,
+        weight: Tensor,
+        dest: Literal['tangent', 'cone'] = None,
+        *,
+        key: 'jax.random.PRNGKey' = None,
+    ):
+        weight = _to_jax_array(weight)
         dest = dest or self.dest
+        if self.out_channels > 1:
+            input = input[..., None, :, :]
         if dest == 'tangent':
-            return tangent_project_spd(input, self.weight, self.recondition)
+            out = tangent_project_spd(
+                input, weight, self.recondition, key=key)
         elif dest == 'cone':
-            return cone_project_spd(input, self.weight, self.recondition)
+            out = cone_project_spd(
+                input, weight, self.recondition, key=key)
+        if self.out_channels > 1 and out.ndim > 4:
+            out = unfold_axes(out, -4, -3)
+        return out
 
 
 class TangentProject(_TangentProject):
@@ -112,35 +132,74 @@ class TangentProject(_TangentProject):
     dest : ``'tangent'`` or ``'cone'``
         Target space/manifold of the projection operation.
     """
-    def __init__(self, init_data, mean_specs=None,
-                 recondition=0, std=0, dtype=None, device=None):
-        super(TangentProject, self).__init__(mean_specs, recondition)
-        factory_kwargs = {'device': device, 'dtype': dtype}
-        if self.out_channels > 1:
-            self.weight = Parameter(torch.empty(
-                *init_data.size()[1:-2],
-                self.out_channels,
-                init_data.size(-2),
-                init_data.size(-1),
-                **factory_kwargs
-            ))
-        else:
-            self.weight = Parameter(torch.empty(
-                *init_data.size()[1:],
-                **factory_kwargs
-            ))
-        self.init = TangencyInit(
-            self.mean_specs, init_data, std=std
-        )
-        self.reset_parameters(init_data, std)
+    weight: Tensor
 
-    def reset_parameters(self, init_data, std=0):
-        self.init(self.weight)
+    def __init__(
+        self,
+        out_channels: int,
+        matrix_size: int,
+        recondition: float = 0.,
+        scale: float = 1.,
+        dest: Literal['tangent', 'cone'] = 'tangent',
+        *,
+        key: 'jax.random.PRNGKey',
+    ):
+        super().__init__(
+            out_channels=out_channels,
+            matrix_size=matrix_size,
+            dest=dest,
+            recondition=recondition
+        )
+        weight = scale * jax.random.normal(
+            key, (out_channels, matrix_size, matrix_size)
+        )
+        self.weight = weight @ weight.swapaxes(-1, -2)
+
+    @classmethod
+    def from_specs(
+        cls,
+        mean_specs: Sequence[_SemidefiniteMean],
+        init_data: Tensor,
+        recondition: float = 0.,
+        dest: Literal['tangent', 'cone'] = 'tangent',
+        std: float = 0.,
+        *,
+        key: 'jax.random.PRNGKey',
+    ):
+        m_key, i_key = jax.random.split(key)
+        out_channels = len(mean_specs)
+        matrix_size = init_data.shape[-1]
+        model = cls(
+            out_channels=out_channels,
+            matrix_size=matrix_size,
+            recondition=recondition,
+            dest=dest,
+            key=m_key,
+        )
+        return TangencyInitialiser.init(
+            model,
+            init_data=init_data,
+            mean_specs=mean_specs,
+            std=std,
+            key=i_key,
+        )
+
+    def __call__(
+        self,
+        input: Tensor,
+        dest: Literal['tangent', 'cone'] = None,
+        *,
+        key: 'jax.random.PRNGKey' = None,
+    ):
+        return super().__call__(input, self.weight, dest, key=key)
 
 
 class BatchTangentProject(_TangentProject):
     r"""
     Tangent/cone projection with a new tangency point computed for each batch.
+
+    .. warning::
+        Initialise this only using the ``from_specs`` class method.
 
     Data transported through the module is projected from the positive
     semidefinite cone into a proper subspace tangent to the cone at the
@@ -205,12 +264,76 @@ class BatchTangentProject(_TangentProject):
     dest : ``'tangent'`` or ``'cone'``
         Target space/manifold of the projection operation.
     """
-    def __init__(self, mean_specs=None, recondition=0, inertia=0):
-        super(BatchTangentProject, self).__init__(mean_specs, recondition)
-        self.inertia = inertia
-        self.weight = None
+    inertia: float
+    mean_specs: Sequence[_SemidefiniteMean]
+    default_weight: Tensor
 
-    def forward(self, input, dest=None):
+    def __init__(
+        self,
+        out_channels: int,
+        matrix_size: int,
+        mean_specs: Sequence[_SemidefiniteMean],
+        recondition: float = 0.,
+        scale: float = 1.,
+        inertia: float = 0.,
+        dest: Literal['tangent', 'cone'] = 'tangent',
+        *,
+        key: 'jax.random.PRNGKey',
+    ):
+        self.inertia = inertia
+        self.mean_specs = mean_specs
+        super().__init__(
+            out_channels=out_channels,
+            matrix_size=matrix_size,
+            dest=dest,
+            recondition=recondition
+        )
+        weight = scale * jax.random.normal(
+            key, (out_channels, matrix_size, matrix_size)
+        )
+        self.default_weight = weight @ weight.swapaxes(-1, -2)
+
+    @classmethod
+    def from_specs(
+        cls,
+        mean_specs: Sequence[_SemidefiniteMean],
+        init_data: Tensor,
+        recondition: float = 0.,
+        inertia: float = 0.,
+        dest: Literal['tangent', 'cone'] = 'tangent',
+        std: float = 0.,
+        *,
+        key: 'jax.random.PRNGKey',
+    ):
+        m_key, i_key = jax.random.split(key)
+        out_channels = len(mean_specs)
+        matrix_size = init_data.shape[-1]
+        model = cls(
+            out_channels=out_channels,
+            matrix_size=matrix_size,
+            mean_specs=mean_specs,
+            recondition=recondition,
+            inertia=inertia,
+            dest=dest,
+            key=m_key,
+        )
+        return TangencyInitialiser.init(
+            model,
+            init_data=init_data,
+            mean_specs=mean_specs,
+            std=std,
+            key=i_key,
+            param_name='default_weight',
+        )
+
+    def __call__(
+        self,
+        input: Tensor,
+        weight: Tensor = None,
+        dest: Literal['tangent', 'cone'] = None,
+        *,
+        key: 'jax.random.PRNGKey' = None,
+    ) -> Tuple[Tensor, Tensor]:
         """
         Project a batch of matrices into the destination manifold, updating
         the weight (reference point for projection) if the destination is a
@@ -220,17 +343,12 @@ class BatchTangentProject(_TangentProject):
         will be set to the module's internal default destination attribute.
         """
         dest = dest or self.dest
-        if dest != 'cone':
-            weight = mean_block_spd(self.mean_specs, input)
-            if self.weight is None:
-                self.weight = weight.detach()
+        if weight is None:
+            weight = self.default_weight
+        if dest == 'tangent':
+            input_weight = mean_block_spd(self.mean_specs, input)
             #TODO: rather than a simple convex combination, use the module's
             # assigned mean.
-            self.weight = (
-                self.inertia * self.weight + (1 - self.inertia) * weight
-            ).detach()
-        elif self.weight is None:
-            raise ValueError('Undefined weight: project into tangent space '
-                             'first to initialise.')
-        out = super(BatchTangentProject, self).forward(input, dest)
-        return out
+            weight = self.inertia * weight + (1 - self.inertia) * input_weight
+        out = super().__call__(input, weight, dest, key=key)
+        return out, weight
