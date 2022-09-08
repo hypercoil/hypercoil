@@ -13,17 +13,21 @@ def residualise(
     X: Tensor,
     rowvar: bool = True,
     l2: float = 0.0,
+    return_mode: str = "residual",
 ) -> Tensor:
     r"""
     Residualise a tensor block via ordinary linear least squares.
 
     .. warning::
-        In some cases, we have found that the least-squares fit returned is
-        incorrect for reasons that are not clear. (Incorrect results are
-        returned by
+        When using ``torch``, we have found in some cases that the
+        least-squares fit returned was incorrect for reasons that are not
+        clear. (Incorrect results are returned by
         ``torch.linalg.lstsq``, although correct results are returned if
         ``torch.linalg.pinv`` is used instead.) Verify that results are
         reasonable when using this operation.
+
+        It is not clear whether the same is true for ``jax``. Caution is
+        advised.
 
     .. note::
         The :doc:`conditional covariance <hypercoil.functional.cov.conditionalcov>`
@@ -56,6 +60,10 @@ def residualise(
     l2 : float (default 0.0)
         L2 regularisation parameter. If non-zero, the least-squares solution
         will be regularised by adding a penalty term to the cost function.
+    return_mode : Literal['residual', 'orthogonal'] (default 'residual')
+        Indicates whether the residual or orthogonal tensor should be
+        returned. The orthogonal tensor is the projection of `Y` onto the
+        span of `X` (i.e., the least-squares solution).
     """
     if rowvar:
         X_in = X.swapaxes(-1, -2)
@@ -74,5 +82,10 @@ def residualise(
     fit = vmap_over_outer(jnp.linalg.lstsq, 2)
     betas = fit((X_in, Y_in))[0]
     if rowvar:
-        return Y - betas.swapaxes(-1, -2) @ X
-    return Y - X @ betas
+        proj = betas.swapaxes(-1, -2) @ X
+    else:
+        proj = X @ betas
+    if return_mode == "residual":
+        return Y - proj
+    elif return_mode == "orthogonal":
+        return proj

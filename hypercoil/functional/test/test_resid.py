@@ -30,3 +30,5 @@ class TestResidualisation:
         assert not jnp.allclose(out, Y)
         out = residualise(Y, X, l2=10000.)
         assert jnp.allclose(out, Y, atol=1e-5)
+        out = residualise(Y, X, l2=10000., return_mode='orthogonal')
+        assert jnp.allclose(out, 0, atol=1e-5)
