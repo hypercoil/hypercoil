@@ -7,9 +7,7 @@ Unit tests for windowing operations.
 import jax
 import jax.numpy as jnp
 import numpy as np
-from hypercoil.functional.window import (
-    sample_windows,
-)
+from hypercoil.functional.window import sample_windows
 
 
 class TestWindow:

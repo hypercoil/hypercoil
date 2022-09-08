@@ -99,3 +99,10 @@ from .utils import (
     wmean,
     amplitude_apply
 )
+from .window import (
+    sample_windows,
+    sample_nonoverlapping_windows_existing_ax,
+    sample_nonoverlapping_windows_new_ax,
+    sample_overlapping_windows_new_ax,
+    sample_overlapping_windows_existing_ax,
+)
