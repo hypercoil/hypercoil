@@ -4,19 +4,29 @@
 """
 Unit tests for residualisation
 """
-import numpy as np
+import jax
+import jax.numpy as jnp
 from hypercoil.functional.resid import residualise
 
 
 class TestResidualisation:
     def test_residualisation(self):
-        X = np.random.rand(3, 30, 100)
-        Y = np.random.rand(3, 1000, 100)
+        key = jax.random.PRNGKey(0)
+        xkey, ykey = jax.random.split(key)
+        X = jax.random.normal(key=xkey, shape=(3, 30, 100))
+        Y = jax.random.normal(key=ykey, shape=(3, 1000, 100))
         out = residualise(Y, X)
         assert out.shape == (3, 1000, 100)
 
-        X = np.ones((3, 100, 1))
-        Y = np.random.rand(3, 100, 1000)
+        X = jnp.ones((3, 100, 1))
+        Y = jax.random.normal(key=ykey, shape=(3, 100, 1000))
         out = residualise(Y, X, rowvar=False)
         assert out.shape == (3, 100, 1000)
-        assert np.allclose(out.mean(-2), 0, atol=1e-5)
+        assert jnp.allclose(out.mean(-2), 0, atol=1e-5)
+
+        X = jax.random.normal(key=xkey, shape=(3, 30, 100))
+        Y = jax.random.normal(key=ykey, shape=(3, 1000, 100))
+        out = residualise(Y, X, l2=0.01)
+        assert not jnp.allclose(out, Y)
+        out = residualise(Y, X, l2=10000.)
+        assert jnp.allclose(out, Y, atol=1e-5)

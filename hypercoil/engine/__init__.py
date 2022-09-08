@@ -22,6 +22,7 @@ from .axisutil import (
     atleast_4d,
     apply_vmap_over_outer,
     vmap_over_outer,
+    broadcast_ignoring,
     axis_complement,
     standard_axis_number,
     fold_axis,

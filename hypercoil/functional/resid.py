@@ -5,13 +5,14 @@
 Residualise tensor block via least squares.
 """
 import jax.numpy as jnp
-from ..engine import Tensor, vmap_over_outer
+from ..engine import Tensor, vmap_over_outer, broadcast_ignoring
 
 
 def residualise(
     Y: Tensor,
     X: Tensor,
-    rowvar: bool = True
+    rowvar: bool = True,
+    l2: float = 0.0,
 ) -> Tensor:
     r"""
     Residualise a tensor block via ordinary linear least squares.
@@ -48,19 +49,28 @@ def residualise(
     X : Tensor
         Tensor containing explanatory variables. Any variance in `Y` that can
         be explained by variables in `X` will be removed from `Y`.
-    driver : str (default `'gelsd'`)
-        Driver routine for solving linear least squares. See LAPACK
-        documentation for further details.
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
         axis and the penultimate axis is the variable axis. If False, then this
         relationship is transposed.
+    l2 : float (default 0.0)
+        L2 regularisation parameter. If non-zero, the least-squares solution
+        will be regularised by adding a penalty term to the cost function.
     """
     if rowvar:
         X_in = X.swapaxes(-1, -2)
         Y_in = Y.swapaxes(-1, -2)
     else:
         X_in, Y_in = X, Y
+    if l2 > 0.0:
+        X_reg = jnp.eye(X_in.shape[-1]) * l2
+        Y_reg = jnp.zeros((X_in.shape[-1], Y_in.shape[-1]))
+        X_in, X_reg = broadcast_ignoring(X_in, X_reg, -2)
+        Y_in, Y_reg = broadcast_ignoring(Y_in, Y_reg, -2)
+        X_in = jnp.concatenate((X_in, X_reg), axis=-2)
+        Y_in = jnp.concatenate((Y_in, Y_reg), axis=-2)
+
+    X_in, Y_in = broadcast_ignoring(X_in, Y_in, -1)
     fit = vmap_over_outer(jnp.linalg.lstsq, 2)
     betas = fit((X_in, Y_in))[0]
     if rowvar:
