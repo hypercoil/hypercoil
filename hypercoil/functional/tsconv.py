@@ -9,6 +9,7 @@ import jax.numpy as jnp
 from collections.abc import Iterable
 from itertools import repeat
 from typing import Callable, List, Literal, Optional, Sequence, Tuple, Union
+from equinox.nn.conv import _ntuple
 from ..engine import Tensor, atleast_4d
 
 
@@ -18,18 +19,6 @@ torch_dims = {
     2: ('NCHW', 'OIHW', 'NCHW'),
     3: ('NCHWD', 'OIHWD', 'NCHWD'),
 }
-
-
-def _ntuple(n: int) -> Callable:
-    """
-    Create a function that returns a tuple of length ``n``.
-    Stolen from PyTorch.
-    """
-    def parse(x):
-        if isinstance(x, Iterable):
-            return tuple(x)
-        return tuple(repeat(x, n))
-    return parse
 
 
 def conv(
@@ -46,20 +35,24 @@ def conv(
     https://stackoverflow.com/questions/69571976/ ...
     ... how-to-use-grad-convolution-in-google-jax
     """
+    #TODO: Compare against
+    # https://github.com/patrick-kidger/equinox/blob/main/equinox/nn/conv.py#L104
+    # and reconcile. Pretty sure dilation is not handled correctly here.
     n = len(input.shape) - 2
+    parse = _ntuple(n)
     if isinstance(stride, int):
-        stride = _ntuple(n)(stride)
+        stride = parse(stride)
     if isinstance(padding, int):
-        padding = [(i, i) for i in _ntuple(n)(padding)]
+        padding = [(i, i) for i in parse(padding)]
     if isinstance(dilation, int):
-        dilation = _ntuple(n)(dilation)
+        dilation = parse(dilation)
     out = jax.lax.conv_general_dilated(
         lhs=input,
         rhs=weight,
         window_strides=stride,
         padding=padding,
-        lhs_dilation=dilation,
-        rhs_dilation=None,
+        lhs_dilation=None,
+        rhs_dilation=dilation,
         dimension_numbers=torch_dims[n],
         feature_group_count=1,
         batch_group_count=1,

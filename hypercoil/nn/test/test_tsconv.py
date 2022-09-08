@@ -8,8 +8,9 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import equinox as eqx
 
-from hypercoil.nn import PolyConv2D
+from hypercoil.nn import TimeSeriesConv2D, PolyConv2D, BasisConv2D
 from hypercoil.init.deltaplus import DeltaPlusInitialiser
 
 
@@ -33,6 +34,33 @@ class TestPolyConv:
     def test_polyconv_shapes(self):
         key = jax.random.PRNGKey(0)
         model = PolyConv2D(degree=7, out_channels=3, key=key)
-        out = model(self.X).shape
+        out = eqx.filter_jit(model)(self.X).shape
+        ref = (4, 3, 13, 100)
+        assert out == ref
+
+    def test_basisconv_shapes(self):
+        key = jax.random.PRNGKey(0)
+        basis_functions = [
+            jnp.exp,
+            jnp.sin,
+            jnp.cos,
+            jnp.log,
+            jnp.tanh,
+        ]
+        model = BasisConv2D(
+            basis_functions=basis_functions,
+            include_const=True,
+            out_channels=3,
+            key=key
+        )
+        out = eqx.filter_jit(model)(self.X).shape
+        ref = (4, 3, 13, 100)
+        assert out == ref
+
+    def test_tsconv_shapes(self):
+        key = jax.random.PRNGKey(0)
+        model = TimeSeriesConv2D(
+            in_channels=1, out_channels=3, key=key)
+        out = eqx.filter_jit(model)(self.X).shape
         ref = (4, 3, 13, 100)
         assert out == ref

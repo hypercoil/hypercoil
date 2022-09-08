@@ -25,9 +25,6 @@ from .iirfilter import (
     IIRFilter,
     IIRFiltFilt
 )
-from .polyconv import (
-    PolyConv2D
-)
 from .recombinator import (
     Recombinator
 )
@@ -51,6 +48,11 @@ from .svm import (
 )
 from .sylo import (
     Sylo
+)
+from .tsconv import (
+    TimeSeriesConv2D,
+    PolyConv2D,
+    BasisConv2D,
 )
 from .window import (
     WindowAmplifier
