@@ -4,6 +4,10 @@
 """
 Neural network modules.
 """
+from .activation import (
+    CorrelationNorm,
+    Isochor,
+)
 from .atlas import AtlasLinear, AtlasAccumuline
 from .cov import(
     UnaryCovariance, UnaryCovarianceTW, UnaryCovarianceUW,
