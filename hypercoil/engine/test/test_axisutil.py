@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from hypercoil.engine.axisutil import (
-    vmap_over_outer, broadcast_ignoring,
+    vmap_over_outer, broadcast_ignoring, orient_and_conform,
     promote_axis, demote_axis, fold_axis, unfold_axes,
     axis_complement, standard_axis_number,
     fold_and_promote, demote_and_unfold,
@@ -110,3 +110,25 @@ class TestAxisUtil:
             )
             assert X.shape == x_out
             assert Y.shape == y_out
+
+    def test_orient_and_conform(self):
+        X = np.random.rand(3, 7)
+        R = np.random.rand(2, 7, 11, 1, 3)
+        out = orient_and_conform(X.swapaxes(-1, 0), (1, -1), reference=R)
+        ref = X.swapaxes(-1, -2)[None, :, None, None, :]
+        assert(out.shape == ref.shape)
+        assert np.all(out == ref)
+
+        X = np.random.rand(7)
+        R = np.random.rand(2, 7, 11, 1, 3)
+        out = orient_and_conform(X, 1, reference=R)
+        ref = X[None, :, None, None, None]
+        assert(out.shape == ref.shape)
+        assert np.all(out == ref)
+
+        # test with jit compilation
+        jorient = jax.jit(orient_and_conform, static_argnames=('axis', 'dim'))
+        out = jorient(X, 1, dim=R.ndim)
+        ref = X[None, :, None, None, None]
+        assert(out.shape == ref.shape)
+        assert np.all(out == ref)

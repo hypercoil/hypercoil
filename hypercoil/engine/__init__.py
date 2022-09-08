@@ -31,6 +31,7 @@ from .axisutil import (
     demote_axis,
     fold_and_promote,
     demote_and_unfold,
+    orient_and_conform,
 )
 from .conveyance import (
     Conveyance,

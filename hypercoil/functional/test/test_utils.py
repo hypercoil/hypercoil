@@ -101,28 +101,6 @@ class TestUtils:
         mskd = jtsrmsk(tsr, msk, axis=-1, fill_value=float('nan'))
         assert np.isnan(mskd).sum() == 75
 
-    def test_orient_and_conform(self):
-        X = np.random.rand(3, 7)
-        R = np.random.rand(2, 7, 11, 1, 3)
-        out = orient_and_conform(X.swapaxes(-1, 0), (1, -1), reference=R)
-        ref = X.swapaxes(-1, -2)[None, :, None, None, :]
-        assert(out.shape == ref.shape)
-        assert np.all(out == ref)
-
-        X = np.random.rand(7)
-        R = np.random.rand(2, 7, 11, 1, 3)
-        out = orient_and_conform(X, 1, reference=R)
-        ref = X[None, :, None, None, None]
-        assert(out.shape == ref.shape)
-        assert np.all(out == ref)
-
-        # test with jit compilation
-        jorient = jax.jit(orient_and_conform, static_argnames=('axis', 'dim'))
-        out = jorient(X, 1, dim=R.ndim)
-        ref = X[None, :, None, None, None]
-        assert(out.shape == ref.shape)
-        assert np.all(out == ref)
-
     def test_multivariate_sample(self):
         mu = np.array([100, 0, -100])
         sigma = np.random.randn(3, 3)

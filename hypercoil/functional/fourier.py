@@ -8,8 +8,8 @@ import math
 import jax.numpy as jnp
 from typing import Callable, Optional, Sequence, Tuple
 from .cov import corr
-from .utils import complex_decompose, orient_and_conform
-from ..engine import Tensor
+from .utils import complex_decompose
+from ..engine import Tensor, orient_and_conform
 
 
 def product_filter(
