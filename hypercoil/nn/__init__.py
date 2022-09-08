@@ -40,9 +40,6 @@ from .select import (
 from .semidefinite import(
     TangentProject, BatchTangentProject
 )
-from .spdnoise import (
-    SPDNoise
-)
 from .svm import (
     SVM
 )
