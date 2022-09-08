@@ -66,6 +66,57 @@ def atleast_4d(*pparams) -> Tensor:
     return res
 
 
+def broadcast_ignoring(
+    x: Tensor,
+    y: Tensor,
+    axis: Union[int, Tuple[int, ...]],
+) -> Tensor:
+    """
+    Broadcast two tensors, ignoring the axis or axes specified.
+
+    This can be useful, for instance, when concatenating tensors along
+    the ignored axis.
+    """
+    def _form_reduced_shape(axes, shape, ndim):
+        axes = tuple(standard_axis_number(a, ndim) for a in axes)
+        shape_reduced = tuple(1 if i in axes else shape[i]
+                              for i in range(ndim))
+        return shape_reduced, axes
+
+    def _form_final_shape(axes_out, axes_in, shape_in, common_shape):
+        j = 0
+        for i, s in enumerate(common_shape):
+            if i not in axes_out:
+                yield s
+            else:
+                ax = axes_in[j]
+                if ax is None or ax > len(shape_in):
+                    yield 1
+                else:
+                    yield shape_in[ax]
+                j += 1
+
+    if isinstance(axis, int): axis = (axis,)
+    shape_x, shape_y = x.shape, y.shape
+    shape_x_reduced, axes_x = _form_reduced_shape(axis, shape_x, x.ndim)
+    shape_y_reduced, axes_y = _form_reduced_shape(axis, shape_y, y.ndim)
+    common_shape = jnp.broadcast_shapes(shape_x_reduced, shape_y_reduced)
+    axes_out = tuple(standard_axis_number(a, len(common_shape)) for a in axis)
+    shape_y = tuple(_form_final_shape(
+        axes_out=axes_out,
+        axes_in=axes_y,
+        shape_in=shape_y,
+        common_shape=common_shape)
+    )
+    shape_x = tuple(_form_final_shape(
+        axes_out=axes_out,
+        axes_in=axes_x,
+        shape_in=shape_x,
+        common_shape=common_shape)
+    )
+    return jnp.broadcast_to(x, shape_x), jnp.broadcast_to(y, shape_y)
+
+
 #TODO: use chex to evaluate how often this has to compile when using
 #      jit + vmap_over_outer
 def apply_vmap_over_outer(
@@ -76,7 +127,7 @@ def apply_vmap_over_outer(
     structuring_arg: Optional[Union[Callable, int]] = None,
 ) -> Tensor:
     """
-    Apply a tensor-valued function to the outer dimensions of a tensor.
+    Apply a function across the outer dimensions of a tensor.
     """
     if isinstance(f_dim, int):
         f_dim = tree_map(lambda _: f_dim, x)
@@ -161,8 +212,19 @@ def standard_axis_number(axis: int, ndim: int) -> int:
     """
     Convert an axis number to a standard axis number.
     """
-    if axis < 0:
+    if axis < 0 and axis >= -ndim:
         axis += ndim
+    elif axis < -ndim or axis >= ndim:
+        return None
+    return axis
+
+
+def negative_axis_number(axis: int, ndim: int) -> int:
+    """
+    Convert a standard axis number to a negative axis number.
+    """
+    if axis >= 0:
+        axis -= ndim
     return axis
 
 
