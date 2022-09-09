@@ -2,306 +2,264 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Modules supporting model selection, as for denoising/confound regression.
+Modules supporting artefact modelling, as for denoising/confound regression.
 """
 import math
-import torch
-from torch.nn import Module, Linear, Parameter, ParameterDict
-from torch.nn.functional import leaky_relu
+import jax
+import jax.numpy as jnp
+import equinox as eqx
 from functools import partial
-from ..init.domain import Logit
-from ..functional import basischan, basisconv2d, tsconv2d, threshold
-from ..init.dirichlet import DirichletInit
-from ..init.base import (
-    DistributionInitialiser
-)
+from typing import Callable, Dict, Optional, Sequence
+from ..engine import Tensor, atleast_4d
+from ..engine.paramutil import _to_jax_array
+from ..functional import basischan, basisconv2d, tsconv2d
+from ..init.mapparam import MappedLogits
 
 
-class ResponseFunctionLinearSelector(Module):
+class LinearRFNN(eqx.Module):
     """
     Model selection as a linear combination, with convolutional model
     augmentation.
     """
+    model_dim: int
+    basis_functions: Sequence[Callable[[Tensor], Tensor]]
+    num_response_functions: int = 10
+    response_duration: int = 9
+    leak: float = 0.001
+    weight: Dict[str, Tensor]
+
     def __init__(
         self,
-        model_dim,
-        n_columns,
-        basis_functions=None,
-        n_response_functions=10,
-        response_function_len=9,
-        init_lin=None,
-        init_conv=None,
-        leak=0.001,
-        softmax=True,
-        device=None,
-        dtype=None
+        model_dim: int,
+        num_columns: int,
+        basis_functions: (
+            Optional[Sequence[Callable[[Tensor], Tensor]]]) = None,
+        num_response_functions: int = 10,
+        response_duration: int = 9,
+        leak: float = 0.001,
+        *,
+        key: 'jax.random.PRNGKey',
     ):
-        super().__init__()
-        factory_kwargs = {'device': device, 'dtype': dtype}
-        n_columns = n_columns * (1 + n_response_functions)
         if basis_functions is None:
-            basis_functions = [lambda x : x]
-        if init_lin is None:
-            init_lin = lambda x: torch.nn.init.xavier_uniform_(x)
-        if init_conv is None:
-            init_conv = lambda x: torch.nn.init.kaiming_uniform_(
-                x, nonlinearity='relu')
-        self.weight = ParameterDict({
-            'rf' : Parameter(torch.empty(
-                n_response_functions,
-                len(basis_functions),
-                1,
-                response_function_len,
-                **factory_kwargs)),
-            'lin' : Parameter(torch.empty(
-                model_dim, n_columns,
-                **factory_kwargs)),
-            'thresh' : Parameter(torch.empty(
-                n_response_functions, 1, 1,
-                **factory_kwargs))
-        })
+            basis_functions = (lambda x: x,)
+        in_channels = len(basis_functions)
+        num_columns = num_columns * (1 + num_response_functions)
+
+        key_rf, key_lin, key_thresh = jax.random.split(key, 3)
+        lim_lin = 1. / math.sqrt(num_columns)
+        lim_rf = 1. / math.sqrt(in_channels * response_duration)
+        self.weight = {
+            'rf': jax.random.uniform(
+                key_rf,
+                shape=(
+                    num_response_functions,
+                    in_channels,
+                    1,
+                    response_duration
+                ),
+                minval=-lim_rf,
+                maxval=lim_rf,
+            ),
+            'lin': jax.random.uniform(
+                key_lin,
+                shape=(model_dim, num_columns),
+                minval=-lim_lin,
+                maxval=lim_lin,
+            ),
+            'thresh': 0.05 * jax.random.normal(
+                key_thresh,
+                shape=(num_response_functions, 1, 1),
+            )
+        }
+
         self.model_dim = model_dim
-        self.n_columns = n_columns
-        self.n_response_functions = n_response_functions
-        self.init_lin = init_lin
-        self.init_conv = init_conv
+        self.num_response_functions = num_response_functions
         self.basis_functions = basis_functions
         self.leak = leak
-        if softmax:
-            self.nlin = (
-                lambda x: torch.softmax(x / math.sqrt(x.shape[-1]), dim=-1))
-        else:
-            self.nlin = torch.nn.Identity()
-        self.reset_parameters()
 
-    def reset_parameters(self):
-        self.init_conv(self.weight['rf'])
-        self.init_lin(self.weight['lin'])
-        torch.nn.init.normal_(self.weight['thresh'], 0.05)
+    def __call__(
+        self,
+        x: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
+        weight = {k: _to_jax_array(v) for k, v in self.weight.items()}
+        x = atleast_4d(x)
 
-    def forward(self, x):
-        if self.n_response_functions == 0:
-            return self.nlin(self.weight['lin']) @ x
+        # If we have no response functions, just select a linear combination
+        if self.num_response_functions == 0:
+            return weight['lin'] @ x
+
+        # Step 1: Convolve with response functions
         rf_conv = basisconv2d(
             X=x,
-            weight=self.weight['rf'],
+            weight=weight['rf'],
             basis_functions=self.basis_functions,
             include_const=False,
             bias=None,
             padding=None)
-        rf_conv = rf_conv - self.weight['thresh']
-        rf_conv = leaky_relu(rf_conv, negative_slope=self.leak)
-        rf_conv = rf_conv + self.weight['thresh']
-        n, c, h, w = rf_conv.shape
-        all_functions = torch.cat((
+
+        # Step 2: Threshold
+        rf_conv = rf_conv - weight['thresh']
+        rf_conv = jax.nn.leaky_relu(rf_conv, negative_slope=self.leak)
+        rf_conv = rf_conv + weight['thresh']
+        n, c, v, t = rf_conv.shape
+
+        # Step 3: Select the model as a linear combination
+        all_functions = jnp.concatenate((
             x,
-            rf_conv.view(n, c * h, w)
+            rf_conv.reshape(n, 1, c * v, t)
         ), axis=-2)
-        return self.nlin(self.weight['lin']) @ all_functions
+        return weight['lin'] @ all_functions
 
 
-class QCPredict(Module):
+class QCPredict(eqx.Module):
+    basis_functions: Sequence[Callable[[Tensor], Tensor]]
+    leak: float = 0.05
+    weight: Dict[str, Tensor]
+
     def __init__(
         self,
-        n_ts,
-        basis_functions=None,
-        n_response_functions=10,
-        response_function_len=9,
-        n_global_patterns=10,
-        global_pattern_len=9,
-        final_filter_len=1,
-        n_qc=1,
-        init_rf=None,
-        init_global=None,
-        init_final=None,
-        leak=0.05
+        num_columns: int,
+        basis_functions: (
+            Optional[Sequence[Callable[[Tensor], Tensor]]]) = None,
+        num_response_functions: int = 10,
+        response_duration: int = 9,
+        num_global_patterns: int = 10,
+        global_pattern_duration: int = 9,
+        final_filter_duration: int = 1,
+        num_qc: int = 1,
+        leak: float = 0.05,
+        *,
+        key: 'jax.random.PRNGKey',
     ):
-        super().__init__()
-        default_init = lambda x: torch.nn.init.kaiming_uniform_(
-            x, nonlinearity='relu')
-        self.weight = ParameterDict({
-            'rf' : Parameter(torch.empty(
-                n_response_functions,
-                len(basis_functions),
-                1,
-                response_function_len)),
-            'global' : Parameter(torch.empty(
-                n_global_patterns,
-                n_response_functions + len(basis_functions),
-                n_ts,
-                global_pattern_len)),
-            'final' : Parameter(torch.empty(
-                n_qc,
-                n_global_patterns + n_ts,
-                1,
-                final_filter_len)),
-            'thresh_rf' : Parameter(torch.empty(
-                n_response_functions, 1, 1)),
-            'thresh_global' : Parameter(torch.empty(
-                n_global_patterns, 1, 1)),
-            'thresh_final' : Parameter(torch.empty(
-                n_qc, 1, 1))
-        })
-        self.init_rf = init_rf or  default_init
-        self.init_global = init_global or default_init
-        self.init_final = init_final or default_init
-        self.basis_functions = basis_functions or [lambda x : x]
+        if basis_functions is None:
+            basis_functions = (lambda x: x,)
+        in_channels = len(basis_functions)
+
+        (
+            key_rf, key_global, key_final,
+            key_thresh_rf,
+            key_thresh_global,
+            key_thresh_final
+        ) = jax.random.split(key, 6)
+        lim_rf = 1. / math.sqrt(in_channels * response_duration)
+        lim_global = 1. / math.sqrt(
+            (num_response_functions + in_channels) * global_pattern_duration)
+        lim_final = 1. / math.sqrt(
+            (num_global_patterns + num_columns) * final_filter_duration)
+
+        self.weight = {
+            'rf': jax.random.uniform(
+                key_rf,
+                shape=(
+                    num_response_functions,
+                    in_channels,
+                    1,
+                    response_duration,
+                ),
+                minval=-lim_rf,
+                maxval=lim_rf,
+            ),
+            'global': jax.random.uniform(
+                key_global,
+                shape=(
+                    num_global_patterns,
+                    num_response_functions + in_channels,
+                    num_columns,
+                    global_pattern_duration,
+                ),
+                minval=-lim_global,
+                maxval=lim_global,
+            ),
+            'final': jax.random.uniform(
+                key_final,
+                shape=(
+                    num_qc,
+                    num_global_patterns + num_columns,
+                    1,
+                    final_filter_duration,
+                ),
+                minval=-lim_final,
+                maxval=lim_final,
+            ),
+            'thresh_rf': 0.01 * jax.random.normal(
+                key_thresh_rf,
+                shape=(num_response_functions, 1, 1),
+            ),
+            'thresh_global': 0.01 * jax.random.normal(
+                key_thresh_global,
+                shape=(num_global_patterns, 1, 1),
+            ),
+            'thresh_final': 0.01 * jax.random.normal(
+                key_thresh_final,
+                shape=(num_qc, 1, 1),
+            )
+        }
+
+        self.basis_functions = basis_functions
         self.leak = leak
-        self.reset_parameters()
 
-    def reset_parameters(self):
-        self.init_rf(self.weight['rf'])
-        self.init_global(self.weight['global'])
-        self.init_final(self.weight['final'])
-        torch.nn.init.normal_(self.weight['thresh_rf'], 0.01)
-        torch.nn.init.normal_(self.weight['thresh_global'], 0.01)
-        torch.nn.init.normal_(self.weight['thresh_final'], 0.01)
-
-    def conv_and_thresh(self, conv, x, weight, thresh):
+    def conv_and_thresh(
+        self,
+        conv: Callable,
+        x: Tensor,
+        weight: Tensor,
+        thresh: Tensor,
+    ) -> Tensor:
         conv_out = conv(
             X=x,
             weight=weight,
             bias=None,
             padding=None)
-        return leaky_relu(conv_out - thresh, negative_slope=self.leak)
+        return jax.nn.leaky_relu(conv_out - thresh, negative_slope=self.leak)
 
-    def forward(self, x):
+    def __call__(
+        self,
+        x: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
+        weight = {k: _to_jax_array(v) for k, v in self.weight.items()}
         rf_conv = self.conv_and_thresh(
             conv=partial(basisconv2d,
                          basis_functions=self.basis_functions,
                          include_const=False),
             x=x,
-            weight=self.weight['rf'],
-            thresh=self.weight['thresh_rf'])
-        n, c, h, w = rf_conv.shape
-        augmented = torch.cat((
-            basischan(x, basis_functions=self.basis_functions).view(n, -1, h, w),
-            rf_conv
+            weight=weight['rf'],
+            thresh=weight['thresh_rf'])
+        n, c, v, t = rf_conv.shape
+        augmented = jnp.concatenate((
+            basischan(
+                x, basis_functions=self.basis_functions
+            ).reshape(n, -1, v, t),
+            rf_conv,
         ), axis=1)
 
         global_conv = self.conv_and_thresh(
             conv=tsconv2d,
             x=augmented,
-            weight=self.weight['global'],
-            thresh=self.weight['thresh_global'])
-        augmented = torch.cat((
-            x.view(n, h, 1, w),
-            global_conv
+            weight=weight['global'],
+            thresh=weight['thresh_global'])
+        augmented = jnp.concatenate((
+            x.reshape(n, v, 1, t),
+            global_conv,
         ), axis=1)
 
         final_conv = self.conv_and_thresh(
             conv=tsconv2d,
             x=augmented,
-            weight=self.weight['final'],
-            thresh=self.weight['thresh_final'])
+            weight=weight['final'],
+            thresh=weight['thresh_final'])
         return final_conv
 
 
-class BOLDPredict(Module):
-    """
-    ``QCPredict`` running in reverse.
-    """
-    def __init__(
-        self,
-        n_ts,
-        basis_functions=None,
-        n_response_functions=20,
-        response_function_len=15,
-        n_t_response_functions=20,
-        t_response_function_len=15,
-        n_intermediate_layers=0,
-        intermediate_pattern_len=15,
-        n_qc=1,
-        init_rf=None,
-        init_rft=None,
-        init_lin=None,
-        init_interm=None,
-        leak=0.05
-    ):
-        super().__init__()
-        #TODO: thresholds are not exactly relus in response distribution
-        default_init = lambda x: torch.nn.init.kaiming_uniform_(
-            x, nonlinearity='relu')
-        self.basis_functions = basis_functions or [lambda x : x]
-        self.weight = ParameterDict({
-            'rf' : Parameter(torch.empty(
-                n_response_functions,
-                n_qc * len(self.basis_functions),
-                1,
-                response_function_len)),
-            'rft' : Parameter(torch.empty(
-                n_qc * len(self.basis_functions),
-                n_t_response_functions,
-                1,
-                t_response_function_len)),
-            'lin' : Parameter(torch.empty(
-                n_ts, (n_response_functions + n_t_response_functions))),
-            'thresh_rf' : Parameter(torch.empty(
-                (n_response_functions + n_t_response_functions),
-                1, 1)),
-        })
-        intermediate_weight = {}
-        for l in range(n_intermediate_layers):
-            intermediate_weight[f'weight_{l:04}'] = Parameter(torch.empty(
-                (n_response_functions + n_t_response_functions),
-                (n_response_functions + n_t_response_functions),
-                1,
-                intermediate_pattern_len
-            ))
-            intermediate_weight[f'thresh_{l:04}'] = Parameter(torch.empty(
-                (n_response_functions + n_t_response_functions), 1, 1
-            ))
-        self.weight.update(intermediate_weight)
-        self.n_intermediate_layers = n_intermediate_layers
-        self.init_rf = init_rf or default_init
-        self.init_rft = init_rft or default_init
-        self.init_lin = init_lin or default_init
-        self.init_interm = init_interm or default_init
-        self.leak = leak
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.init_rf(self.weight['rf'])
-        self.init_rft(self.weight['rft'])
-        self.init_lin(self.weight['lin'])
-        torch.nn.init.normal_(self.weight['thresh_rf'], 0.01)
-        for l in range(self.n_intermediate_layers):
-            self.init_interm(self.weight[f'weight_{l:04}'])
-            torch.nn.init.normal_(self.weight[f'thresh_{l:04}'], 0.01)
-
-    def forward(self, x):
-        x = basischan(
-            x, basis_functions=self.basis_functions, include_const=False)
-        n, c, h, w = x.shape
-        x = x.view(n, c * h, 1, w)
-        rf_conv = tsconv2d(
-            x, weight=self.weight['rf'], padding='final')
-        rft_conv = tsconv2d(
-            x, conv=torch.nn.functional.conv_transpose2d,
-            weight=self.weight['rft'])[:, :, :, :x.shape[-1]]
-        rf_conv = torch.cat((rf_conv, rft_conv), axis=1)
-        out = leaky_relu(rf_conv - self.weight['thresh_rf'],
-                         negative_slope=self.leak)
-
-        for l in range(self.n_intermediate_layers):
-            out_l = leaky_relu(out - self.weight[f'thresh_{l:04}'],
-                               negative_slope=self.leak)
-            out_l = tsconv2d(out_l, weight=self.weight[f'weight_{l:04}'],
-                             padding='final')
-            out = out + out_l
-
-        remapped = (
-            self.weight['lin'] @ out.transpose(-2, -3)
-        )
-        return remapped
-
-
-class LinearCombinationSelector(Linear):
+class LinearCombinationSelector(LinearRFNN):
     r"""
     Model selection as a linear combination.
 
     Learn linear combinations of candidate vectors to produce a model. Thin
-    wrapper around `torch.nn.Linear`.
+    wrapper around :class:`LinearRFNN`.
 
     :Dimension: **Input :** :math:`(*, I, T)`
                     ``*`` denotes any number of preceding dimensions,
@@ -323,20 +281,22 @@ class LinearCombinationSelector(Linear):
     weight : tensor
         Tensor of shape :math:`(I, O)` `n_columns` x `model_dim`.
     """
-    def __init__(self, model_dim, n_columns, dtype=None, device=None):
-        factory_kwargs = {'device': device, 'dtype': dtype}
-        super(LinearCombinationSelector, self).__init__(
-            in_features=n_columns,
-            out_features=model_dim,
-            bias=False,
-            **factory_kwargs
+    def __init__(
+        self,
+        model_dim: int,
+        num_columns: int,
+        *,
+        key: 'jax.random.PRNGKey',
+    ):
+        super().__init__(
+            model_dim=model_dim,
+            num_columns=num_columns,
+            num_response_functions=0,
+            key=key,
         )
 
-    def forward(self, x):
-        return super().forward(x.transpose(-1, -2)).transpose(-1, -2)
 
-
-class EliminationSelector(Module):
+class EliminationSelector(eqx.Module):
     r"""
     Model selection by elimination of variables.
 
@@ -383,44 +343,48 @@ class EliminationSelector(Module):
         Initialisation function for the layer weight. Defaults to values
         randomly sampled from Uniform(0, 1).
     """
-    def __init__(self, n_columns, infimum=-1.5, supremum=2.5,
-                 or_dim=1, and_dim=1, init=None, dtype=None, device=None):
-        super(EliminationSelector, self).__init__()
-        factory_kwargs = {'device': device, 'dtype': dtype}
-        self.n_columns = n_columns
-        self.or_dim = or_dim
-        self.and_dim = and_dim
-        self.preweight = Parameter(torch.empty(
-            self.or_dim,
-            self.and_dim,
-            self.n_columns,
-            **factory_kwargs
-        ))
+    num_columns: int
+    or_dim: int = 1
+    and_dim: int = 1
+    weight: Tensor
+
+    def __init__(
+        self,
+        num_columns: int,
+        infimum: float = -1.5,
+        supremum: float = 2.5,
+        or_dim: int = 1,
+        and_dim: int = 1,
+        *,
+        key: jax.random.PRNGKey,
+    ):
         scale = (supremum - infimum) / 2
         loc = supremum - scale
+        self.num_columns = num_columns
+        self.or_dim = or_dim
+        self.and_dim = and_dim
+        self.weight = jax.random.uniform(
+            key=key,
+            shape=(or_dim, and_dim, num_columns),
+            minval=0,
+            maxval=1,
+        )
         #TODO: Can't we just use a ReLU domain? We might get more stable and
         # predictable behaviour that way as well. This module is currently
         # very sensitive to hyperparameters.
-        self.domain = Logit(scale=scale, loc=loc)
-        self.init = DistributionInitialiser(
-            distr=torch.distributions.Uniform(0., 1.),
-            domain=self.domain
+        self.weight = MappedLogits(
+            self,
+            loc=loc,
+            scale=scale
         )
-        self.reset_parameters()
 
-    def reset_parameters(self):
-        self.init(self.preweight)
-
-    @property
-    def weight(self):
-        w = self.domain.image(self.preweight)
-        return torch.maximum(w, torch.tensor(
-            0, dtype=self.preweight.dtype, device=self.preweight.device
-        ))
-
-    @property
-    def postweight(self):
-        return self.weight.sum(0).prod(0).view(-1, 1)
-
-    def forward(self, x):
-        return self.postweight * x
+    def __call__(
+        self,
+        x: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
+        weight = _to_jax_array(self.weight)
+        weight = weight.sum(-3).prod(-2)
+        weight = weight[..., None]
+        return weight * x

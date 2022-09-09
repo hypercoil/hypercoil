@@ -32,7 +32,7 @@ from .resid import (
     Residualise
 )
 from .select import (
-    ResponseFunctionLinearSelector,
+    LinearRFNN,
     QCPredict,
     LinearCombinationSelector,
     EliminationSelector
