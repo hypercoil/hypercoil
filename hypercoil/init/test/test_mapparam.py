@@ -219,7 +219,8 @@ class TestMappedParameters:
         @eqx.filter_grad
         def loss_ref(model, x, y):
             predict = lambda x: jax.nn.softmax(
-                model.weight.original, -1) @ x + model.bias
+                model.weight.original / jnp.sqrt(model.weight.original.shape[-1]),
+                -1) @ x + model.bias
             pred_y = jax.vmap(predict)(x)
             return jax.numpy.mean((y - pred_y) ** 2)
 
@@ -229,13 +230,14 @@ class TestMappedParameters:
         model = eqx.nn.Linear(
             in_features=in_size, out_features=out_size, key=mkey)
 
-        mapper = ProbabilitySimplexParameter(model, axis=-1)
+        mapper = ProbabilitySimplexParameter(model, axis=-1, temperature='auto')
         model_mapped = eqx.tree_at(
             lambda m: m.__getattribute__('weight'),
             model,
             replace=mapper
         )
-        model_mapped_2 = ProbabilitySimplexParameter.map(model, axis=-1)
+        model_mapped_2 = ProbabilitySimplexParameter.map(
+            model, axis=-1, temperature='auto')
         assert np.allclose(model_mapped.weight.original,
                            model_mapped_2.weight.original)
 

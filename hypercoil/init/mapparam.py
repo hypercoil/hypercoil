@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from abc import abstractmethod
 from functools import partial
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Literal, Optional, Tuple, Union
 from ..engine.paramutil import (
     PyTree, Tensor, _to_jax_array, where_weight
 )
@@ -728,7 +728,7 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
     smoothing : nonnegative float (default 0)
         For use when configuring the ``original`` parameter. Increasing the
         smoothing will result in a higher-entropy / more equiprobable image.
-    temperature : nonnegative float (default 1)
+    temperature : nonnegative float or ``'auto'`` (default 1)
         Softmax temperature.
     """
 
@@ -746,8 +746,10 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
         axis: int = -1,
         minimum: float = 1e-3,
         smoothing: float = 0,
-        temperature: float = 1.,
+        temperature: Union[float, Literal['auto']] = 1.,
     ):
+        if temperature == 'auto':
+            temperature = jnp.sqrt(where(model).shape[axis])
         self._image_map_impl = partial(
             paramsoftmax, temperature=temperature, axis=axis)
         self._preimage_map_impl = partial(
