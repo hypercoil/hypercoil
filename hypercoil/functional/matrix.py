@@ -384,7 +384,7 @@ def toeplitz_2d(
     m_in, n_in = c.shape[-1], r.shape[-1]
     m, n = shape if shape is not None else (m_in, n_in)
     d = max(m, n)
-    if (m != n) or (m_in != n_in != d):
+    if (m != n) or (m_in != n_in) or (m_in != d):
         r_arg, c_arg = fill_value * jnp.ones(d), fill_value * jnp.ones(d)
         r_arg = r_arg.at[:n_in].set(r)
         c_arg = c_arg.at[:m_in].set(c)
@@ -408,7 +408,7 @@ def toeplitz(
     c: Tensor,
     r: Optional[Tensor] = None,
     shape: Optional[Tuple[int, int]] = None,
-    fill_value: float = 0
+    fill_value: float = 0.,
 ) -> Tensor:
     r"""
     Populate a block of tensors with Toeplitz banded structure.

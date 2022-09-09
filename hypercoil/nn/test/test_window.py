@@ -46,6 +46,6 @@ class TestWindow:
             key=key,
         )
         for i in range(10):
-            # Well, there is a change this would fail, but it's inordinately
+            # Well, there is a chance this would fail, but it's inordinately
             # unlikely. And, for this random seed, it doesn't.
             assert not (out_multi[i, 0] == out_single[i]).all()
