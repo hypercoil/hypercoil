@@ -9,6 +9,12 @@ from .activation import (
     Isochor,
 )
 from .atlas import AtlasLinear, AtlasAccumuline
+from .confound import (
+    LinearRFNN,
+    QCPredict,
+    LinearCombinationSelector,
+    EliminationSelector
+)
 from .cov import(
     UnaryCovariance, UnaryCovarianceTW, UnaryCovarianceUW,
     BinaryCovariance, BinaryCovarianceTW, BinaryCovarianceUW
@@ -31,12 +37,6 @@ from .recombinator import (
 from .resid import (
     Residualise
 )
-from .select import (
-    LinearRFNN,
-    QCPredict,
-    LinearCombinationSelector,
-    EliminationSelector
-)
 from .semidefinite import(
     TangentProject, BatchTangentProject
 )
@@ -52,5 +52,5 @@ from .tsconv import (
     BasisConv2D,
 )
 from .window import (
-    WindowAmplifier
+    WindowAmplifier,
 )

@@ -7,7 +7,7 @@ Unit tests for artefact models.
 import jax
 import jax.numpy as jnp
 from hypercoil.engine.paramutil import _to_jax_array
-from hypercoil.nn.select import (
+from hypercoil.nn.confound import (
     LinearRFNN,
     QCPredict,
     LinearCombinationSelector,
