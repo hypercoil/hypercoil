@@ -11,7 +11,9 @@ import jax.numpy as jnp
 import equinox as eqx
 from collections import OrderedDict
 from pathlib import Path, PosixPath
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import (
+    Any, Callable, Dict, Literal, Optional, Sequence, Tuple, Union
+)
 from scipy.ndimage import (
     gaussian_filter,
     binary_dilation,
@@ -21,10 +23,171 @@ from scipy.ndimage import (
     binary_fill_holes
 )
 from ..engine import Tensor
+from ..engine.paramutil import _to_jax_array
+from ..functional.linear import form_dynamic_slice
 from ..functional.sphere import spherical_conv, euclidean_conv
+from ..functional.utils import conform_mask
 
 
 #TODO: Consider caching the ref as a tensor for possible speedup/efficiency
+
+
+class Mask(eqx.Module):
+    mask_array : Tensor
+
+    @property
+    def data(self):
+        return self.mask_array
+
+    @property
+    def shape(self):
+        return self.mask_array.shape
+
+    @property
+    def size(self):
+        return self.mask_array.sum()
+
+    @staticmethod
+    def _map_to_masked_impl(
+        mask_array: Tensor,
+        in_mode: Literal['timeseries', 'volume', 'nifti'] = 'timeseries',
+        out_mode: Literal['index', 'zero'] = 'index'
+    ) -> Callable:
+
+        def get_mask_timeseries_tensor(data: Tensor) -> Tuple[Tensor, Tensor]:
+            return data, conform_mask(tensor=data, mask=mask_array, axis=-2)
+
+        def get_mask_volumetric_tensor(data: Tensor) -> Tuple[Tensor, Tensor]:
+            data = data.reshape(-1, data.shape[-1])
+            return data, conform_mask(tensor=data, mask=mask_array, axis=-2)
+
+        def get_mask_nifti_image(data: Tensor) -> Tuple[Tensor, Tensor]:
+            data = data.get_fdata().reshape(-1, data.shape[-1])
+            return data, conform_mask(tensor=data, mask=mask_array, axis=-2)
+
+        def apply_mask_index(data: Tensor, mask: Tensor) -> Tensor:
+            return data[mask]
+
+        def apply_mask_zero(data: Tensor, mask: Tensor) -> Tensor:
+            return jnp.where(mask[..., None], data, 0.0)
+
+        in_mode_fn = {
+            'timeseries': get_mask_timeseries_tensor,
+            'volume': get_mask_volumetric_tensor,
+            'nifti': get_mask_nifti_image
+        }
+        out_mode_fn = {
+            'index': apply_mask_index,
+            'zero': apply_mask_zero
+        }
+        return lambda data: out_mode_fn[out_mode](
+            *in_mode_fn[in_mode](data)
+        )
+
+    def map_to_masked(
+        self,
+        in_mode: Literal['timeseries', 'volume', 'nifti'] = 'timeseries',
+        out_mode: Literal['index', 'zero'] = 'index'
+    ) -> Callable:
+        mask_array = _to_jax_array(self.mask_array)
+        return self._map_to_masked_impl(mask_array, in_mode, out_mode)
+
+
+class Compartment(eqx.Module):
+    name : str
+    slice_index : int
+    slice_size : int
+    mask_array : Optional[Tensor] = None
+
+    @property
+    def data(self):
+        return self.mask_array
+
+    @property
+    def shape(self):
+        return (self.slice_size,)
+
+    @property
+    def size(self):
+        return self.slice_size
+
+    def dynamic_slice_map(self) -> Callable:
+        def dynamic_slice(data: Tensor) -> Tensor:
+            indices, sizes = form_dynamic_slice(
+                shape=data.shape,
+                slice_axis=-2,
+                slice_index=self.slice_index,
+                slice_size=self.slice_size,
+            )
+            return jax.lax.dynamic_slice(input, indices, sizes)
+        return dynamic_slice
+
+    def map_to_masked(
+        self,
+        in_mode: Literal['timeseries', 'volume', 'nifti'] = 'timeseries',
+        out_mode: Literal['index', 'zero'] = 'index'
+    ) -> Callable:
+        mask_array = _to_jax_array(self.mask_array)
+        return Mask._map_to_masked_impl(mask_array, in_mode, out_mode)
+
+
+class CompartmentSet(eqx.Module):
+    compartments : OrderedDict[str, Compartment]
+
+    def __init__(
+        self,
+        compartment_dict: Dict[str, Tensor]
+    ):
+        index = 0
+        compartments = ()
+        for k, v in compartment_dict.items():
+            size = v.sum()
+            compartments += ((k, Compartment(
+                name=k,
+                slice_index=index,
+                slice_size=size,
+                mask_array=v,
+            )),)
+            index += size
+        self.compartments = OrderedDict(compartments)
+
+    def keys(self):
+        return self.compartments.keys()
+
+    def values(self):
+        return self.compartments.values()
+
+    def items(self):
+        return self.compartments.items()
+
+    def __getitem__(self, key):
+        return self.compartments[key]
+
+    def __iter__(self, key):
+        return iter(self.compartments)
+
+    def __len__(self):
+        return len(self.compartments)
+
+    def __contains__(self, key):
+        return key in self.compartments
+
+    def get(self, key, default=None):
+        return self.compartments.get(key, default)
+
+    def map_to_contiguous(self) -> Callable:
+        def make_contiguous(data: Tensor) -> Tensor:
+            compartment_data = ()
+            for compartment in self.compartments.values():
+                compartment_data += (compartment.map_to_masked(
+                    in_mode='timeseries',
+                    out_mode='index'
+                ),)
+            return jnp.concatenate(compartment_data, axis=-2)
+        return make_contiguous
+
+    def dynamic_slice_map(self, compartment: str) -> Callable:
+        return self[compartment].dynamic_slice_map()
 
 
 def _to_mask(path):
@@ -572,7 +735,7 @@ class _CIfTIReferenceMixin:
         dataobj = np.zeros_like(self.ref.get_fdata())
         for k, v in maps.items():
             n_labels = v.shape[0]
-            mask = self.compartments[k][self.mask][None, ...]
+            mask = self.compartments[k].data[self.mask.data][None, ...]
             data = v.argmax(0) + offset
             dataobj[mask] = data
             offset += n_labels
@@ -603,7 +766,7 @@ class _LogicMaskMixin:
         if _is_path(source):
             source = MaskLeaf(source)
         init = source()
-        self.mask = jnp.asarray(init.ravel())
+        self.mask = Mask(jnp.asarray(init.ravel()))
 
 
 class _CortexSubcortexCIfTIMaskMixin:
@@ -629,7 +792,7 @@ class _CortexSubcortexCIfTIMaskMixin:
                 init += [
                     np.ones(self.model_axis.volume_mask.sum()).astype(bool)
                 ]
-        self.mask = jnp.asarray(np.concatenate(init))
+        self.mask = Mask(jnp.asarray(np.concatenate(init)))
 
 
 class _FromNullMaskMixin:
@@ -651,10 +814,10 @@ class _FromNullMaskMixin:
     ) -> None:
         if self.ref.ndim <= 3:
             init = (self.cached_ref_data.round() != source)
-            self.mask = jnp.asarray(init.ravel())
+            self.mask = Mask(jnp.asarray(init.ravel()))
         else:
             init = (self.cached_ref_data.sum(-1) > source)
-            self.mask = jnp.asarray(init.ravel())
+            self.mask = Mask(jnp.asarray(init.ravel()))
 
 
 class _SingleCompartmentMixin:
@@ -678,14 +841,17 @@ class _SingleCompartmentMixin:
     ) -> None:
         ref = ref or self.ref
 
-        if ref.ndim == 2: # surface, time by vox greyordinates
-            self.compartments = {
-                'all': self.mask
+        if ref.ndim == 2: # surface (or flattened), time by vox greyordinates
+            compartments = {
+                'all': self.mask.data
             }
         else: # volume, x by y by z by t
-            self.compartments = {
-                'all' : self.mask
+            compartments = {
+                'all' : self.mask.data
             }
+        self.compartments = CompartmentSet(
+            compartment_dict=compartments,
+        )
 
 
 #TODO: Intersect compartment mask with overall mask before saving.
@@ -714,16 +880,19 @@ class _MultiCompartmentMixin:
     ) -> None:
         ref = ref or self.ref
 
-        self.compartments = OrderedDict()
+        compartments = OrderedDict()
         for name, vol in names_dict.items():
             if isinstance(name, str):
-                self.compartments[name] = jnp.asarray(
+                compartments[name] = jnp.asarray(
                     _to_mask(vol)).ravel()
             else:
                 init = _to_mask(vol)
                 for name, data in zip(name, init):
-                    self.compartments[name] = jnp.asarray(
+                    compartments[name] = jnp.asarray(
                         data).ravel()
+        self.compartments = CompartmentSet(
+            compartment_dict=compartments,
+        )
 
 
 class _CortexSubcortexCIfTICompartmentMixin:
@@ -739,7 +908,7 @@ class _CortexSubcortexCIfTICompartmentMixin:
 
     def _create_compartments(self, names_dict, ref=None):
         ref = ref or self.ref
-        self.compartments = OrderedDict([
+        compartments = OrderedDict([
             ('cortex_L', jnp.zeros(
                 self.mask.shape, dtype=bool,)),
             ('cortex_R', jnp.zeros(
@@ -750,15 +919,15 @@ class _CortexSubcortexCIfTICompartmentMixin:
         #TODO
         # This could not be more stupid. Gotta be a better way to do this.
         if self.mask.shape == self.ref.shape[-1]:
-            mask = jnp.ones(self.mask.shape, dtype=bool,)
+            mask = Mask(jnp.ones(self.mask.shape, dtype=bool,))
         else:
             mask = self.mask
         model_axis = self.model_axis
+        names_dict = {v: k for k, v in names_dict.items()}
         for struc, slc, _ in (model_axis.iter_structures()):
-            if struc == names_dict['cortex_L']:
-                self._mask_hack(mask, 'cortex_L', slc)
-            elif struc == names_dict['cortex_R']:
-                self._mask_hack(mask, 'cortex_R', slc)
+            name = names_dict.get(struc, None)
+            if name is not None:
+                compartments[name] = self._mask_hack(mask, slc)
         try:
             vol_mask = np.where(model_axis.volume_mask)[0]
             vol_min, vol_max = vol_mask.min(), vol_mask.max() + 1
@@ -766,20 +935,19 @@ class _CortexSubcortexCIfTICompartmentMixin:
             self._mask_hack(mask, 'subcortex', slc)
         except ValueError:
             pass
+        self.compartments = CompartmentSet(
+            compartment_dict=compartments,
+        )
 
     def _mask_hack(
         self,
         src_mask: Tensor,
-        struc: str,
         slc: slice,
     ) -> None:
-        compartment_mask = src_mask.copy()
-        inner_compartment_mask = jnp.zeros(
-            compartment_mask.sum(), dtype=bool,)
-        inner_compartment_mask = inner_compartment_mask.at[(slc,)].set(True)
-        compartment_mask = compartment_mask.at[compartment_mask].set(inner_compartment_mask)
-        self.compartments[struc] = jnp.where(compartment_mask, True, False)
-        #self.compartments[struc] = self.compartments[struc].at[compartment_mask].set(True)
+        inner_mask = jnp.zeros(src_mask.size, dtype=bool,)
+        inner_mask = inner_mask.at[(slc,)].set(True)
+        compartment_mask = src_mask.data.at[src_mask.data].set(inner_mask)
+        return jnp.where(compartment_mask, True, False)
 
 
 class _DiscreteLabelMixin:
@@ -795,11 +963,12 @@ class _DiscreteLabelMixin:
         null_label: int = 0
     ) -> None:
         self.decoder = OrderedDict()
-        for c, mask in self.compartments.items():
+        for c, compartment in self.compartments.items():
+            mask = compartment.data
             try:
                 mask = mask.reshape(self.ref.shape)
             except jax.core.InconclusiveDimensionOperation:
-                mask = mask[self.mask].reshape(self.ref.shape)
+                mask = mask[self.mask.data].reshape(self.ref.shape)
             labels_in_compartment = np.unique(
                 jnp.asarray(self.cached_ref_data)[mask])
             labels_in_compartment = labels_in_compartment[
@@ -808,12 +977,12 @@ class _DiscreteLabelMixin:
                 labels_in_compartment, dtype=int)
 
         try:
-            mask = self.mask.reshape(self.ref.shape)
+            mask = self.mask.data.reshape(self.ref.shape)
         except jax.core.InconclusiveDimensionOperation:
             # The reference is already masked. In this case, we're using a
             # CIfTI.
-            assert self.mask.sum() == self.ref.shape[-1]
-            mask = True
+            assert self.mask.size == self.ref.shape[-1]
+            mask = None
         unique_labels = np.unique(self.cached_ref_data[mask])
         unique_labels = unique_labels[unique_labels != null_label]
         self.decoder['_all'] = jnp.asarray(
@@ -833,9 +1002,9 @@ class _DiscreteLabelMixin:
             except IndexError:
                 # Again the reference is already masked. In this case, we
                 # assume we're using a CIfTI.
-                assert self.mask.sum() == len(self.cached_ref_data.ravel())
+                assert self.mask.size == len(self.cached_ref_data.ravel())
                 map = map.at[i].set(jnp.asarray(
-                    self.cached_ref_data.ravel()[mask[self.mask]] == l))
+                    self.cached_ref_data.ravel()[mask[self.mask.data]] == l))
         return map
 
 
@@ -855,8 +1024,8 @@ class _ContinuousLabelMixin:
         null_label: Optional[int] = None
     ) -> None:
         self.decoder = OrderedDict()
-        for c, mask in self.compartments.items():
-            mask = mask.reshape(self.ref.shape[:-1])
+        for c, compartment in self.compartments.items():
+            mask = compartment.data.reshape(self.ref.shape[:-1])
             labels_in_compartment = np.where(
                 self.cached_ref_data[mask].sum(0))[0]
             labels_in_compartment = labels_in_compartment[
@@ -866,7 +1035,7 @@ class _ContinuousLabelMixin:
                 dtype=int,
             )
 
-        mask = self.mask.reshape(self.ref.shape[:-1])
+        mask = self.mask.data.reshape(self.ref.shape[:-1])
         unique_labels = np.where(self.cached_ref_data[mask].sum(0))[0]
         unique_labels = labels_in_compartment[unique_labels != null_label]
         self.decoder['_all'] = jnp.asarray(unique_labels + 1, dtype=int)
@@ -1004,9 +1173,10 @@ class _VertexCIfTIMeshMixin:
         self.topology = OrderedDict()
         euc_mask = jnp.asarray(
             self.model_axis.volume_mask, dtype=bool)
-        for c, mask in self.compartments.items():
+        for c, compartment in self.compartments.items():
+            mask = compartment.data
             if mask.shape != euc_mask.shape:
-                mask = mask[self.mask]
+                mask = mask[self.mask.data]
             if (mask * euc_mask).sum() == 0:
                 self.topology[c] = 'spherical'
             else:
@@ -1064,9 +1234,9 @@ class _SpatialConvMixin:
         spherical_scale: float = 1,
         truncate: Optional[float] = None
     ) -> Tensor:
-        compartment_mask = self.compartments[compartment]
+        compartment_mask = self.compartments[compartment].data
         if len(self.coors) < len(compartment_mask):
-            compartment_mask = compartment_mask[self.mask]
+            compartment_mask = compartment_mask[self.mask.data]
         if self.topology[compartment] == 'euclidean':
             map = euclidean_conv(
                 data=map.T, coor=self.coors[compartment_mask],

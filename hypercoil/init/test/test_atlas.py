@@ -43,8 +43,8 @@ class TestAtlasInit:
             clear_cache=False
         )
         assert atlas.mask.shape[0] == np.prod(atlas.ref.shape)
-        assert atlas.mask.sum() == 139951
-        assert atlas.compartments['all'].sum() == 139951
+        assert atlas.mask.size == 139951
+        assert atlas.compartments['all'].size == 139951
         assert len(atlas.decoder['all']) == 100
         assert np.all(atlas.maps['all'].sum(1) ==
             np.histogram(atlas.cached_ref_data, bins=100, range=(1, 100))[0])
@@ -78,8 +78,8 @@ class TestAtlasInit:
             clear_cache=False
         )
         assert atlas.mask.shape[0] == np.prod(atlas.ref.shape[:-1])
-        assert atlas.mask.sum() == 131238
-        assert atlas.compartments['all'].sum() == 131238
+        assert atlas.mask.size == 131238
+        assert atlas.compartments['all'].size == 131238
         assert len(atlas.decoder['all']) == 64
         assert np.all(
             [atlas.maps['all'][i].max() == atlas.cached_ref_data[..., i].max()
@@ -115,8 +115,8 @@ class TestAtlasInit:
             clear_cache=False
         )
         assert atlas.mask.shape[0] == np.prod(atlas.ref.shape[:-1])
-        assert atlas.mask.sum() == 281973
-        assert atlas.compartments['all'].sum() == 281973
+        assert atlas.mask.size == 281973
+        assert atlas.compartments['all'].size == 281973
         assert len(atlas.decoder['all']) == 3
         assert np.allclose(atlas.maps['all'].sum(1),
             atlas.cached_ref_data.reshape(-1, 3).sum(0))
@@ -143,24 +143,24 @@ class TestAtlasInit:
                 density='32k'),
             clear_cache=False,
         )
-        assert atlas.mask.sum() == atlas.ref.shape[-1]
-        assert atlas.compartments['cortex_L'].sum() == 29696
-        assert atlas.compartments['cortex_R'].sum() == 59412 - 29696
-        assert atlas.compartments['cortex_L'].shape == atlas.mask.shape
+        assert atlas.mask.size == atlas.ref.shape[-1]
+        assert atlas.compartments['cortex_L'].size == 29696
+        assert atlas.compartments['cortex_R'].size == 59412 - 29696
+        assert atlas.compartments['cortex_L'].shape == (29696,)
         assert len(atlas.decoder['cortex_L']) == 200
         assert len(atlas.decoder['cortex_R']) == 200
         assert len(atlas.decoder['subcortex']) == 0
         assert atlas.maps['cortex_L'].shape == (200, 29696)
         assert atlas.maps['cortex_R'].shape == (200, 29716)
         assert atlas.maps['subcortex'].shape == (0,)
-        compartment_index = atlas.compartments['cortex_L'][atlas.mask]
+        compartment_index = atlas.compartments['cortex_L'].data[atlas.mask.data]
         assert np.all(
             atlas.maps['cortex_L'].sum(1) == np.histogram(
                 atlas.cached_ref_data[:, compartment_index],
                 bins=400, range=(1, 400)
             )[0][atlas.decoder['cortex_L'] - 1]
         )
-        compartment_index = atlas.compartments['cortex_R'][atlas.mask]
+        compartment_index = atlas.compartments['cortex_R'].data[atlas.mask.data]
         assert np.all(
             atlas.maps['cortex_R'].sum(1) == np.histogram(
                 atlas.cached_ref_data[:, compartment_index],
@@ -215,9 +215,9 @@ class TestAtlasInit:
     def test_compartments_atlas(self):
         atlas = _MemeAtlas()
         assert atlas.mask.shape[0] == np.prod(atlas.ref.shape)
-        assert atlas.mask.sum() == 155650
+        assert atlas.mask.size == 155650
         assert np.stack(
-            (atlas.compartments['eye'], atlas.compartments['face'])
+            (atlas.compartments['eye'].data, atlas.compartments['face'].data)
         ).sum(0).astype(bool).sum() == 155650
         assert np.all(atlas.decoder['eye'] == atlas.decoder['_all'])
         assert atlas.maps['face'].shape == (0,)
@@ -260,7 +260,7 @@ class TestAtlasInit:
             n_labels=50,
             key=jax.random.PRNGKey(0),
         )
-        assert atlas.mask.sum() == 66795
+        assert atlas.mask.size == 66795
         assert atlas.decoder['all'].tolist() == list(range(1, 51))
         assert atlas.maps['all'].shape == (50, 66795)
         assert np.allclose(
@@ -319,7 +319,7 @@ class TestAtlasInit:
             },
             key=jax.random.PRNGKey(0),
         )
-        assert atlas.mask.sum() == 59412
+        assert atlas.mask.size == 59412
         assert atlas.decoder['subcortex'].tolist() == list(range(41, 61))
         assert atlas.maps['cortex_L'].shape == (20, 29696)
         assert atlas.maps['cortex_R'].shape == (20, 29716)

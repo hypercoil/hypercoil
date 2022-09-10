@@ -354,7 +354,8 @@ class BaseAtlas(eqx.Module):
 
     def _configure_compartment_maps(self) -> None:
         self.maps = OrderedDict()
-        for c, mask in self.compartments.items():
+        for c, compartment in self.compartments.items():
+            mask = compartment.data
             labels = self.decoder[c]
             dim_out = len(labels)
             if dim_out == 0:
@@ -364,10 +365,10 @@ class BaseAtlas(eqx.Module):
             map = jnp.empty((dim_out, dim_in))
             self.maps[c] = self._populate_map_from_ref(map, labels, mask, c)
 
-        mask = self.mask
+        mask = self.mask.data
         labels = self.decoder['_all']
         dim_out = len(labels)
-        dim_in = self.mask.sum()
+        dim_in = self.mask.size
         map = jnp.empty((dim_out, dim_in))
         self.maps['_all'] = self._populate_map_from_ref(
             map, labels, mask, '_all')
