@@ -17,8 +17,19 @@ from ..engine.noise import UnstructuredDropoutSource
 from ..functional.utils import apply_mask
 from ..init.atlas import AtlasInit
 
+import jax
+import jax.numpy as jnp
+import distrax
+import equinox as eqx
+from typing import Dict, Literal, Optional, Tuple, Type
+from ..engine import PyTree, Tensor
+from ..engine.paramutil import _to_jax_array
+from ..functional.linear import compartmentalised_linear
+from ..init.atlas import AtlasInitialiser, BaseAtlas
+from ..init.mapparam import MappedParameter
 
-class AtlasLinear(Module):
+
+class AtlasLinear(eqx.Module):
     r"""
     Time series extraction from an atlas via a linear map.
 
@@ -134,202 +145,146 @@ class AtlasLinear(Module):
     coors : Tensor :math:`(V, D)`
         Spatial coordinates of each location in the atlas.
     """
+    weight: Dict[str, Tensor]
+    limits: Dict[str, Tuple[float, float]]
+    decoder: Optional[Dict[str, Tensor]]
+    normalisation: (
+        Optional[Literal['mean', 'absmean', 'zscore', 'psc']]) = None
+    forward_mode: Literal['map', 'project'] = 'map'
+    concatenate: bool = True
+
     def __init__(
         self,
-        atlas,
-        mask_input=False,
-        normalise=True,
-        compartments=True,
-        concatenate=True,
-        decode=False,
-        kernel_sigma=None,
-        noise_sigma=None,
-        max_bin=10000,
-        spherical_scale=1,
-        truncate=None,
-        domain=None,
-        spatial_dropout=0,
-        min_voxels=1,
-        reduction='mean',
-        forward_mode='map',
-        dtype=None,
-        device=None,
-        solver=None
+        n_locations: Dict[str, int],
+        n_labels: Dict[str, int],
+        limits: Dict[str, Tuple[float, float]] = None,
+        decoder: Optional[Dict[str, Tensor]] = None,
+        normalisation: (
+            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
+        ) = 'mean',
+        forward_mode: Literal['map', 'project'] = 'map',
+        concatenate: bool = True,
+        *,
+        key: 'jax.random.PRNGKey',
     ):
-        factory_kwargs = {'device': device, 'dtype': dtype}
-        super(AtlasLinear, self).__init__()
+        compartments = set(n_locations.keys())
+        if compartments != set(n_labels.keys()):
+            raise ValueError(
+                'n_locations and n_labels must have the same keys')
+        keys = jax.random.split(key, len(compartments))
 
-        self.atlas = atlas
-        self.mask = self.atlas.mask
-        self.mask_input = mask_input
-        self.reduction = reduction
+        self.weight = {
+            c: (
+                distrax.Dirichlet(
+                    concentration=(50 * jnp.ones(n_labels[c]))
+                ).sample(
+                    seed=k,
+                    sample_shape=n_locations[c]
+                ).swapaxes(-2, -1)
+            if n_labels[c] > 1 else jnp.ones((1, n_locations[c]))
+            ) for c, k in zip(compartments, keys)
+        }
+
+        if limits is None:
+            limits = self.set_default_limits(n_locations)
+
+        self.limits = limits
+        self.decoder = decoder
+        self.normalisation = normalisation
         self.forward_mode = forward_mode
         self.concatenate = concatenate
-        self.decode = decode
-        self.init = AtlasInit(
-            self.atlas,
-            normalise=False,
+
+    @staticmethod
+    def set_default_limits(
+        n_locations: Dict[str, int],
+    ) -> Dict[str, Tuple[float, float]]:
+        limits = {}
+        index = 0
+        for c in n_locations.keys():
+            limits[c] = (index, n_locations[c])
+            index += n_locations[c]
+        return limits
+
+    @classmethod
+    def from_atlas(
+        cls,
+        atlas: BaseAtlas,
+        normalisation: (
+            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
+        ) = 'mean',
+        forward_mode: Literal['map', 'project'] = 'map',
+        concatenate: bool = True,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        normalise: bool = False,
+        max_bin: int = 10000,
+        spherical_scale : float = 1.,
+        truncate: Optional[float] = None,
+        kernel_sigma: Optional[float] = None,
+        noise_sigma: Optional[float] = None,
+        param_name: str = "weight",
+        key: 'jax.random.PRNGKey',
+        **params,
+    ) -> PyTree:
+        m_key, i_key = jax.random.split(key, 2)
+        n_locations = {c: o.size for c, o in atlas.compartments.items()}
+        n_labels = {c: atlas.maps[c].shape[-2]
+                    if atlas.maps[c].shape != (0,) else 0
+                    for c in atlas.compartments}
+        limits = {c: (o.slice_index, o.slice_size)
+                  for c, o in atlas.compartments.items()}
+        model = cls(
+            n_locations=n_locations,
+            n_labels=n_labels,
+            limits=limits,
+            decoder=atlas.decoder, #TODO: we're maintaining a reference to
+                                   #      the atlas here. Is this a problem?
+            normalisation=normalisation,
+            forward_mode=forward_mode,
+            concatenate=concatenate,
+            key=m_key,
+        )
+        model = AtlasInitialiser.init(
+            model,
+            atlas=atlas,
+            mapper=mapper,
+            normalise=normalise,
             max_bin=max_bin,
             spherical_scale=spherical_scale,
+            truncate=truncate,
             kernel_sigma=kernel_sigma,
             noise_sigma=noise_sigma,
-            truncate=truncate,
-            domain=domain
+            param_name=param_name,
+            key=i_key,
+            **params,
         )
-        self.domain = self.init.domain
+        return model
 
-        if compartments:
-            self.preweight = ParameterDict({
-                c : Parameter(torch.empty_like(self.atlas.maps[c],
-                                               **factory_kwargs))
-                for c in atlas.compartments.keys()
-                if reduce(mul, self.atlas.maps[c].shape) != 0
-            })
-        else:
-            self.preweight = ParameterDict({
-                '_all' : Parameter(torch.empty_like(self.atlas.maps['_all'],
-                                                    **factory_kwargs))
-            })
-        self.coors = self.atlas.coors
-        self._configure_spatial_dropout(spatial_dropout, min_voxels)
-        self.reset_parameters()
-        self.solver = self._select_solver(solver, self.preweight)
-
-    def reset_parameters(self):
-       self.init(tensor=self.preweight)
-
-    def _configure_spatial_dropout(self, dropout_rate, min_voxels):
-        if dropout_rate > 0:
-            self.dropout = UnstructuredDropoutSource(
-                distr=Bernoulli(1 - dropout_rate),
-                sample_axes=[-1]
-            )
-        else:
-            self.dropout = None
-        self.min_voxels = min_voxels
-
-    def _select_solver(self, solver, param):
-        # According to torch doc, this shouldn't be necessary.
-        # https://pytorch.org/docs/stable/generated/torch.linalg.lstsq.html
-        if solver is None:
-            device = param[next(iter(param))].device
-            if device.type == 'cuda':
-                solver = 'gels'
-            else:
-                solver = 'gelsy'
-        return solver
-
-    @property
-    def weight(self):
-        return OrderedDict([
-            (k, self.domain.image(v))
-            for k, v in self.preweight.items()
-        ])
-
-    @property
-    def postweight(self):
-        if self.dropout is not None:
-            weight = OrderedDict()
-            for k, v in self.weight.items():
-                sufficient_voxels = False
-                while not sufficient_voxels:
-                    n_voxels = (v > 0).sum(-1)
-                    weight[k] = self.dropout(v)
-                    n_voxels = (weight[k] > 0).sum(-1)
-                    if torch.all(n_voxels >= self.min_voxels):
-                        sufficient_voxels = True
-            return weight
-        return self.weight
-
-    def compartment_forward(self, input, weight):
-        if self.forward_mode == 'map':
-            return weight @ input
-        elif self.forward_mode == 'project':
-            return torch.linalg.lstsq(
-                weight.transpose(-2, -1),
-                input
-            ).solution
-            #return (
-            #    input.pinverse() @ weight.transpose(-2, -1)
-            #).transpose(-2, -1)
-
-    def reduce(self, input, weight):
-        out = self.compartment_forward(input, weight)
-        print(out.shape)
-        if self.reduction == 'mean':
-            normfact = weight.sum(-1, keepdim=True)
-            return out / normfact
-        elif self.reduction == 'absmean':
-            normfact = weight.abs().sum(-1, keepdim=True)
-            return out / normfact
-        elif self.reduction == 'zscore':
-            out -= out.mean(-1, keepdim=True)
-            out /= out.std(-1, keepdim=True)
-            return out
-        elif self.reduction == 'psc':
-            mean = out.mean(-1, keepdim=True)
-            return 100 * (out - mean) / mean
-        return out
-
-    def _conform_mask_to_input(self, mask, input):
-        while mask.dim() < input.dim() - 1:
-            mask = mask.unsqueeze(0)
-        return mask.expand(input.shape[:-1])
-
-
-    def apply_mask(self, input):
-        shape = input.size()
-        mask = self._conform_mask_to_input(mask=self.mask, input=input)
-        input = input[mask]
-        input = input.view(*shape[:-2], -1 , shape[-1])
-        return input
-
-    def select_compartment(self, compartment, input):
-        shape = input.size()
-        mask = self.atlas.compartments[compartment]
-        mask = mask[self.mask]
-        mask = self._conform_mask_to_input(mask=mask, input=input)
-        input = input[mask].view(*shape[:-2], -1 , shape[-1])
-        return input
-
-    def concatenate_and_decode(self, input):
-        if self.decode:
-            k = list(self.weight.keys())[0]
-            shape = (
-                *input[k].shape[:-2],
-                len(self.atlas.decoder['_all']),
-                input[k].shape[-1]
-            )
-            out = torch.empty(
-                *shape,
-                dtype=input[k].dtype,
-                device=input[k].device
-            )
-            for compartment, tensor in input.items():
-                out[..., (self.atlas.decoder[compartment] - 1), :] = tensor
-        #TODO: Let's use an OrderedDict to be safe.
-        elif self.concatenate:
-            out = torch.cat([v for v in input.values()], -2)
-        return out
-
-    def forward(self, input):
-        if self.mask_input:
-            input = self.apply_mask(input)
-        out = OrderedDict()
-        for k in self.preweight.keys():
-            #print(compartment, self.atlas.compartments)
-            v = self.postweight[k]
-            if v.shape == (0,):
-                continue
-            compartment = self.select_compartment(k, input)
-            out[k] = self.reduce(compartment, v)
-        out = self.concatenate_and_decode(out)
-        return out
-
-    def __repr__(self):
-        s = f'{type(self).__name__}(atlas={self.atlas}, '
-        s += f'mask={self.mask_input}, reduce={self.reduction})'
-        return s
+    def __call__(
+        self,
+        input: Tensor,
+        normalisation: (
+            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
+        ) = None,
+        forward_mode: Optional[Literal['map', 'project']] = None,
+        concatenate: Optional[bool] = None,
+    ) -> Tensor:
+        if normalisation is None: normalisation = self.normalisation
+        if forward_mode is None: forward_mode = self.forward_mode
+        if concatenate is None: concatenate = self.concatenate
+        weight = OrderedDict((
+            (k, _to_jax_array(v))
+            for k, v in self.weight.items()
+        ))
+        return compartmentalised_linear(
+            input=input,
+            weight=weight,
+            limits=self.limits,
+            decoder=self.decoder,
+            normalisation=normalisation,
+            forward_mode=forward_mode,
+            concatenate=concatenate,
+        )
 
 
 def atlas_backward(atlas, grad_output, *grad_compartments):

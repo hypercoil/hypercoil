@@ -29,7 +29,9 @@ from ..functional.sphere import spherical_conv, euclidean_conv
 from ..functional.utils import conform_mask
 
 
-#TODO: Consider caching the ref as a tensor for possible speedup/efficiency
+#TODO: Mixins for building an atlas class from a parameterised atlas module
+#      object instead of a NIfTI image.
+#TODO: Work out what should be in `numpy` and what should be in `jax.numpy`.
 
 
 class Mask(eqx.Module):
@@ -50,9 +52,13 @@ class Mask(eqx.Module):
     @staticmethod
     def _map_to_masked_impl(
         mask_array: Tensor,
-        in_mode: Literal['timeseries', 'volume', 'nifti'] = 'timeseries',
+        in_mode: (
+            Literal['timeseries', 'flat', 'volume', 'nifti']) = 'timeseries',
         out_mode: Literal['index', 'zero'] = 'index'
     ) -> Callable:
+
+        def get_mask_flat_tensor(data: Tensor) -> Tuple[Tensor, Tensor]:
+            return data[..., None], mask_array
 
         def get_mask_timeseries_tensor(data: Tensor) -> Tuple[Tensor, Tensor]:
             return data, conform_mask(tensor=data, mask=mask_array, axis=-2)
@@ -66,13 +72,15 @@ class Mask(eqx.Module):
             return data, conform_mask(tensor=data, mask=mask_array, axis=-2)
 
         def apply_mask_index(data: Tensor, mask: Tensor) -> Tensor:
-            return data[mask]
+            out = data[mask]
+            return out.reshape(*data.shape[:-2], -1, data.shape[-1])
 
         def apply_mask_zero(data: Tensor, mask: Tensor) -> Tensor:
             return jnp.where(mask[..., None], data, 0.0)
 
         in_mode_fn = {
             'timeseries': get_mask_timeseries_tensor,
+            'flat': get_mask_flat_tensor,
             'volume': get_mask_volumetric_tensor,
             'nifti': get_mask_nifti_image
         }
@@ -142,10 +150,13 @@ class CompartmentSet(eqx.Module):
         compartments = ()
         for k, v in compartment_dict.items():
             size = v.sum()
+            # We absolutely must make sure that the indices and sizes are not
+            # JAX arrays -- otherwise we will get a JAX error when we try to
+            # compile the function.
             compartments += ((k, Compartment(
                 name=k,
-                slice_index=index,
-                slice_size=size,
+                slice_index=int(index),
+                slice_size=int(size),
                 mask_array=v,
             )),)
             index += size
@@ -163,7 +174,7 @@ class CompartmentSet(eqx.Module):
     def __getitem__(self, key):
         return self.compartments[key]
 
-    def __iter__(self, key):
+    def __iter__(self):
         return iter(self.compartments)
 
     def __len__(self):
@@ -734,10 +745,12 @@ class _CIfTIReferenceMixin:
         offset = 1
         dataobj = np.zeros_like(self.ref.get_fdata())
         for k, v in maps.items():
+            if v.shape == (0,):
+                continue
             n_labels = v.shape[0]
             mask = self.compartments[k].data[self.mask.data][None, ...]
             data = v.argmax(0) + offset
-            dataobj[mask] = data
+            dataobj[np.array(mask)] = data
             offset += n_labels
         new_cifti = nb.Cifti2Image(
             dataobj,
@@ -1250,3 +1263,44 @@ class _SpatialConvMixin:
                 max_bin=max_bin, truncate=truncate
             ).T
         return map
+
+
+#TODO: (low priority): revisit this later. Probably begin downstream with
+#      decoders, topologies, etc. References types (e.g., surface,
+#      multi-volume) might just be too different to have any hope of
+#      harmonisation.
+# class Reference(eqx.Module):
+#     cached: bool = False
+#     dataobj: Optional[Tensor] = None
+
+#     @property
+#     def header(self) -> Any:
+#         pass
+
+#     @property
+#     def nifti_header(self) -> Any:
+#         pass
+
+#     @property
+#     def axes(self) -> Any:
+#         pass
+
+#     @property
+#     def model_axis(self) -> Any:
+#         pass
+
+#     @property
+#     def ndim(self) -> Any:
+#         pass
+
+#     @property
+#     def shape(self) -> Any:
+#         pass
+
+#     @property
+#     def data(self) -> Any:
+#         pass
+
+#     @property
+#     def zooms(self) -> Any:
+#         pass

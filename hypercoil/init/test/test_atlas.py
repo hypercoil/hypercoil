@@ -5,6 +5,9 @@
 Unit tests for atlas map initialisation
 """
 import jax
+import jax.numpy as jnp
+import distrax
+import equinox as eqx
 import numpy as np
 import nibabel as nb
 import templateflow.api as tflow
@@ -26,7 +29,10 @@ from hypercoil.init.atlasmixins import (
     MaskNegation,
     MaskIntersection
 )
-from hypercoil.engine.noise import UnstructuredDropoutSource
+from hypercoil.engine.noise import (
+    ScalarIIDMulStochasticTransform,
+    StochasticParameter
+)
 
 
 class TestAtlasInit:
@@ -62,9 +68,14 @@ class TestAtlasInit:
                                 resampling_target=None)
         ref = nil.fit_transform(nb.Nifti1Image(inp, affine=aff))
 
-        # lin = AtlasLinear(atlas, mask_input=True)
-        # out = lin(inp.reshape(-1, 20))
-        # assert np.allclose(out.detach().numpy(), ref.T)
+        mask = atlas.mask.map_to_masked(in_mode='volume')
+        lin = AtlasLinear.from_atlas(
+            atlas=atlas,
+            key=jax.random.PRNGKey(0),
+        )
+        inp = mask(inp)
+        out = eqx.filter_jit(lin)(jnp.array(inp))
+        assert np.allclose(out, ref.T, atol=1e-5)
 
     def test_multivolume_atlas(self):
         ref_pointer = tflow.get(
@@ -97,12 +108,17 @@ class TestAtlasInit:
         nil = NiftiMapsMasker(maps_img=str(ref_pointer),
                               resampling_target=None)
         ref = nil.fit_transform(nb.Nifti1Image(inp, affine=aff))
-        # lin = AtlasLinear(
-        #     atlas, mask_input=True,
-        #     forward_mode='project',
-        #     reduction=None)
-        # out = lin(inpT.reshape(-1, 5))
-        # assert np.allclose(ref.T, out.detach(), rtol=1e-3)
+
+        mask = atlas.mask.map_to_masked(in_mode='volume')
+        lin = AtlasLinear.from_atlas(
+            atlas=atlas,
+            forward_mode='project',
+            normalisation=None,
+            key=jax.random.PRNGKey(0),
+        )
+        inp = mask(inp)
+        out = eqx.filter_jit(lin)(jnp.array(inp))
+        assert np.allclose(out, ref.T, atol=1e-5)
 
     def test_multifile_atlas(self):
         atlas = MultifileVolumetricAtlas(
@@ -172,28 +188,20 @@ class TestAtlasInit:
             np.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
 
         inp = np.random.rand(1, 2, 59412, 3)
-        # lin = AtlasLinear(atlas)
-        # out = lin.select_compartment('cortex_L', inp)
-        # assert out.shape == (1, 2, 29696, 3)
+        lin = AtlasLinear.from_atlas(atlas=atlas, key=jax.random.PRNGKey(0))
+        out = lin(inp)
+        assert out.shape == (1, 2, 400, 3)
+        reorder = jnp.concatenate((
+            lin.decoder['cortex_L'],
+            lin.decoder['cortex_R'],
+        ))
+        assert np.allclose(out[..., (reorder - 1), :], out)
 
-        # out = lin(inp)
-        # assert out.shape == (1, 2, 400, 3)
-
-        # lin.decode = True
-        # out2 = lin(inp)
-        # assert out2.shape == (1, 2, 400, 3)
-        # reorder = torch.cat((
-        #     lin.atlas.decoder['cortex_L'],
-        #     lin.atlas.decoder['cortex_R']
-        # ))
-        # #assert not torch.allclose(out, out2)
-        # assert torch.allclose(out2[..., (reorder - 1), :], out)
-
-        # results = pkgrf(
-        #     'hypercoil',
-        #     'results/'
-        # )
-        # atlas.to_image(maps=lin.weight, save=f'{results}/atlas_copy.nii')
+        results = pkgrf(
+            'hypercoil',
+            'results/'
+        )
+        atlas.to_image(maps=lin.weight, save=f'{results}/atlas_copy.nii')
 
         """
         Let's keep this on CUDA only. It's extremely slow.
@@ -269,31 +277,34 @@ class TestAtlasInit:
         assert np.all(
             atlas.coors[97 * 115 * x + 97 * y + z] / 2 == np.array([x, y, z]))
 
-        # lin = AtlasLinear(atlas)
-        # out = lin.apply_mask(torch.empty([1, 2, 1082035, 3]))
-        # assert out.shape == (1, 2, 66795, 3)
+        lin = AtlasLinear.from_atlas(atlas=atlas, key=jax.random.PRNGKey(0))
+        mask = atlas.mask.map_to_masked(in_mode='timeseries')
+        out = mask(jnp.empty((1, 2, 1082035, 3)))
+        assert out.shape == (1, 2, 66795, 3)
 
-        # out = lin(out)
-        # assert out.shape == (1, 2, 50, 3)
+        out = lin(out)
+        assert out.shape == (1, 2, 50, 3)
 
-        # lin.dropout = UnstructuredDropoutSource(
-        #     distr=torch.distributions.Bernoulli(
-        #         torch.Tensor([0.2])),
-        #     sample_axes=[-1]
-        # )
-        # empirical = 1 - torch.all(
-        #     (lin.postweight['all'] == 0), dim=-2).float().mean()
-        # assert (empirical - lin.dropout.distr.mean).abs() < 0.05
-        # lin.dropout = None
+        out = lin(
+            jax.random.uniform(key=jax.random.PRNGKey(0), shape=(66795, 3)),
+            normalisation='zscore'
+        )
+        assert np.allclose(out.mean(-1), 0, atol=1e-3)
+        assert np.allclose(out.std(-1), 1, atol=1e-3)
 
-        # #TODO
-        # # Currently we're only testing z-scoring. Add tests for other
-        # # reductions.
-        # lin.reduction = 'zscore'
-        # out = lin(torch.rand(66795, 3))
-        # assert np.allclose(out.mean(-1).detach(), 0, atol=1e-3)
-        # assert np.allclose(out.std(-1).detach(), 1, atol=1e-3)
-        # lin.reduction = 'mean'
+        lin = StochasticParameter.wrap(
+            lin,
+            transform=ScalarIIDMulStochasticTransform(
+                distribution=distrax.Bernoulli(probs=0.2),
+                key=jax.random.PRNGKey(0),
+            ),
+            param_name='weight$all',
+        )
+        #TODO: use a noise source applied voxel-wise instead of entry-wise
+        empirical = 1 - (lin.weight['all'].__jax_array__() == 0).mean()
+        assert jnp.abs(
+            empirical - lin.weight['all'].transform.distribution.mean()
+        ) < 0.05
 
     def test_surface_dirichlet_atlas(self):
         cifti_template = pkgrf(
@@ -357,6 +368,6 @@ class TestAtlasInit:
             },
             key=jax.random.PRNGKey(0),
         )
-        # lin = AtlasLinear(atlas)
-        # X = torch.rand(lin.mask.sum(), 5)
-        # assert lin(X).shape == (10, 5)
+        lin = AtlasLinear.from_atlas(atlas=atlas, key=jax.random.PRNGKey(0))
+        X = jnp.empty((atlas.mask.size, 5))
+        assert eqx.filter_jit(lin)(X).shape == (10, 5)

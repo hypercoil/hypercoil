@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from collections import OrderedDict
 from functools import reduce
-from typing import Callable, Literal, Mapping, Optional, Tuple
+from typing import Callable, Literal, Mapping, Optional, Sequence, Tuple
 from ..engine import Tensor, standard_axis_number
 from ..engine.paramutil import _to_jax_array
 
@@ -43,7 +43,7 @@ def _norm() -> Mapping[str, Callable]:
 
 
 def form_dynamic_slice(
-    shape: Tensor,
+    shape: Sequence[int],
     slice_axis: int,
     slice_index: int,
     slice_size: int,
@@ -102,12 +102,14 @@ def concatenate_and_decode(
     shape: Optional[Tuple[int, ...]] = None,
     concatenate: bool = True,
 ) -> Tensor:
+    if not concatenate:
+        return data
     if decoder is not None:
         out = jnp.empty(shape)
         for compartment, tensor in data.items():
             loc = (decoder[compartment] - 1)
             out = out.at[..., loc, :].set(tensor)
-    elif concatenate:
+    else:
         out = jnp.concatenate(tuple(v for v in data.values()), -2)
     return out
 
@@ -150,6 +152,8 @@ def compartmentalised_linear(
     """
     out = OrderedDict()
     for k, v in weight.items():
+        if v.shape == (0,):
+            continue
         out[k] = _compartmentalised_linear_impl(
             input=input,
             weight=v,
@@ -161,7 +165,7 @@ def compartmentalised_linear(
         *input.shape[:-2],
         reduce(
             lambda x, y: x + y,
-            (v.shape[-2] for v in weight.values())
+            (v.shape[-2] for v in out.values())
         ),
         input.shape[-1])
     out = concatenate_and_decode(

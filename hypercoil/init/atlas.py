@@ -106,6 +106,7 @@ from .dirichlet import DirichletInitialiser
 from .mapparam import MappedParameter, ProbabilitySimplexParameter
 from ..engine import PyTree, Tensor
 from ..engine.noise import ScalarIIDAddStochasticTransform
+from ..formula.nnops import retrieve_parameter
 
 
 class BaseAtlas(eqx.Module):
@@ -362,16 +363,17 @@ class BaseAtlas(eqx.Module):
                 self.maps[c] = jnp.array([])
                 continue
             dim_in = mask.sum()
-            map = jnp.empty((dim_out, dim_in))
-            self.maps[c] = self._populate_map_from_ref(map, labels, mask, c)
+            map = jnp.empty((dim_out, dim_in)) # TODO: this smells like torch...
+            self.maps[c] = jnp.array(
+                self._populate_map_from_ref(map, labels, mask, c))
 
         mask = self.mask.data
         labels = self.decoder['_all']
         dim_out = len(labels)
         dim_in = self.mask.size
-        map = jnp.empty((dim_out, dim_in))
-        self.maps['_all'] = self._populate_map_from_ref(
-            map, labels, mask, '_all')
+        map = jnp.empty((dim_out, dim_in)) # TODO: this smells like torch...
+        self.maps['_all'] = jnp.array(
+            self._populate_map_from_ref(map, labels, mask, '_all'))
 
 
 class DirichletInitBaseAtlas(
@@ -1017,7 +1019,7 @@ def atlas_init(
     *,
     shape: Optional[Any] = None,
     atlas: BaseAtlas,
-    compartment: str,
+    compartments: Union[bool, Tuple[str]] = True,
     normalise: bool = False,
     max_bin: int = 10000,
     spherical_scale : float = 1.,
@@ -1054,7 +1056,7 @@ def atlas_init(
         noise = ScalarIIDAddStochasticTransform(distr, key=key)
     else:
         noise = None
-    return atlas(compartments=compartment,
+    return atlas(compartments=compartments,
                  normalise=normalise,
                  sigma=kernel_sigma,
                  noise=noise,
@@ -1063,7 +1065,7 @@ def atlas_init(
                  truncate=truncate)
 
 
-class AtlasInit(MappedInitialiser):
+class AtlasInitialiser(MappedInitialiser):
     r"""
     Voxel-to-label mapping initialisation.
 
@@ -1140,6 +1142,25 @@ class AtlasInit(MappedInitialiser):
                 pass
         super().__init__(mapper=mapper)
 
+    def __call__(
+        self,
+        model: PyTree,
+        *,
+        param_name: str = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ):
+        parameters = retrieve_parameter(model, param_name=param_name)
+        if key is not None:
+            keys = jax.random.split(key, len(parameters))
+        else:
+            keys = (None,) * len(parameters)
+        return tuple(self._init(
+            shape=None,
+            key=key,
+            **params,
+        ) for key, parameter in zip(keys, parameters))
+
     def _init(
         self,
         shape: Optional[Any],
@@ -1154,6 +1175,7 @@ class AtlasInit(MappedInitialiser):
             kernel_sigma=self.kernel_sigma,
             noise_sigma=self.noise_sigma,
             truncate=self.truncate,
+            compartments=True,
             key=key,
         )
 
@@ -1225,6 +1247,10 @@ def _cifti_atlas_common_args(
     }
     return surf, mask_source
 
+
+class AtlasInit:
+    def __init__(self, *pparams, **params):
+        raise NotImplementedError()
 
 def atlas_init_(tensor, compartment, atlas, normalise=False,
                 max_bin=10000, spherical_scale=1, truncate=None,
