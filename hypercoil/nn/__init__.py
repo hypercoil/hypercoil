@@ -8,7 +8,7 @@ from .activation import (
     CorrelationNorm,
     Isochor,
 )
-from .atlas import AtlasLinear, AtlasAccumuline
+from .atlas import AtlasLinear
 from .confound import (
     LinearRFNN,
     QCPredict,
