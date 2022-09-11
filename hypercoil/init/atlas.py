@@ -83,9 +83,12 @@ from functools import partial
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Type, Union
 
 from .atlasmixins import (
-    _ObjectReferenceMixin,
-    _SingleReferenceMixin,
-    _MultiReferenceMixin,
+    Reference,
+    _VolumeObjectReferenceMixin,
+    _SurfaceObjectReferenceMixin,
+    _VolumeSingleReferenceMixin,
+    _SurfaceSingleReferenceMixin,
+    _VolumeMultiReferenceMixin,
     _PhantomReferenceMixin,
     _CIfTIReferenceMixin,
     _LogicMaskMixin,
@@ -199,7 +202,6 @@ class BaseAtlas(eqx.Module):
     maps : Dict[str, Tensor]
     coors : Dict[str, Tensor]
     topology : Dict[str, str]
-    cached_ref_data : Optional[Tensor]
 
     def __init__(
         self,
@@ -214,15 +216,16 @@ class BaseAtlas(eqx.Module):
         self.ref_pointer = ref_pointer
         self.ref = self._load_reference(ref_pointer)
 
-        self._create_mask(mask_source)
+        self.mask = self._create_mask(mask_source)
+        self.ref = Reference.cache_modelobj(ref=self.ref, mask=self.mask)
         names_dict = self._compartment_names_dict(**kwargs)
-        self._create_compartments(names_dict)
+        self.compartments = self._create_compartments(names_dict)
 
-        self._configure_decoders()
+        self.decoder = self._configure_decoders()
         self._configure_compartment_maps()
         self._init_coors(source=mask_source, names_dict=names_dict)
         if clear_cache:
-            self.cached_ref_data = None
+            self.ref = Reference.purge_cache(self.ref)
 
     @abstractmethod
     def _load_reference(
@@ -356,24 +359,15 @@ class BaseAtlas(eqx.Module):
     def _configure_compartment_maps(self) -> None:
         self.maps = OrderedDict()
         for c, compartment in self.compartments.items():
-            mask = compartment.data
             labels = self.decoder[c]
             dim_out = len(labels)
             if dim_out == 0:
                 self.maps[c] = jnp.array([])
                 continue
-            dim_in = mask.sum()
+            dim_in = compartment.size
             map = jnp.empty((dim_out, dim_in)) # TODO: this smells like torch...
             self.maps[c] = jnp.array(
-                self._populate_map_from_ref(map, labels, mask, c))
-
-        mask = self.mask.data
-        labels = self.decoder['_all']
-        dim_out = len(labels)
-        dim_in = self.mask.size
-        map = jnp.empty((dim_out, dim_in)) # TODO: this smells like torch...
-        self.maps['_all'] = jnp.array(
-            self._populate_map_from_ref(map, labels, mask, '_all'))
+                self._populate_map_from_ref(map, labels, c))
 
 
 class DirichletInitBaseAtlas(
@@ -478,7 +472,7 @@ class DirichletInitBaseAtlas(
 
 
 class DiscreteVolumetricAtlas(
-    _SingleReferenceMixin,
+    _VolumeSingleReferenceMixin,
     _FromNullMaskMixin,
     _SingleCompartmentMixin,
     _DiscreteLabelMixin,
@@ -541,7 +535,7 @@ class DiscreteVolumetricAtlas(
 
 
 class MultiVolumetricAtlas(
-    _SingleReferenceMixin,
+    _VolumeSingleReferenceMixin,
     _FromNullMaskMixin,
     _SingleCompartmentMixin,
     _ContinuousLabelMixin,
@@ -607,7 +601,7 @@ class MultiVolumetricAtlas(
 
 
 class MultifileVolumetricAtlas(
-    _MultiReferenceMixin,
+    _VolumeMultiReferenceMixin,
     _FromNullMaskMixin,
     _SingleCompartmentMixin,
     _ContinuousLabelMixin,
@@ -673,7 +667,7 @@ class MultifileVolumetricAtlas(
 
 class CortexSubcortexCIfTIAtlas(
     _CIfTIReferenceMixin,
-    _SingleReferenceMixin,
+    _SurfaceSingleReferenceMixin,
     _CortexSubcortexCIfTIMaskMixin,
     _CortexSubcortexCIfTICompartmentMixin,
     _DiscreteLabelMixin,
@@ -972,7 +966,7 @@ class DirichletInitSurfaceAtlas(
 
 
 class _MemeAtlas(
-    _SingleReferenceMixin,
+    _VolumeSingleReferenceMixin,
     _LogicMaskMixin,
     _MultiCompartmentMixin,
     _DiscreteLabelMixin,
