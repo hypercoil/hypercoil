@@ -21,7 +21,7 @@ class TestImageMaths:
         grammar = ImageMathsGrammar()
         op_str = 'IMG -thr (IMG -bin[0.5])'
         f = grammar.compile(op_str)
-        img_out, _ = f(img)(img)
+        img_out, _ = f(img, img)
         img_dataobj = img.get_fdata()
         img_thr = (img_dataobj > 0.5)
         img_ref = jnp.where(img_dataobj > img_thr, img_dataobj, 0)

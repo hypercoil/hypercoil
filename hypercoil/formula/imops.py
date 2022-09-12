@@ -58,6 +58,23 @@ def coalesce_metadata(
     return out
 
 
+def uncurry(
+    f: Callable,
+) -> Callable:
+    """
+    Uncurry a function.
+    """
+    def uncurried(
+        *pparams: Any,
+    ) -> Any:
+        if len(pparams) == 1:
+            return f(*pparams)
+        pparam, *pparams = pparams
+        h = f(pparam)
+        return uncurry(h)(*pparams)
+    return uncurried
+
+
 class ImageMathsGrammar(Grammar):
     groupings: GroupingPool = GroupingPool(
         Grouping(open='(', close=')'),
@@ -70,6 +87,9 @@ class ImageMathsGrammar(Grammar):
     whitespace: bool = True
     default_interpreter: Optional[LeafInterpreter] = field(
         default_factory = lambda: NiftiObjectInterpreter()
+    )
+    default_root_transform: Optional[TransformPrimitive] = field(
+        default_factory = lambda: UncurryRootNode()
     )
 
 
@@ -92,6 +112,45 @@ class NiftiFileInterpreter(LeafInterpreter):
             else:
                 return scalar_leaf_ingress(leaf)
         return img_and_meta
+
+
+class UncurryRootNode(TransformPrimitive):
+    min_arity: int = 1
+    max_arity: int = 1
+    priority: float = float('inf')
+    associative: bool = False
+    commutative: bool = False
+    literals: Sequence[Literalisation] = ()
+
+    def __call__(self, *pparams, **params) -> Callable:
+        f = pparams[0]
+
+        def compiled(*pparams) -> PyTree:
+            return uncurry(f)(*pparams)
+
+        return compiled
+
+
+class UncurryAndWrapRootNode(TransformPrimitive):
+    min_arity: int = 1
+    max_arity: int = 1
+    priority: float = float('inf')
+    associative: bool = False
+    commutative: bool = False
+    literals: Sequence[Literalisation] = ()
+
+    def __call__(self, *pparams, **params) -> Callable:
+        f = pparams[0]
+
+        def compiled(*pparams) -> PyTree:
+            img, meta = uncurry(f)(*pparams)
+            return nb.Nifti1Image(
+                dataobj=img,
+                affine=meta['affine'],
+                header=meta['header'],
+            )
+
+        return compiled
 
 
 #-------------------------------- Binarise ---------------------------------#
