@@ -511,8 +511,8 @@ class TransformPool(eqx.Module):
         incr: str,
         stack: List[str],
     ) -> Tuple[List[str], int]:
+        accounted = set(tree.content[pointer])
         pointer += incr
-        accounted = set()
         while True:
             if pointer < 0 or pointer >= len(tree.content.index) - 1:
                 return stack
@@ -530,7 +530,10 @@ class TransformPool(eqx.Module):
         accounted: Set,
     ) -> Tuple[int, List[str], Set]:
         if isinstance(char, TransformToken):
-            return 0, stack, accounted
+            if not char in accounted:
+                return 0, stack, accounted
+            else:
+                return incr, stack, accounted
         elif isinstance(char, ChildToken):
             if char in accounted:
                 return incr, stack, accounted
@@ -596,6 +599,12 @@ class Grammar(eqx.Module):
         whitespace = r'[\s]+'
         whitespace = re.compile(whitespace)
         return re.sub(whitespace, '', s)
+
+    @staticmethod
+    def sanitise_whitespace(s: str) -> str:
+        whitespace = r'[\s]+'
+        whitespace = re.compile(whitespace)
+        return re.sub(whitespace, ' ', s.strip())
 
     def expand_shorthand(self, s: str) -> str:
         if not self.shorthand:
@@ -716,6 +725,8 @@ class Grammar(eqx.Module):
         s = self.expand_shorthand(s)
         if not self.whitespace:
             s = self.delete_whitespace(s)
+        else:
+            s = self.sanitise_whitespace(s)
         tree = SyntacticTree(s)
         tree = Grammar.recur_depth_first(
             tree=tree,

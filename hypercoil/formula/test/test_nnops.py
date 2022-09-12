@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import Any
 from hypercoil.formula.nnops import (
-    ParameterAddressGrammar
+    ParameterAddressGrammar,
 )
 
 
