@@ -50,6 +50,55 @@ def select_args(
         return args[-num:]
 
 
+def sub_regex(s: str) -> str:
+    i = r'\-?[0-9]*'
+    f = r'\-?[0-9]*\.*[0-9]*'
+    nni = r'[0-9]*'
+    nnf = r'[0-9]*\.*[0-9]*'
+    nnii = r'[0-9]*[0-9\,]*'
+    return s.format(
+        i=i,
+        f=f,
+        nni=nni,
+        nnf=nnf,
+        nnii=nnii,
+    )
+
+
+def form_regex(
+    cmd: str,
+    params: Optional[Dict[str, str]] = None,
+    unarised: Optional[str] = None,
+    right: bool = False,
+):
+    typedict = {
+        'int': 'i',
+        'float': 'f',
+        'nnint': 'nni',
+        'nnfloat': 'nnf',
+        'nnintseq': 'nnii',
+    }
+    scalar = ''
+    paramstr = ''
+    right = r'\,\.\.\.' if right else ''
+    if unarised is not None:
+        unarised = typedict[unarised]
+        scalar = '{{(?P<scalar>{}){}}}'.format(
+            sub_regex(f'{{{unarised}}}'),
+            right,
+        )
+    if params is not None:
+        paramstr = tuple(
+            '(?P<{param}>{kind})'.format(
+                param=param,
+                kind=sub_regex(f'{{{typedict[kind]}}}')
+            ) for param, kind in params.items()
+        )
+        paramstr = r'\|?'.join(paramstr)
+        paramstr = r'\[?' + paramstr + r'\]?'
+    return f'[ ]?-{cmd}{paramstr}{scalar}[ ]?'
+
+
 #TODO: This doesn't actually do anything yet. The last valid argument takes
 #      all and the rest are ignored. There is no attempt to reconcile values.
 #      This is a placeholder for future work.
@@ -195,7 +244,7 @@ class NiftiFileInterpreter(LeafInterpreter):
             side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Dict[str, Any]]:
             arg = select_args(args, side=side, num=1)[0]
-            if leaf == 'IMG':
+            if leaf[:3] == 'IMG':
                 obj = nb.load(arg)
                 return image_leaf_ingress(obj)
             else:
@@ -207,8 +256,13 @@ class NiftiFileInterpreter(LeafInterpreter):
 
 
 class BinariseSuffixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]-bin\[?(?P<threshold>[0-9]*\.*[0-9]*)\]?[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='bin',
+        params={
+            'threshold': 'float',
+        },
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         threshold = params['threshold']
@@ -248,13 +302,17 @@ class BinariseNode(TransformPrimitive):
 
 
 class UnaryThresholdSuffixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = (
-        r'[\ ]-thr\[?(?P<fill>[0-9]*\.*[0-9]*)\]?'
-        r'\{(?P<threshold>[0-9]*\.*[0-9]*)\}[\ ]')
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='thr',
+        params={
+            'fill': 'float',
+        },
+        unarised='float',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params['threshold'] = float(params['threshold'])
+        params['threshold'] = float(params['scalar'])
         fill_value = params['fill']
         if fill_value == '':
             params['fill'] = 0.0
@@ -290,8 +348,13 @@ class UnaryThresholdNode(TransformPrimitive):
 
 
 class BinaryThresholdInfixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
-    regex : str = r'[\ ]-thr\[?(?P<fill>[0-9]*\.*[0-9]*)\]?[\ ]'
+    affix : str = 'infix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='thr',
+        params={
+            'fill': 'float',
+        },
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         fill_value = params['fill']
@@ -312,36 +375,31 @@ class BinaryThresholdNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
-        f_acc, f_thr = pparams
+        f_lhs, f_rhs = pparams
         fill = params['fill']
         num_leaves = params['num_leaves']
 
-        def threshold(
-            *args,
-            side: Literal['left', 'right'] = 'left',
-        ) -> Tensor:
-            args = select_args(args, side, num_leaves)
-            img_acc, meta_acc = f_acc(*args, side='left')
-            img_thr, meta_thr = f_thr(*args, side='right')
-            return (
-                jnp.where(img_acc > img_thr, img_acc, fill),
-                coalesce_metadata(meta_thr, meta_acc)
-            )
+        def threshold(lhs: Tensor, rhs: Tensor) -> Tensor:
+            return jnp.where(lhs > rhs, lhs, fill)
 
-        return threshold
+        return binary_transform(threshold, f_lhs, f_rhs, num_leaves=num_leaves)
 
 
 #----------------------------- Upper Threshold -----------------------------#
 
 
 class UnaryUpperThresholdSuffixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = (
-        r'[\ ]-uthr\[?(?P<fill>\-?[0-9]*\.*[0-9]*)\]?'
-        r'\{(?P<threshold>\-?[0-9]*\.*[0-9]*)\}[\ ]')
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='uthr',
+        params={
+            'fill': 'float',
+        },
+        unarised='float',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params['threshold'] = float(params['threshold'])
+        params['threshold'] = float(params['scalar'])
         fill_value = params['fill']
         if fill_value == '':
             params['fill'] = 0.0
@@ -377,8 +435,13 @@ class UnaryUpperThresholdNode(TransformPrimitive):
 
 
 class UpperThresholdInfixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
-    regex : str = r'[\ ]?-uthr\[?(?P<fill>\-?[0-9]*\.*[0-9]*)\]?[\ ]?'
+    affix : str = 'infix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='uthr',
+        params={
+            'fill': 'float',
+        },
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         fill_value = params['fill']
@@ -399,23 +462,14 @@ class UpperThresholdNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
-        f_acc, f_thr = pparams
+        f_lhs, f_rhs = pparams
         fill = params['fill']
         num_leaves = params['num_leaves']
 
-        def uthreshold(
-            *args,
-            side: Literal['left', 'right'] = 'left',
-        ) -> Tensor:
-            args = select_args(args, side, num_leaves)
-            img_acc, meta_acc = f_acc(*args, side='left')
-            img_thr, meta_thr = f_thr(*args, side='right')
-            return (
-                jnp.where(img_acc < img_thr, img_acc, fill),
-                coalesce_metadata(meta_thr, meta_acc)
-            )
+        def uthreshold(lhs: Tensor, rhs: Tensor) -> Tensor:
+            return jnp.where(lhs < rhs, lhs, fill)
 
-        return uthreshold
+        return binary_transform(uthreshold, f_lhs, f_rhs, num_leaves=num_leaves)
 
 
 #------------------- Common to Morphological Transforms --------------------#
@@ -456,8 +510,13 @@ def _morphological_transform(
 
 
 class DilateSuffixLiteralisation(MorphologicalSuffixLiteralisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]-dil\[?(?P<kernel_size>[0-9]*\.*[0-9]*)\]?[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='dil',
+        params={
+            'kernel_size': 'nnintseq',
+        },
+    ))
 
 
 class DilateNode(TransformPrimitive):
@@ -494,8 +553,13 @@ class DilateNode(TransformPrimitive):
 
 
 class ErodeSuffixLiteralisation(MorphologicalSuffixLiteralisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]-ero\[?(?P<kernel_size>[0-9]*\.*[0-9]*)\]?[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='ero',
+        params={
+            'kernel_size': 'nnintseq',
+        },
+    ))
 
 
 class ErodeNode(TransformPrimitive):
@@ -532,8 +596,13 @@ class ErodeNode(TransformPrimitive):
 
 
 class OpeningSuffixLiteralisation(MorphologicalSuffixLiteralisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]-opening\[?(?P<kernel_size>[0-9]*\.*[0-9]*)\]?[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='opening',
+        params={
+            'kernel_size': 'nnintseq',
+        },
+    ))
 
 
 class OpeningNode(TransformPrimitive):
@@ -570,8 +639,13 @@ class OpeningNode(TransformPrimitive):
 
 
 class ClosingSuffixLiteralisation(MorphologicalSuffixLiteralisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]-closing\[?(?P<kernel_size>[0-9]*\.*[0-9]*)\]?[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='closing',
+        params={
+            'kernel_size': 'nnintseq',
+        },
+    ))
 
 
 class ClosingNode(TransformPrimitive):
@@ -608,11 +682,14 @@ class ClosingNode(TransformPrimitive):
 
 
 class FillHolesSuffixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = (
-        r'[\ ]-fillholes\[?(?P<kernel_size>[0-9]*\.*[0-9]*)'
-        r'\|(?P<num_iters>[0-9]*\.*[0-9]*)?\]?[\ ]?'
-    )
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='fillholes',
+        params={
+            'kernel_size': 'nnintseq',
+            'num_iters': 'nnint',
+        },
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         num_iters = params.get('num_iters', None)
@@ -673,8 +750,10 @@ class FillHolesNode(TransformPrimitive):
 
 
 class NegationSuffixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]-neg[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='neg',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -737,8 +816,10 @@ def binary_transform(
 
 
 class UnionInfixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
-    regex : str = r'[\ ]-or[\ ]'
+    affix : str = 'infix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='or',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -767,8 +848,10 @@ class UnionNode(TransformPrimitive):
 
 
 class IntersectionInfixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
-    regex : str = r'[\ ]-and[\ ]'
+    affix : str = 'infix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='and',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -797,8 +880,11 @@ class IntersectionNode(TransformPrimitive):
 
 
 class UnaryAdditionSuffixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]-add\{(?P<scalar>[0-9]*\.*[0-9]*)\}[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='add',
+        unarised='float',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['scalar'] = float(params['scalar'])
@@ -831,8 +917,10 @@ class UnaryAdditionNode(TransformPrimitive):
 
 
 class AdditionInfixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
-    regex : str = r'[\ ]-add[\ ]'
+    affix : str = 'infix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='add',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -861,8 +949,11 @@ class AdditionNode(TransformPrimitive):
 
 
 class UnarySubtractionSuffixLeftLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]?-sub\{(?P<scalar>[0-9]*\.*[0-9]*)\}[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='sub',
+        unarised='float',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['scalar'] = float(params['scalar'])
@@ -871,8 +962,12 @@ class UnarySubtractionSuffixLeftLiteralisation(Literalisation):
 
 
 class UnarySubtractionSuffixRightLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]?-sub\{(?P<scalar>[0-9]*\.*[0-9]*)\,\.\.\.\}[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='sub',
+        unarised='float',
+        right=True,
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['scalar'] = float(params['scalar'])
@@ -911,8 +1006,10 @@ class UnarySubtractionNode(TransformPrimitive):
 
 
 class SubtractionInfixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
-    regex : str = r'[\ ]-sub[\ ]'
+    affix : str = 'infix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='sub',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -941,8 +1038,11 @@ class SubtractionNode(TransformPrimitive):
 
 
 class UnaryMultiplicationSuffixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]-mul\{(?P<scalar>[0-9]*\.*[0-9]*)\}[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='mul',
+        unarised='float',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['scalar'] = float(params['scalar'])
@@ -975,8 +1075,10 @@ class UnaryMultiplicationNode(TransformPrimitive):
 
 
 class MultiplicationInfixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
-    regex : str = r'[\ ]?-mul[\ ]?'
+    affix : str = 'infix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='mul',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -1005,8 +1107,11 @@ class MultiplicationNode(TransformPrimitive):
 
 
 class UnaryDivisionSuffixLeftLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]?-div\{(?P<scalar>[0-9]*\.*[0-9]*)\}[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='div',
+        unarised='float',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['scalar'] = float(params['scalar'])
@@ -1015,8 +1120,12 @@ class UnaryDivisionSuffixLeftLiteralisation(Literalisation):
 
 
 class UnaryDivisionSuffixRightLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]?-div\{(?P<scalar>[0-9]*\.*[0-9]*)\,\.\.\.\}[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='div',
+        unarised='float',
+        right=True,
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['scalar'] = float(params['scalar'])
@@ -1055,8 +1164,10 @@ class UnaryDivisionNode(TransformPrimitive):
 
 
 class DivisionInfixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
-    regex : str = r'[\ ]-div[\ ]'
+    affix : str = 'infix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='div',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -1085,8 +1196,11 @@ class DivisionNode(TransformPrimitive):
 
 
 class UnaryRemainderSuffixLeftLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]?-mod\{(?P<scalar>[0-9]*\.*[0-9]*)\}[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='mod',
+        unarised='int',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['scalar'] = float(params['scalar'])
@@ -1095,8 +1209,12 @@ class UnaryRemainderSuffixLeftLiteralisation(Literalisation):
 
 
 class UnaryRemainderSuffixRightLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'suffix'
-    regex : str = r'[\ ]?-mod\{(?P<scalar>[0-9]*\.*[0-9]*)\,\.\.\.\}[\ ]?'
+    affix : str = 'suffix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='mod',
+        unarised='int',
+        right=True,
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params['scalar'] = float(params['scalar'])
@@ -1135,8 +1253,10 @@ class UnaryRemainderNode(TransformPrimitive):
 
 
 class RemainderInfixLiteralisation(Literalisation):
-    affix : Literal['prefix', 'suffix', 'infix', 'circumfix'] = 'infix'
-    regex : str = r'[\ ]-mod[\ ]'
+    affix : str = 'infix'
+    regex : str = field(default_factory = lambda: form_regex(
+        cmd='mod',
+    ))
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params

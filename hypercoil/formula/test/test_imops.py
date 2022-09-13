@@ -134,9 +134,6 @@ class TestImageMaths:
             r'ARGa -sub{1} -thr[0.1]{0.5} -mul ARGb '
             r'-add{1} -uthr[-1] (ARGc -div{2,...})'
         )
-        # op_str = (
-        #     r'ARGa -thr[0.1]{0.5} -mul ARGb -thr ARGc'
-        # )
         f = grammar.compile(op_str)
         img_out, _ = f(data0, data1, data2)
         img_ref = data0 - 1
