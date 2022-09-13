@@ -5,15 +5,16 @@
 Linear recombinator layer for feature-map learning networks.
 A 1x1 conv layer by another name.
 """
-import math
-import torch
-from torch import nn
-from torch.nn import init, Parameter
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+from typing import Optional
+from ..engine import Tensor
 from ..functional.matrix import expand_outer
 from ..functional.sylo import recombine
 
 
-class Recombinator(nn.Module):
+class Recombinator(eqx.Module):
     r"""Linear recombinator layer for feature maps. It should also be possible
     to substitute a 1x1 convolutional layer with similar results.
 
@@ -41,49 +42,55 @@ class Recombinator(nn.Module):
     bias: Tensor
         The learnable bias of the module of shape ``out_channels``.
     """
-    __constants__ = ['in_channels', 'out_channels', 'weight', 'bias']
+    in_channels: int
+    out_channels: int
+    positive_only: bool
+    weight: Tensor
+    bias: Tensor
 
-    def __init__(self, in_channels, out_channels,
-                 bias=True, positive_only=False, init=None,
-                 device=None, dtype=None):
-        super(Recombinator, self).__init__()
-        factory_kwargs = {'device': device, 'dtype': dtype}
-
-        if init is None:
-            init = {'nonlinearity': 'linear'}
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        bias: bool = True,
+        positive_only: bool = False,
+        *,
+        key: 'jax.random.PRNGKey',
+    ):
+        key_w, key_b = jax.random.split(key)
 
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.positive_only = positive_only
-        self.init = init
 
-        self.weight = Parameter(torch.empty(
-            out_channels, in_channels, **factory_kwargs))
+        lim = 1 / jnp.sqrt(in_channels)
+        weight = jax.random.uniform(
+            key_w,
+            (out_channels, in_channels),
+            minval=-lim,
+            maxval=lim,
+        )
         if bias:
-            self.bias = Parameter(torch.empty(
-                out_channels, **factory_kwargs))
+            bias = jax.random.uniform(
+                key_b,
+                (out_channels,),
+                minval=-lim,
+                maxval=lim,
+            )
         else:
-            self.register_parameter('bias', None)
-        self.reset_parameters()
+            bias = None
+        if positive_only:
+            weight = jnp.abs(weight)
+        self.weight = weight
+        self.bias = bias
 
-    def reset_parameters(self):
-        init.kaiming_uniform_(self.weight, **self.init)
-        if self.bias is not None:
-            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in)
-            init.uniform_(self.bias, -bound, bound)
-        if self.positive_only:
-            with torch.no_grad():
-                self.weight.abs_()
-
-    def extra_repr(self):
-        s = 'in_channels={}, out_channels={}'.format(
-            self.in_channels, self.out_channels)
-        if self.bias is None:
-            s += ', bias=False'
-        return s
-
-    def forward(self, input, query=None):
+    def __call__(
+        self,
+        input: Tensor,
+        query: Tensor = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
         return recombine(
             input=input,
             mixture=self.weight,
