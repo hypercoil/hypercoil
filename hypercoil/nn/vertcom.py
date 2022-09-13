@@ -6,9 +6,9 @@ Vertical compression layer.
 """
 import torch
 from torch import nn
-from torch.nn import init, Parameter
+from torch.nn import Parameter
 from ..init.mpbl import BipartiteLatticeInit
-from ..functional.matrix import delete_diagonal
+from ..functional.sylo import vertical_compression
 
 
 class VerticalCompression(nn.Module):
@@ -130,46 +130,3 @@ class VerticalCompression(nn.Module):
             return self.compress(input=input)
         elif self.forward_operation == 'reconstruct':
             return self.reconstruct(compressed=input)
-
-
-##TODO: move to `functional` at some point.
-def vertical_compression(input, row_compressor, col_compressor=None,
-                         renormalise=True, remove_diagonal=False,
-                         fold_channels=True, sign=None):
-    r"""
-    Vertically compress a matrix or matrix stack of dimensions
-    :math:`H_{in} \times W_{in} \rightarrow H_{out} \times W_{out}`.
-
-    Parameters
-    ----------
-    input: Tensor
-        Tensor to be compressed. This can be either a matrix of dimension
-        :math:`H_{in} \times W_{in}` or a stack of such matrices, for
-        instance of dimension :math:`N \times C \times H_{in} \times W_{in}`.
-    row_compressor: Tensor
-        Compressor for the rows of the input tensor. This should be a matrix
-        of dimension :math:`H_{out} \times H_{in}`.
-    col_compressor: Tensor or None
-        Compressor for the columns of the input tensor. This should be a
-        matrix of dimension :math:`W_{out} \times W_{in}`. If this is None,
-        then symmetry is assumed: the column compressor and row compressor are the same.
-    """
-    if delete_diagonal:
-        input = delete_diagonal(input)
-    input = input.unsqueeze(-3)
-    if col_compressor is None:
-        col_compressor = row_compressor
-    compressed = (row_compressor @ input) @ col_compressor.transpose(-2, -1)
-    if remove_diagonal:
-        compressed = delete_diagonal(compressed)
-    if sign is not None:
-        compressed = sign * compressed
-    if renormalise:
-        fac = (compressed.std((-1, -2), keepdim=True) /
-               input.std((-1, -2), keepdim=True))
-        compressed = compressed / fac
-    if fold_channels:
-        n = compressed.shape[0]
-        h, w = compressed.shape[-2:]
-        compressed = compressed.view(n, -1, h, w)
-    return compressed

@@ -10,6 +10,7 @@ import torch
 from torch import nn
 from torch.nn import init, Parameter
 from ..functional.matrix import expand_outer
+from ..functional.sylo import recombine
 
 
 class Recombinator(nn.Module):
@@ -91,141 +92,108 @@ class Recombinator(nn.Module):
         )
 
 
-# TODO: Move to functional if we decide to keep this instead of just using 1x1
-def recombine(input, mixture, query=None,
-              query_L=None, query_R=None, bias=None):
-    """
-    Create a new mixture of the input feature maps.
+#TODO: Vanished until/unless we revisit sylo networks
+# class QueryEncoder(nn.Module):
+#     """
+#     Query encoder for recombinators.
+#     """
+#     def __init__(self, num_embeddings, embedding_dim, query_dim,
+#                  common_layer_dim, specific_layer_dim, nlin=None,
+#                  progressive_specificity=False, rank='full', noise_dim=0,
+#                  device=None, dtype=None):
+#         super().__init__()
+#         factory_kwargs = {'device': device, 'dtype': dtype}
+#         if isinstance(num_embeddings, int):
+#             num_embeddings = [num_embeddings]
+#         if isinstance(embedding_dim, int):
+#             embedding_dim = [embedding_dim for _ in num_embeddings]
+#         embedding = []
+#         for count, dim in zip(num_embeddings, embedding_dim):
+#             embedding += [torch.nn.Embedding(
+#                 num_embeddings=count,
+#                 embedding_dim=dim,
+#                 **factory_kwargs
+#             )]
+#         embedding_dim = sum(embedding_dim)
+#         self.embedding = torch.nn.ModuleList(embedding)
+#         self.noise_dim = noise_dim
+#         self.rank = rank
+#         self.nlin = nlin or torch.nn.ReLU(inplace=True)
+#         self.progressive_specificity = progressive_specificity
+#         common_dims = [embedding_dim + noise_dim, *common_layer_dim]
+#         specific_in_dim = common_dims[-1]
+#         self.common_layers = torch.nn.ModuleList([
+#             torch.nn.Linear(i, o, **factory_kwargs) for i, o
+#             in zip(common_dims[:-1], common_dims[1:])
+#         ])
+#         specific_layers = []
+#         query_layers = []
+#         for q_dim in query_dim:
+#             specific_dims = [specific_in_dim, *specific_layer_dim]
+#             s_layers = [
+#                 torch.nn.Linear(i, o, **factory_kwargs) for i, o
+#                 in zip(specific_dims[:-1], specific_dims[1:])
+#             ]
+#             q_layers = self._cfg_query_module(q_dim, specific_dims[-1])
+#             if self.progressive_specificity:
+#                 specific_in_dim = specific_dims[-1]
+#             specific_layers += [torch.nn.ModuleList(s_layers)]
+#             query_layers += [torch.nn.ModuleList(q_layers)]
+#         self.specific_layers = torch.nn.ModuleList(specific_layers)
+#         self.query_layers = torch.nn.ModuleList(query_layers)
 
-    Parameters
-    ----------
-    input: Tensor ``(N x C_in x H x W)``
-        Stack of input matrices or feature maps.
-    mixture: Tensor ``(C_out x C_in)``
-        Mixture matrix or recombinator.
-    query: Tensor ``(N x C_in x C_in)``
-        If provided, the mixture is recomputed as the dot product similarity
-        between each mixture vector and each query vector, and the softmax of
-        the result is used to form convex combinations of inputs.
-    bias: Tensor ``(C_in)``
-        Bias term to apply after recombining.
-    """
-    if query_L is not None:
-        mixture = mixture @ query_L
-        if query_R is None:
-            query_R = query_L
-        mixture = mixture @ query_R.transpose(-1, -2)
-        mixture = torch.softmax(mixture, -1).unsqueeze(-3)
-    if query is not None:
-        mixture = mixture @ query
-        mixture = torch.softmax(mixture, -1).unsqueeze(-3)
-    output = (mixture @ input.transpose(1, 2)).transpose(1, 2)
-    if bias is not None:
-        output = output + bias.view(1, -1, 1, 1)
-    return output
+#     def reset_parameters(self):
+#         with torch.no_grad():
+#             torch.nn.init.normal_(self.embedding.weight)
 
+#     def _cfg_query_module(self, query_dim, in_dim):
+#         if self.rank == 'full':
+#             return [torch.nn.Linear(in_dim, (query_dim ** 2))]
+#         else:
+#             return [
+#                 torch.nn.Linear(in_dim, query_dim * self.rank),
+#                 torch.nn.Linear(in_dim, query_dim * self.rank)
+#             ]
 
-class QueryEncoder(nn.Module):
-    """
-    Query encoder for recombinators.
-    """
-    def __init__(self, num_embeddings, embedding_dim, query_dim,
-                 common_layer_dim, specific_layer_dim, nlin=None,
-                 progressive_specificity=False, rank='full', noise_dim=0,
-                 device=None, dtype=None):
-        super().__init__()
-        factory_kwargs = {'device': device, 'dtype': dtype}
-        if isinstance(num_embeddings, int):
-            num_embeddings = [num_embeddings]
-        if isinstance(embedding_dim, int):
-            embedding_dim = [embedding_dim for _ in num_embeddings]
-        embedding = []
-        for count, dim in zip(num_embeddings, embedding_dim):
-            embedding += [torch.nn.Embedding(
-                num_embeddings=count,
-                embedding_dim=dim,
-                **factory_kwargs
-            )]
-        embedding_dim = sum(embedding_dim)
-        self.embedding = torch.nn.ModuleList(embedding)
-        self.noise_dim = noise_dim
-        self.rank = rank
-        self.nlin = nlin or torch.nn.ReLU(inplace=True)
-        self.progressive_specificity = progressive_specificity
-        common_dims = [embedding_dim + noise_dim, *common_layer_dim]
-        specific_in_dim = common_dims[-1]
-        self.common_layers = torch.nn.ModuleList([
-            torch.nn.Linear(i, o, **factory_kwargs) for i, o
-            in zip(common_dims[:-1], common_dims[1:])
-        ])
-        specific_layers = []
-        query_layers = []
-        for q_dim in query_dim:
-            specific_dims = [specific_in_dim, *specific_layer_dim]
-            s_layers = [
-                torch.nn.Linear(i, o, **factory_kwargs) for i, o
-                in zip(specific_dims[:-1], specific_dims[1:])
-            ]
-            q_layers = self._cfg_query_module(q_dim, specific_dims[-1])
-            if self.progressive_specificity:
-                specific_in_dim = specific_dims[-1]
-            specific_layers += [torch.nn.ModuleList(s_layers)]
-            query_layers += [torch.nn.ModuleList(q_layers)]
-        self.specific_layers = torch.nn.ModuleList(specific_layers)
-        self.query_layers = torch.nn.ModuleList(query_layers)
+#     def _conform_query_dim(self, q, dim):
+#         return q.view(*q.shape[:-1], -1, dim)
 
-    def reset_parameters(self):
-        with torch.no_grad():
-            torch.nn.init.normal_(self.embedding.weight)
-
-    def _cfg_query_module(self, query_dim, in_dim):
-        if self.rank == 'full':
-            return [torch.nn.Linear(in_dim, (query_dim ** 2))]
-        else:
-            return [
-                torch.nn.Linear(in_dim, query_dim * self.rank),
-                torch.nn.Linear(in_dim, query_dim * self.rank)
-            ]
-
-    def _conform_query_dim(self, q, dim):
-        return q.view(*q.shape[:-1], -1, dim)
-
-    def forward(self, x, skip_embedding=False, embedding_only=False):
-        if not skip_embedding:
-            if isinstance(x, torch.Tensor):
-                x = [x]
-            x = torch.cat([
-                self.embedding[i](x[i]) for i in range(len(x))
-            ], -1)
-            if self.noise_dim > 0:
-                noise = torch.randn(
-                    *x.shape[:-1], self.noise_dim,
-                    dtype=x.dtype, device=x.device)
-                x = torch.cat((x, noise), -1)
-        e = x
-        if embedding_only:
-            return e
-        for l in self.common_layers:
-            x = l(x)
-            x = self.nlin(x)
-        queries = []
-        for query_axis, query_out in zip(
-            self.specific_layers, self.query_layers):
-            q = x
-            for l in query_axis:
-                q = l(q)
-                q = self.nlin(q)
-            if self.progressive_specificity:
-                x = q
-            if self.rank == 'full':
-                q = query_out[0](q)
-                q_dim = torch.sqrt(
-                    torch.tensor(q.shape[-1])).long().item()
-                q = self._conform_query_dim(q, q_dim)
-            else:
-                q_L, q_R = [l(q) for l in query_out]
-                q_L = self._conform_query_dim(q_L, self.rank)
-                q_R = self._conform_query_dim(q_R, self.rank)
-                q = expand_outer(L=q_L, R=q_R)
-            queries += [q]
-        return tuple(queries), e
+#     def forward(self, x, skip_embedding=False, embedding_only=False):
+#         if not skip_embedding:
+#             if isinstance(x, torch.Tensor):
+#                 x = [x]
+#             x = torch.cat([
+#                 self.embedding[i](x[i]) for i in range(len(x))
+#             ], -1)
+#             if self.noise_dim > 0:
+#                 noise = torch.randn(
+#                     *x.shape[:-1], self.noise_dim,
+#                     dtype=x.dtype, device=x.device)
+#                 x = torch.cat((x, noise), -1)
+#         e = x
+#         if embedding_only:
+#             return e
+#         for l in self.common_layers:
+#             x = l(x)
+#             x = self.nlin(x)
+#         queries = []
+#         for query_axis, query_out in zip(
+#             self.specific_layers, self.query_layers):
+#             q = x
+#             for l in query_axis:
+#                 q = l(q)
+#                 q = self.nlin(q)
+#             if self.progressive_specificity:
+#                 x = q
+#             if self.rank == 'full':
+#                 q = query_out[0](q)
+#                 q_dim = torch.sqrt(
+#                     torch.tensor(q.shape[-1])).long().item()
+#                 q = self._conform_query_dim(q, q_dim)
+#             else:
+#                 q_L, q_R = [l(q) for l in query_out]
+#                 q_L = self._conform_query_dim(q_L, self.rank)
+#                 q_R = self._conform_query_dim(q_R, self.rank)
+#                 q = expand_outer(L=q_L, R=q_R)
+#             queries += [q]
+#         return tuple(queries), e
