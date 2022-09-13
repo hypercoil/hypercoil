@@ -145,7 +145,7 @@ class TestGrammar:
         #      the grammar is to handle noncommutative operations properly
         child = tree.children[-1]
         assert isinstance(child.transform, PowerNode)
-        assert child.parameters == {'order': (3, 4, 5)}
+        assert child.parameters == {'num_leaves': 2, 'order': (3, 4, 5)}
         assert len(child.children) == 1
         assert isinstance(child.children[0].transform, ConcatenateNode)
         assert len(child.children[0].children) == 2

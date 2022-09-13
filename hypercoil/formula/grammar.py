@@ -826,12 +826,41 @@ class Grammar(eqx.Module):
             parameters=parameters,
         )
 
+    @staticmethod
+    def annotate_leaf_count(tree):
+        def leaf_tree(tree):
+            if len(tree.children) == 0:
+                return (1, None)
+            else:
+                out = tuple(leaf_tree(c) for c in tree.children)
+                acc, _ = zip(*out)
+                return sum(acc), out
+
+        def tree_with_leaves(tree, leaves):
+            if len(tree.children) == 0:
+                return TransformTree(
+                    transform=tree.transform,
+                    children=tree.children,
+                    parameters={**tree.parameters, 'num_leaves': 1},
+                )
+            else:
+                return TransformTree(
+                    transform=tree.transform,
+                    children=tuple(tree_with_leaves(c, l)
+                                   for c, l in zip(tree.children, leaves[1])),
+                    parameters={**tree.parameters, 'num_leaves': leaves[0]},
+                )
+
+        leaves = leaf_tree(tree)
+        return tree_with_leaves(tree, leaves)
+
     def transform(
         self,
         tree: SyntacticTree,
     ) -> TransformTree:
         self.verify_parse(tree)
-        return self.transform_impl(tree)
+        tree = self.transform_impl(tree)
+        return Grammar.annotate_leaf_count(tree)
 
     def compile(
         self,
