@@ -23,11 +23,17 @@ from scipy.ndimage import (
     binary_closing,
     binary_fill_holes
 )
+
+from hypercoil.formula.imops import (
+    ImageMathsGrammar as ImageMaths,
+    NiftiFileInterpreter,
+    NiftiObjectInterpreter
+)
 from ..engine import (
     Tensor, standard_axis_number, promote_axis, demote_axis, axis_complement
 )
 from ..engine.paramutil import _to_jax_array
-from ..functional.linear import form_dynamic_slice, select_compartment
+from ..functional.linear import form_dynamic_slice
 from ..functional.sphere import spherical_conv, euclidean_conv
 from ..functional.utils import conform_mask
 
@@ -1074,11 +1080,29 @@ class _LogicMaskMixin:
     """
     def _create_mask(
         self,
-        source: Union[str, Path, Callable],
+        source: Union[str, Sequence[str]],
     ) -> 'Mask':
-        if _is_path(source):
-            source = MaskLeaf(source)
-        init = source()
+        if isinstance(source, str):
+            formula = None
+            if _is_path(source):
+                def f(*pparams):
+                    return nb.load(pparams[0]).get_fdata()
+            else:
+                def f(*pparams):
+                    return pparams[0].get_fdata()
+        else:
+            formula, source = source
+            if isinstance(source, str):
+                source = (source,)
+            if _is_path(source[0]):
+                interpreter = NiftiFileInterpreter()
+            else:
+                interpreter = NiftiObjectInterpreter()
+            h = ImageMaths().compile(formula, interpreter=interpreter)
+            def f(*pparams):
+                img, _ = h(*pparams)
+                return img
+        init = f(*source).astype(bool)
         return Mask(jnp.asarray(init.ravel()))
 
 

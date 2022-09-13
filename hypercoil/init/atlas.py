@@ -103,6 +103,7 @@ from .atlasmixins import (
     _VolumetricMeshMixin,
     _VertexCIfTIMeshMixin,
     _SpatialConvMixin,
+    _is_path,
 )
 from .base import MappedInitialiser
 from .dirichlet import DirichletInitialiser
@@ -423,6 +424,10 @@ class DirichletInitBaseAtlas(
     ):
         if template_image is None:
             template_image = mask_source
+            if not _is_path(template_image):
+                template_image = template_image[1]
+                if not _is_path(template_image):
+                    template_image = template_image[0]
         if isinstance(compartment_labels, int):
             compartment_labels = {'all', compartment_labels}
         self.compartment_labels = compartment_labels
@@ -978,9 +983,6 @@ class _MemeAtlas(
     For testing purposes only.
     """
     def __init__(self):
-        from .atlasmixins import (
-            MaskIntersection, MaskUnion, MaskNegation
-        )
         ref_pointer = tflow.get(
             template='MNI152NLin2009cAsym',
             resolution=2,
@@ -995,16 +997,14 @@ class _MemeAtlas(
         brain = tflow.get(
             template='MNI152NLin2009cAsym',
             resolution=2, desc='brain', suffix='mask')
-        mask_source = MaskIntersection(
-            MaskUnion(eye, face),
-            MaskNegation(brain)
-        )
+        mask_formula = '((IMGa -bin) -or (IMGb -bin)) -and (IMGc -neg)'
+        mask_source = (eye, face, brain)
         compartments_dict = {
             'eye': eye,
             'face': face
         }
         super().__init__(ref_pointer=ref_pointer,
-                         mask_source=mask_source,
+                         mask_source=(mask_formula, mask_source),
                          name='Meme',
                          **compartments_dict)
 

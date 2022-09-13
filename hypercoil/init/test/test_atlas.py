@@ -23,11 +23,6 @@ from hypercoil.init.atlas import (
     DirichletInitSurfaceAtlas,
     _MemeAtlas,
 )
-from hypercoil.init.atlasmixins import (
-    MaskThreshold,
-    MaskNegation,
-    MaskIntersection
-)
 from hypercoil.engine.noise import (
     ScalarIIDMulStochasticTransform,
     StochasticParameter
@@ -234,42 +229,39 @@ class TestAtlasInit:
             atlas.coors[97 * 115 * x + 97 * y + z] / 2 == np.array([x, y, z]))
 
     def test_volumetric_dirichlet_atlas(self):
+        gm = tflow.get(
+            template='MNI152NLin2009cAsym',
+            resolution=2,
+            label='GM',
+            suffix='probseg'
+        )
+        wm = tflow.get(
+            template='MNI152NLin2009cAsym',
+            resolution=2,
+            label='WM',
+            suffix='probseg'
+        )
+        csf = tflow.get(
+            template='MNI152NLin2009cAsym',
+            resolution=2,
+            label='CSF',
+            suffix='probseg'
+        )
+        mask_source = (gm, wm, csf)
+        mask_formula = (
+            '(IMG_GM -bin[0.5]) -and '
+            '(IMG_WM -bin[0.2] -neg) -and '
+            '(IMG_CSF -bin[0.2] -neg)'
+        )
+
         atlas = DirichletInitVolumetricAtlas(
-            mask_source=MaskIntersection(
-                MaskThreshold(
-                    tflow.get(
-                        template='MNI152NLin2009cAsym',
-                        resolution=2,
-                        label='GM',
-                        suffix='probseg'
-                    ),
-                    threshold=0.5
-                ),
-                MaskNegation(MaskThreshold(
-                    tflow.get(
-                        template='MNI152NLin2009cAsym',
-                        resolution=2,
-                        label='WM',
-                        suffix='probseg'
-                    ),
-                    threshold=0.2
-                )),
-                MaskNegation(MaskThreshold(
-                    tflow.get(
-                        template='MNI152NLin2009cAsym',
-                        resolution=2,
-                        label='CSF',
-                        suffix='probseg'
-                    ),
-                    threshold=0.2
-                ))
-            ),
+            mask_source=(mask_formula, mask_source),
             n_labels=50,
             key=jax.random.PRNGKey(0),
         )
-        assert atlas.mask.size == 66795
+        assert atlas.mask.size == 66796
         assert atlas.decoder['all'].tolist() == list(range(1, 51))
-        assert atlas.maps['all'].shape == (50, 66795)
+        assert atlas.maps['all'].shape == (50, 66796)
         assert np.allclose(
             atlas.maps['all'].sum(-2), 1)
         x, y, z = 84, 62, 13
@@ -279,13 +271,13 @@ class TestAtlasInit:
         lin = AtlasLinear.from_atlas(atlas=atlas, key=jax.random.PRNGKey(0))
         mask = atlas.mask.map_to_masked(model_axes=(-2,), model_axis_out=-2)
         out = mask(jnp.empty((1, 2, 1082035, 3)))
-        assert out.shape == (1, 2, 66795, 3)
+        assert out.shape == (1, 2, 66796, 3)
 
         out = lin(out)
         assert out.shape == (1, 2, 50, 3)
 
         out = lin(
-            jax.random.uniform(key=jax.random.PRNGKey(0), shape=(66795, 3)),
+            jax.random.uniform(key=jax.random.PRNGKey(0), shape=(66796, 3)),
             normalisation='zscore'
         )
         assert np.allclose(out.mean(-1), 0, atol=1e-3)
