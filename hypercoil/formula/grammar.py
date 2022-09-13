@@ -360,7 +360,10 @@ class SyntacticTree:
         content = self.content
         for i, query in enumerate(queries):
             contentstr = self.materialise(recursive=recursive)
-            loc = [m.span() for m in re.finditer(query, contentstr)]
+            result = re.search(query, contentstr)
+            if result is None:
+                continue
+            loc = [result.span()]
             meta = metadata[i] if metadata else None
             content = self._scan_content_and_embed_token(
                 loc, self.content, metadata=meta)
@@ -640,13 +643,19 @@ class Grammar(eqx.Module):
     ) -> SyntacticTree:
         tree = SyntacticTree(s)
         for transform in self.transforms.transforms:
-            tree.create_token(
-                [l.regex for l in transform.literals],
-                metadata=[{
-                    'transform': transform,
-                    'literal': l,
-                } for l in transform.literals],
-            )
+            content = tree.content.content
+            while True:
+                tree.create_token(
+                    [l.regex for l in transform.literals],
+                    metadata=[{
+                        'transform': transform,
+                        'literal': l,
+                    } for l in transform.literals],
+                )
+                if content == tree.content.content:
+                    break
+                else:
+                    content = tree.content.content
         return tree
 
     def make_transform_ledger(
