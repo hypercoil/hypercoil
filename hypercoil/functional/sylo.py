@@ -171,9 +171,9 @@ def recombine(
     if query is not None:
         mixture = mixture @ query
         mixture = jax.nn.softmax(mixture, -1)[..., None, :, :]
-    output = (mixture @ input.swapaxes(1, 2)).swapaxes(1, 2)
+    output = (mixture @ input.swapaxes(-3, -2)).swapaxes(-3, -2)
     if bias is not None:
-        output = output + bias.reshape(1, -1, 1, 1)
+        output = output + bias[..., None, None]
     return output
 
 
@@ -183,6 +183,7 @@ def vertical_compression(
     col_compressor: Optional[Tensor] = None,
     renormalise: bool = True,
     remove_diagonal: bool = False,
+    fold_channels: bool = False,
     sign: Optional[int] = None,
 ) -> Tensor:
     r"""
@@ -237,4 +238,11 @@ def vertical_compression(
             fac = (compressed.std((-1, -2), keepdims=True) /
                 input.std((-1, -2), keepdims=True))
         compressed = compressed / fac
+    if fold_channels:
+        h, w = compressed.shape[-2:]
+        if compressed.ndim > 4:
+            n = compressed.shape[0]
+            compressed = compressed.reshape((n, -1, h, w))
+        else:
+            compressed = compressed.reshape((-1, h, w))
     return compressed

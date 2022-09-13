@@ -74,3 +74,13 @@ class TestSylo:
         assert out.shape == (3, 2, 4, 5, 5)
         assert jnp.isclose(sym2vec(out).std(-1).mean(), sym2vec(X).std(-1).mean())
         assert out[1][0][3][2][2] == 0
+        out = jax.jit(
+            vertical_compression,
+            static_argnames=('fold_channels'),
+        )(X, R, C, fold_channels=True)
+        assert out.shape == (3, 8, 5, 5)
+        out = jax.jit(
+            vertical_compression,
+            static_argnames=('fold_channels'),
+        )(X[0], R, C, fold_channels=True)
+        assert out.shape == (8, 5, 5)
