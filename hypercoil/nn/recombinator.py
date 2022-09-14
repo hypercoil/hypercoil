@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import Optional
 from ..engine import Tensor
+from ..engine.paramutil import _to_jax_array
 from ..functional.matrix import expand_outer
 from ..functional.sylo import recombine
 
@@ -91,10 +92,15 @@ class Recombinator(eqx.Module):
         *,
         key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
+        weight = _to_jax_array(self.weight)
+        if self.bias is not None:
+            bias = _to_jax_array(self.bias)
+        else:
+            bias = None
         return recombine(
             input=input,
-            mixture=self.weight,
-            bias=self.bias,
+            mixture=weight,
+            bias=bias,
             query=query
         )
 

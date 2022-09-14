@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import Literal, Optional
 from ..engine import Tensor
+from ..engine.paramutil import _to_jax_array
 from ..functional.sylo import vertical_compression
 
 
@@ -113,7 +114,8 @@ class VerticalCompression(eqx.Module):
 
     @property
     def weight(self) -> Tensor:
-        return self.mask * self._weight
+        mask, weight = _to_jax_array(self.mask), _to_jax_array(self._weight)
+        return mask * weight
 
     @staticmethod
     def mode(
@@ -139,7 +141,7 @@ class VerticalCompression(eqx.Module):
     def compress(self, input: Tensor) -> Tensor:
         return vertical_compression(
             input=input,
-            row_compressor=(self.mask * self.weight),
+            row_compressor=self.weight,
             renormalise=self.renormalise,
             remove_diagonal=True,
             fold_channels=self.fold_channels,
