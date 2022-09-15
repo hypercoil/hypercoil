@@ -395,6 +395,34 @@ class TestLossFunction:
                 assert out0[i] < out0[i + 1]
                 assert out1[i] < out1[i + 1]
 
+    def test_spatial_losses(self):
+        #TODO: test spatial losses. Deferring everything except smoke tests
+        #      for now.
+        key = jax.random.PRNGKey(0)
+        key_d, key_c = jax.random.split(key)
+
+        key_r = jax.random.split(key_c, 1)[0]
+        data = jax.random.uniform(key_d, (5, 100))
+        coor = jax.random.uniform(key_c, (3, 100))
+        ref = jax.random.uniform(key_r, (3, 5))
+        jax.jit(mean_scalarise(reference_tether))(data, ref, coor)
+
+        key_ld, key_rd = jax.random.split(key_d)
+        key_lc, key_rc = jax.random.split(key_c)
+        data_lh = jax.random.uniform(key_ld, (5, 100))
+        coor_lh = jax.random.uniform(key_lc, (3, 100))
+        data_rh = jax.random.uniform(key_rd, (5, 100))
+        coor_rh = jax.random.uniform(key_rc, (3, 100))
+        jax.jit(mean_scalarise(interhemispheric_tether))(
+            data_lh, data_rh, coor_lh, coor_rh)
+
+        data = jax.random.uniform(key_d, (5, 100))
+        coor = jax.random.uniform(key_c, (3, 100))
+        jax.jit(mean_scalarise(compactness))(data, coor)
+
+        coor = jax.random.uniform(key_c, (3, 5))
+        jax.jit(mean_scalarise(dispersion))(coor,)
+
     def test_mvkurtosis_expected_value(self):
         key = jax.random.PRNGKey(0)
 

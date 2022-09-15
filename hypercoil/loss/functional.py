@@ -18,7 +18,7 @@ from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from ..engine import Tensor, promote_axis, standard_axis_number
 from ..functional import (
-    corr_kernel, pairedcorr, precision,
+    corr_kernel, cmass_coor, pairedcorr, precision,
     recondition_eigenspaces, spherical_geodesic,
 )
 from ..functional.cmass import cmass_reference_displacement, diffuse
@@ -687,6 +687,68 @@ def qcfc(
     correlation.
     """
     return batch_corr(fc, qc, tol=tol, tol_sig=tol_sig, abs=abs, key=key)
+
+
+# Distance-based losses ------------------------------------------------------
+
+
+def reference_tether(
+    X: Tensor,
+    ref: Tensor,
+    coor: Tensor,
+    *,
+    radius: float = 100.,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    return cmass_reference_displacement(
+        weight=X,
+        refs=ref,
+        coor=coor,
+        radius=radius,
+    )
+
+
+def interhemispheric_tether(
+    lh: Tensor,
+    rh: Tensor,
+    lh_coor: Tensor,
+    rh_coor: Tensor,
+    *,
+    radius: float = 100.,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    ipsilateral_weight = rh
+    ipsilateral_coor = rh_coor
+    contralateral_ref = cmass_coor(X=lh, coor=lh_coor, radius=radius)
+    contralateral_ref = contralateral_ref.at[0, :].set(
+        -contralateral_ref[0, :])
+    return cmass_reference_displacement(
+        weight=ipsilateral_weight,
+        refs=contralateral_ref,
+        coor=ipsilateral_coor,
+        radius=radius,
+    )
+
+
+def compactness(
+    X: Tensor,
+    coor: Tensor,
+    *,
+    radius: float = 100.,
+    norm: Union[int, float, Literal['inf']] = 2,
+    floor: float = 0.,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    return diffuse(X=X, coor=coor, norm=norm, floor=floor, radius=radius)
+
+
+def dispersion(
+    X: Tensor,
+    *,
+    metric: Callable = spherical_geodesic,
+    key: Optional['jax.random.PRNGKey'] = None,
+):
+    return -metric(X.swapaxes(-2, -1))
 
 
 # Multivariate kurtosis ------------------------------------------------------
