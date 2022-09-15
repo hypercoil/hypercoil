@@ -17,7 +17,11 @@ from functools import partial, reduce
 from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from ..engine import Tensor, promote_axis, standard_axis_number
-from ..functional import corr_kernel, pairedcorr, recondition_eigenspaces
+from ..functional import (
+    corr_kernel, pairedcorr, precision,
+    recondition_eigenspaces, spherical_geodesic,
+)
+from ..functional.cmass import cmass_reference_displacement, diffuse
 
 
 # Trivial score functions ----------------------------------------------------
@@ -678,4 +682,27 @@ def qcfc(
     abs: bool = True,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
+    """
+    Alias for ``batch_corr``. Quality control-functional connectivity
+    correlation.
+    """
     return batch_corr(fc, qc, tol=tol, tol_sig=tol_sig, abs=abs, key=key)
+
+
+# Multivariate kurtosis ------------------------------------------------------
+
+
+def multivariate_kurtosis(
+    ts: Tensor,
+    l2: float = 0.,
+    dimensional_scaling: bool = False,
+) -> Tensor:
+    if dimensional_scaling:
+        d = ts.shape[-2]
+        denom = d * (d + 2)
+    else:
+        denom = 1
+    prec = precision(ts, l2=l2)[..., None, :, :]
+    ts = ts.swapaxes(-1, -2)[..., None, :]
+    maha = (ts @ prec @ ts.swapaxes(-1, -2)).squeeze()
+    return -(maha ** 2).mean(-1) / denom

@@ -18,6 +18,8 @@ from hypercoil.loss.functional import (
     entropy, entropy_logit, equilibrium, equilibrium_logit,
     kl_divergence, kl_divergence_logit, js_divergence, js_divergence_logit,
     second_moment, _second_moment, second_moment_centred, batch_corr, qcfc,
+    reference_tether, interhemispheric_tether, compactness, dispersion,
+    multivariate_kurtosis,
 )
 
 
@@ -392,3 +394,19 @@ class TestLossFunction:
             for i in range(len(out0) - 1):
                 assert out0[i] < out0[i + 1]
                 assert out1[i] < out1[i + 1]
+
+    def test_mvkurtosis_expected_value(self):
+        key = jax.random.PRNGKey(0)
+
+        mvk_loss = jax.jit(mean_scalarise(multivariate_kurtosis),
+                           static_argnames=('dimensional_scaling'))
+        mvks_loss = partial(mvk_loss, dimensional_scaling=True)
+
+        dims = (5, 10, 20, 50, 100)
+        for d in dims:
+            ref = -d * (d + 2)
+            ts = jax.random.normal(key=key, shape=(10, d, 2000))
+            out = mvk_loss(ts)
+            assert jnp.isclose(out, ref, rtol=0.05)
+            out = mvks_loss(ts)
+            assert jnp.isclose(out, -1, atol=0.01)
