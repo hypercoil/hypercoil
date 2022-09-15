@@ -9,6 +9,7 @@ import jax.numpy as jnp
 from functools import singledispatch
 from typing import Optional, Tuple, Union
 from jax.experimental.sparse import BCOO
+from .cov import pairedcov, pairedcorr
 from .sparse import (
     TopKTensor, spsp_pairdiff, spsp_innerpaired, spspmm, spdiagmm, topkx
 )
@@ -239,7 +240,14 @@ def _(
     return spsp_innerpaired(lhs, rhs)
 
 
-def polynomial_kernel(X0, X1=None, theta=None, gamma=None, order=3, r=0):
+def polynomial_kernel(
+    X0: Tensor,
+    X1: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None,
+    gamma: Optional[float] = None,
+    order: int = 3,
+    r: float = 0,
+):
     r"""
     Parameterised polynomial kernel between input tensors.
 
@@ -302,7 +310,13 @@ def polynomial_kernel(X0, X1=None, theta=None, gamma=None, order=3, r=0):
     return (gamma * K + r) ** order
 
 
-def sigmoid_kernel(X0, X1=None, theta=None, gamma=None, r=0):
+def sigmoid_kernel(
+    X0: Tensor,
+    X1: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None,
+    gamma: Optional[float] = None,
+    r: float = 0
+) -> Tensor:
     r"""
     Parameterised sigmoid kernel between input tensors.
 
@@ -362,7 +376,12 @@ def sigmoid_kernel(X0, X1=None, theta=None, gamma=None, r=0):
     return jax.nn.tanh(gamma * K + r)
 
 
-def gaussian_kernel(X0, X1=None, theta=None, sigma=None):
+def gaussian_kernel(
+    X0: Tensor,
+    X1: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None,
+    sigma: Optional[float] = None,
+) -> Tensor:
     r"""
     Parameterised Gaussian kernel between input tensors.
 
@@ -427,7 +446,12 @@ def gaussian_kernel(X0, X1=None, theta=None, sigma=None):
     return rbf_kernel(X0, X1, theta=theta, gamma=gamma)
 
 
-def rbf_kernel(X0, X1=None, theta=None, gamma=None):
+def rbf_kernel(
+    X0: Tensor,
+    X1: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None,
+    gamma: Optional[float] = None
+) -> Tensor:
     r"""
     Parameterised RBF kernel between input tensors.
 
@@ -556,3 +580,25 @@ def cosine_kernel(
     else:
         X1_norm = param_norm(X1, theta=theta)
     return linear_kernel(X0_norm, X1_norm, theta)
+
+
+def cov_kernel(
+    X0: Tensor,
+    X1: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None,
+    l2: float = 0,
+) -> Tensor:
+    if X1 is None:
+        X1 = X0
+    return pairedcov(X0, X1, weight=theta, l2=l2)
+
+
+def corr_kernel(
+    X0: Tensor,
+    X1: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None,
+    l2: float = 0,
+) -> Tensor:
+    if X1 is None:
+        X1 = X0
+    return pairedcorr(X0, X1, weight=theta, l2=l2)

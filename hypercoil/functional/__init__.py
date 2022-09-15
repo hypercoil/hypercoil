@@ -52,7 +52,8 @@ from .interpolate import (
 from .kernel import (
     linear_kernel, param_norm, linear_distance,
     polynomial_kernel, sigmoid_kernel,
-    gaussian_kernel, rbf_kernel, cosine_kernel
+    gaussian_kernel, rbf_kernel, cosine_kernel,
+    cov_kernel, corr_kernel,
 )
 from .matrix import (
     cholesky_invert, expand_outer, spd, symmetric,
