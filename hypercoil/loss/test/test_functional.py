@@ -17,6 +17,7 @@ from hypercoil.loss.functional import (
     det_gram, log_det_gram, smoothness, bimodal_symmetric,
     entropy, entropy_logit, equilibrium, equilibrium_logit,
     kl_divergence, kl_divergence_logit, js_divergence, js_divergence_logit,
+    second_moment, _second_moment, second_moment_centred,
 )
 
 
@@ -307,3 +308,51 @@ class TestLossFunction:
         out3 = equilibrium_loss(base + 1e1 * noise)
         assert out0 < out1 < out2 < out3
         assert jnp.isclose(out0, 0)
+
+    def test_second_moment(self):
+        n_groups = 3
+        n_channels = 10
+        n_observations = 20
+
+        key = jax.random.PRNGKey(0)
+
+        src = jnp.zeros((n_channels,), dtype=int)
+        src = src.at[(n_channels // 2):].set(1)
+        weight = jnp.eye(2)[src].swapaxes(-2, -1)
+        data = jax.random.normal(key=key, shape=(n_channels, n_observations))
+
+        loss = jax.jit(mean_scalarise(second_moment),
+                       static_argnames=('standardise'))
+        out = loss(data, weight, standardise=False)
+        ref = jnp.stack((
+            data[:(n_channels // 2), :].var(-2, ddof=0),
+            data[(n_channels // 2):, :].var(-2, ddof=0)
+        ))
+        assert jnp.isclose(out, ref.mean())
+
+        mu = weight @ data / weight.sum(-1, keepdims=True)
+        out = _second_moment(data, weight, mu).squeeze()
+        ref = jnp.stack((
+            data[:(n_channels // 2), :].var(-2, ddof=0),
+            data[(n_channels // 2):, :].var(-2, ddof=0)
+        ))
+        assert jnp.allclose(out, ref)
+
+    def test_second_moment_centre_equivalence(self):
+        n_groups = 3
+        n_channels = 10
+        n_observations = 20
+
+        key = jax.random.PRNGKey(0)
+        key_d, key_w = jax.random.split(key)
+
+        data = jax.random.normal(key_d, shape=(n_channels, n_observations))
+        weight = jax.random.normal(key_w, shape=(n_groups, n_channels))
+        mu = weight @ data / weight.sum(-1, keepdims=True)
+
+        loss0 = jax.jit(mean_scalarise(second_moment))
+        loss1 = jax.jit(mean_scalarise(second_moment_centred))
+
+        ref = loss0(data, weight)
+        out = loss1(data, weight, mu)
+        assert jnp.allclose(out, ref)

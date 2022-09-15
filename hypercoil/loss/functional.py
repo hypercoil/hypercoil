@@ -20,12 +20,26 @@ from ..engine import Tensor, promote_axis, standard_axis_number
 from ..functional import corr_kernel, recondition_eigenspaces
 
 
+# Trivial score functions ----------------------------------------------------
+
+
 def identity(
     X: Tensor,
     *,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     return X
+
+
+def zero(
+    X: Tensor,
+    *,
+    broadcast: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    if broadcast:
+        return jnp.zeros_like(X)
+    return 0.
 
 
 # Scalarisations -------------------------------------------------------------
@@ -242,17 +256,6 @@ def selfwmean_scalarise(
 # Constraint violation penalties ---------------------------------------------
 
 
-def zero(
-    X: Tensor,
-    *,
-    broadcast: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
-) -> Tensor:
-    if broadcast:
-        return jnp.zeros_like(X)
-    return 0.
-
-
 def constraint_violation(
     X: Tensor,
     *,
@@ -364,6 +367,7 @@ def entropy(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
     Compute the entropy of a categorical distribution.
@@ -382,6 +386,7 @@ def entropy_logit(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
     Project logits in the input matrix onto the probability simplex, and then
@@ -398,6 +403,7 @@ def kl_divergence(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """Adapted from distrax."""
     eps = jnp.finfo(P.dtype).eps
@@ -416,6 +422,7 @@ def kl_divergence_logit(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
 ):
     """Adapted from distrax."""
     P = jax.nn.log_softmax(P, axis=axis)
@@ -433,6 +440,7 @@ def js_divergence(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     M = 0.5 * (P + Q)
     js_div = (kl_divergence(P, M, reduce=False) +
@@ -449,6 +457,7 @@ def js_divergence_logit(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     prob_axis = axis
     if prob_axis is None:
@@ -467,6 +476,7 @@ def equilibrium(
     level_axis: Union[int, Sequence[int]] = -1,
     instance_axes: Union[int, Sequence[int]] = (-1, -2),
     keepdims: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
     Compute the parcel equilibrium.
@@ -483,6 +493,7 @@ def equilibrium_logit(
     prob_axis: Union[int, Sequence[int]] = -2,
     instance_axes: Union[int, Sequence[int]] = (-1, -2),
     keepdims: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
     Project logits in the input matrix onto the probability simplex, and then
@@ -495,3 +506,78 @@ def equilibrium_logit(
         instance_axes=instance_axes,
         keepdims=keepdims,
     )
+
+
+# Second moments -------------------------------------------------------------
+
+
+def _second_moment(
+    X: Tensor,
+    weight: Tensor,
+    mu: Tensor,
+    *,
+    skip_normalise: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Core computation for second-moment loss.
+    """
+    weight = jnp.abs(weight)[..., None]
+    if skip_normalise:
+        normfac = 1
+    else:
+        normfac = weight.sum(-2)
+    diff = X[..., None, :, :] - mu[..., None, :]
+    sigma = ((diff * weight) ** 2).sum(-2) / normfac
+    return sigma
+
+
+def second_moment(
+    X: Tensor,
+    weight: Tensor,
+    *,
+    standardise: bool = False,
+    skip_normalise: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    r"""
+    Compute the second moment of a dataset.
+
+    The second moment is computed as
+
+    :math:`\left[ A \circ \left (T - \frac{AT}{A\mathbf{1}} \right )^2  \right] \frac{\mathbf{1}}{A \mathbf{1}}`
+
+    :Dimension: **weight :** :math:`(*, R, V)`
+                    ``*`` denotes any number of preceding dimensions, R
+                    denotes number of weights (e.g., regions of an atlas),
+                    and V denotes number of locations (e.g., voxels).
+                **X :** :math:`(*, V, T)`
+                    T denotes number of observations at each location (e.g.,
+                    number of time points).
+    """
+    if standardise:
+        X = (X - X.mean(-1, keepdims=True)) / X.std(-1, keepdims=True)
+    mu = (weight @ X / weight.sum(-1, keepdims=True))
+    return _second_moment(
+        X, weight, mu, skip_normalise=skip_normalise, key=key)
+
+
+def second_moment_centred(
+    X: Tensor,
+    weight: Tensor,
+    mu: Tensor,
+    *,
+    standardise_data: bool = False,
+    standardise_mu: bool = False,
+    skip_normalise: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    r"""
+    Compute the second moment of a dataset about a specified mean.
+    """
+    if standardise_data:
+        X = (X - X.mean(-1, keepdims=True)) / X.std(-1, keepdims=True)
+    if standardise_mu:
+        mu = (mu - mu.mean(-1)) / mu.std(-1)
+    return _second_moment(
+        X, weight, mu, skip_normalise=skip_normalise, key=key)
