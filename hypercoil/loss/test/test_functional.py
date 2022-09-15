@@ -14,7 +14,7 @@ from hypercoil.loss.functional import (
     norm_scalarise, selfwmean, vnorm_scalarise, sum_scalarise, mean_scalarise,
     meansq_scalarise, wmean_scalarise, selfwmean_scalarise, wmean,
     identity, constraint_violation, unilateral_loss, hinge_loss,
-    det_gram, log_det_gram,
+    det_gram, log_det_gram, smoothness, bimodal_symmetric,
     entropy, entropy_logit, equilibrium, equilibrium_logit,
     kl_divergence, kl_divergence_logit, js_divergence, js_divergence_logit,
 )
@@ -168,6 +168,41 @@ class TestLossFunction:
         assert hinge(Y, Y_hat_0) == 5
         assert hinge(Y, Y_hat_1) == 4
         assert hinge(Y, Y_hat_minus1) == 6
+
+    def test_smoothness_loss(self):
+        key = jax.random.PRNGKey(0)
+        X = jnp.array([
+            [0, 0.1, 0.2, 0.3],
+            [0.2, 0.3, 0.4, 0.5],
+            [0.4, 0.5, 0.6, 0.7]
+        ])
+        y0 = 0.2828426957130432
+        y1 = 0.17320507764816284
+        sjit = partial(jax.jit, static_argnames=('axis',))
+
+        smoothness_loss = sjit(vnorm_scalarise(smoothness, axis=0))
+        assert jnp.isclose(smoothness_loss(X, axis=0), y0)
+        smoothness_loss = sjit(vnorm_scalarise(smoothness, axis=-1))
+        assert jnp.isclose(smoothness_loss(X, axis=-1), y1)
+
+    def test_bimodal_symmetric_loss(self):
+        X1 = jnp.array([
+            [0.2, 0, 1, 0.7, 1],
+            [1.2, 0, 0.8, -0.2, 0],
+            [0, 1, 0.3, 0, 1]
+        ])
+        X2 = jnp.array(
+            [0.8, 0.5, 0.1]
+        )
+        y1 = 0.58309518948453
+        y2 = .65
+
+        symbm_loss = jax.jit(vnorm_scalarise(bimodal_symmetric, axis=None))
+        assert jnp.isclose(symbm_loss(X1), y1)
+        symbm_loss = jax.jit(
+            vnorm_scalarise(bimodal_symmetric, p=1, axis=None),
+            static_argnames=('modes',))
+        assert jnp.isclose(symbm_loss(X2, modes=(0.95, 0.05)), y2)
 
     def test_det_loss(self):
         key = jax.random.PRNGKey(0)

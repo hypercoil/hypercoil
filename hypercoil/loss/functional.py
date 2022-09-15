@@ -14,7 +14,7 @@ import jax
 import jax.numpy as jnp
 from distrax._src.utils.math import mul_exp
 from functools import partial, reduce
-from typing import Any, Callable, Literal, Optional, Sequence, Union
+from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from ..engine import Tensor, promote_axis, standard_axis_number
 from ..functional import corr_kernel, recondition_eigenspaces
@@ -239,7 +239,7 @@ def selfwmean_scalarise(
     return reduced_f
 
 
-# Normed penalties -----------------------------------------------------------
+# Constraint violation penalties ---------------------------------------------
 
 
 def zero(
@@ -283,6 +283,38 @@ def hinge_loss(
 ) -> Tensor:
     score = 1 - Y * Y_hat
     return constraint_violation(score, constraints=(identity,))
+
+
+# Smoothness -----------------------------------------------------------------
+
+
+def smoothness(
+    X: Tensor,
+    *,
+    n: int = 1,
+    #pad_value: Optional[Union[float, Literal['initial']]] = None,
+    pad_value: Optional[float] = None,
+    axis: int = -1,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    # if pad_value == 'initial':
+    #     axis = standard_axis_number(axis, X.ndim)
+    #     pad_value = X[(slice(None),) * axis + (0,)]
+    return jnp.diff(X, n=n, axis=axis, prepend=pad_value)
+
+
+# Bimodal symmetric ----------------------------------------------------------
+
+
+def bimodal_symmetric(
+    X: Tensor,
+    *,
+    modes: Tuple[int, int] = (0, 1),
+    key: Optional['jax.random.PRNGKey'] = None,
+):
+    mean = sum(modes) / 2
+    step = max(modes) - mean
+    return jnp.abs(jnp.abs((X - mean)) - step)
 
 
 # Gramian determinants -------------------------------------------------------
