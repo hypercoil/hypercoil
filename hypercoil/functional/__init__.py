@@ -41,7 +41,7 @@ from .fourier import (
 )
 from .graph import (
     girvan_newman_null, modularity_matrix, relaxed_modularity,
-    graph_laplacian
+    graph_laplacian, coaffiliation,
 )
 from .interpolate import (
     hybrid_interpolate,
@@ -56,7 +56,7 @@ from .kernel import (
     cov_kernel, corr_kernel,
 )
 from .matrix import (
-    cholesky_invert, expand_outer, spd, symmetric,
+    cholesky_invert, expand_outer, spd, symmetric, diag_embed,
     delete_diagonal, fill_diagonal, recondition_eigenspaces,
     toeplitz, sym2vec, vec2sym, squareform
 )

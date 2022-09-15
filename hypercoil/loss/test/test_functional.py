@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from functools import partial
 from scipy.stats import entropy as entropy_ref
 from scipy.spatial.distance import jensenshannon as js_ref
-from hypercoil.functional import linear_kernel
+from hypercoil.functional import diag_embed, linear_kernel, relaxed_modularity
 from hypercoil.loss.functional import (
     norm_scalarise, selfwmean, vnorm_scalarise, sum_scalarise, mean_scalarise,
     meansq_scalarise, wmean_scalarise, selfwmean_scalarise, wmean,
@@ -19,11 +19,12 @@ from hypercoil.loss.functional import (
     kl_divergence, kl_divergence_logit, js_divergence, js_divergence_logit,
     second_moment, _second_moment, second_moment_centred, batch_corr, qcfc,
     reference_tether, interhemispheric_tether, compactness, dispersion,
-    multivariate_kurtosis,
+    multivariate_kurtosis, modularity, eigenmaps,
 )
 
 
 class TestLossFunction:
+
     def test_wmean(self):
         z = jnp.array([[
             [1., 4., 2.],
@@ -438,3 +439,19 @@ class TestLossFunction:
             assert jnp.isclose(out, ref, rtol=0.05)
             out = mvks_loss(ts)
             assert jnp.isclose(out, -1, atol=0.01)
+
+    def test_connectopies(self):
+        #TODO: Correctness tests for connectopies
+        key = jax.random.PRNGKey(0)
+        key_d, key_a = jax.random.split(key)
+
+        Q = jax.random.normal(key_d, shape=(20, 4))
+        A = jax.random.normal(key_a, shape=(3, 20, 20))
+        D = diag_embed(A.sum(-1, keepdims=True))
+
+        modularity_loss = jax.jit(mean_scalarise(modularity))
+        out = modularity_loss(Q, A) / 2
+        ref = relaxed_modularity(A, Q).mean()
+        assert jnp.allclose(out, ref)
+
+        jax.jit(mean_scalarise(eigenmaps))(Q, A)

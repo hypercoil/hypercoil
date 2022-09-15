@@ -346,6 +346,13 @@ def delete_diagonal(A: Tensor) -> Tensor:
     return A * mask
 
 
+def diag_embed(v: Tensor, offset: int = 0) -> Tensor:
+    """
+    Embed a vector into a diagonal matrix.
+    """
+    return vmap_over_outer(partial(jnp.diagflat, k=offset), 1)((v,))
+
+
 def fill_diagonal(A: Tensor, fill: float = 0, offset: int = 0) -> Tensor:
     """
     Fill a selected diagonal in a block of square matrices. Dimension is
@@ -353,10 +360,10 @@ def fill_diagonal(A: Tensor, fill: float = 0, offset: int = 0) -> Tensor:
     """
     dim = A.shape[-2:]
     mask = jnp.ones(max(dim) - abs(offset), dtype=bool)
-    mask = vmap_over_outer(partial(jnp.diagflat, k=offset), 1)((mask,))
+    mask = diag_embed(mask, offset=offset)
     mask = mask[:dim[0], :dim[1]]
     mask = conform_mask(A, mask, axis=(-2, -1))
-    return A.at[mask].set(fill)
+    return jnp.where(mask, fill, A)
 
 
 def toeplitz_2d(

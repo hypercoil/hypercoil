@@ -18,8 +18,9 @@ from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from ..engine import Tensor, promote_axis, standard_axis_number
 from ..functional import (
-    corr_kernel, cmass_coor, pairedcorr, precision,
-    recondition_eigenspaces, spherical_geodesic,
+    coaffiliation, corr_kernel, cmass_coor, graph_laplacian, linear_distance,
+    modularity_matrix, pairedcorr, precision, recondition_eigenspaces,
+    spherical_geodesic,
 )
 from ..functional.cmass import cmass_reference_displacement, diffuse
 
@@ -768,3 +769,157 @@ def multivariate_kurtosis(
     ts = ts.swapaxes(-1, -2)[..., None, :]
     maha = (ts @ prec @ ts.swapaxes(-1, -2)).squeeze()
     return -(maha ** 2).mean(-1) / denom
+
+
+# Connectopies ---------------------------------------------------------------
+
+
+def connectopy(
+    Q: Tensor,
+    A: Tensor,
+    D: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None,
+    omega: Optional[Tensor] = None,
+    *,
+    dissimilarity: Optional[Callable] = None,
+    affinity: Optional[Callable] = None,
+    progressive_theta: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+):
+    r"""
+    Connectopy loss, for computing different kinds of connectopic maps.
+
+    .. admonition:: Connectopic loss functional
+
+        Given an affinity matrix A, the connectopic loss minimises the objective
+
+        :math:`\mathbf{1}^\intercal \left( \mathbf{A} \circ S_\theta(\mathbf{Q}) \right) \mathbf{1}`
+
+        for a pairwise function S. The default pairwise function is the square
+        of the L2 distance. The columns of the Q that minimises the objective
+        are the learned connectopic maps.
+
+    .. warning::
+        If you're using this for a well-characterised connectopic map with a
+        closed-form or algorithmically optimised solution, such as Laplacian
+        eigenmaps or many forms of community detection, then in most cases you
+        would be better off directly computing exact maps rather than using this
+        loss functional to approximate them.
+
+        Because this operation attempts to learn all of the maps that jointly
+        minimise the objective in a single shot rather than using iterative
+        projection, it is more prone to misalignment than a projective approach
+        for eigendecomposition-based maps.
+
+    .. danger::
+        Note that the ``connectopy_loss`` is often insufficient on its own. It
+        should be combined with appropriate constraints, for instance to ensure
+        the learned maps are zero-centred and orthogonal.
+
+    :Dimension: **Q :** :math:`(D, C)`
+                    D denotes the number of vertices in the affinity matrix
+                    and C denotes the number of proposed maps.
+                **A :** :math:`(D, D)`
+                    As above.
+                **D :** :math:`(D, D)`
+                    As above.
+                **theta :** :math:`(C)` or :math:`(C, C)`
+                    As above.
+
+    Parameters
+    ----------
+    Q : tensor
+        Proposed connectopies or maps.
+    A : tensor
+        Affinity matrix.
+    dissimilarity : callable
+        Function to compute dissimilarity between latent coordinates induced
+        by the proposed connectopies. By default, the square of the L2
+        distance is used. The callable must accept ``Q`` and ``theta`` as
+        arguments. (``theta`` may be unused.)
+    affinity : callable or None (default None)
+        If an affinity function is provided, then the image of argument A
+        under this function is the affinity matrix. Otherwise, argument A is
+        the affinity matrix.
+    D : tensor or None (default None)
+        If this argument is provided, then the affinity matrix is first
+        transformed as :math:`D A D^\intercal`. For instance, setting D to
+        a diagonal matrix whose entries are the reciprocal of the square root
+        of vertex degrees corresponds to learning eigenmaps of a normalised
+        graph Laplacian.
+    theta : tensor, float, or ``'progressive'`` (default None)
+        Scaling factors for the columns in :math:`Q` when the loss is
+        computed. When this is set to ``'progressive'``, the last column has a
+        weight of 1, the second-to-last has a weight of 2, and so on. This is
+        used to encourage the last column to correspond to the least important
+        connectopic map and the first column to correspond to the most
+        important connectopic map.
+    omega : tensor, float, or None (default None)
+        Optional parameterisation of the affinity function, if one is
+        provided.
+    """
+    if progressive_theta:
+        n_maps = Q.shape[-1]
+        theta = jnp.arange(n_maps, 0, -1)
+    if dissimilarity is None:
+        dissimilarity = linear_distance
+    if affinity is not None:
+        A = affinity(A, omega=omega)
+    if D is not None:
+        A = D @ A @ D.swapaxes(-2, -1)
+    H = dissimilarity(Q, theta=theta)
+    return (H * A).sum((-2, -1))
+
+
+def modularity(
+    Q: Tensor,
+    A: Tensor,
+    D: Optional[Tensor] = None,
+    theta: Optional[Tensor] = None,
+    *,
+    gamma: float = 1.,
+    exclude_diag: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
+):
+    def dissimilarity(Q, theta):
+        return coaffiliation(Q, L=theta, normalise=True,
+                             exclude_diag=exclude_diag)
+
+    def affinity(A, omega):
+        return modularity_matrix(A, gamma=omega, normalise=True)
+
+    return connectopy(
+        Q=Q,
+        A=A,
+        D=D,
+        theta=theta,
+        omega=gamma,
+        dissimilarity=dissimilarity,
+        affinity=affinity,
+        key=key,
+    )
+
+
+def eigenmaps(
+    Q: Tensor,
+    A: Tensor,
+    theta: Optional[Tensor] = None,
+    *,
+    normalise: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
+):
+    def dissimilarity(Q, theta):
+        return linear_distance(Q, theta=theta)
+
+    def affinity(A, omega):
+        return graph_laplacian(A, normalise=omega)
+
+    return connectopy(
+        Q=Q,
+        A=A,
+        theta=theta,
+        omega=normalise,
+        dissimilarity=dissimilarity,
+        affinity=affinity,
+        key=key,
+    )
