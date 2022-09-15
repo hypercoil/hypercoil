@@ -17,7 +17,7 @@ from hypercoil.loss.functional import (
     det_gram, log_det_gram, smoothness, bimodal_symmetric,
     entropy, entropy_logit, equilibrium, equilibrium_logit,
     kl_divergence, kl_divergence_logit, js_divergence, js_divergence_logit,
-    second_moment, _second_moment, second_moment_centred,
+    second_moment, _second_moment, second_moment_centred, batch_corr, qcfc,
 )
 
 
@@ -356,3 +356,39 @@ class TestLossFunction:
         ref = loss0(data, weight)
         out = loss1(data, weight, mu)
         assert jnp.allclose(out, ref)
+
+    def test_batch_corr(self):
+        n_batch = (100, 1000)
+        gt_shared = (0.1, 0.5, 0.9)
+        n_channels = 10
+        n_observations = 20
+
+        key = jax.random.PRNGKey(0)
+        key_d, key_q = jax.random.split(key)
+
+        batch_corr_loss = jax.jit(
+            mean_scalarise(batch_corr),
+            static_argnames=('tol', 'abs')
+        )
+        qcfc_loss = jax.jit(
+            mean_scalarise(batch_corr),
+            static_argnames=('tol', 'abs')
+        )
+
+        for n in n_batch:
+            base = jnp.linspace(0.8, 1.2, n)
+            data_noise = jax.random.normal(
+                key_d, shape=(n, n_channels, n_observations))
+            q_noise = jax.random.normal(key_q, shape=(n,))
+            data = 0.1 * data_noise + 0.9 * base[..., None, None]
+            out0, out1 = [], []
+            for c in gt_shared:
+                q = c * base + (1 - c) * q_noise
+                out = qcfc(data, q, tol='auto')
+                assert out.shape == (n_channels * n_observations, 1)
+                out0.append(batch_corr_loss(data, q))
+                out1.append(qcfc_loss(data, q, tol='auto'))
+                assert out0 > out1
+            for i in range(len(out0) - 1):
+                assert out0[i] < out0[i + 1]
+                assert out1[i] < out1[i + 1]

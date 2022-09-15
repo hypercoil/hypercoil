@@ -17,7 +17,7 @@ from functools import partial, reduce
 from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from ..engine import Tensor, promote_axis, standard_axis_number
-from ..functional import corr_kernel, recondition_eigenspaces
+from ..functional import corr_kernel, pairedcorr, recondition_eigenspaces
 
 
 # Trivial score functions ----------------------------------------------------
@@ -581,3 +581,101 @@ def second_moment_centred(
         mu = (mu - mu.mean(-1)) / mu.std(-1)
     return _second_moment(
         X, weight, mu, skip_normalise=skip_normalise, key=key)
+
+
+# Batch correlation ----------------------------------------------------------
+
+
+def auto_tol(
+    batch_size: int,
+    significance: float = 0.1,
+    tails: int = 2,
+) -> float:
+    r"""
+    Automatically set the tolerance for batch-dimension correlations based on
+    a significance level.
+
+    From the t-value associated with the specified significance level, the
+    tolerance is computed as
+
+    :math:`r_{tol} = \sqrt{\frac{t^2}{N - 2 - t^2}}`
+
+    Parameters
+    ----------
+    batch_size : int
+        Number of observations in the batch.
+    significance : float in (0, 1) (default 0.1)
+        Significance level at which the tolerance should be computed.
+    tails : 1 or 2 (default 2)
+        Number of tails for the t-test.
+    """
+    import numpy as np
+    from scipy.stats import t
+    tsq = t.ppf(q=(1 - significance / tails), df=(batch_size - 2)) ** 2
+    return jnp.sqrt(tsq / (batch_size - 2 + tsq))
+
+
+def batch_corr(
+    X: Tensor,
+    N: Tensor,
+    *,
+    tol: Union[float, Literal['auto']] = 0,
+    tol_sig: float = 0.1,
+    abs: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Correlation over the batch dimension.
+
+    Parameters
+    ----------
+    X : tensor
+        Tensor block containing measures to be correlated with those in ``N``.
+    N : tensor
+        Vector of measures with which the measures in ``X`` are to be
+        correlated.
+    tol : nonnegative float or ``'auto'`` (default 0)
+        Tolerance for correlations. Only correlation values above ``tol`` are
+        counted. If this is set to ``'auto'``, a tolerance is computed for the
+        batch size given the significance level in ``tol_sig``.
+    tol_sig : float in (0, 1)
+        Significance level for correlation tolerance. Used only if ``tol`` is
+        set to ``'auto'``.
+    abs : bool (default True)
+        Use the absolute value of correlations. If this is being used as a loss
+        function, the model's weights will thus be updated to shrink all
+        batchwise correlations toward zero.
+
+    Returns
+    -------
+    tensor
+        Absolute correlation of each vector in ``X`` with ``N``, after
+        thresholding at `tol`. Note that, if you want the original
+        correlations back, you will have to add ``tol`` to any nonzero
+        correlations.
+    """
+    batch_size = X.shape[0]
+    batchcorr = pairedcorr(
+        X.swapaxes(0, -1).reshape(-1, batch_size),
+        jnp.atleast_2d(N)
+    )
+    if tol == 'auto':
+        tol = auto_tol(batch_size, significance=tol_sig)
+
+    batchcorr_thr = jnp.maximum(jnp.abs(batchcorr) - tol, 0)
+    if abs:
+        return batchcorr_thr
+    else:
+        return jnp.sign(batchcorr) * batchcorr_thr
+
+
+def qcfc(
+    fc: Tensor,
+    qc: Tensor,
+    *,
+    tol: Union[float, Literal['auto']] = 0,
+    tol_sig: float = 0.1,
+    abs: bool = True,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    return batch_corr(fc, qc, tol=tol, tol_sig=tol_sig, abs=abs, key=key)
