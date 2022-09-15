@@ -110,69 +110,6 @@ def mask_tensor(
     return jnp.where(mask, tensor, fill_value)
 
 
-def wmean(
-    input: Tensor,
-    weight: Tensor,
-    axis: Optional[Union[Sequence[int], int]] = None,
-    keepdims: bool = False
-) -> Tensor:
-    """
-    Reducing function for reducing losses: weighted mean.
-
-    >>> wmean(jnp.array([1, 2, 3]), jnp.array([1, 0, 1]))
-    DeviceArray(2., dtype=float32)
-
-    >>> wmean(
-    ...     jnp.array([[1, 2, 3],
-    ...                [1, 2, 3],
-    ...                [1, 2, 3]]),
-    ...     jnp.array([1, 0, 1]),
-    ...     axis=0
-    ... )
-    DeviceArray([1., 2., 3.], dtype=float32)
-
-    >>> wmean(
-    ...     jnp.array([[1, 2, 3],
-    ...                [1, 2, 3],
-    ...                [1, 2, 3]]),
-    ...     jnp.array([1, 0, 1]),
-    ...     axis=1,
-    ...     keepdims=True
-    ... )
-    DeviceArray([[2.],
-                 [2.],
-                 [2.]], dtype=float32)
-    """
-    if axis is None:
-        axis = tuple(range(input.ndim))
-    elif isinstance(axis, int):
-        axis = (axis,)
-    assert weight.ndim == len(axis), (
-        'Weight must have as many dimensions as are being reduced')
-    retain = [(i not in axis) for i in range(input.ndim)]
-    for i, d in enumerate(retain):
-        if d: weight = jnp.expand_dims(weight, i)
-    wtd = (weight * input)
-    return wtd.sum(axis, keepdims=keepdims) / weight.sum(axis, keepdims=keepdims)
-
-
-#TODO: marking this as an experimental function
-def selfwmean(input, dim=None, keepdim=False, gradpath='input', softmax=True):
-    """
-    Self-weighted mean reducing function. Completely untested. Will break and
-    probably kill you in the process.
-    """
-    if softmax:
-        w = jax.nn.softmax(w)
-    # I don't think this actually does what we want it to, but this function
-    # is actually unsupported, so we won't worry about it yet.
-    if gradpath == 'input':
-        w = jax.lax.stop_gradient(w)
-    elif gradpath == 'weight':
-        i = jax.lax.stop_gradient(i)
-    return wmean(input=i, weight=w, keepdim=keepdim, gradpath=gradpath)
-
-
 def complex_decompose(complex: Tensor) -> Tuple[Tensor, Tensor]:
     """
     Decompose a complex-valued tensor into amplitude and phase components.

@@ -97,7 +97,6 @@ from .utils import (
     conform_mask,
     apply_mask,
     mask_tensor,
-    wmean,
     amplitude_apply
 )
 from .window import (

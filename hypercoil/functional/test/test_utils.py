@@ -8,8 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from hypercoil.functional.utils import (
-    apply_mask, wmean, orient_and_conform,
-    conform_mask, mask_tensor,
+    apply_mask, conform_mask, mask_tensor,
 )
 #TODO: Move these tests!
 from distrax import MultivariateNormalFullCovariance
@@ -19,37 +18,6 @@ from hypercoil.engine import (
 
 
 class TestUtils:
-
-    def test_wmean(self):
-        z = np.array([[
-            [1., 4., 2.],
-            [0., 9., 1.],
-            [4., 6., 7.]],[
-            [0., 9., 1.],
-            [4., 6., 7.],
-            [1., 4., 2.]
-        ]])
-        w = np.ones_like(z)
-        assert np.allclose(wmean(z, w), jnp.mean(z))
-        w = np.array([1., 0., 1.])
-        assert np.all(wmean(z, w, axis=1) == np.array([
-            [(1 + 4) / 2, (4 + 6) / 2, (2 + 7) / 2],
-            [(0 + 1) / 2, (9 + 4) / 2, (1 + 2) / 2]
-        ]))
-        assert np.all(wmean(z, w, axis=2) == np.array([
-            [(1 + 2) / 2, (0 + 1) / 2, (4 + 7) / 2],
-            [(0 + 1) / 2, (4 + 7) / 2, (1 + 2) / 2]
-        ]))
-        w = np.array([
-            [1., 0., 1.],
-            [0., 1., 1.]
-        ])
-        assert np.all(wmean(z, w, axis=(0, 1)) == np.array([
-            [(1 + 4 + 4 + 1) / 4, (4 + 6 + 6 + 4) / 4, (2 + 7 + 7 + 2) / 4]
-        ]))
-        assert np.all(wmean(z, w, axis=(0, 2)) == np.array([
-            [(1 + 2 + 9 + 1) / 4, (0 + 1 + 6 + 7) / 4, (4 + 7 + 4 + 2) / 4]
-        ]))
 
     def test_mask(self):
         msk = jnp.array([1, 1, 0, 0, 0], dtype=bool)
