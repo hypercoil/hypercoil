@@ -15,7 +15,7 @@ from hypercoil.loss.functional import (
     det_gram, log_det_gram, smoothness, bimodal_symmetric,
     entropy, entropy_logit, equilibrium, equilibrium_logit,
     kl_divergence, kl_divergence_logit, js_divergence, js_divergence_logit,
-    second_moment, _second_moment, second_moment_centred, batch_corr, qcfc,
+    second_moment, _second_moment_impl, second_moment_centred, batch_corr, qcfc,
     reference_tether, interhemispheric_tether, compactness, dispersion,
     multivariate_kurtosis, modularity, eigenmaps,
 )
@@ -284,7 +284,7 @@ class TestLossFunction:
         assert jnp.isclose(out, ref.mean())
 
         mu = weight @ data / weight.sum(-1, keepdims=True)
-        out = _second_moment(data, weight, mu).squeeze()
+        out = _second_moment_impl(data, weight, mu).squeeze()
         ref = jnp.stack((
             data[:(n_channels // 2), :].var(-2, ddof=0),
             data[(n_channels // 2):, :].var(-2, ddof=0)
