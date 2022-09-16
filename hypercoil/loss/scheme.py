@@ -8,7 +8,7 @@ regularisations to a set of inputs.
 import torch
 from .base import LossApply, UnpackingLossArgument
 from ..engine import SentryModule
-from ..engine.terminal import Terminal
+#from ..engine.terminal import Terminal
 
 
 def identity(*args):

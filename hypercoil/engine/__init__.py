@@ -13,11 +13,11 @@ from .sentry import (
     SentryMessage,
     Epochs
 )
-from .accumulate import (
-    Accumulator,
-    AccumulatingFunction,
-    Accumuline
-)
+# from .accumulate import (
+#     Accumulator,
+#     AccumulatingFunction,
+#     Accumuline
+# )
 from .axisutil import (
     atleast_4d,
     apply_vmap_over_outer,
@@ -33,13 +33,13 @@ from .axisutil import (
     demote_and_unfold,
     orient_and_conform,
 )
-from .conveyance import (
-    Conveyance,
-    Origin,
-    Hollow,
-    Conflux,
-    DataPool
-)
+# from .conveyance import (
+#     Conveyance,
+#     Origin,
+#     Hollow,
+#     Conflux,
+#     DataPool
+# )
 from .noise import (
     DiagonalNoiseSource, SPSDNoiseSource,
     DiagonalDropoutSource, SPSDDropoutSource,
@@ -69,4 +69,4 @@ from .schedule import (
     MultiplierDecaySchedule,
     MultiplierCascadeSchedule,
 )
-from .terminal import Terminal
+#from .terminal import Terminal
