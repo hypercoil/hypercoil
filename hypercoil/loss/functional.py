@@ -552,6 +552,36 @@ def js_divergence_logit(
 # Bregman --------------------------------------------------------------------
 
 
+def document_bregman(func: Callable) -> Callable:
+
+    long_description = """
+    This function computes the Bregman divergence between the input tensor
+    and the target tensor, induced according to the convex function ``f``."""
+
+    param_spec = """
+    Parameters
+    ----------
+    X : Tensor
+        Input tensor.
+    Y : Tensor
+        Target tensor.
+    f : Callable
+        Convex function to induce the Bregman divergence.
+    f_dim : int
+        Dimension of arguments to ``f``.
+
+    Returns
+    -------
+    Tensor
+        Bregman divergence score for each set of observations."""
+
+    func.__doc__ = func.__doc__.format(
+        long_description=long_description,
+        param_spec=param_spec,
+    )
+    return func
+
+
 def _bregman_divergence_impl(
     X: Tensor,
     Y: Tensor,
@@ -567,6 +597,7 @@ def _bregman_divergence_impl(
     return (f(Y) - f(X)) - df(X).ravel() @ (Y - X).ravel()
 
 
+@document_bregman
 def bregman_divergence(
     X: Tensor,
     Y: Tensor,
@@ -577,28 +608,41 @@ def bregman_divergence(
 ) -> Tensor:
     """
     Bregman divergence score function.
+    \
+    {long_description}
 
-    This function computes the Bregman divergence between the input tensor
-    and the target tensor, induced according to the convex function ``f``.
-
-    Parameters
-    ----------
-    X : Tensor
-        Input tensor.
-    Y : Tensor
-        Target tensor.
-    f : Callable
-        Convex function to induce the Bregman divergence.
-    f_dim : int
-        Dimension of arguments to ``f``.
-
-    Returns
-    -------
-    Tensor
-        Bregman divergence score for each set of observations.
+    For a version of this function that operates on logits, see
+    :func:`bregman_divergence_logit`.
+    \
+    {param_spec}
     """
     f = vmap_over_outer(partial(_bregman_divergence_impl, f=f), f_dim)
     return f((X, Y))
+
+
+@document_bregman
+def bregman_divergence_logit(
+    X: Tensor,
+    Y: Tensor,
+    *,
+    f: Callable,
+    f_dim: int,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Bregman divergence score function for logits.
+    \
+    {long_description}
+
+    This function operates on logits. For the standard version of this
+    function, see :func:`bregman_divergence`.
+    \
+    {param_spec}
+    """
+    prob_axes = tuple(range(-f_dim, 0))
+    P = jax.nn.softmax(X, axis=prob_axes)
+    Q = jax.nn.softmax(Y, axis=prob_axes)
+    return bregman_divergence(P, Q, f=f, f_dim=f_dim, key=key)
 
 
 # Equilibrium ----------------------------------------------------------------
@@ -1353,6 +1397,14 @@ def eigenmaps(
 ):
     """
     Laplacian eigenmaps functional.
+
+    .. warning::
+
+        This function is provided as an illustrative example of how to
+        parameterise the connectopy functional. It is not recommended for
+        practical use, because it is incredibly inefficient and numerically
+        unstable. Instead, use the ``laplacian_eigenmaps`` function from
+        ``hypercoil.functional``.
     \
     {param_spec}
     normalise : bool (default True)
