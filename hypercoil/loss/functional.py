@@ -14,7 +14,7 @@ from distrax._src.utils.math import mul_exp
 from functools import partial, reduce
 from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
-from ..engine import Tensor
+from ..engine import Tensor, vmap_over_outer
 from ..functional import (
     coaffiliation, corr_kernel, cmass_coor, graph_laplacian, linear_distance,
     modularity_matrix, pairedcorr, precision, recondition_eigenspaces,
@@ -49,6 +49,18 @@ def zero(
     if broadcast:
         return jnp.zeros_like(X)
     return 0.
+
+
+def difference(
+    X: Tensor,
+    Y: Tensor,
+    *,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Difference score function.
+    """
+    return X - Y
 
 
 # Constraint violation penalties ---------------------------------------------
@@ -535,6 +547,58 @@ def js_divergence_logit(
     P = jax.nn.softmax(P, prob_axis)
     Q = jax.nn.softmax(Q, prob_axis)
     return js_divergence(P, Q, axis=axis, keepdims=keepdims, reduce=reduce)
+
+
+# Bregman --------------------------------------------------------------------
+
+
+def _bregman_divergence_impl(
+    X: Tensor,
+    Y: Tensor,
+    *,
+    f: Callable,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Bregman divergence score function for a single pair of distributions or
+    observations.
+    """
+    df = jax.grad(f)
+    return (f(Y) - f(X)) - df(X).ravel() @ (Y - X).ravel()
+
+
+def bregman_divergence(
+    X: Tensor,
+    Y: Tensor,
+    *,
+    f: Callable,
+    f_dim: int,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Bregman divergence score function.
+
+    This function computes the Bregman divergence between the input tensor
+    and the target tensor, induced according to the convex function ``f``.
+
+    Parameters
+    ----------
+    X : Tensor
+        Input tensor.
+    Y : Tensor
+        Target tensor.
+    f : Callable
+        Convex function to induce the Bregman divergence.
+    f_dim : int
+        Dimension of arguments to ``f``.
+
+    Returns
+    -------
+    Tensor
+        Bregman divergence score for each set of observations.
+    """
+    f = vmap_over_outer(partial(_bregman_divergence_impl, f=f), f_dim)
+    return f((X, Y))
 
 
 # Equilibrium ----------------------------------------------------------------

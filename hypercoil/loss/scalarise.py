@@ -45,6 +45,8 @@ def document_scalarisation_map(func: Callable) -> Callable:
 
     func.__doc__ = func.__doc__.format(
         param_spec=param_spec,
+        norm_spec=norm_spec,
+        staged_spec=staged_spec,
         unused_key_spec=unused_key_spec,
         return_spec=return_spec,
     )
@@ -53,10 +55,10 @@ def document_scalarisation_map(func: Callable) -> Callable:
 
 @document_scalarisation_map
 def sum_scalarise(
-    f: Callable[Sequence[Any], Tensor] = identity,
+    f: Callable[..., Tensor] = identity,
     *,
     key: Optional['jax.random.PRNGKey'] = None,
-) -> Callable[Sequence[Any], float]:
+) -> Callable[..., float]:
     """
     Transform a tensor-valued function to a scalar-valued function by summing
     the tensor.
@@ -74,10 +76,10 @@ def sum_scalarise(
 
 @document_scalarisation_map
 def mean_scalarise(
-    f: Callable[Sequence[Any], Tensor] = identity,
+    f: Callable[..., Tensor] = identity,
     *,
     key: Optional['jax.random.PRNGKey'] = None,
-) -> Callable[Sequence[Any], float]:
+) -> Callable[..., float]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
     the mean of the tensor.
@@ -95,10 +97,10 @@ def mean_scalarise(
 
 @document_scalarisation_map
 def meansq_scalarise(
-    f: Callable[Sequence[Any], Tensor] = identity,
+    f: Callable[..., Tensor] = identity,
     *,
     key: Optional['jax.random.PRNGKey'] = None,
-) -> Callable[Sequence[Any], float]:
+) -> Callable[..., float]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
     the mean of the elementwise squared tensor.
@@ -114,15 +116,16 @@ def meansq_scalarise(
     return reduced_f
 
 
+@document_scalarisation_map
 def norm_scalarise(
-    f: Callable[Sequence[Any], Tensor] = identity,
+    f: Callable[..., Tensor] = identity,
     *,
     p: Any = 2,
     axis: Union[int, Sequence[int]] = -1,
     force_vector_norm: bool = False,
     outer_scalarise: Optional[Callable] = None,
     key: Optional['jax.random.PRNGKey'] = None,
-) -> Callable[Sequence[Any], float]:
+) -> Callable[..., float]:
     """
     Compute a specified norm along an axis or set of axes, and then map the
     tensor of norms to a scalar using a scalarisation map. This is equivalent
@@ -165,14 +168,15 @@ def norm_scalarise(
     return scalarise(reduced_f, key=key)
 
 
+@document_scalarisation_map
 def vnorm_scalarise(
-    f: Callable[Sequence[Any], Tensor] = identity,
+    f: Callable[..., Tensor] = identity,
     *,
     p: Any = 2,
     axis: Union[int, Sequence[int]] = -1,
     outer_scalarise: Optional[Callable] = None,
     key: Optional['jax.random.PRNGKey'] = None,
-) -> Callable[Sequence[Any], float]:
+) -> Callable[..., float]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
     the vector norm of the tensor along an axis or set of axes, and then
@@ -280,8 +284,9 @@ def selfwmean(
     )
 
 
+@document_scalarisation_map
 def wmean_scalarise(
-    f: Callable[Sequence[Any], Tensor] = identity,
+    f: Callable[..., Tensor] = identity,
     *,
     axis: Union[int, Sequence[int]] = None,
     outer_scalarise: Optional[Callable] = None,
@@ -307,8 +312,9 @@ def wmean_scalarise(
     return scalarise(reduced_f, key=key)
 
 
+@document_scalarisation_map
 def selfwmean_scalarise(
-    f: Callable[Sequence[Any], Tensor] = identity,
+    f: Callable[..., Tensor] = identity,
     *,
     axis: Union[int, Sequence[int]] = None,
     gradpath: Optional[Literal['weight', 'input']] = 'input',

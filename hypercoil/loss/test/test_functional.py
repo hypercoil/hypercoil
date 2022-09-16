@@ -13,7 +13,7 @@ from hypercoil.functional import diag_embed, linear_kernel, relaxed_modularity
 from hypercoil.loss.functional import (
     identity, constraint_violation, unilateral_loss, hinge_loss,
     det_gram, log_det_gram, smoothness, bimodal_symmetric,
-    entropy, entropy_logit, equilibrium, equilibrium_logit,
+    entropy, entropy_logit, equilibrium, equilibrium_logit, bregman_divergence,
     kl_divergence, kl_divergence_logit, js_divergence, js_divergence_logit,
     second_moment, _second_moment_impl, second_moment_centred, batch_corr, qcfc,
     reference_tether, interhemispheric_tether, compactness, dispersion,
@@ -247,6 +247,22 @@ class TestLossFunction:
                       jax.nn.softmax(Q_logits, axis=-1),
                       axis=-1) ** 2).mean()
         assert jnp.isclose(out, ref)
+
+    def test_bregman_divergence(self):
+        #TODO: This needs many, many more test cases.
+        key = jax.random.PRNGKey(0)
+        key_x, key_y = jax.random.split(key)
+
+        X = jax.random.normal(key_x, (3, 10,))
+        Y = jax.random.normal(key_y, (3, 10,))
+
+        bregman_loss = jax.jit(mean_scalarise(bregman_divergence),
+                               static_argnames=('f', 'f_dim'))
+        f = lambda x: jnp.linalg.norm(x, axis=-1) ** 2
+
+        out = bregman_loss(X, Y, f=f, f_dim=1)
+        ref = ((X - Y) ** 2).sum(-1).mean()
+        assert jnp.isclose(out, ref, atol=1e-4)
 
     def test_equilibrium_loss(self):
         key = jax.random.PRNGKey(0)
