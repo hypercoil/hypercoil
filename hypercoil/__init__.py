@@ -4,7 +4,6 @@
 """
 Top-level import
 """
-from . import data
 from . import formula
 from . import functional
 from . import init
