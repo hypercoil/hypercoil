@@ -15,33 +15,99 @@ from .functional import identity
 from ..engine import Tensor, promote_axis, standard_axis_number
 
 
+def document_scalarisation_map(func: Callable) -> Callable:
+    """
+    Decorator for scalarisation maps to document them.
+    """
+    param_spec = """
+    Parameters
+    ----------
+    f : Callable[Sequence[Any], Tensor]
+        The tensor-valued function to be transformed."""
+    norm_spec = """
+    p : Any
+        The norm order.
+    axis : Union[int, Sequence[int]]
+        The axis or axes along which to compute the norm."""
+    staged_spec = """
+    outer_scalarise : Optional[Callable]
+        The scalarisation map to use to map the tensor of norms to a scalar.
+        If ``None``, then the mean of the norms is used."""
+    unused_key_spec = """
+    key : Optional[``jax.random.PRNGKey``]
+        An optional random number generator key. Unused; exists for
+        conformance with other scalarisation maps."""
+    return_spec = """
+    Returns
+    -------
+    Callable[Sequence[Any], float]
+        The scalar-valued function."""
+
+    func.__doc__ = func.__doc__.format(
+        param_spec=param_spec,
+        unused_key_spec=unused_key_spec,
+        return_spec=return_spec,
+    )
+    return func
+
+
+@document_scalarisation_map
 def sum_scalarise(
     f: Callable[Sequence[Any], Tensor] = identity,
     *,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[Sequence[Any], float]:
+    """
+    Transform a tensor-valued function to a scalar-valued function by summing
+    the tensor.
+    \
+    {param_spec}\
+    {unused_key_spec}\
+    \
+    {return_spec}
+    """
     def reduced_f(*pparams, **params):
         X = f(*pparams, **params)
         return jnp.sum(X)
     return reduced_f
 
 
+@document_scalarisation_map
 def mean_scalarise(
     f: Callable[Sequence[Any], Tensor] = identity,
     *,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[Sequence[Any], float]:
+    """
+    Transform a tensor-valued function to a scalar-valued function by taking
+    the mean of the tensor.
+    \
+    {param_spec}\
+    {unused_key_spec}\
+    \
+    {return_spec}
+    """
     def reduced_f(*pparams, **params):
         X = f(*pparams, **params)
         return jnp.mean(X)
     return reduced_f
 
 
+@document_scalarisation_map
 def meansq_scalarise(
     f: Callable[Sequence[Any], Tensor] = identity,
     *,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[Sequence[Any], float]:
+    """
+    Transform a tensor-valued function to a scalar-valued function by taking
+    the mean of the elementwise squared tensor.
+    \
+    {param_spec}\
+    {unused_key_spec}\
+    \
+    {return_spec}
+    """
     def reduced_f(*pparams, **params):
         X = f(*pparams, **params)
         return jnp.mean(X ** 2)
@@ -62,6 +128,18 @@ def norm_scalarise(
     tensor of norms to a scalar using a scalarisation map. This is equivalent
     to a composition of the norm along an axis or set of axes with an outer
     scalarisation map.
+    \
+    {param_spec}\
+    {norm_spec}\
+    {staged_spec}\
+    force_vector_norm : bool
+        If ``True``, then the tensor is unfolded along the specified axis or
+        axes before computing the norm. This forces the reduction to be a
+        vector norm, rather than a matrix norm, if the number of reduced axes
+        is greater than one.
+    {unused_key_spec}\
+    \
+    {return_spec}
     """
     def reduced_f(*pparams, **params):
         X = f(*pparams, **params)
@@ -95,6 +173,23 @@ def vnorm_scalarise(
     outer_scalarise: Optional[Callable] = None,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[Sequence[Any], float]:
+    """
+    Transform a tensor-valued function to a scalar-valued function by taking
+    the vector norm of the tensor along an axis or set of axes, and then
+    mapping the resulting norms to a scalar using a scalarisation map.
+
+    Like :func:`norm_scalarise`, but always unfolds the tensor along the
+    specified axis or axes before computing the norm so that the norm is
+    always a vector norm rather than a matrix norm. This is equivalent to
+    using :func:`norm_scalarise` with ``force_vector_norm=True``.
+    \
+    {param_spec}\
+    {norm_spec}\
+    {staged_spec}\
+    {unused_key_spec}\
+    \
+    {return_spec}
+    """
     return norm_scalarise(
         f,
         p=p,
@@ -192,6 +287,17 @@ def wmean_scalarise(
     outer_scalarise: Optional[Callable] = None,
     key: Optional['jax.random.PRNGKey'] = None,
 ):
+    """
+    Transform a tensor-valued function to a scalar-valued function by taking
+    the weighted mean of the tensor along an axis or set of axes, and then
+    mapping the resulting means to a scalar using a scalarisation map.
+
+    {param_spec}\
+    {staged_spec}\
+    {unused_key_spec}\
+    \
+    {return_spec}
+    """
     def reduced_f(*pparams, scalarisation_weight, **params):
         X = f(*pparams, **params)
         weight = jnp.linalg.norm(X, ord=2, axis=axis)
@@ -210,6 +316,30 @@ def selfwmean_scalarise(
     softmax_invert: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ):
+    """
+    Transform a tensor-valued function to a scalar-valued function by taking
+    the self-weighted mean of the tensor along an axis or set of axes.
+
+    {param_spec}\
+    gradpath: Optional[Literal['weight', 'input']] (default: 'input')
+        If 'weight', the gradient of the scalarisation function will be
+        backpropagated through the weights only. If 'input', the gradient of
+        the scalarisation function will be backpropagated through the input
+        only. If None, the gradient will be backpropagated through both.
+    softmax_axis: Optional[Union[Sequence[int], int, bool]] (default: False)
+        If not False, instead of using the input as the weight, the input is
+        passed through a softmax function to create a weight. If True, the
+        softmax is taken over all axes. If an integer or sequence of integers,
+        the softmax is taken over those axes. If False, the input is used as
+        the weight.
+    softmax_invert: bool (default: False)
+        If True, the input is negated before passing it through the softmax.
+        In this way, the softmax can be used to upweight the minimum instead
+        of the maximum.
+    {unused_key_spec}\
+    \
+    {return_spec}
+    """
     def reduced_f(*pparams, **params):
         X = f(*pparams, **params)
         return selfwmean(
