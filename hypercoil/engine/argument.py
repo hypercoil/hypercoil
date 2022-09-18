@@ -22,11 +22,15 @@ class ModelArgument(Mapping, eqx.Module):
     dict. Or a namedtuple that's a mapping rather than a sequence, with a
     dict-like interface.
     """
-    _arg_dict: MappingProxyType
+    # We'd like to use the read-only MappingProxyType, but it's not possible
+    # for ``eqx.filter_value_and_grad`` to work with it. So, for now, we'll
+    # just use a regular dict.
+    _arg_dict: dict # MappingProxyType
 
     def __init__(self, **params):
         _arg_dict = params
-        self._arg_dict = MappingProxyType(_arg_dict)
+        #self._arg_dict = MappingProxyType(_arg_dict)
+        self._arg_dict = _arg_dict
 
     def __getattr__(self, name: str) -> Any:
         return self._arg_dict[name]
@@ -76,7 +80,7 @@ class ModelArgument(Mapping, eqx.Module):
 
     def __repr__(self) -> str:
         agmt = namedtuple(type(self).__name__, self._arg_dict.keys())
-        return agmt(**self._arg_dict).__repr__()
+        return eqx.pretty_print.tree_pformat(agmt(**self._arg_dict))
 
 
 class UnpackingModelArgument(ModelArgument):

@@ -5,118 +5,100 @@
 Module for additively applying a set of several losses or
 regularisations to a set of inputs.
 """
-import torch
-from .base import LossApply, UnpackingLossArgument
-from ..engine import SentryModule
-#from ..engine.terminal import Terminal
+import equinox as eqx
+from functools import partial
+from typing import Any, Callable, Tuple
+from ..engine.argument import UnpackingModelArgument as UnpackingLossArgument
 
 
-def identity(*args):
-    if len(args) == 1:
-        return args[0]
-    return args
+def unpack_or_noop(*pparams) -> Any:
+    """
+    For an argument sequence, unpack if it's a singleton sequence, and
+    otherwise return the sequence.
+    """
+    if len(pparams) == 1:
+        return pparams[0]
+    return pparams
 
 
-class LossScheme(SentryModule):
-    def __init__(self, loss=None, apply=None):
-        super(LossScheme, self).__init__()
-        self.loss = self._listify(loss) or []
-        if apply is None:
-            apply = identity
+def apply_and_evaluate(loss: Callable, applied: Any) -> Any:
+    if isinstance(applied, UnpackingLossArgument):
+        return loss(**applied)
+    return loss(applied)
+
+
+#TODO: add examples of how to use this.
+class LossApply(eqx.Module):
+    """
+    Callable loss function wrapper that composes the loss with a selector or
+    other pretransformation.
+
+    Parameters
+    ----------
+    loss : callable
+        Loss function to apply.
+    apply : callable
+        Callable that pretransforms the input to the loss. This can be used
+        as a selector, so that different entries in a
+        :doc:`LossScheme <hypercoil.loss.scheme.LossScheme>` are applied
+        to different combinations of weights, inputs, and outputs. One use
+        case is filtering the inputs to a ``LossScheme`` and forwarding only
+        the ones relevant to the loss function at hand.
+    """
+    loss: Callable
+    apply: Callable = unpack_or_noop
+    name: str
+
+    def __init__(
+        self,
+        loss: Callable,
+        apply: Callable = unpack_or_noop,
+    ):
+        self.loss = loss
         self.apply = apply
-        self.name = 'Scheme'
+        self.name = loss.name
+
+    def __call__(
+        self,
+        *pparams,
+        **params
+    ) -> float:
+        """
+        Evaluate the loss applied to the output of the ``apply`` operation.
+        """
+        applied = self.apply(*pparams, **params)
+        return apply_and_evaluate(self.loss, applied)
+
+
+class LossScheme(eqx.Module):
+    loss: Tuple[Callable]
+    apply: Callable = unpack_or_noop
+    name = 'LossScheme'
 
     def __add__(self, other):
         return LossScheme(loss=(self.loss + other.loss))
 
-    def __iadd__(self, other):
-        self.loss += other
-        return self
-
     def __iter__(self):
-        self.n = 0
-        return self
+        return iter(self.loss)
 
     def __len__(self):
         return len(self.loss)
 
-    def __next__(self):
-        if self.n < len(self.loss):
-            self.n += 1
-            return self.loss[self.n - 1]
-        else:
-            raise StopIteration
-
-    def __repr__(self):
-        s = [f'\n    {r}' for r in self.loss]
-        s = ','.join(s)
-        return f'LossScheme({s}\n)'
-
-    def __getitem__(self, key):
-        return self.loss[key]
-
-    def _listify(self, x):
-        if x is None:
-            return None
-        if not isinstance(x, list):
-            return list(x)
-        return x
-
-    def register_sentry(self, sentry):
+    def __call__(self, *pparams, **params):
+        total_loss = 0
+        all_items = {}
+        applied = self.apply(*pparams, **params)
         for f in self:
-            ##TODO: change when we implement sentry functionality for Terminal
-            if not isinstance(f, Terminal):
-                f.register_sentry(sentry)
-
-    def register_action(self, action):
-        for f in self:
-            ##TODO: change when we implement sentry functionality for Terminal
-            if not isinstance(f, Terminal):
-                f.register_action(action)
-
-    def forward(self, *args, verbose=True, **kwargs):
-        losses = 0
-        applied = self.apply(*args, **kwargs)
-        if verbose:
-            for f in self:
-                if isinstance(f, LossScheme):
-                    if isinstance(applied, UnpackingLossArgument):
-                        loss = f(**applied, verbose=True)
-                    else:
-                        loss = f(applied, verbose=True)
-                elif (isinstance(f, LossApply) and
-                    isinstance(f.loss, LossScheme)):
-                    if isinstance(applied, UnpackingLossArgument):
-                        loss = f.loss(
-                            f.apply(**applied), verbose=True)
-                    else:
-                        loss = f.loss(
-                            f.apply(applied), verbose=True)
-                else:
-                    loss = f(applied)
-                    print(f'- {f}: {loss}')
-                # Terminals will automatically send gradients back along
-                # their lines. We should not duplicate this if a terminal is
-                # nested.
-                if isinstance(f, Terminal):
-                    continue
-                elif (isinstance(f, LossApply) and
-                    isinstance(f.loss, Terminal)):
-                    continue
-                losses = losses + loss
-        else:
-            for f in self:
-                if isinstance(applied, UnpackingLossArgument):
-                    loss = f(**applied)
-                else:
-                    loss = f(applied)
-                # Terminals will automatically send gradients back along
-                # their lines. We should not duplicate this if a terminal is
-                # nested.
-                if isinstance(f, Terminal):
-                    continue
-                elif (isinstance(f, LossApply) and
-                    isinstance(f.loss, Terminal)):
-                    continue
-                losses = losses + loss
-        return losses
+            if isinstance(f, LossScheme):
+                acc, items = apply_and_evaluate(f, applied)
+            elif isinstance(f, LossApply) and isinstance(f.loss, LossScheme):
+                f = partial(f.loss, f.apply) # TODO: this doesn't work. not even close.
+                def f_(*pparams, **params):
+                    return f.loss(f.apply(*pparams, **params))
+                acc, items = apply_and_evaluate(f_, applied)
+            else:
+                acc = apply_and_evaluate(f, applied)
+                items = {f.name: acc}
+            total_loss += acc
+            all_items.update(items)
+        return total_loss, all_items
