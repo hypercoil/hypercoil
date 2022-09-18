@@ -7,108 +7,82 @@ Model argument
 Convenience mappings representing arguments to a model or loss function.
 Also aliased to loss arguments.
 """
-import torch
+import equinox as eqx
+from collections import namedtuple
 from collections.abc import Mapping
+from types import MappingProxyType
+from typing import Any
 
 
-class ModelArgument(Mapping):
+class ModelArgument(Mapping, eqx.Module):
     """
-    Effectively this is currently little more than a prettified dict.
+    Representation of a set of arguments to a model or loss function.
+
+    Effectively this is currently little more than a prettified, immutable
+    dict. Or a namedtuple that's a mapping rather than a sequence, with a
+    dict-like interface.
     """
-    def __init__(self, **kwargs):
-        super().__init__()
-        self.__dict__.update(kwargs)
+    _arg_dict: MappingProxyType
 
-    def __setitem__(self, k, v):
-        self.__setattr__(k, v)
+    def __init__(self, **params):
+        _arg_dict = params
+        self._arg_dict = MappingProxyType(_arg_dict)
 
-    def __getitem__(self, k):
-        return self.__dict__[k]
+    def __getattr__(self, name: str) -> Any:
+        return self._arg_dict[name]
 
-    def __delitem__(self, k):
-        del self.__dict__[k]
+    def __getitem__(self, k: str) -> Any:
+        return self._arg_dict[k]
 
-    def __len__(self):
-        return len(self.__dict__)
+    def __len__(self) -> int:
+        return len(self._arg_dict)
 
-    def __iter__(self):
-        return iter(self.__dict__)
+    def __iter__(self) -> iter:
+        return iter(self._arg_dict)
 
-    def _fmt_tsr_repr(self, tsr):
-        return f'<tensor of dimension {tuple(tsr.shape)}>'
+    def __add__(self, other) -> 'ModelArgument':
+        """
+        If there's a clash, the other argument wins.
+        Also, if either argument subclasses but doesn't override __add__,
+        the output is reduced to a base ModelArgument.
+        """
+        return ModelArgument(**{**self._arg_dict, **other._arg_dict})
 
-    def __repr__(self):
-        s = f'{type(self).__name__}('
-        for k, v in self.items():
-            if isinstance(v, torch.Tensor):
-                v = self._fmt_tsr_repr(v)
-            elif isinstance(v, list):
-                v = f'<list with {len(v)} elements>'
-            elif isinstance(v, tuple):
-                fmt = [self._fmt_tsr_repr(i)
-                       if isinstance(i, torch.Tensor)
-                       else i for i in v]
-                v = f'({fmt})'
-            s += f'\n    {k} : {v}'
-        s += ')'
-        return s
-
-    def update(self, *args, **kwargs):
-        for k, v in args:
-            self.__setitem__(k, v)
-        self.__dict__.update(kwargs)
+    def __eq__(self, other) -> bool:
+        left = all(v == other.get(k, None) for k, v in self.items())
+        right = all(v == self.get(k, None) for k, v in other.items())
+        return left and right
 
     @classmethod
-    def all_except(cls, arg, remove):
+    def add(cls, arg: 'ModelArgument', **params) -> 'ModelArgument':
+        return arg + cls(**params)
+
+    @classmethod
+    def all_except(cls, arg: Mapping, *remove) -> 'ModelArgument':
         arg = {k: v for k, v in arg.items() if k not in remove}
         return cls(**arg)
 
     @classmethod
-    def replaced(cls, arg, replace):
+    def replaced(cls, arg: Mapping, **replace) -> 'ModelArgument':
         arg = {k: (replace[k] if replace.get(k) is not None else v)
                for k, v in arg.items()}
         return cls(**arg)
 
     @classmethod
-    def swap(cls, arg, swap, val):
-        old, new = swap
-        arg = {k: v for k, v in arg.items() if k != old}
-        arg.update({new : val})
+    def swap(cls, arg: Mapping, *rm, **new) -> 'ModelArgument':
+        arg = {k: v for k, v in arg.items() if k not in rm}
+        arg.update(**new)
         return cls(**arg)
+
+    def __repr__(self) -> str:
+        agmt = namedtuple(type(self).__name__, self._arg_dict.keys())
+        return agmt(**self._arg_dict).__repr__()
 
 
 class UnpackingModelArgument(ModelArgument):
     """
     ``ModelArgument`` variant that is automatically unpacked when it is the
-    output of an ``apply`` call.
+    output of an ``apply`` call. This is only distinguished from
+    ``ModelArgument`` within the loss scheme module.
     """
     pass
-
-
-class Replaced:
-    def __init__(self, replace=None, cls=ModelArgument, replace_map=None):
-        self.replace = replace
-        self.replace_map = replace_map
-        self.cls = cls
-
-    def __call__(self, arg, *pparams, **params):
-        replace = self.replace
-        if self.replace_map:
-            replace = {
-                self.replace: self.replace_map(arg, *pparams, **params)
-            }
-        return self.cls.replaced(arg, replace)
-
-
-class Swap:
-    def __init__(self, swap, val=None, cls=ModelArgument, val_map=None):
-        self.swap = swap
-        self.val = val
-        self.val_map = val_map
-        self.cls = cls
-
-    def __call__(self, arg, *pparams, **params):
-        val = self.val
-        if self.val_map:
-            val = self.val_map(arg, *pparams, **params)
-        return self.cls.swap(arg, self.swap, val)

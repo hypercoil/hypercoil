@@ -4,8 +4,6 @@
 from .argument import (
     ModelArgument,
     UnpackingModelArgument,
-    Replaced,
-    Swap
 )
 from .sentry import (
     Sentry,
