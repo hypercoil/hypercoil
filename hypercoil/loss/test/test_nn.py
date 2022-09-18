@@ -7,7 +7,8 @@ Unit tests for loss modules.
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from hypercoil.functional.kernel import gaussian_kernel
+from hypercoil.functional.kernel import gaussian_kernel, linear_distance
+from hypercoil.functional.matrix import diag_embed
 
 from hypercoil.loss.functional import (
     identity, difference, constraint_violation, unilateral_loss, hinge_loss,
@@ -16,6 +17,8 @@ from hypercoil.loss.functional import (
     js_divergence, js_divergence_logit,
     bregman_divergence, bregman_divergence_logit,
     equilibrium, equilibrium_logit, second_moment, second_moment_centred,
+    batch_corr, qcfc, reference_tether, interhemispheric_tether, compactness,
+    dispersion, multivariate_kurtosis, connectopy, modularity,
 )
 from hypercoil.loss.scalarise import (
     mean_scalarise, sum_scalarise, meansq_scalarise, vnorm_scalarise,
@@ -27,7 +30,9 @@ from hypercoil.loss.nn import (
     KLDivergenceLoss, KLDivergenceLogitLoss, JSDivergenceLoss,
     JSDivergenceLogitLoss, BregmanDivergenceLoss, BregmanDivergenceLogitLoss,
     EquilibriumLoss, EquilibriumLogitLoss, SecondMomentLoss,
-    SecondMomentCentredLoss,
+    SecondMomentCentredLoss, BatchCorrelationLoss, QCFCLoss, ReferenceTetherLoss,
+    InterhemisphericTetherLoss, CompactnessLoss, DispersionLoss,
+    MultivariateKurtosis, ConnectopyLoss, ModularityLoss,
 )
 
 
@@ -160,4 +165,91 @@ class TestLossModule:
             standardise_mu=True,
             skip_normalise=True
         )
+        assert jnp.isclose(out, ref)
+
+        N = Y.sum(-1)
+        out = eqx.filter_jit(
+            BatchCorrelationLoss(tol='auto', tol_sig=0.1, abs=True))(X, N)
+        ref = mean_scalarise(
+            batch_corr)(X, N, tol='auto', tol_sig=0.1, abs=True)
+        assert jnp.isclose(out, ref)
+
+        out = eqx.filter_jit(
+            QCFCLoss(tol='auto', tol_sig=0.1, abs=False))(X, N)
+        ref = mean_scalarise(
+            qcfc)(X, N, tol='auto', tol_sig=0.1, abs=False)
+        assert jnp.isclose(out, ref)
+
+        key_ld, key_rd, key_r = jax.random.split(key_x, 3)
+        key_lc, key_rc = jax.random.split(key_y)
+        coor_ref = jax.random.uniform(key_r, (3, 5))
+        data_lh = jax.random.uniform(key_ld, (5, 100))
+        coor_lh = jax.random.uniform(key_lc, (3, 100))
+        data_rh = jax.random.uniform(key_rd, (5, 100))
+        coor_rh = jax.random.uniform(key_rc, (3, 100))
+        ref = mean_scalarise(
+            reference_tether)(data_lh, ref=coor_ref, coor=coor_lh)
+        out = eqx.filter_jit(
+            ReferenceTetherLoss(ref=coor_ref, coor=coor_lh))(data_lh)
+        assert jnp.isclose(out, ref)
+        out = eqx.filter_jit(
+            ReferenceTetherLoss(coor=coor_lh))(data_lh, ref=coor_ref)
+        assert jnp.isclose(out, ref)
+        out = eqx.filter_jit(
+            ReferenceTetherLoss())(data_lh, ref=coor_ref, coor=coor_lh)
+        assert jnp.isclose(out, ref)
+
+        ref = mean_scalarise(
+            interhemispheric_tether)(data_lh, data_rh, coor_lh, coor_rh)
+        out = eqx.filter_jit(
+            InterhemisphericTetherLoss(lh_coor=coor_lh, rh_coor=coor_rh)
+        )(data_lh, data_rh)
+        assert jnp.isclose(out, ref)
+        out = eqx.filter_jit(
+            InterhemisphericTetherLoss()
+        )(data_lh, data_rh, lh_coor=coor_lh, rh_coor=coor_rh)
+        assert jnp.isclose(out, ref)
+
+        ref = mean_scalarise(compactness)(
+            data_lh, coor_lh, norm='inf', floor=0.05)
+        out = eqx.filter_jit(CompactnessLoss(
+            norm='inf', floor=0.05))(data_lh, coor_lh)
+        assert jnp.isclose(out, ref)
+
+        ref = mean_scalarise(dispersion)(
+            coor_lh, metric=linear_distance)
+        out = eqx.filter_jit(DispersionLoss(
+            metric=linear_distance))(coor_lh)
+        assert jnp.isclose(out, ref)
+
+        U = X @ X.swapaxes(-2, -1)
+        out = eqx.filter_jit(MultivariateKurtosis(
+            l2=0.01, dimensional_scaling=True))(U)
+        ref = mean_scalarise(multivariate_kurtosis)(
+            U, l2=0.01, dimensional_scaling=True)
+        assert jnp.isclose(out, ref)
+
+        key_d, key_a, key_t, key_o = jax.random.split(key_y, 4)
+
+        Q = jax.random.normal(key_d, shape=(20, 4))
+        A = jax.random.normal(key_a, shape=(3, 20, 20))
+        D = diag_embed(A.sum(-1))
+        theta = jax.random.normal(key_t, shape=(4, 4))
+        omega = jax.random.normal(key_o, shape=(20, 20))
+        theta = theta @ theta.swapaxes(-2, -1)
+        omega = omega @ omega.swapaxes(-2, -1)
+
+        def affinity(X, omega):
+            return linear_distance(X, theta=omega)
+
+        out = eqx.filter_jit(ConnectopyLoss(
+            theta=theta, omega=omega, affinity=affinity))(Q, A, D)
+        ref = mean_scalarise(connectopy)(
+            Q, A, D, theta=theta, omega=omega, affinity=affinity)
+        assert jnp.isclose(out, ref)
+
+        out = eqx.filter_jit(ModularityLoss(
+            theta=theta, gamma=0.13, exclude_diag=True))(Q, A, D)
+        ref = mean_scalarise(modularity)(
+            Q, A, D, theta=theta, gamma=0.13, exclude_diag=True)
         assert jnp.isclose(out, ref)

@@ -925,3 +925,390 @@ class SecondMomentCentredLoss(Loss):
             skip_normalise=self.skip_normalise,
             key=key,
         )
+
+
+class BatchCorrelationLoss(Loss):
+    tol: float
+    tol_sig: float
+    abs: bool
+
+    def __init__(
+        self,
+        multiplier: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        tol: Union[float, Literal['auto']] = 0,
+        tol_sig: float = 0.1,
+        abs: bool = True,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None: name = type(self).__name__
+        super().__init__(
+            multiplier=multiplier,
+            name=name,
+            score=batch_corr,
+            scalarisation=scalarisation or mean_scalarise,
+            key=key,
+        )
+        self.tol = tol
+        self.tol_sig = tol_sig
+        self.abs = abs
+
+    def __call__(
+        self,
+        X: Tensor,
+        N: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.multiplier * self.loss(
+            X,
+            N,
+            tol=self.tol,
+            tol_sig=self.tol_sig,
+            abs=self.abs,
+            key=key,
+        )
+
+
+class QCFCLoss(BatchCorrelationLoss):
+    def __call__(
+        self,
+        FC: Tensor,
+        QC: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return super().__call__(
+            X=FC,
+            N=QC,
+            key=key,
+        )
+
+
+class ReferenceTetherLoss(Loss):
+    ref: Optional[Tensor]
+    coor: Optional[Tensor]
+    radius: float
+
+    def __init__(
+        self,
+        multiplier: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        ref: Optional[Tensor] = None,
+        coor: Optional[Tensor] = None,
+        radius: Optional[float] = 100.,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None: name = type(self).__name__
+        super().__init__(
+            multiplier=multiplier,
+            name=name,
+            score=reference_tether,
+            scalarisation=scalarisation or mean_scalarise,
+            key=key,
+        )
+        self.ref = ref
+        self.coor = coor
+        self.radius = radius
+
+    def __call__(
+        self,
+        X: Tensor,
+        ref: Optional[Tensor] = None,
+        coor: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        if ref is None: ref = self.ref
+        if coor is None: coor = self.coor
+        return self.multiplier * self.loss(
+            X,
+            ref=ref,
+            coor=coor,
+            radius=self.radius,
+            key=key,
+        )
+
+
+class InterhemisphericTetherLoss(Loss):
+    lh_coor: Optional[Tensor]
+    rh_coor: Optional[Tensor]
+    radius: float
+
+    def __init__(
+        self,
+        multiplier: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        lh_coor: Optional[Tensor] = None,
+        rh_coor: Optional[Tensor] = None,
+        radius: Optional[float] = 100.,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None: name = type(self).__name__
+        super().__init__(
+            multiplier=multiplier,
+            name=name,
+            score=interhemispheric_tether,
+            scalarisation=scalarisation or mean_scalarise,
+            key=key,
+        )
+        self.lh_coor = lh_coor
+        self.rh_coor = rh_coor
+        self.radius = radius
+
+    def __call__(
+        self,
+        lh: Tensor,
+        rh: Tensor,
+        lh_coor: Optional[Tensor] = None,
+        rh_coor: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        if lh_coor is None: lh_coor = self.lh_coor
+        if rh_coor is None: rh_coor = self.rh_coor
+        return self.multiplier * self.loss(
+            lh=lh,
+            rh=rh,
+            lh_coor=lh_coor,
+            rh_coor=rh_coor,
+            radius=self.radius,
+            key=key,
+        )
+
+
+class CompactnessLoss(Loss):
+    coor: Optional[Tensor]
+    norm: Union[int, float, Literal['inf']]
+    floor: float
+    radius: float
+
+    def __init__(
+        self,
+        multiplier: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        coor: Optional[Tensor] = None,
+        radius: Optional[float] = 100.,
+        norm: Union[int, float, Literal['inf']] = 2,
+        floor: float = 0.0,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None: name = type(self).__name__
+        super().__init__(
+            multiplier=multiplier,
+            name=name,
+            score=compactness,
+            scalarisation=scalarisation or mean_scalarise,
+            key=key,
+        )
+        self.coor = coor
+        self.norm = norm
+        self.floor = floor
+        self.radius = radius
+
+    def __call__(
+        self,
+        X: Tensor,
+        coor: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        if coor is None: coor = self.coor
+        return self.multiplier * self.loss(
+            X,
+            coor=coor,
+            norm=self.norm,
+            floor=self.floor,
+            radius=self.radius,
+            key=key,
+        )
+
+
+class DispersionLoss(Loss):
+    metric: Callable
+
+    def __init__(
+        self,
+        multiplier: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        metric: Callable = spherical_geodesic,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None: name = type(self).__name__
+        super().__init__(
+            multiplier=multiplier,
+            name=name,
+            score=dispersion,
+            scalarisation=scalarisation or mean_scalarise,
+            key=key,
+        )
+        self.metric = metric
+
+    def __call__(
+        self,
+        X: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.multiplier * self.loss(
+            X,
+            metric=self.metric,
+            key=key,
+        )
+
+
+class MultivariateKurtosis(Loss):
+    l2: float
+    dimensional_scaling: bool
+
+    def __init__(
+        self,
+        multiplier: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        l2: float = 0.0,
+        dimensional_scaling: bool = True,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None: name = type(self).__name__
+        super().__init__(
+            multiplier=multiplier,
+            name=name,
+            score=multivariate_kurtosis,
+            scalarisation=scalarisation or mean_scalarise,
+            key=key,
+        )
+        self.l2 = l2
+        self.dimensional_scaling = dimensional_scaling
+
+    def __call__(
+        self,
+        X: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.multiplier * self.loss(
+            X,
+            l2=self.l2,
+            dimensional_scaling=self.dimensional_scaling,
+            key=key,
+        )
+
+
+class ConnectopyLoss(Loss):
+    theta: Optional[Any]
+    omega: Optional[Any]
+    dissimilarity: Callable
+    affinity: Optional[Callable]
+    progressive_theta: bool
+
+    def __init__(
+        self,
+        multiplier: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        theta: Optional[Any] = None,
+        omega: Optional[Any] = None,
+        dissimilarity: Optional[Callable] = None,
+        affinity: Optional[Callable] = None,
+        scalarisation: Optional[Callable] = None,
+        progressive_theta: bool = False,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None: name = type(self).__name__
+        super().__init__(
+            multiplier=multiplier,
+            name=name,
+            score=connectopy,
+            scalarisation=scalarisation or mean_scalarise,
+            key=key,
+        )
+        self.theta = theta
+        self.omega = omega
+        self.dissimilarity = dissimilarity or linear_distance
+        self.affinity = affinity
+        self.progressive_theta = progressive_theta
+
+    def __call__(
+        self,
+        Q: Tensor,
+        A: Tensor,
+        D: Optional[Tensor] = None,
+        theta: Optional[Any] = None,
+        omega: Optional[Any] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        if theta is None: theta = self.theta
+        if omega is None: omega = self.omega
+        return self.multiplier * self.loss(
+            Q=Q,
+            A=A,
+            D=D,
+            theta=theta,
+            omega=omega,
+            dissimilarity=self.dissimilarity,
+            affinity=self.affinity,
+            progressive_theta=self.progressive_theta,
+            key=key,
+        )
+
+
+class ModularityLoss(Loss):
+    theta: Optional[Tensor]
+    gamma: float
+    exclude_diag: bool
+
+    def __init__(
+        self,
+        multiplier: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        theta: Optional[Tensor] = None,
+        gamma: float = 1.0,
+        exclude_diag: bool = True,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None: name = type(self).__name__
+        super().__init__(
+            multiplier=multiplier,
+            name=name,
+            score=modularity,
+            scalarisation=scalarisation or mean_scalarise,
+            key=key,
+        )
+        self.theta = theta
+        self.gamma = gamma
+        self.exclude_diag = exclude_diag
+
+    def __call__(
+        self,
+        Q: Tensor,
+        A: Tensor,
+        D: Optional[Tensor] = None,
+        theta: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        if theta is None: theta = self.theta
+        return self.multiplier * self.loss(
+            Q=Q,
+            A=A,
+            D=D,
+            theta=theta,
+            gamma=self.gamma,
+            exclude_diag=self.exclude_diag,
+            key=key,
+        )

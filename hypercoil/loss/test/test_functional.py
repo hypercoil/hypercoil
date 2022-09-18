@@ -371,8 +371,8 @@ class TestLossFunction:
         key_r = jax.random.split(key_c, 1)[0]
         data = jax.random.uniform(key_d, (5, 100))
         coor = jax.random.uniform(key_c, (3, 100))
-        ref = jax.random.uniform(key_r, (3, 5))
-        jax.jit(mean_scalarise(reference_tether))(data, ref, coor)
+        coor_ref = jax.random.uniform(key_r, (3, 5))
+        jax.jit(mean_scalarise(reference_tether))(data, coor_ref, coor)
 
         key_ld, key_rd = jax.random.split(key_d)
         key_lc, key_rc = jax.random.split(key_c)
@@ -413,7 +413,6 @@ class TestLossFunction:
 
         Q = jax.random.normal(key_d, shape=(20, 4))
         A = jax.random.normal(key_a, shape=(3, 20, 20))
-        D = diag_embed(A.sum(-1, keepdims=True))
 
         modularity_loss = jax.jit(mean_scalarise(modularity))
         out = modularity_loss(Q, A) / 2
