@@ -170,6 +170,14 @@ def smoothness(
 
     This loss penalises large or sudden changes in the input tensor. It is
     currently a thin wrapper around ``jax.numpy.diff``.
+
+    .. warning::
+
+        This function returns both positive and negative values, and so
+        should probably not be used with a scalarisation map like
+        ``mean_scalarise`` or ``sum_scalarise``. Instead, maps like
+        ``meansq_scalarise`` or ``vnorm_scalarise`` with either the ``p=1``
+        or ``p=inf`` options might be more appropriate.
     """
     # if pad_value == 'initial':
     #     axis = standard_axis_number(axis, X.ndim)
@@ -666,6 +674,10 @@ def document_equilibrium(func: Callable) -> Callable:
         data instance or weight channel, all elements along the specified axis
         or axes should correspond to a single level or parcel. The default is
         -1.
+    prob_axis: int or sequence of ints, optional
+        The axis or axes over which to compute the probabilities (logit version
+        only). The default is -2. In general the union of ``level_axis`` and
+        ``prob_axis`` should be the same as ``instance_axes``.
     instance_axes: int or sequence of ints, optional
         The axis or axes corresponding to a single data instance or weight
         channel. This should be a superset of `level_axis`. The default is
@@ -1094,9 +1106,9 @@ def compactness(
     X: Tensor,
     coor: Tensor,
     *,
-    radius: Optional[float] = 100.,
     norm: Union[int, float, Literal['inf']] = 2,
     floor: float = 0.,
+    radius: Optional[float] = 100.,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
