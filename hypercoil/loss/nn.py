@@ -91,6 +91,9 @@ class Loss(eqx.Module):
     ) -> float:
         return self.nu * self.loss(*pparams, key=key, **params)
 
+    def __repr__(self) -> str:
+        return f'[ν = {self.nu}]{self.name}'
+
 
 class ParameterisedLoss(Loss):
     params: MappingProxyType
@@ -846,7 +849,7 @@ class SecondMomentLoss(Loss):
         name: Optional[str] = None,
         *,
         standardise: bool = False,
-        skip_normalise: bool = True,
+        skip_normalise: bool = False,
         scalarisation: Optional[Callable] = None,
         key: Optional['jax.random.PRNGKey'] = None,
     ):
@@ -889,7 +892,7 @@ class SecondMomentCentredLoss(Loss):
         *,
         standardise_data: bool = False,
         standardise_mu: bool = False,
-        skip_normalise: bool = True,
+        skip_normalise: bool = False,
         scalarisation: Optional[Callable] = None,
         key: Optional['jax.random.PRNGKey'] = None,
     ):

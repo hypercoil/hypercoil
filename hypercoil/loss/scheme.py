@@ -5,10 +5,18 @@
 Module for additively applying a set of several losses or
 regularisations to a set of inputs.
 """
+import jax
 import equinox as eqx
+from collections import namedtuple
 from functools import partial
 from typing import Any, Callable, Tuple
-from ..engine.argument import UnpackingModelArgument as UnpackingLossArgument
+from ..engine.argument import (
+    ModelArgument as LossArgument,
+    UnpackingModelArgument as UnpackingLossArgument,
+)
+
+
+LossReturn = namedtuple('LossReturn', ('value', 'nu'))
 
 
 def unpack_or_noop(*pparams) -> Any:
@@ -21,10 +29,15 @@ def unpack_or_noop(*pparams) -> Any:
     return pparams
 
 
-def apply_and_evaluate(loss: Callable, applied: Any) -> Any:
+def apply_and_evaluate(
+    loss: Callable,
+    applied: Any,
+    *,
+    key: 'jax.random.PRNGKey'
+) -> Any:
     if isinstance(applied, UnpackingLossArgument):
-        return loss(**applied)
-    return loss(applied)
+        return loss(**applied, key=key)
+    return loss(applied, key=key)
 
 
 #TODO: add examples of how to use this.
@@ -48,6 +61,7 @@ class LossApply(eqx.Module):
     loss: Callable
     apply: Callable = unpack_or_noop
     name: str
+    nu: float
 
     def __init__(
         self,
@@ -57,17 +71,22 @@ class LossApply(eqx.Module):
         self.loss = loss
         self.apply = apply
         self.name = loss.name
+        self.nu = loss.nu
+
+    def __repr__(self):
+        return self.loss.__repr__()
 
     def __call__(
         self,
         *pparams,
+        key: 'jax.random.PRNGKey',
         **params
     ) -> float:
         """
         Evaluate the loss applied to the output of the ``apply`` operation.
         """
         applied = self.apply(*pparams, **params)
-        return apply_and_evaluate(self.loss, applied)
+        return apply_and_evaluate(self.loss, applied, key=key)
 
 
 class LossScheme(eqx.Module):
@@ -84,21 +103,42 @@ class LossScheme(eqx.Module):
     def __len__(self):
         return len(self.loss)
 
-    def __call__(self, *pparams, **params):
+    def __repr__(self) -> str:
+        import jax._src.pretty_printer as pp
+        from equinox.pretty_print import _nest, _comma_sep
+        indent = 2
+        #TODO: Right now, we're just hacking equinox's pretty printer here...
+        #      This is equinox's pretty printer for lists.
+        return pp.group(
+            pp.concat(
+                [
+                    pp.text("LossScheme("),
+                    _nest(
+                        indent, pp.join(_comma_sep,
+                        [pp._TextDoc(repr(loss)) for loss in self.loss])
+                    ),
+                    pp.brk(""),
+                    pp.text(")"),
+                ]
+            )
+        ).format()
+
+
+    def __call__(self, *pparams, key='jax.random.PRNGKey', **params):
         total_loss = 0
         all_items = {}
         applied = self.apply(*pparams, **params)
-        for f in self:
+        keys = jax.random.split(key, len(self))
+        for f, k in zip(self, keys):
             if isinstance(f, LossScheme):
-                acc, items = apply_and_evaluate(f, applied)
+                acc, items = apply_and_evaluate(f, applied, key=k)
             elif isinstance(f, LossApply) and isinstance(f.loss, LossScheme):
-                f = partial(f.loss, f.apply) # TODO: this doesn't work. not even close.
                 def f_(*pparams, **params):
                     return f.loss(f.apply(*pparams, **params))
-                acc, items = apply_and_evaluate(f_, applied)
+                acc, items = apply_and_evaluate(f_, applied, key=k)
             else:
-                acc = apply_and_evaluate(f, applied)
-                items = {f.name: acc}
+                acc = apply_and_evaluate(f, applied, key=k)
+                items = {f.name: LossReturn(acc, f.nu)}
             total_loss += acc
             all_items.update(items)
         return total_loss, all_items
