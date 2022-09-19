@@ -4,11 +4,17 @@
 """
 Synthesise data matching spectral and covariance properties of a reference.
 """
-import torch
-from ..data.functional import normalise
+import jax
+import jax.numpy as jnp
+from ..engine import Tensor
 
 
-def match_spectra(signal, reference, use_mean=False, frequencies=False):
+def match_spectra(
+    signal: Tensor,
+    reference: Tensor,
+    use_mean: bool = False,
+    frequencies: bool = False,
+) -> Tensor:
     """
     Rescale the frequency components of an input signal to match the
     amplitude spectrum of a reference signal.
@@ -40,18 +46,22 @@ def match_spectra(signal, reference, use_mean=False, frequencies=False):
         provided reference.
     """
     if not frequencies:
-        signal = torch.fft.rfft(signal)
-        reference = torch.fft.rfft(reference)
-    ampl_ref = reference.abs()
+        signal = jnp.fft.rfft(signal)
+        reference = jnp.fft.rfft(reference)
+    ampl_ref = jnp.abs(reference)
     if use_mean:
         ampl_ref = ampl_ref.mean(0)
     matched = signal * ampl_ref
-    ampl_matched = matched.abs()
+    ampl_matched = jnp.abs(matched)
     matched = matched * ampl_ref.mean() / ampl_matched.mean()
-    return torch.fft.irfft(matched)
+    return jnp.fft.irfft(matched)
 
 
-def match_covariance(signal, reference, cov=False):
+def match_covariance(
+    signal: Tensor,
+    reference: Tensor,
+    cov: bool = False,
+) -> Tensor:
     r"""
     Project a multivariate signal so that its covariance matches a reference
     covariance.
@@ -121,13 +131,17 @@ def match_covariance(signal, reference, cov=False):
         ``reference`` covariance.
     """
     if not cov:
-        reference = reference.cov()
-    L, Q = torch.linalg.eigh(reference)
-    L_sqrt = L.sqrt()
-    return Q @ (L_sqrt.unsqueeze(-1) * signal)
+        reference = jnp.cov(reference)
+    L, Q = jnp.linalg.eigh(reference)
+    L_sqrt = jnp.sqrt(L)
+    return Q @ (L_sqrt[..., None] * signal)
 
 
-def match_reference(signal, reference, use_mean=False):
+def match_reference(
+    signal: Tensor,
+    reference: Tensor,
+    use_mean: bool = False,
+) -> Tensor:
     """
     Match both the
     :func:`spectrum <match_spectra>` and
@@ -157,11 +171,16 @@ def match_reference(signal, reference, use_mean=False):
     :func:`match_cov_and_spectrum`
     """
     matched = match_spectra(signal, reference, use_mean=use_mean)
-    matched = normalise(matched)
+    matched = matched - matched.mean(-1, keepdims=True)
+    matched = matched / matched.std(-1, keepdims=True)
     return match_covariance(signal=matched, reference=reference)
 
 
-def match_cov_and_spectrum(signal, spectrum, cov):
+def match_cov_and_spectrum(
+    signal: Tensor,
+    spectrum: Tensor,
+    cov: Tensor,
+) -> Tensor:
     """
     Transform an input signal to match a given
     :func:`spectrum <match_spectra>` and
@@ -190,11 +209,12 @@ def match_cov_and_spectrum(signal, spectrum, cov):
     :func:`match_reference`
     """
     matched = match_spectra(
-        signal=torch.fft.rfft(signal),
+        signal=jnp.fft.rfft(signal),
         reference=spectrum,
         frequencies=True
     )
-    matched = normalise(matched)
+    matched = matched - matched.mean(-1, keepdims=True)
+    matched = matched / matched.std(-1, keepdims=True)
     return match_covariance(
         signal=matched,
         reference=cov,
@@ -202,7 +222,12 @@ def match_cov_and_spectrum(signal, spectrum, cov):
     )
 
 
-def synthesise_matched(reference, use_mean=False):
+def synthesise_matched(
+    reference: Tensor,
+    use_mean: bool = False,
+    *,
+    key: 'jax.random.PRNGKey',
+) -> Tensor:
     """
     Create a synthetic signal matched in spectrum and covariance to a
     reference.
@@ -236,7 +261,7 @@ def synthesise_matched(reference, use_mean=False):
     :func:`synthesise_from_cov_and_spectrum`
     :func:`match_reference`
     """
-    synth = torch.randn_like(reference)
+    synth = jax.random.normal(key=key, shape=reference.shape)
     return match_reference(
         signal=synth,
         reference=reference,
@@ -244,7 +269,12 @@ def synthesise_matched(reference, use_mean=False):
     )
 
 
-def synthesise_from_cov_and_spectrum(spectrum, cov, dtype=None, device=None):
+def synthesise_from_cov_and_spectrum(
+    spectrum: Tensor,
+    cov: Tensor,
+    *,
+    key: 'jax.random.PRNGKey',
+) -> Tensor:
     """
     Create a synthetic signal matched in spectrum and covariance to
     references.
@@ -279,9 +309,9 @@ def synthesise_from_cov_and_spectrum(spectrum, cov, dtype=None, device=None):
     :func:`synthesise_matched`
     :func:`match_cov_and_spectrum`
     """
-    n_ts = cov.size(-1)
-    n_obs = 2 * (spectrum.size(-1) - 1)
-    synth = torch.randn((n_ts, n_obs), dtype=dtype, device=device)
+    n_ts = cov.shape[-1]
+    n_obs = 2 * (spectrum.shape[-1] - 1)
+    synth = jax.random.normal(key=key, shape=(n_ts, n_obs))
     return match_cov_and_spectrum(
         signal=synth,
         spectrum=spectrum,

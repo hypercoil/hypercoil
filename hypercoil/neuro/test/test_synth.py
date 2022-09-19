@@ -6,8 +6,8 @@ Data synthesis
 ~~~~~~~~~~~~~~
 Test covariance- and spectrum-matched data synthesis.
 """
-import torch
-import pytest
+import jax
+import jax.numpy as jnp
 import pandas as pd
 import matplotlib.pyplot as plt
 from pkg_resources import resource_filename as pkgrf
@@ -30,15 +30,15 @@ def plot_results(ref, matched, orig=None, save=None):
     if isinstance(ref, tuple):
         ref_spec, ref_cov = ref
     else:
-        ref_spec = torch.fft.rfft(ref)
+        ref_spec = jnp.fft.rfft(ref)
         ref_cov = corr(ref)
     plt.figure()
     plt.title('Spectra')
     if orig is not None:
-        plt.plot(amplitude(torch.fft.rfft(orig)).mean(0))
+        plt.plot(amplitude(jnp.fft.rfft(orig)).mean(0))
     plt.plot(amplitude(ref_spec).mean(0), color='aqua')
     plt.plot(
-        amplitude(torch.fft.rfft(matched)).mean(0),
+        amplitude(jnp.fft.rfft(matched)).mean(0),
         color='red',
         alpha=0.5
     )
@@ -73,52 +73,57 @@ class TestSynthesis:
         'results/synthmatch'
     )
 
-    def get_reference(self, obj='ts', dtype=torch.float, device='cpu'):
+    def get_reference(self, obj='ts'):
         path = pkgrf(
             'hypercoil',
-            f'examples/synth-regts/atlas-schaefer400_desc-synth_{obj}.tsv'
+            'examples/synthetic/data/synth-regts/'
+            f'atlas-schaefer400_desc-synth_{obj}.tsv'
         )
         data = pd.read_csv(path, sep='\t', header=None).values.T
-        print(data.shape)
-        return torch.tensor(data, dtype=dtype, device=device)
+        return jnp.array(data)
 
     def test_match_ts(self):
         reference = self.get_reference()
-        synth = torch.randn_like(reference)
+        key = jax.random.PRNGKey(0)
+        synth = jax.random.normal(key=key, shape=reference.shape)
         matched = match_reference(
             signal=synth,
             reference=reference,
-            use_mean=True
+            use_mean=True,
         )
         plot_results(
             orig=synth,
             ref=reference,
             matched=matched,
-            save=f'{self.save_root}_tsmatch'
+            save=f'{self.save_root}_tsmatch',
         )
 
     def test_synth_ts(self):
         reference = self.get_reference()
+        key = jax.random.PRNGKey(0)
         matched = synthesise_matched(
-            reference=reference
+            reference=reference,
+            key=key,
         )
         plot_results(
             orig=None,
             ref=reference,
             matched=matched,
-            save=f'{self.save_root}_tssynth'
+            save=f'{self.save_root}_tssynth',
         )
 
     def test_synth_covspec(self):
-        reference_spec = self.get_reference('spec').t()
+        reference_spec = self.get_reference('spec').T
         reference_cov = self.get_reference('cov')
+        key = jax.random.PRNGKey(0)
         matched = synthesise_from_cov_and_spectrum(
             spectrum=reference_spec,
             cov=reference_cov,
+            key=key,
         )
         plot_results(
             orig=None,
             ref=(reference_spec, reference_cov),
             matched=matched,
-            save=f'{self.save_root}_covspecsynth'
+            save=f'{self.save_root}_covspecsynth',
         )
