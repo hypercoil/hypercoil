@@ -7,10 +7,15 @@ Atlas experiments
 ~~~~~~~~~~~~~~~~~
 Simple experiments on parcellated ground truth datasets.
 """
-import torch
-import numpy as np
+import jax
+import jax.numpy as jnp
+import optax
+import distrax
+import equinox as eqx
+from typing import Optional, Union
 from matplotlib.pyplot import close
-from hypercoil.synth.atlas import (
+from hypercoil.engine.paramutil import _to_jax_array
+from hypercoil.examples.synthetic.scripts.atlas import (
     hard_atlas_example,
     hard_atlas_homologue,
     soft_atlas_example,
@@ -18,71 +23,82 @@ from hypercoil.synth.atlas import (
     plot_atlas,
     plot_hierarchical,
     embed_data_in_atlas,
-    get_model_matrices
+    get_model_matrices,
 )
-from hypercoil.functional import sym2vec
-from hypercoil.loss import (
-    Compactness,
-    LogDetCorr,
-    Entropy,
-    Equilibrium,
-    SecondMoment,
+from hypercoil.functional import sym2vec, corr_kernel
+from hypercoil.init.base import DistributionInitialiser
+from hypercoil.loss.nn import (
+    MSELoss,
+    CompactnessLoss,
+    GramLogDeterminantLoss,
+    EntropyLoss,
+    EquilibriumLoss,
+    SecondMomentLoss,
+)
+from hypercoil.loss.scheme import (
     LossScheme,
     LossApply,
     LossArgument,
-    UnpackingLossArgument
+    UnpackingLossArgument,
 )
 from hypercoil.functional import corr
 from hypercoil.functional.sphere import euclidean_conv
+from hypercoil.init.mapparam import ProbabilitySimplexParameter
+from hypercoil.nn import AtlasLinear
 
 
 def atlas_experiment(
-    parcellation='hard',
-    homologue_parcellation=False,
-    max_epoch=10000,
-    lr=0.01,
-    log_interval=100,
-    seed=None,
-    supervised=False,
-    entropy_nu=0.5,
-    logdet_nu=0.1,
-    secondmoment_nu=1000,
-    compactness_nu=1,
-    equilibrium_nu=100,
-    compactness_floor=5,
-    save=None,
-    image_dim=25,
-    latent_dim=100,
-    time_dim=300,
-    parcel_count=9,
+    parcellation: str = 'hard',
+    homologue_parcellation: bool = False,
+    max_epoch: int = 10000,
+    lr: float = 0.01,
+    log_interval: int = 100,
+    supervised: bool = False,
+    entropy_nu: float = 0.5,
+    logdet_nu: float = 0.1,
+    secondmoment_nu: int = 1000,
+    compactness_nu: int = 1,
+    equilibrium_nu: int = 100,
+    compactness_floor: int = 5,
+    save: Optional[str] = None,
+    image_dim: int = 25,
+    latent_dim: int = 100,
+    time_dim: int = 300,
+    parcel_count: int = 9,
+    *,
+    key: Union['jax.random.PRNGKey', int],
 ):
+    if isinstance(key, int):
+        key = jax.random.PRNGKey(key)
     if parcellation == 'hard':
         A = hard_atlas_example(d=image_dim)
     elif parcellation == 'hard2':
         A = hard_atlas_homologue(d=image_dim)
         parcellation = 'hard'
     elif parcellation == 'soft':
-        A = soft_atlas_example(d=image_dim, c=parcel_count, seed=seed)
+        A = soft_atlas_example(d=image_dim, c=parcel_count, key=key)
     elif parcellation == 'hierarchical':
         X, A = hierarchical_atlas_example(
             d=image_dim,
-            seed=seed,
             t=time_dim,
-            latent_dim=latent_dim
+            latent_dim=latent_dim,
+            key=key,
         )
     else:
         raise ValueError(f'Unrecognised parcellation string: {parcellation}')
 
     if parcellation == 'hierarchical':
-        ts_reg = X.view(image_dim * image_dim, -1)
+        ts_reg = X.reshape((image_dim * image_dim, -1))
         ref, ts = None, ts_reg
     else:
+        key = jax.random.split(key, 1)[0]
         X, ts_reg = embed_data_in_atlas(
             A,
             parc=parcellation,
             t=time_dim,
             atlas_dim=parcel_count,
-            signal_dim=latent_dim
+            signal_dim=latent_dim,
+            key=key,
         )
         ref, ts = get_model_matrices(A, X, parc=parcellation)
 
@@ -93,7 +109,7 @@ def atlas_experiment(
             parc=parcellation,
             ts_reg=ts_reg,
             t=time_dim,
-            atlas_dim=parcel_count
+            atlas_dim=parcel_count,
         )
         refh, tsh = get_model_matrices(Ah, Xh)
         plot_atlas(
@@ -114,77 +130,120 @@ def atlas_experiment(
             saves=f'{save}soft-ref.png'
         )
 
+    if supervised:
+        Y = jnp.corrcoef(ts_reg)
+    else:
+        Y = None
 
-    Y = torch.FloatTensor(np.corrcoef(ts_reg))
-
-    ax_x = torch.arange(image_dim).view(1, -1).tile(image_dim, 1)
-    ax_y = torch.arange(image_dim).view(-1, 1).tile(1, image_dim)
-    coor = torch.stack((
-        ax_x.view(image_dim * image_dim),
-        ax_y.view(image_dim * image_dim)
+    ax_x = jnp.tile(jnp.arange(image_dim).reshape((1, -1)), (image_dim, 1))
+    ax_y = jnp.tile(jnp.arange(image_dim).reshape((-1, 1)), (1, image_dim))
+    coor = jnp.stack((
+        ax_x.reshape(image_dim * image_dim),
+        ax_y.reshape(image_dim * image_dim)
     ))
 
-
+    key_m = jax.random.split(key, 1)[0]
+    model = AtlasLinear(
+        n_labels={'all': parcel_count},
+        n_locations={'all': image_dim * image_dim},
+        key=key_m,
+        normalisation=None,
+    )
     if homologue_parcellation:
-        model = euclidean_conv(
-            ref.clone().transpose(-1, -2),
-            coor.transpose(-1, -2),
+        weight = euclidean_conv(
+            ref.copy().swapaxes(-1, -2),
+            coor.swapaxes(-1, -2),
             scale=3
-        ).transpose(-1, -2)
+        ).swapaxes(-1, -2)
+        model = eqx.tree_at(lambda m: m.weight['all'], model, weight)
         X = tsh
     else:
-        model = 0.1 * torch.rand(parcel_count, image_dim * image_dim)
+        model = DistributionInitialiser.init(
+            model,
+            distribution=distrax.Uniform(0, 1),
+            param_name='weight$all',
+            key=key_m)
         X = ts
-    model.requires_grad = True
+    model = ProbabilitySimplexParameter.map(
+        model, param_name='weight$all', axis=-2)
 
-    opt = torch.optim.Adam(params=[model], lr=lr)
-    loss = torch.nn.MSELoss()
+    opt = optax.adam(learning_rate=lr)
+    opt_state = opt.init(eqx.filter(model, eqx.is_inexact_array))
+    loss = MSELoss()
 
     reg = LossScheme([
         LossScheme([
-            Compactness(nu=compactness_nu,
-                        floor=compactness_floor,
-                        coor=coor),
-            Entropy(nu=entropy_nu, axis=-2),
-            Equilibrium(nu=equilibrium_nu),
+            CompactnessLoss(
+                nu=compactness_nu,
+                name='Compactness',
+                floor=compactness_floor,
+                coor=coor,
+                radius=None),
+            EntropyLoss(
+                nu=entropy_nu,
+                name='Entropy',
+                axis=-2),
+            EquilibriumLoss(nu=equilibrium_nu, name='Equilibrium'),
         ], apply=lambda arg: arg.model),
         LossApply(
-            SecondMoment(nu=secondmoment_nu, skip_normalise=True),
+            SecondMomentLoss(
+                nu=secondmoment_nu,
+                name='SecondMoment',
+                skip_normalise=True),
             apply=lambda arg: UnpackingLossArgument(
                 weight=arg.model,
-                data=arg.x
+                X=arg.x
             )
         ),
         LossApply(
-            LogDetCorr(nu=logdet_nu),
+            GramLogDeterminantLoss(
+                nu=logdet_nu,
+                name='LogDetCorr',
+                op=corr_kernel,
+                psi=1e-3,
+                xi=1e-3),
             apply=lambda arg: arg.y
         )
     ])
 
-
     losses = []
+
+    def forward(model, X, Y=None, *, key):
+        key_m, key_l = jax.random.split(key, 2)
+        ts_parc = model(X, key=key_m)
+        arg = LossArgument(
+            model=_to_jax_array(model.weight['all']),
+            x=X, y=ts_parc
+        )
+        loss_epoch = 0
+        loss_meta = {}
+        if Y is not None:
+            loss_epoch = loss(sym2vec(corr(ts_parc)), sym2vec(Y))
+            loss_meta = {loss.name: loss_epoch}
+        reg_epoch, reg_meta = reg(arg, key=key_l)
+        return loss_epoch + reg_epoch, {**loss_meta, **reg_meta}
 
 
     for epoch in range(max_epoch):
-        mnorm = torch.softmax(model, 0)
-        ts_parc = mnorm @ X
-        corrmat = corr(ts_parc)
-        arg = LossArgument(model=mnorm, x=X, y=ts_parc)
-        if epoch == 0:
-            print('Statistics at train start:')
-            reg(arg, verbose=True)
-        loss_epoch = 0
-        if supervised:
-            loss_epoch = loss(sym2vec(corr(ts_parc)), sym2vec(Y))
-        loss_epoch = loss_epoch + reg(arg)
-        loss_epoch.backward()
-        losses += [loss_epoch.detach().item()]
-        opt.step()
-        model.grad.zero_()
+        key = jax.random.split(key, 1)[0]
+        (total, meta), grad = eqx.filter_jit(eqx.filter_value_and_grad(
+            forward,
+            has_aux=True
+        ))(model, X, Y, key=key)
+        ts_parc = model(X, key=key_m)
+        losses += [total]
+        updates, opt_state = opt.update(
+            eqx.filter(grad, eqx.is_inexact_array),
+            opt_state,
+            eqx.filter(model, eqx.is_inexact_array),
+        )
+        model = eqx.apply_updates(model, updates)
+        if jnp.isinf(total) or jnp.isnan(total):
+            assert 0
         if epoch % log_interval == 0:
-            print(f'[ Epoch {epoch} | Loss {loss_epoch} ]')
+            print(f'[ Epoch {epoch} | Loss {total} ]')
             plot_atlas(
-                mnorm,
+                _to_jax_array(model.weight['all']),
                 d=image_dim,
                 c=parcel_count,
                 saveh=f'{save}hard-{epoch:08}.png',
@@ -194,7 +253,9 @@ def atlas_experiment(
 
 
 def main():
-    from hypercoil.synth.experiments.run import run_layer_experiments
+    from hypercoil.examples.synthetic.experiments.run import (
+        run_layer_experiments
+    )
     run_layer_experiments('atlas')
 
 

@@ -119,6 +119,10 @@ def spherical_geodesic(
     """
     if Y is None:
         Y = X
+    if X.shape[-1] != 3:
+        raise ValueError("X must have shape (*, N, 3)")
+    if Y.shape[-1] != 3:
+        raise ValueError("Y must have shape (*, N, 3)")
     X = X[..., None, :]
     Y = Y[..., None, :, :]
     X, Y = jnp.broadcast_arrays(X, Y)

@@ -209,6 +209,7 @@ def hierarchical_atlas_example(
         partition_step = int((partition_max + 1 - partition_min) / divide)
         start = partition_min
         for i in range(divide):
+            key_r = jax.random.split(key_r, 1)[0]
             new_init = jnp.zeros((d, d))
             end = start + partition_step
             if axis == 0:

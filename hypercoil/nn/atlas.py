@@ -256,6 +256,8 @@ class AtlasLinear(eqx.Module):
         ) = None,
         forward_mode: Optional[Literal['map', 'project']] = None,
         concatenate: Optional[bool] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         if normalisation is None: normalisation = self.normalisation
         if forward_mode is None: forward_mode = self.forward_mode

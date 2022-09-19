@@ -46,7 +46,6 @@ def synth_slow_signals(
         key=key, shape=(subject_dim, signal_dim, time_dim))
     sources_freq = rfft(sources, n=time_dim, axis=-1)
     freq_dim = time_dim // 2 + 1
-    #print(freq_dim, sources_freq.shape[-1])
     #assert(freq_dim == sources_freq.shape[-1])
     sources_freq = sources_freq.at[:, :, 0].set(0)
     sources_freq = sources_freq.at[:, :, (int(lp * freq_dim)):].set(0)

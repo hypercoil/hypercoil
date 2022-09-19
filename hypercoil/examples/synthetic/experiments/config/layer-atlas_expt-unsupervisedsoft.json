@@ -7,7 +7,7 @@
         "atlas", "parcellation", "spatial", "unsupervised",
         "soft", "overlap"
     ],
-    "notes" : [],
+    "notes" : ["The specified seed number is relatively easy for the model to learn, and it performs reasonably well. For a more challenging seed number, try 7."],
     "parameters" :{
         "lr" : 0.001,
         "max_epoch" : 10001,
@@ -19,6 +19,6 @@
         "compactness_nu" : 1,
         "compactness_floor" : 5,
         "equilibrium_nu" : 0,
-        "key" : 7
+        "key" : 13
     }
 }
