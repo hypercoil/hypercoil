@@ -19,6 +19,7 @@
         "secondmoment_nu" : 0.005,
         "compactness_nu" : 0,
         "equilibrium_nu" : 0,
-        "supervised" : true
+        "supervised" : true,
+        "key" : 11
     }
 }

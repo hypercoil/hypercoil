@@ -6,19 +6,23 @@ Signal mixture synthesis
 ~~~~~~~~~~~~~~~~~~~~~~~~
 Data synthesis using a linear signal mixture.
 """
-import numpy as np
-from scipy.fft import rfft, irfft
-from scipy.stats import poisson
+import jax
+import jax.numpy as jnp
+from typing import Optional
+from jax.numpy.fft import rfft, irfft
+from jax.scipy.stats import poisson
+from hypercoil.engine import Tensor
 
 
 def synth_slow_signals(
-        signal_dim=100,
-        time_dim=200,
-        subject_dim=1,
-        lp=0.3,
-        hp=0.0,
-        seed=None
-    ):
+    signal_dim: int = 100,
+    time_dim: int = 200,
+    subject_dim: int = 1,
+    lp: float = 0.3,
+    hp: float = 0.0,
+    *,
+    key: 'jax.random.PRNGKey',
+) -> Tensor:
     """
     Synthesise slow signals.
 
@@ -38,15 +42,15 @@ def synth_slow_signals(
     Returns a numpy array with shape:
     subject_dim x signal_dim x time_dim
     """
-    np.random.seed(seed)
-    sources = np.random.rand(subject_dim, signal_dim, time_dim)
+    sources = jax.random.uniform(
+        key=key, shape=(subject_dim, signal_dim, time_dim))
     sources_freq = rfft(sources, n=time_dim, axis=-1)
     freq_dim = time_dim // 2 + 1
     #print(freq_dim, sources_freq.shape[-1])
     #assert(freq_dim == sources_freq.shape[-1])
-    sources_freq[:, :, 0] = 0
-    sources_freq[:, :, (int(lp * freq_dim)):] = 0
-    sources_freq[:, :, :(int(hp * freq_dim))] = 0
+    sources_freq = sources_freq.at[:, :, 0].set(0)
+    sources_freq = sources_freq.at[:, :, (int(lp * freq_dim)):].set(0)
+    sources_freq = sources_freq.at[:, :, :(int(hp * freq_dim))].set(0)
     sources_filt = irfft(sources_freq, n=time_dim, axis=-1)
     return (
         (sources_filt.T - sources_filt.T.mean(0)) /
@@ -54,7 +58,13 @@ def synth_slow_signals(
     ).squeeze().T
 
 
-def mix_data_01(ts, mixture_dim=9, return_mix_matrix=False, seed=None):
+def mix_data_01(
+    ts: Tensor,
+    mixture_dim: int = 9,
+    return_mix_matrix: bool = False,
+    *,
+    key: 'jax.random.PRNGKey',
+) -> Tensor:
     """
     Simple linear mixture.
 
@@ -76,15 +86,20 @@ def mix_data_01(ts, mixture_dim=9, return_mix_matrix=False, seed=None):
         Indicates whether the mixture matrix should be returned
         in addition to the signal mixture.
     """
-    np.random.seed(seed)
     signal_dim = ts.shape[-2]
-    mix = np.random.randint(-1, 2, (mixture_dim, signal_dim))
+    mix = jax.random.randint(
+        key=key, minval=-1, maxval=2,
+        shape=(mixture_dim, signal_dim))
     if return_mix_matrix:
         return (mix @ ts), mix
     return mix @ ts
 
 
-def mix_card_probs_poisson_normalised(latent_dim, mu=1, loc=1):
+def mix_card_probs_poisson_normalised(
+    latent_dim: int,
+    mu: float = 1.,
+    loc:float = 1.,
+) -> Tensor:
     """
     Use when creating a linear mixture matrix that maps latent
     signals to observed signals. We call the number of latent
@@ -94,11 +109,17 @@ def mix_card_probs_poisson_normalised(latent_dim, mu=1, loc=1):
     Operationalise the probability distribution over possible
     cardinalities following a Poisson with the specified parameters.
     """
-    base = poisson.pmf(np.arange(latent_dim), mu=mu, loc=loc)
-    return base / base.sum()
+    base = poisson.pmf(jnp.arange(latent_dim), mu=mu, loc=loc)
+    return jnp.array(base / base.sum())
 
 
-def choose_mix_card(latent_dim, observed_dim, probs):
+def choose_mix_card(
+    latent_dim: int,
+    observed_dim: int,
+    probs: Tensor,
+    *,
+    key: 'jax.random.PRNGKey',
+) -> Tensor:
     """
     Use when creating a linear mixture matrix that maps latent
     signals to observed signals. We call the number of latent
@@ -109,14 +130,17 @@ def choose_mix_card(latent_dim, observed_dim, probs):
     signal cardinalities, sample a cardinality for each observed
     signal.
     """
-    return np.random.choice(latent_dim, size=(observed_dim,), p=probs)
+    return jax.random.choice(
+        key=key, a=latent_dim, shape=(observed_dim,), p=probs)
 
 
 def create_mixture_matrix(
-        observed_dim,
-        latent_dim,
-        mix_probs=None
-    ):
+    observed_dim: int,
+    latent_dim: int,
+    mix_probs: Optional[Tensor] = None,
+    *,
+    key: 'jax.random.PRNGKey',
+):
     """
     Create a linear mixture matrix that maps latent signals to
     observed signals.
@@ -140,20 +164,31 @@ def create_mixture_matrix(
         corresponding to 0 should always be 0, unless you have a specific
         reason otherwise.
     """
-    mask = np.zeros((observed_dim, latent_dim))
+    mask = jnp.zeros((observed_dim, latent_dim))
+    key_0, key_1, key_2 = jax.random.split(key, 3)
     mix_probs = mix_probs or mix_card_probs_poisson_normalised(
         latent_dim, mu=(max(1, latent_dim // 3))
     )
-    mix_card = choose_mix_card(latent_dim, observed_dim, mix_probs)
-    for i, n_signals in enumerate(mix_card):
-        idx = np.random.permutation(latent_dim)[:n_signals]
-        mask[i, idx] = 1
-    weights = np.random.randn(observed_dim, latent_dim)
+    mix_card = choose_mix_card(
+        latent_dim, observed_dim, mix_probs, key=key_0)
+    keys = jax.random.split(key_1, observed_dim)
+    for i, (n_signals, key) in enumerate(zip(mix_card, keys)):
+        idx = jax.random.permutation(key, latent_dim)[:n_signals]
+        mask = mask.at[i, idx].set(1)
+    weights = jax.random.normal(
+        key=key_2, shape=(observed_dim, latent_dim))
     state = mask * weights
-    return state / np.abs(state).sum(-1, keepdims=True)
+    return state / jnp.abs(state).sum(-1, keepdims=True)
 
 
-def mix_data(mixture, sources, local=None, local_scale=0.25):
+def mix_data(
+    mixture: Tensor,
+    sources: Tensor,
+    local: Optional[Tensor] = None,
+    local_scale: float = 0.25,
+    *,
+    key: 'jax.random.PRNGKey',
+) -> Tensor:
     """
     Apply the specified mixture matrix to linearly recombine the latent
     sources into a set of observed signals.
@@ -179,24 +214,26 @@ def mix_data(mixture, sources, local=None, local_scale=0.25):
     src_signals = mixture @ sources
     local_signals = 0
     if local is not None:
-        local_weights = local_scale * np.random.randn(*local.shape[:-1], 1)
+        local_weights = local_scale * jax.random.normal(
+            key=key, shape=(*local.shape[:-1], 1))
         local_signals = local_weights * local
     return src_signals + local_signals
 
 
 def synthesise_mixture(
-        time_dim=200,
-        observed_dim=9,
-        latent_dim=100,
-        subject_dim=1,
-        include_local=False,
-        local_scale=0.25,
-        lp=0.3,
-        hp=0.0,
-        seed=0,
-        mixture=None,
-        return_mix_matrix=False
-    ):
+    time_dim: int = 200,
+    observed_dim: int = 9,
+    latent_dim: int = 100,
+    subject_dim: int = 1,
+    include_local: bool = False,
+    local_scale: float = 0.25,
+    lp: float = 0.3,
+    hp: float = 0.0,
+    mixture: bool = None,
+    return_mix_matrix: bool = False,
+    *,
+    key: 'jax.random.PRNGKey',
+):
     """
     Synthesise data as a linear mixture.
 
@@ -227,38 +264,38 @@ def synthesise_mixture(
         Indicates whether the mixture matrix should be returned
         in addition to the signal mixture.
     """
-    np.random.seed(seed)
+    key_0, key_1, key_2, key_3 = jax.random.split(key, 4)
     sources = synth_slow_signals(
         signal_dim=latent_dim,
         time_dim=time_dim,
         subject_dim=subject_dim,
         lp=lp,
         hp=hp,
-        seed=seed
+        key=key_0,
     )
     if include_local:
-        localseed = seed
-        if localseed is not None: localseed += 1
         local = synth_slow_signals(
             signal_dim=observed_dim,
             time_dim=time_dim,
             subject_dim=subject_dim,
             lp=lp,
             hp=hp,
-            seed=localseed
+            key=key_1,
         )
     else:
         local = None
     if mixture is None:
         mixture = create_mixture_matrix(
             observed_dim=observed_dim,
-            latent_dim=latent_dim
+            latent_dim=latent_dim,
+            key=key_2,
         )
     signals = mix_data(
         mixture=mixture,
         sources=sources,
         local=local,
-        local_scale=local_scale
+        local_scale=local_scale,
+        key=key_3,
     )
     if return_mix_matrix:
         return signals, mixture

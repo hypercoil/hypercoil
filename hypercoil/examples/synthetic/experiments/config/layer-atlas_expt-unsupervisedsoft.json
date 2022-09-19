@@ -19,6 +19,6 @@
         "compactness_nu" : 1,
         "compactness_floor" : 5,
         "equilibrium_nu" : 0,
-        "seed" : 7
+        "key" : 7
     }
 }

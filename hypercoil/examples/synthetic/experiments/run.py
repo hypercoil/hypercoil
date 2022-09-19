@@ -18,14 +18,15 @@ from importlib import import_module
 
 def run_experiment(layer, expt, index=None):
     experiments = (
-        f'{os.path.dirname(hypercoil.__file__)}/synth/experiments/config'
+        f'{os.path.dirname(hypercoil.__file__)}/'
+        'examples/synthetic/experiments/config'
     )
     experiment = f'{experiments}/layer-{layer}_expt-{expt}.json'
 
     with open(experiment) as json_file:
         experiment = json.load(json_file)
 
-    function = (f'hypercoil.synth.experiments.'
+    function = (f'hypercoil.examples.synthetic.experiments.'
                 f'{experiment["layer"]}.{experiment["type"]}')
     mname, fname = function.rsplit('.', 1)
     module = import_module(mname)
@@ -53,7 +54,8 @@ def run_experiment(layer, expt, index=None):
 
 def run_layer_experiments(layer):
     exptdir = (
-        f'{os.path.dirname(hypercoil.__file__)}/synth/experiments/config'
+        f'{os.path.dirname(hypercoil.__file__)}'
+        '/examples/synthetic/experiments/config'
     )
     experiments = glob.glob(f'{exptdir}/layer-{layer}*.json')
     for i, experiment in enumerate(experiments):

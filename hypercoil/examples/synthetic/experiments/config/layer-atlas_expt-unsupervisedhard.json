@@ -17,6 +17,7 @@
         "logdet_nu" : 0.02,
         "secondmoment_nu" : 0.005,
         "compactness_nu" : 0,
-        "equilibrium_nu" : 0
+        "equilibrium_nu" : 0,
+        "key": 11
     }
 }
