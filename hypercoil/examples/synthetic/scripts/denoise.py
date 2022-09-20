@@ -6,9 +6,12 @@ Denoising synthesis
 ~~~~~~~~~~~~~~~~~~~
 Synthesise some simple ground truth datasets to test denoising.
 """
-import numpy as np
+import jax
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from typing import Optional, Tuple
 
+from hypercoil.engine.paramutil import PyTree, Tensor, _to_jax_array
 from .mix import (
     synth_slow_signals,
     synthesise_mixture
@@ -16,20 +19,21 @@ from .mix import (
 
 
 def synthesise_artefact(
-    time_dim=1000,
-    observed_dim=20,
-    latent_dim=30,
-    subject_dim=100,
-    correlated_artefact=False,
-    seed=None,
-    lp=0.3,
-    jitter=(0.1, 0.5, 1.5),
-    include=(1, 1, 1),
-    spatial_heterogeneity=False,
-    subject_heterogeneity=False,
-    noise_scale=2
+    time_dim: int = 1000,
+    observed_dim: int = 20,
+    latent_dim: int = 30,
+    subject_dim: int = 100,
+    correlated_artefact: bool = False,
+    lp: float = 0.3,
+    jitter: Tuple[float, float, float] = (0.1, 0.5, 1.5),
+    include: Tuple[float, float, float] = (1., 1., 1.),
+    spatial_heterogeneity: bool = False,
+    subject_heterogeneity: bool = False,
+    noise_scale: int = 2,
+    *,
+    key: 'jax.random.PRNGKey' = None,
 ):
-    np.random.seed(seed)
+    key_a, key_j, key_b = jax.random.split(key, 3)
     if correlated_artefact:
         N = synthesise_mixture(
             time_dim=time_dim,
@@ -37,7 +41,7 @@ def synthesise_artefact(
             latent_dim=latent_dim,
             subject_dim=subject_dim,
             lp=lp,
-            seed=seed
+            key=key_a
         )
     else:
         N = synth_slow_signals(
@@ -45,20 +49,21 @@ def synthesise_artefact(
             time_dim=time_dim,
             subject_dim=subject_dim,
             lp=lp,
-            seed=seed
+            key=key_a
         )
 
-    noise_level = np.linspace(0, 1, subject_dim)
+    key_j0, key_j1, key_j2 = jax.random.split(key_j, 3)
+    noise_level = jnp.linspace(0, 1, subject_dim)
     jitter = (
-        jitter[0] * np.random.randn(subject_dim),
-        jitter[1] * np.random.randn(subject_dim),
-        jitter[2] * np.random.randn(subject_dim)
+        jitter[0] * jax.random.normal(key_j0, (subject_dim,)),
+        jitter[1] * jax.random.normal(key_j1, (subject_dim,)),
+        jitter[2] * jax.random.normal(key_j2, (subject_dim,)),
     )
 
     artefact_corrs = (
-        np.corrcoef(noise_level, noise_level + jitter[0])[1, 0],
-        np.corrcoef(noise_level, noise_level + jitter[1])[1, 0],
-        np.corrcoef(noise_level, noise_level + jitter[2])[1, 0],
+        jnp.corrcoef(noise_level, noise_level + jitter[0])[1, 0],
+        jnp.corrcoef(noise_level, noise_level + jitter[1])[1, 0],
+        jnp.corrcoef(noise_level, noise_level + jitter[2])[1, 0],
     )
     print(f'Artefacts synthesised with approx. '
           f'noise level correlations {artefact_corrs}')
@@ -78,7 +83,7 @@ def synthesise_artefact(
     if not subject_heterogeneity and not spatial_heterogeneity:
         betas = 1
     else:
-        betas = np.random.rand(subj, space, 1)
+        betas = jax.random.uniform(key_b, (subj, space, 1))
     return (
         N,
         noise_scale * betas * artefacts.reshape(subject_dim, 1, time_dim),
@@ -86,13 +91,18 @@ def synthesise_artefact(
     )
 
 
-def plot_all(X, n_subj=100, cor=True, save=None):
-    n_sqrt = int(np.ceil(np.sqrt(n_subj)))
+def plot_all(
+    X: Tensor,
+    n_subj: int = 100,
+    cor: bool = True,
+    save: Optional[str] = None,
+):
+    n_sqrt = int(jnp.ceil(jnp.sqrt(n_subj)))
     plt.figure(figsize=(n_sqrt, n_sqrt))
     for i in range(n_subj):
         cur = X[i]
         if not cor:
-            cur = np.corrcoef(cur)
+            cur = jnp.corrcoef(cur)
         plt.subplot(n_sqrt, n_sqrt, i + 1)
         plt.imshow(cur, cmap='coolwarm', vmin=-0.5, vmax=0.5)
         plt.xticks([])
@@ -101,9 +111,9 @@ def plot_all(X, n_subj=100, cor=True, save=None):
         plt.savefig(save, bbox_inches='tight')
 
 
-def plot_select(select, save=None):
+def plot_select(model: PyTree, save: Optional[str] = None):
     plt.figure(figsize=(10, 1))
-    plt.imshow(select.postweight.detach().t().numpy(), cmap='bone', vmin=0)
+    plt.imshow(_to_jax_array(model.weight).T, cmap='bone', vmin=0)
     plt.xticks([])
     plt.yticks([])
     if save:
@@ -111,18 +121,18 @@ def plot_select(select, save=None):
 
 
 def plot_norm_reduction(w, save=None):
-    W = w.t().detach().numpy()
+    W = w.T
     n_confounds = w.shape[-1]
-    I = np.eye(n_confounds)
-    theta, _, _, _ = np.linalg.lstsq(W, I)
+    I = jnp.eye(n_confounds)
+    theta, _, _, _ = jnp.linalg.lstsq(W, I)
     residual = (I - (W @ theta))
 
     plt.figure(figsize=(6, 6))
     plt.bar(
-        np.arange(20),
+        jnp.arange(20),
         (
-            np.linalg.norm(I, axis=1) -
-            np.linalg.norm(residual, axis=1)
+            jnp.linalg.norm(I, axis=1) -
+            jnp.linalg.norm(residual, axis=1)
         ),
         color='black'
     )

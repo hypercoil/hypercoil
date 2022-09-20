@@ -303,6 +303,13 @@ class EliminationSelector(eqx.Module):
     Begin with a full complement of model vectors, then eliminate them by
     placing an L1 penalty on the weight of this layer.
 
+    .. danger::
+
+        Do not use this model! It once performed well as a fluke of
+        initialisation, but testing it across multiple random seeds has shown
+        that it is not a good model. It is included here as part of the
+        synthetic data experiments, but should not be used in practice.
+
     The internal weights of this module are passed through a parameterised
     sigmoid function and then thresholded at 0. Any variables corresponding
     to a 0 weight are eliminated in the forward pass.
@@ -385,6 +392,7 @@ class EliminationSelector(eqx.Module):
         key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight = _to_jax_array(self.weight)
+        weight = jnp.maximum(weight, 0)
         weight = weight.sum(-3).prod(-2)
         weight = weight[..., None]
         return weight * x
