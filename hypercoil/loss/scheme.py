@@ -71,7 +71,10 @@ class LossApply(eqx.Module):
         self.loss = loss
         self.apply = apply
         self.name = loss.name
-        self.nu = loss.nu
+        try:
+            self.nu = loss.nu
+        except AttributeError:
+            self.nu = None
 
     def __repr__(self):
         return self.loss.__repr__()
@@ -133,8 +136,8 @@ class LossScheme(eqx.Module):
             if isinstance(f, LossScheme):
                 acc, items = apply_and_evaluate(f, applied, key=k)
             elif isinstance(f, LossApply) and isinstance(f.loss, LossScheme):
-                def f_(*pparams, **params):
-                    return f.loss(f.apply(*pparams, **params))
+                def f_(*pparams, key: 'jax.random.PRNGKey', **params):
+                    return f.loss(f.apply(*pparams, **params), key=key)
                 acc, items = apply_and_evaluate(f_, applied, key=k)
             else:
                 acc = apply_and_evaluate(f, applied, key=k)

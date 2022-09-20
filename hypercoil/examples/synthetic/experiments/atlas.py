@@ -39,6 +39,7 @@ from hypercoil.loss.scheme import (
     LossScheme,
     LossApply,
     LossArgument,
+    LossReturn,
     UnpackingLossArgument,
 )
 from hypercoil.functional import corr
@@ -219,7 +220,7 @@ def atlas_experiment(
         loss_meta = {}
         if Y is not None:
             loss_epoch = loss(sym2vec(corr(ts_parc)), sym2vec(Y))
-            loss_meta = {loss.name: loss_epoch}
+            loss_meta = {loss.name: LossReturn(value=loss_epoch, nu=loss.nu)}
         reg_epoch, reg_meta = reg(arg, key=key_l)
         return loss_epoch + reg_epoch, {**loss_meta, **reg_meta}
 
@@ -230,7 +231,6 @@ def atlas_experiment(
             forward,
             has_aux=True
         ))(model, X, Y, key=key)
-        ts_parc = model(X, key=key_m)
         losses += [total]
         updates, opt_state = opt.update(
             eqx.filter(grad, eqx.is_inexact_array),
@@ -247,7 +247,7 @@ def atlas_experiment(
                 d=image_dim,
                 c=parcel_count,
                 saveh=f'{save}hard-{epoch:08}.png',
-                saves=f'{save}soft-{epoch:08}.png'
+                saves=f'{save}soft-{epoch:08}.png',
             )
             close('all')
 

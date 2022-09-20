@@ -7,37 +7,51 @@ Frequency product experiments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Simple experiments using the frequency product module.
 """
-import torch
-import numpy as np
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+import distrax
+import optax
+from functools import partial
+from typing import Callable, List, Optional
 from matplotlib.pyplot import close
-from hypercoil.init import FreqFilterSpec
-from hypercoil.functional import corr, complex_decompose
-from hypercoil.init.domain import (
-    Identity,
-    AmplitudeMultiLogit
+from hypercoil.engine.noise import (
+    ScalarIIDMulStochasticTransform,
+    StochasticParameter,
 )
-from hypercoil.engine.noise import UnstructuredDropoutSource
+from hypercoil.engine.paramutil import PyTree, Tensor, _to_jax_array
+from hypercoil.functional import corr, complex_decompose, linear_distance, sym2vec
+from hypercoil.init import FreqFilterSpec
+from hypercoil.init.base import DistributionInitialiser
+from hypercoil.init.mapparam import ProbabilitySimplexParameter
 from hypercoil.nn import (
     FrequencyDomainFilter,
-    UnaryCovarianceUW
+    UnaryCovarianceUW,
 )
-from hypercoil.loss import (
+from hypercoil.loss.scalarise import meansq_scalarise, vnorm_scalarise, max_scalarise
+from hypercoil.loss.scheme import (
     LossScheme,
     LossApply,
     LossArgument,
-    Entropy,
-    MultivariateKurtosis,
-    NormedLoss,
-    SmoothnessPenalty,
-    SymmetricBimodalNorm
 )
-from hypercoil.synth.filter import (
+from hypercoil.loss.nn import (
+    DispersionLoss,
+    MSELoss,
+    NormedLoss,
+    EntropyLoss,
+    MultivariateKurtosis,
+    SmoothnessLoss,
+    BimodalSymmetricLoss,
+)
+from hypercoil.examples.synthetic.scripts.filter import (
     synthesise_across_bands,
     plot_frequency_partition,
     plot_mvkurtosis
 )
-from hypercoil.synth.mix import synthesise_mixture
-from hypercoil.synth.experiments.overfit_plot import overfit_and_plot_progress
+from hypercoil.examples.synthetic.scripts.mix import synthesise_mixture
+from hypercoil.examples.synthetic.experiments.overfit_plot import (
+    overfit_and_plot_progress
+)
 
 
 DEFAULT_BANDS = (
@@ -55,94 +69,130 @@ def amplitude(model):
     Accessory functions for use by regularisers, so that they can operate
     specifically on the amplitude of the filter's response curve.
     """
-    ampl, phase = complex_decompose(model[0].weight)
+    ampl, phase = complex_decompose(_to_jax_array(model.filter.weight))
     return ampl
 
 
 def frequency_band_identification_experiment(
-    lr=5e-3,
-    seed=None,
-    max_epoch=300,
-    latent_dim=7,
-    observed_dim=100,
-    time_dim=1000,
-    smoothness_nu=0.2,
-    symbimodal_nu=0.05,
-    l2_nu=0.015,
-    entropy_nu=0.1,
-    test_band=0,
-    log_interval=5,
-    supervised=True,
-    save=None
+    lr: float = 5e-3,
+    max_epoch: int = 300,
+    latent_dim: int = 7,
+    observed_dim: int = 100,
+    time_dim: int = 1000,
+    smoothness_nu: float = 0.2,
+    symbimodal_nu: float = 0.05,
+    dispersion_nu: float = 0.05,
+    l2_nu: float = 0.015,
+    entropy_nu: float = 0.1,
+    test_band: int = 0,
+    log_interval: int = 5,
+    supervised: bool = True,
+    save: Optional[str] = None,
+    *,
+    key: int,
 ):
-    if seed is not None: torch.manual_seed(seed)
-    np.random.seed(seed)
+    key = jax.random.PRNGKey(key)
+    key_d, key_n, key_m, key_l = jax.random.split(key, 4)
     X, Y, target = synthesise_across_bands(
         bands=DEFAULT_BANDS,
         latent_dim=latent_dim,
         observed_dim=observed_dim,
-        seed=seed
+        key=key_d
     )
-    max_tol_score = np.sqrt(.01 * time_dim)
+    max_tol_score = jnp.sqrt(.01 * time_dim)
     freq_dim = time_dim // 2 + 1
 
     survival_prob=0.2
-    drop = UnstructuredDropoutSource(
-        distr=torch.distributions.Bernoulli(survival_prob),
-        training=True
+    dropout = ScalarIIDMulStochasticTransform(
+        distribution=distrax.Bernoulli(probs=survival_prob),
+        inference=False,
+        key=key_n
     )
 
     if supervised:
         target = FreqFilterSpec(Wn=target[test_band], ftype='ideal')
-        filter_specs = [FreqFilterSpec(
-            Wn=None, ftype='randn', btype=None, # clamps = [{0: 0}]
-            ampl_scale=0.01, phase_scale=0.01
-        )]
         fftfilter = FrequencyDomainFilter(
-            dim=freq_dim,
-            filter_specs=filter_specs,
-            domain=Identity()
+            freq_dim=freq_dim,
+            num_channels=1,
+            key=key_m
+        )
+        # Without this initialisation, our gradient catastrophically explodes!
+        # No idea why this is the case, but it's a good reminder that
+        # initialisation is important! (Thanks copilot!)
+        #
+        # I've gone ahead and made this (0 phase) the default initialisation
+        # for FrequencyDomainFilter. There's a good chance it's not always a
+        # good idea, but it's a decent starting point.
+        fftfilter = DistributionInitialiser.init(
+            fftfilter, distribution=distrax.Normal(0.5, 0.01), key=key_m,
         )
     else:
         target = [FreqFilterSpec(
             Wn=target[i], ftype='ideal')
             for i in range(N_BANDS)]
-        filter_specs = [FreqFilterSpec(
-            Wn=None, ftype='randn', btype=None, # clamps = [{0: 0}]
-            ampl_scale=0.01, phase_scale=0.01
-        ) for _ in range(N_BANDS + 1)]
-        #TODO: When the ANOML domain is working, we should use that here
-        # instead.
         fftfilter = FrequencyDomainFilter(
-            dim=freq_dim,
-            filter_specs=filter_specs,
-            domain=AmplitudeMultiLogit(axis=0)
+            freq_dim=freq_dim,
+            num_channels=(N_BANDS + 1),
+            key=key_m
         )
+        fftfilter = DistributionInitialiser.init(
+            fftfilter, distribution=distrax.Normal(0.5, 0.01), key=key_m,
+        )
+        fftfilter = ProbabilitySimplexParameter.map(
+            fftfilter, axis=0, param_name='weight')
 
-    model = torch.nn.Sequential(
-        fftfilter,
-        UnaryCovarianceUW(
-            dim=time_dim,
+    class FFTSeq(eqx.Module):
+        filter: PyTree
+        cov: PyTree
+        weight: Optional[Tensor] = None
+
+        def __call__(
+            self,
+            X: Tensor,
+            *,
+            key: Optional['jax.random.PRNGKey'] = None,
+        ) -> Tensor:
+            key_f, key_c = jax.random.split(key)
+            Y = self.filter(X, key=key_f)
+            weight = self.weight
+            if weight is not None:
+                weight = jax.lax.stop_gradient(_to_jax_array(weight))
+            return self.cov(Y, weight=weight, key=key_c)
+
+    model = FFTSeq(
+        filter=fftfilter,
+        cov=UnaryCovarianceUW(
             estimator=corr,
-            dropout=drop
-        )
+            dim=time_dim),
+        weight=jnp.ones((1, time_dim)),
     )
+    model = StochasticParameter.wrap(
+        model, param_name='weight', transform=dropout)
 
-    X = torch.Tensor(X)
-    Y = torch.Tensor(Y[test_band])
+    Y = Y[test_band]
 
     # SGD tends to get stuck in worse minima here
-    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    #opt = optax.sgd(learning_rate=lr)
+    opt = optax.adam(learning_rate=lr)
+    opt_state = opt.init(eqx.filter(model, eqx.is_inexact_array))
+
     if supervised:
-        loss = torch.nn.MSELoss()
+        loss = MSELoss()
         reg = LossScheme([
-            SmoothnessPenalty(nu=smoothness_nu),
-            SymmetricBimodalNorm(nu=symbimodal_nu),
-            NormedLoss(nu=l2_nu)
+            SmoothnessLoss(
+                name='Smoothness',
+                nu=smoothness_nu,
+                scalarisation=vnorm_scalarise,),
+            BimodalSymmetricLoss(
+                name='BimodalSymmetric',
+                nu=symbimodal_nu,
+                scalarisation=vnorm_scalarise,),
+            NormedLoss(
+                name='L2',
+                nu=l2_nu),
         ], apply=lambda model: amplitude(model))
-        target.initialise_spectrum(
-            model[0].dim, domain=Identity())
-        target = target.spectrum.T
+        spectrum = target.initialise_spectrum(worN=model.filter.dim, key=key_m)
+        target = spectrum.T
 
         #TODO: investigate further --
         # Phase reg doesn't seem to work . . .
@@ -151,13 +201,14 @@ def frequency_band_identification_experiment(
         # up the amplitude structure
 
         overfit_and_plot_progress(
-            out_fig=save, model=model, optim=opt, reg=reg, loss=loss,
-            max_epoch=max_epoch, X=X, Y=Y, target=target, seed=seed,
-            log_interval=log_interval, plot=amplitude
+            out_fig=save, model=model, optim_state=opt_state, optim=opt,
+            reg=reg, loss=loss, max_epoch=max_epoch,
+            X=X, Y=Y, target=target,
+            log_interval=log_interval, plot=amplitude, key=key_l,
         )
 
-        ampl, _ = complex_decompose(model[0].weight)
-        target = torch.Tensor(target).squeeze()
+        ampl, _ = complex_decompose(model.filter.weight)
+        target = target.squeeze()
         solution = ampl.squeeze()
         score = loss(target, solution)
         # This is the score if every guess were exactly 0.1 from the target.
@@ -165,75 +216,117 @@ def frequency_band_identification_experiment(
         assert(score < max_tol_score)
     else:
         loss = LossScheme([
-            LossApply(
-                loss=LossScheme([
-                    SmoothnessPenalty(nu=smoothness_nu),
-                    Entropy(nu=entropy_nu)
-                ]),
-                apply = lambda arg: amplitude(arg.model)
-            ),
-            LossApply(
-                loss=SymmetricBimodalNorm(nu=symbimodal_nu, modes=(-1, 1)),
-                apply = lambda arg: arg.corr
-            )
+            LossScheme([
+                SmoothnessLoss(
+                    name='Smoothness',
+                    nu=smoothness_nu,
+                    scalarisation=partial(vnorm_scalarise, p=2, axis=-1),
+                    axis=-1),
+                EntropyLoss(
+                    name='Entropy',
+                    nu=entropy_nu,
+                    axis=0)
+            ],
+            apply = lambda arg: amplitude(arg.model)),
+            LossScheme([
+                BimodalSymmetricLoss(
+                    name='BimodalSymmetric',
+                    nu=symbimodal_nu,
+                    scalarisation=meansq_scalarise,
+                    modes=(-1, 1)),
+                DispersionLoss(
+                    name='Dispersion',
+                    nu=dispersion_nu,
+                    scalarisation=max_scalarise,
+                    metric=linear_distance)
+            ], apply = lambda arg: sym2vec(arg.corr).T),
         ])
-        for t in target:
-            t.initialise_spectrum(model[0].dim, domain=Identity())
-        target = [t.spectrum.T for t in target]
+        spectrum = [t.initialise_spectrum(worN=model.filter.dim, key=key_m)
+                    for t in target]
+        target = [s.T for s in spectrum]
         frequency_band_partition_experiment(
             model=model,
             opt=opt,
+            opt_state=opt_state,
             loss=loss,
             max_epoch=max_epoch,
             X=X,
             target=target,
             log_interval=log_interval,
-            save=save
+            save=save,
+            key=key_l,
         )
-        return
 
 
 def frequency_band_partition_experiment(
-    model, opt, loss, max_epoch, X, target, log_interval, save
+    model: PyTree,
+    opt: 'optax.GradientTransformation',
+    opt_state: PyTree,
+    loss: Callable,
+    max_epoch: int,
+    X: Tensor,
+    target: List[Tensor],
+    log_interval: int,
+    save: Optional[str] = None,
+    *,
+    key: 'jax.random.PRNGKey',
 ):
+    def forward(
+        model: PyTree,
+        X: Tensor,
+        loss: Callable,
+        key: 'jax.random.PRNGKey'
+    ):
+        key_m, key_l = jax.random.split(key)
+        corr = model(X, key=key_m)[:-1]
+        arg = LossArgument(model=model, X=X, corr=corr)
+        loss_epoch, meta = loss(arg, key=key_l)
+        return loss_epoch, meta
+
     losses = []
     for epoch in range(max_epoch):
-        corr = model(X)[:-1]
-        arg = LossArgument(model=model, X=X, corr=corr)
-        if epoch == 0:
-            print('Statistics at train start:')
-            loss(arg, verbose=True)
-        loss_epoch = loss(arg)
-        loss_epoch.backward()
-        losses += [loss_epoch.detach().item()]
-        opt.step()
-        model.zero_grad()
+        key = jax.random.split(key, 1)[0]
+        (loss_epoch, meta), grad = eqx.filter_jit(eqx.filter_value_and_grad(
+            forward, has_aux=True
+        ))(model, X, loss, key=key)
+        # for k, v in meta.items():
+        #     print(f'{k}: {v.value:.4f}')
+        losses += [loss_epoch.item()]
+        updates, opt_state = opt.update(
+            eqx.filter(grad, eqx.is_inexact_array),
+            opt_state,
+            eqx.filter(model, eqx.is_inexact_array),
+        )
+        model = eqx.apply_updates(model, updates)
         if epoch % log_interval == 0:
             print(f'[ Epoch {epoch} | Loss {loss_epoch} ]')
             plot_frequency_partition(
                 bands=DEFAULT_BANDS,
-                filter=model[0],
+                filter=model.filter,
                 save=f'{save}-{epoch:08}.png'
             )
             close('all')
 
 
 def dynamic_band_identification_experiment(
-    lr=1e-3,
-    seed=None,
-    max_epoch=2501,
-    latent_dim=10,
-    observed_dim=50,
-    time_dim=1000,
-    n_switches=20,
-    mvkurtosis_nu=0.001,
-    smoothness_nu=0.2,
-    symbimodal_nu=0.05,
-    l2_nu=0.25,
-    mvkurtosis_l2=0.01,
-    log_interval=100,
-    save=None
+    lr: float = 1e-3,
+    max_epoch: int = 2501,
+    latent_dim: int = 10,
+    observed_dim: int = 50,
+    time_dim: int = 1000,
+    n_switches: int = 20,
+    mvkurtosis_nu: float = 0.001,
+    smoothness_nu: float = 0.2,
+    symbimodal_nu: float = 0.05,
+    l2_nu: float = 0.25,
+    mvkurtosis_l2: float = 0.01,
+    log_interval: int = 100,
+    save: Optional[str] = None,
+    *,
+    key: int,
 ):
+    key = jax.random.PRNGKey(key)
+    key_b, key_s, key_m, key_l = jax.random.split(key, 4)
     assert (time_dim / n_switches == time_dim // n_switches)
 
     def amplitude(weight):
@@ -241,82 +334,98 @@ def dynamic_band_identification_experiment(
         Accessory function for use by regularisers, so that they can operate
         specifically on the amplitude of the filter's response curve.
         """
-        ampl, phase = complex_decompose(weight)
+        # Or, we could just use the absolute value . . .
+        ampl, phase = complex_decompose(_to_jax_array(weight))
         return ampl
 
     bands = [(0.1, 0.2), (0.2, 0.3), (0.4, 0.5), (0.5, 0.6)]
-    if seed is not None:
-        seeds = [seed + i for i in range(len(bands))]
-    else:
-        seeds = [None for _ in bands]
-    seed_offset = len(bands)
+    keys = jax.random.split(key_b, len(bands))
     bands = [synthesise_mixture(
         observed_dim=observed_dim,
         latent_dim=latent_dim,
         time_dim=time_dim,
         lp=lp,
         hp=hp,
-        seed=s
-    ) for s, (hp, lp) in zip(seeds, bands)]
+        key=k,
+    ) for k, (hp, lp) in zip(keys, bands)]
 
-    if seed is not None:
-        seeds = [seed + i + seed_offset for i in range(n_switches)]
-    else:
-        seeds = [None for _ in range(n_switches)]
+    keys = jax.random.split(key_s, n_switches)
     dynamic_band = [synthesise_mixture(
         observed_dim=observed_dim,
         latent_dim=latent_dim,
         time_dim=(time_dim // n_switches),
         lp=0.4,
         hp=0.3,
-        seed=s
-    ) for s in seeds]
-    dynamic_band = np.concatenate(dynamic_band, -1)
+        key=k,
+    ) for k in keys]
+    dynamic_band = jnp.concatenate(dynamic_band, -1)
 
     signal = sum(bands) + dynamic_band
     signal = signal - signal.mean(-1, keepdims=True)
     signal = signal / signal.std(-1, keepdims=True)
 
     freq_dim = time_dim // 2 + 1
-    filter_specs = [FreqFilterSpec(
-        Wn=None, ftype='randn', btype=None,
-        ampl_scale=0.01, phase_scale=0.01
-    )]
     fftfilter = FrequencyDomainFilter(
-        dim=freq_dim,
-        filter_specs=filter_specs,
-        domain=Identity()
+        freq_dim=freq_dim,
+        num_channels=1,
+        key=key_m,
     )
 
     loss = LossScheme([
         LossApply(
-            MultivariateKurtosis(nu=mvkurtosis_nu, l2=mvkurtosis_l2),
+            MultivariateKurtosis(
+                name='MultivariateKurtosis',
+                nu=mvkurtosis_nu,
+                l2=mvkurtosis_l2,),
             apply=lambda arg: arg.ts_filtered
         ),
         LossScheme([
-            SmoothnessPenalty(nu=smoothness_nu),
-            SymmetricBimodalNorm(nu=symbimodal_nu),
-            NormedLoss(nu=l2_nu)
+            SmoothnessLoss(
+                name='Smoothness',
+                nu=smoothness_nu,
+                scalarisation=vnorm_scalarise,),
+            BimodalSymmetricLoss(
+                name='BimodalSymmetric',
+                nu=symbimodal_nu,
+                scalarisation=vnorm_scalarise,),
+            NormedLoss(
+                name='L2',
+                nu=l2_nu)
         ], apply=lambda arg: amplitude(arg.weight))
     ])
 
-    X = torch.tensor(signal, dtype=torch.float)
-    opt = torch.optim.Adam(fftfilter.parameters(), lr=lr)
+    X = signal
+    opt = optax.adam(learning_rate=lr)
+    opt_state = opt.init(eqx.filter(fftfilter, eqx.is_inexact_array))
+
+    def forward(model, X, loss, key):
+        key_m, key_l = jax.random.split(key)
+        ts_filtered = model(X, key=key_m)
+        arg = LossArgument(
+            ts_filtered=ts_filtered,
+            weight=model.weight
+        )
+        loss_epoch, meta = loss(arg, key=key_l)
+        return loss_epoch, meta
+
 
     losses = []
     for epoch in range(max_epoch):
-        ts_filtered = fftfilter(X)
-        arg = LossArgument(
-            ts_filtered=ts_filtered,
-            weight=fftfilter.weight
+        key_l = jax.random.split(key_l, 1)[0]
+        (loss_epoch, meta), grad = eqx.filter_jit(eqx.filter_value_and_grad(
+            forward, has_aux=True
+        ))(fftfilter, X, loss, key=key)
+        # for k, v in meta.items():
+        #     print(f'{k}: {v.value:.4f}')
+        losses += [loss_epoch.item()]
+        updates, opt_state = opt.update(
+            eqx.filter(grad, eqx.is_inexact_array),
+            opt_state,
+            eqx.filter(fftfilter, eqx.is_inexact_array),
         )
-        loss_epoch = loss(arg, verbose=(epoch % log_interval == 0))
-        loss_epoch.backward()
-        losses += [loss_epoch.detach().item()]
+        fftfilter = eqx.apply_updates(fftfilter, updates)
         if epoch % log_interval == 0:
             print(f'[ Epoch {epoch} | Total loss : {losses[-1]} ]')
-        opt.step()
-        fftfilter.weight.grad.zero_()
 
     all_bands = [
         (0.1, 0.2),
@@ -326,13 +435,13 @@ def dynamic_band_identification_experiment(
         (0.5, 0.6)
     ]
     test_filter = FrequencyDomainFilter(
-        dim=freq_dim,
-        filter_specs=filter_specs,
-        domain=Identity()
+        freq_dim=freq_dim,
+        num_channels=1,
+        key=key,
     )
     plot_mvkurtosis(
         fftfilter=test_filter,
-        weight=fftfilter.weight.detach(),
+        weight=_to_jax_array(fftfilter.weight),
         input=X,
         bands=all_bands,
         nu=mvkurtosis_nu,
@@ -342,7 +451,9 @@ def dynamic_band_identification_experiment(
 
 
 def main():
-    from hypercoil.synth.experiments.run import run_layer_experiments
+    from hypercoil.examples.synthetic.experiments.run import (
+        run_layer_experiments
+    )
     run_layer_experiments('fft')
 
 

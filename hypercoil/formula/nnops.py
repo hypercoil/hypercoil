@@ -53,7 +53,12 @@ class ParameterSelectInterpreter(LeafInterpreter):
             try:
                 return (model.__getattribute__(leaf),)
             except AttributeError:
-                return (model.__getitem__(leaf),)
+                try:
+                    return (model.__getitem__(leaf),)
+                except (AttributeError, KeyError) as e:
+                    raise AttributeError(
+                        f"Could not retrieve parameter {leaf} from model {model}."
+                    )
 
         def retrieve_parameters(
             arg: Any

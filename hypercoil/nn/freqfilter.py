@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import Callable, List, Optional, Tuple
 from ..engine import Tensor
+from ..engine.paramutil import _to_jax_array
 from ..functional import product_filtfilt, complex_recompose
 from ..init.freqfilter import FreqFilterInitialiser, FreqFilterSpec
 
@@ -113,11 +114,11 @@ class FrequencyDomainFilter(eqx.Module):
         self.filter = filter
 
         akey, pkey = jax.random.split(key, 2)
-        amplitude = jax.random.uniform(
-            akey, (num_channels, self.dim), minval=0.45, maxval=0.55)
-        phase = jax.random.uniform(
-            pkey, (num_channels, self.dim), minval=-0.05, maxval=0.05)
-        self.weight = complex_recompose(amplitude, phase)
+        amplitude = 0.01 * jax.random.normal(
+            akey, (num_channels, self.dim)) + 0.5
+        # phase = 0.01 * jax.random.normal(
+        #     pkey, (num_channels, self.dim)) + 0.5
+        self.weight = amplitude # complex_recompose(amplitude, phase)
 
         if clamp_points is not None and clamp_values is not None:
             self.clamp = (clamp_points, clamp_values)
@@ -192,7 +193,7 @@ class FrequencyDomainFilter(eqx.Module):
 
     @property
     def clamped_weight(self):
-        weight = self.weight
+        weight = _to_jax_array(self.weight)
         if self.clamp is not None:
             clamp_points, clamp_values = self.clamp
             weight = jnp.where(clamp_points, clamp_values, weight)

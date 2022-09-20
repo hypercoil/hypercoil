@@ -302,7 +302,8 @@ class SmoothnessLoss(Loss):
         if name is None: name = 'Smoothness'
         super().__init__(
             score=smoothness,
-            scalarisation=scalarisation or partial(vnorm_scalarise, p=1),
+            scalarisation=scalarisation or partial(
+                vnorm_scalarise, p=1, axis=None),
             nu=nu,
             name=name,
             key=key,
@@ -1177,7 +1178,7 @@ class MultivariateKurtosis(Loss):
         name: Optional[str] = None,
         *,
         l2: float = 0.0,
-        dimensional_scaling: bool = True,
+        dimensional_scaling: bool = False,
         scalarisation: Optional[Callable] = None,
         key: Optional['jax.random.PRNGKey'] = None,
     ):

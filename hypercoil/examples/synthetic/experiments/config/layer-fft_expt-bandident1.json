@@ -19,6 +19,6 @@
         "symbimodal_nu" : 0.05,
         "l2_nu" : 0.015,
         "test_band" : 1,
-        "seed" : 0
+        "key" : 0
     }
 }

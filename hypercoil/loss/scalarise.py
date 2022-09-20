@@ -116,6 +116,33 @@ def meansq_scalarise(
     return reduced_f
 
 
+def max_scalarise(
+    f: Callable[..., Tensor] = identity,
+    *,
+    axis: Union[int, Sequence[int]] = -1,
+    outer_scalarise: Optional[Callable] = None,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Callable[..., float]:
+    """
+    Transform a tensor-valued function to a scalar-valued function by taking
+    the maximum of the tensor.
+
+    This may be more appropriate than using the infinity norm, particularly
+    for negative-valued loss functions.
+    \
+    {param_spec}\
+    {unused_key_spec}\
+    \
+    {return_spec}
+    """
+    def reduced_f(*pparams, **params):
+        X = f(*pparams, **params)
+        return jnp.max(X, axis=axis)
+
+    scalarise = outer_scalarise or mean_scalarise
+    return scalarise(reduced_f, key=key)
+
+
 @document_scalarisation_map
 def norm_scalarise(
     f: Callable[..., Tensor] = identity,

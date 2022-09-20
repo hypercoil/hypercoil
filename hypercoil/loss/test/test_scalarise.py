@@ -9,10 +9,24 @@ import jax.numpy as jnp
 from hypercoil.loss.functional import identity
 from hypercoil.loss.scalarise import (
     selfwmean, wmean, wmean_scalarise, selfwmean_scalarise,
+    vnorm_scalarise,
 )
 
 
 class TestLossFunction:
+
+    def test_vnorm_scalarise(self):
+        key = jax.random.PRNGKey(0)
+        X = jax.random.uniform(key=key, shape=(10, 20))
+        out = vnorm_scalarise(identity, axis=-1)(X)
+        ref = jnp.linalg.norm(X, axis=-1).mean()
+        assert jnp.isclose(out, ref)
+        out = vnorm_scalarise(identity, axis=None)(X)
+        ref = jnp.linalg.norm(X.ravel())
+        assert jnp.isclose(out, ref)
+        out = vnorm_scalarise(identity, axis=0)(X)
+        ref = jnp.linalg.norm(X, axis=0).mean()
+        assert jnp.isclose(out, ref)
 
     def test_wmean(self):
         z = jnp.array([[
