@@ -49,19 +49,6 @@ domain to constrain Dirichlet-initialised weights to the probability simplex.
     coverage is inadequate and extreme discretion is warranted when using this
     functionality. Please report any bugs by opening an issue.
 """
-from .domainbase import (
-    Identity,
-    Linear,
-    Affine
-)
-from .domain import (
-    Atanh,
-    AmplitudeAtanh,
-    Logit,
-    MultiLogit,
-    UnitNormSphere,
-    AmplitudeMultiLogit
-)
 from .atlas import (
     DiscreteVolumetricAtlas,
     MultiVolumetricAtlas,
@@ -72,37 +59,50 @@ from .atlas import (
     AtlasInit
 )
 from .base import (
-    from_distr_init_,
-    constant_init_,
-    identity_init_,
+    from_distr_init,
+    constant_init,
+    identity_init,
     DistributionInitialiser,
-    ConstantInitialiser
+    ConstantInitialiser,
+    IdentityInitialiser,
 )
 from .deltaplus import (
-    deltaplus_init_,
+    deltaplus_init,
     DeltaPlusInit
 )
 from .dirichlet import (
-    dirichlet_init_,
+    dirichlet_init,
     DirichletInit
 )
 from .freqfilter import (
     FreqFilterSpec,
-    freqfilter_init_,
-    clamp_init_
+    freqfilter_init,
+    clamp_init
 )
 from .iirfilter import (
     IIRFilterSpec
 )
 from .laplace import (
-    laplace_init_,
+    laplace_init,
     LaplaceInit
+)
+from .mapparam import (
+    IdentityMappedParameter,
+    AffineMappedParameter,
+    TanhMappedParameter,
+    AmplitudeTanhMappedParameter,
+    MappedLogits,
+    NormSphereParameter,
+    ProbabilitySimplexParameter,
+    AmplitudeProbabilitySimplexParameter,
+    OrthogonalParameter,
+    IsochoricParameter,
 )
 from .mpbl import (
     BipartiteLatticeInit
 )
 from .semidefinite import (
-    tangency_init_,
+    tangency_init,
     TangencyInit,
     SPDEuclideanMean,
     SPDHarmonicMean,
@@ -110,9 +110,9 @@ from .semidefinite import (
     SPDGeometricMean
 )
 from .sylo import (
-    sylo_init_
+    sylo_init
 )
 from .toeplitz import (
-    toeplitz_init_,
+    toeplitz_init,
     ToeplitzInit
 )

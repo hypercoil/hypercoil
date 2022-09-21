@@ -371,33 +371,3 @@ class IdentityInitialiser(MappedInitialiser):
         return super()._init_impl(
             init=init, model=model, param_name=param_name, key=key, **params,
         )
-
-
-class DomainInitialiser:
-    def __init__(self):
-        raise NotImplementedError(
-            'This deprecated functionality will be removed imminently')
-
-class BaseInitialiser(DomainInitialiser):
-    def __init__(self):
-        raise NotImplementedError(
-            'This deprecated functionality will be removed imminently')
-
-class DistributionInitialiserDeprecated(DomainInitialiser):
-    def __init__(self):
-        raise NotImplementedError(
-            'This deprecated functionality will be removed imminently')
-
-class ConstantInitialiserDeprecated(DomainInitialiser):
-    def __init__(self):
-        raise NotImplementedError(
-            'This deprecated functionality will be removed imminently')
-
-def from_distr_init_():
-    raise NotImplementedError
-
-def constant_init_():
-    raise NotImplementedError
-
-def identity_init_():
-    raise NotImplementedError
