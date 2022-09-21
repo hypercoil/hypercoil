@@ -13,11 +13,11 @@
         "lr" : 0.01,
         "max_epoch" : 1001,
         "log_interval" : 20,
-        "smoothness_nu" : 10,
-        "symbimodal_nu" : 1,
+        "smoothness_nu" : 20,
+        "symbimodal_nu" : 100,
         "entropy_nu" : 0,
-        "equilibrium_nu" : 2000,
-        "dist_nu" : 1,
+        "equilibrium_nu" : 2e4,
+        "dist_nu" : 2,
         "time_dim" : 1000,
         "latent_dim" : 10,
         "observed_dim" : 30,
@@ -25,6 +25,6 @@
         "n_states" : 6,
         "state_weight" : 1,
         "subject_weight" : 1,
-        "seed" : 1
+        "key" : 1
     }
 }

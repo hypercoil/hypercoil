@@ -7,31 +7,44 @@ Correlation experiments
 ~~~~~~~~~~~~~~~~~~~~~~~
 Simple experiments using covariance modules. Basically, state detection.
 """
-import torch
-import numpy as np
+import jax
+import jax.numpy as jnp
+import distrax
+import equinox as eqx
+import optax
+from functools import partial
+from typing import Callable, Mapping, Optional, Tuple
 from matplotlib.pyplot import close
+from hypercoil.engine.paramutil import PyTree, Tensor, _to_jax_array
 from hypercoil.functional.cov import corr, pairedcorr
-from hypercoil.init.domain import (
-    Identity,
-    MultiLogit
-)
+from hypercoil.functional.kernel import linear_distance
 from hypercoil.functional.matrix import sym2vec, vec2sym
 from hypercoil.init.base import (
     DistributionInitialiser
 )
+from hypercoil.init.mapparam import ProbabilitySimplexParameter
 from hypercoil.nn.cov import UnaryCovariance
-from hypercoil.loss import (
-    Entropy,
-    Equilibrium,
+from hypercoil.loss.nn import (
+    MSELoss,
+    EntropyLoss,
+    EquilibriumLoss,
     NormedLoss,
-    SmoothnessPenalty,
-    SymmetricBimodalNorm,
-    VectorDispersion,
+    SmoothnessLoss,
+    BimodalSymmetricLoss,
+    DispersionLoss,
+)
+from hypercoil.loss.scalarise import (
+    max_scalarise,
+    meansq_scalarise,
+    vnorm_scalarise,
+)
+from hypercoil.loss.scheme import (
     LossScheme,
     LossApply,
-    LossArgument
+    LossArgument,
+    UnpackingLossArgument,
 )
-from hypercoil.synth.corr import (
+from hypercoil.examples.synthetic.scripts.corr import (
     synthesise_state_transition,
     synthesise_state_markov_chain,
     get_transitions,
@@ -41,67 +54,78 @@ from hypercoil.synth.corr import (
     correlation_alignment,
     kmeans_init
 )
-from hypercoil.synth.experiments.overfit_plot import overfit_and_plot_progress
+from hypercoil.examples.synthetic.experiments.overfit_plot import (
+    overfit_and_plot_progress,
+)
 
 
 def state_detection_experiment(
-    lr=0.01,
-    max_epoch=1000,
-    log_interval=25,
-    time_dim=1000,
-    latent_dim=7,
-    observed_dim=100,
-    n_states=2,
-    state_timing='equipartition',
-    test_state=-1,
-    seed=None,
-    save=None
+    lr: float = 0.01,
+    max_epoch: int = 1000,
+    log_interval: int = 25,
+    time_dim: int = 1000,
+    latent_dim: int = 7,
+    observed_dim: int = 100,
+    n_states: int = 2,
+    state_timing: Optional[str] = 'equipartition',
+    test_state: int = -1,
+    save: Optional[str] = None,
+    *,
+    key: int,
 ):
-    if seed is not None: torch.manual_seed(seed)
-    np.random.seed(seed)
+    key = jax.random.PRNGKey(key)
+    key_d, key_m, key_l = jax.random.split(key, 3)
     X, Y, target = synthesise_state_transition(
         time_dim=time_dim,
         latent_dim=latent_dim,
         observed_dim=observed_dim,
         n_states=n_states,
         state_timing=state_timing,
-        seed=seed
+        key=key_d,
     )
-    max_tol_score = np.sqrt(.01 * time_dim)
-    init = DistributionInitialiser(
-        distr=torch.distributions.Uniform(0.45, 0.55),
-        domain=Identity()
-    )
+    max_tol_score = jnp.sqrt(.01 * time_dim)
     model = UnaryCovariance(
         dim=time_dim,
         estimator=corr,
         max_lag=0,
-        init=init
+        key=key_m,
     )
-    opt = torch.optim.Adam(model.parameters(), lr=lr)
-    #opt = torch.optim.SGD(model.parameters(), lr=1, momentum=0.2)
+    model = DistributionInitialiser.init(
+        model, distribution=distrax.Uniform(0.45, 0.55), key=key_m,
+    )
+    opt = optax.adam(learning_rate=lr)
+    opt_state = opt.init(eqx.filter(model, eqx.is_inexact_array))
 
-    loss = torch.nn.MSELoss()
+    loss = MSELoss(
+        name='MSE',
+        nu=1.,)
     reg = LossScheme([
-        SymmetricBimodalNorm(nu=0.005, modes=(0., 1.)),
-        SmoothnessPenalty(nu=0.05)
+        BimodalSymmetricLoss(
+            name='BimodalSymmetric',
+            nu=0.005,
+            modes=(0., 1.),
+            scalarisation=vnorm_scalarise,),
+        SmoothnessLoss(
+            name='Smoothness',
+            nu=0.05,
+            scalarisation=vnorm_scalarise,),
     ], apply=lambda x: x.weight)
 
 
-    X = torch.Tensor(X)
-    Y = torch.Tensor(Y[test_state])
+    X = jnp.array(X)
+    Y = jnp.array(Y[test_state])
     target = target[:, test_state]
 
 
     overfit_and_plot_progress(
-        out_fig=save, model=model, optim=opt, reg=reg, loss=loss,
-        max_epoch=max_epoch, X=X, Y=Y, target=target,
-        log_interval=log_interval, seed=seed
+        out_fig=save, model=model, optim_state=opt_state, optim=opt, reg=reg,
+        loss=loss, max_epoch=max_epoch, X=X, Y=Y, target=target,
+        log_interval=log_interval, key=key_l,
     )
 
 
-    target = torch.Tensor(target)
-    solution = model.weight.squeeze().detach()
+    target = jnp.array(target)
+    solution = model.weight.squeeze()
 
     score = loss(target, solution)
     # This is the score if every guess were exactly 0.1 from the target.
@@ -109,36 +133,37 @@ def state_detection_experiment(
     assert(score < max_tol_score)
 
     # Fewer than 1 in 10 are more than 0.1 from target
-    score = ((target - solution).abs() > 0.1).sum().item()
+    score = (jnp.abs((target - solution)) > 0.1).sum().item()
     assert(score < time_dim // 10)
 
 
 def unsupervised_state_detection_experiment(
-    lr=0.01,
-    max_epoch=1001,
-    log_interval=20,
-    smoothness_nu=5,
-    symbimodal_nu=1,
-    entropy_nu=0.01,
-    equilibrium_nu=5000,
-    dist_nu=1,
-    within_nu=0.002,
-    between_nu=0.5,
-    time_dim=1000,
-    subject_dim=100,
-    latent_dim=10,
-    observed_dim=30,
-    state_weight=1,
-    subject_weight=1,
-    n_states=6,
-    batch_size=None,
-    transition_matrix=None,
-    begin_states=None,
-    seed=None,
-    save=None
+    lr: float = 0.01,
+    max_epoch: int = 1001,
+    log_interval: int = 20,
+    smoothness_nu: float = 5.,
+    symbimodal_nu: float = 1.,
+    entropy_nu: float = 0.01,
+    equilibrium_nu: float = 5000.,
+    dist_nu: float = 1.,
+    within_nu: float = 0.002,
+    between_nu: float = 0.5,
+    time_dim: int = 1000,
+    subject_dim: int = 100,
+    latent_dim: int = 10,
+    observed_dim: int = 30,
+    state_weight: float = 1.,
+    subject_weight: float = 1.,
+    n_states: int = 6,
+    batch_size: Optional[int] = None,
+    transition_matrix: Optional[Tensor] = None,
+    begin_states: Optional[Tensor] = None,
+    save: Optional[str] = None,
+    *,
+    key: int,
 ):
-    if seed is not None: torch.manual_seed(seed)
-    np.random.seed(seed)
+    key = jax.random.PRNGKey(key)
+    key_d, key_m, key_l = jax.random.split(key, 3)
     (
         observed_ts,
         srcmat,
@@ -154,7 +179,7 @@ def unsupervised_state_detection_experiment(
         n_states=n_states,
         transition_matrix=transition_matrix,
         begin_states=begin_states,
-        seed=seed
+        key=key_d
     )
 
     plot_state_ts(srcmat, save=f'{save}-stateTS.png')
@@ -162,174 +187,257 @@ def unsupervised_state_detection_experiment(
     if subject_dim == 1:
         transitions = get_transitions(srcmat)
         active_state = active_state.squeeze()
-        init = DistributionInitialiser(
-            distr=torch.distributions.Uniform(0.45, 0.55),
-            domain=MultiLogit(axis=0)
-        )
         model = UnaryCovariance(
             dim=time_dim,
             estimator=corr,
             out_channels=n_states,
-            init=init
+            key=key_m,
         )
-        opt = torch.optim.Adam(model.parameters(), lr=lr)
+        model = DistributionInitialiser.init(
+            model,
+            distribution=distrax.Uniform(0.45, 0.55),
+            key=key_m,
+        )
+        model = ProbabilitySimplexParameter.map(model, axis=0)
+        opt = optax.adam(learning_rate=lr)
+        opt_state = opt.init(eqx.filter(model, eqx.is_inexact_array))
 
-        #model_x_y : tuple of
-        # (model, x, correlation)
         loss = LossScheme([
             LossScheme([
-                SmoothnessPenalty(nu=smoothness_nu),
-                Entropy(nu=entropy_nu, axis=0),
-                Equilibrium(nu=equilibrium_nu)
-            ], apply=lambda arg: arg.model.weight),
-            LossApply(
-                SymmetricBimodalNorm(nu=symbimodal_nu, modes=(-1, 1)),
-                apply=lambda arg: arg.cor
-            ),
-            LossApply(
-                VectorDispersion(nu=dist_nu),
+                SmoothnessLoss(
+                    name='Smoothness',
+                    nu=smoothness_nu,
+                    scalarisation=partial(vnorm_scalarise, p=2, axis=-1),
+                ),
+                EntropyLoss(
+                    name='Entropy',
+                    nu=entropy_nu,
+                    axis=0),
+                EquilibriumLoss(
+                    name='Equilibrium',
+                    nu=equilibrium_nu)
+            ], apply=lambda arg: _to_jax_array(arg.model.weight)),
+            LossScheme([
+                BimodalSymmetricLoss(
+                    name='BimodalSymmetric',
+                    nu=symbimodal_nu,
+                    modes=(-1, 1),
+                    scalarisation=meansq_scalarise,
+                ),
+                DispersionLoss(
+                    name='Dispersion',
+                    nu=dist_nu,
+                    metric=linear_distance,
+                )],
                 apply=lambda arg: sym2vec(arg.cor)
             )
         ])
 
-        X = torch.tensor(observed_ts)
+        X = jnp.array(observed_ts)
 
         losses = []
 
-        for epoch in range(max_epoch):
+        def forward(
+            model: PyTree,
+            X: Tensor,
+            loss: Callable,
+            key: 'jax.random.PRNGKey'
+        ) -> Tuple[PyTree, Mapping]:
+            key_m, key_l = jax.random.split(key, 2)
             #TODO: using the contrast against time-averaged connectivity.
             # Is this really the better approach?
-            cor = model(X) - corr(X)
+            cor = model(X, key=key_m) - corr(X)
             arg = LossArgument(model=model, X=X, cor=cor)
-            if epoch == 0:
-                loss(arg, verbose=True)
-            loss_epoch = loss(arg)
+            loss_epoch, meta = loss(arg, key=key_l)
+            return loss_epoch, meta
 
-            loss_epoch.backward()
-            losses += [loss_epoch.detach().item()]
-            opt.step()
-            model.zero_grad()
+        for epoch in range(max_epoch):
+            key_l = jax.random.fold_in(key_l, epoch)
+            (loss_epoch, meta), grad = eqx.filter_value_and_grad(
+                forward, has_aux=True
+            )(model, X, loss, key=key_l)
+            # for k, v in meta.items():
+            #     print(f'{k}: {v.value:.4f}')
+            updates, opt_state = opt.update(
+                eqx.filter(grad, eqx.is_inexact_array),
+                opt_state,
+                eqx.filter(model, eqx.is_inexact_array),
+            )
+            model = eqx.apply_updates(model, updates)
             if epoch % log_interval == 0:
                 print(f'[ Epoch {epoch} | Loss {loss_epoch} ]')
                 plot_state_transitions(
-                    model.weight.detach().squeeze().t().numpy(),
+                    _to_jax_array(model.weight).T,
                     transitions=transitions,
                     save=f'{save}_transitionTS-{epoch:08}.png'
                 )
                 plot_states(
-                    model(X).detach().numpy(),
+                    model(X),
                     save=f'{save}_states-{epoch:08}.png'
                 )
                 close('all')
 
         groundtruth = corr(
-            torch.tensor(observed_ts),
-            weight=torch.tensor(active_state).t()
+            observed_ts,
+            weight=active_state.T,
         )
         realigned = correlation_alignment(
             X=sym2vec(groundtruth),
             X_hat=sym2vec(model(X)),
-            n_states=n_states
+            n_states=n_states,
         )
         plot_states(
-            vec2sym(realigned.detach()).numpy() + np.eye(observed_dim),
+            vec2sym(realigned) + jnp.eye(observed_dim),
             save=f'{save}_states-ref.png'
         )
 
     else:
         #TODO: One day we must come back and clean up this monstrosity of
         # code.
-        transitions = np.where(np.diff(srcmat[0]) != 0)[0]
+        transitions = jnp.where(jnp.diff(srcmat[0]) != 0)[0]
 
-        #i_g_x_y : tuple of
-        # (individual model, group model, x, correlation)
-        # Unfortunately Python is . . . not great with functional
-        # programming.
         loss = LossScheme([
             LossScheme([
-                SmoothnessPenalty(nu=smoothness_nu),
-                Entropy(nu=entropy_nu, axis=0),
-                Equilibrium(nu=equilibrium_nu)
+                SmoothnessLoss(
+                    name='Smoothness',
+                    nu=smoothness_nu,
+                    scalarisation=meansq_scalarise,
+                    #scalarisation=partial(vnorm_scalarise, p=2, axis=-1),
+                ),
+                EntropyLoss(
+                    name='Entropy',
+                    nu=entropy_nu,
+                    axis=0),
+                EquilibriumLoss(
+                    name='Equilibrium',
+                    nu=equilibrium_nu,
+                    instance_axes=(-3, -1),)
             ], apply=lambda arg: arg.individual),
             LossApply(
-                SymmetricBimodalNorm(nu=symbimodal_nu, modes=(-1, 1)),
+                BimodalSymmetricLoss(
+                    name='BimodalSymmetric',
+                    nu=symbimodal_nu,
+                    modes=(-1, 1),
+                    scalarisation=meansq_scalarise,),
                 apply=lambda arg: arg.y
             ),
             LossApply(
-                VectorDispersion(nu=dist_nu),
-                apply=lambda arg: sym2vec(arg.y)
+                DispersionLoss(
+                    name='Dispersion',
+                    nu=dist_nu),
+                apply=lambda arg: arg.y
             ),
             LossApply(
-                VectorDispersion(nu=between_nu, name='ClusterBetween'),
+                DispersionLoss(
+                    name='ClusterBetween',
+                    nu=between_nu,),
                 apply=lambda arg: arg.group
             ),
             LossApply(
-                NormedLoss(nu=within_nu, p=1, name='ClusterWithin'),
-                apply=lambda arg: sym2vec(arg.y) - arg.group,
+                NormedLoss(
+                    name='ClusterWithin',
+                    nu=within_nu,
+                    p=1,),
+                apply=lambda arg: arg.y - arg.group,
             )
         ])
 
-        X = torch.FloatTensor(observed_ts).unsqueeze(-3)
+        X = observed_ts[..., None, :, :]
         best_states = corr(
             X,
-            weight=torch.tensor(active_state.swapaxes(-1, -2)).unsqueeze(-2)
+            weight=active_state.swapaxes(-1, -2)[..., None, :]
         ).mean(0)
 
         losses = []
         measures = []
 
 
-        individual_model = torch.log(
-            torch.distributions.Uniform(0.45, 0.55).sample(
-                (subject_dim, n_states, 1, time_dim)
+        key_mi, key_mg = jax.random.split(key_m, 2)
+        individual_model = jnp.log(
+            distrax.Uniform(0.45, 0.55).sample(
+                seed=key_mi,
+                sample_shape=(subject_dim, n_states, 1, time_dim)
             )
         )
-        #group_model = sym2vec(
-        #    corr(X).mean(0) + 0.05 * torch.rand(
-        #        (n_states, observed_dim, observed_dim)
-        #    )
-        #).float()
         group_model = kmeans_init(
             X=X,
             n_states=n_states,
             time_dim=time_dim,
-            subject_dim=subject_dim
+            subject_dim=subject_dim,
+            key=key_mg,
         )
-        individual_model.requires_grad = True
-        group_model.requires_grad = True
 
         static = corr(X)
         subject_specific = (static - static.mean(0))
-        subject_specific_vec = sym2vec(subject_specific)
+        #subject_specific_vec = sym2vec(subject_specific)
 
+        class DifferentiableClustering(eqx.Module):
+            individual_model: Tensor
+            group_model: Tensor
+            subject_specific: Tensor
 
-        opt = torch.optim.Adam(params=[individual_model, group_model], lr=lr)
+            def __call__(
+                self,
+                X: Tensor,
+                batch_index: Tensor,
+                *,
+                key: 'jax.random.PRNGKey',
+            ) -> Tensor:
+                individual_mnorm = jax.nn.softmax(
+                    self.individual_model[batch_index],
+                    axis=-3
+                )
+                correl = corr(X[batch_index], weight=individual_mnorm)
+                cor = correl - jax.lax.stop_gradient(
+                    self.subject_specific[batch_index])
+                return LossArgument(
+                    individual=individual_mnorm,
+                    group=self.group_model,
+                    x=X,
+                    y=sym2vec(cor)
+                )
+
+        model = DifferentiableClustering(
+            individual_model=individual_model,
+            group_model=group_model,
+            subject_specific=subject_specific,
+        )
+
+        opt = optax.adam(learning_rate=lr)
+        opt_state = opt.init(eqx.filter(model, eqx.is_inexact_array))
+
+        def forward(
+            model: PyTree,
+            X: Tensor,
+            batch_index: Tensor,
+            loss: Callable,
+            *,
+            key: 'jax.random.PRNGKey'
+        ) -> Tuple[PyTree, Mapping]:
+            key_m, key_l = jax.random.split(key, 2)
+            arg = model(X, batch_index=batch_index, key=key_m)
+            loss_epoch, meta = loss(arg, key=key_l)
+            return loss_epoch, meta
 
         for epoch in range(max_epoch):
+            key_l = jax.random.fold_in(key_l, epoch)
             if batch_size is not None:
-                batch_index = torch.LongTensor(
-                    np.random.permutation(subject_dim)[:batch_size]
-                )
+                batch_index = jnp.random.permutation(
+                    key_l, (subject_dim,))[:batch_size]
             else:
-                batch_index = torch.arange(subject_dim)
+                batch_index = jnp.arange(subject_dim)
 
-            individual_mnorm = torch.softmax(
-                individual_model[batch_index],
-                axis=-3
+            (loss_epoch, meta), grad = eqx.filter_jit(eqx.filter_value_and_grad(
+                forward,
+                has_aux=True,
+            ))(model, X, batch_index, loss, key=key_l)
+
+            updates, opt_state = opt.update(
+                eqx.filter(grad, eqx.is_inexact_array),
+                opt_state,
+                eqx.filter(model, eqx.is_inexact_array),
             )
-            correl = corr(X[batch_index], weight=individual_mnorm)
-            cor = correl - subject_specific[batch_index]
-            arg = LossArgument(
-                individual=individual_mnorm,
-                group=group_model,
-                x=X, y=cor)
-            loss_epoch = loss(arg)
-
-            loss_epoch.backward()
-            losses += [loss_epoch.detach().item()]
-            opt.step()
-            individual_model.grad.zero_()
-            group_model.grad.zero_()
+            model = eqx.apply_updates(model, updates)
 
             """
             # If you dare attempt this without a good initialisation, growing
@@ -348,68 +456,70 @@ def unsupervised_state_detection_experiment(
             if epoch % log_interval == 0:
 
                 statecorr = pairedcorr(
-                    group_model,
-                    sym2vec(corr(torch.FloatTensor(state_mix)))
+                    model.group_model,
+                    sym2vec(corr(state_mix))
                 )
                 maxim = statecorr.max()
                 measure = (
-                    statecorr.amax(0) -
-                    statecorr.median(0)[0]
-                ).mean().detach().item()
+                    statecorr.max(0) -
+                    jnp.median(statecorr, 0)[0]
+                ).mean().item()
                 measures += [measure]
 
                 print(f'[ Epoch {epoch} | Loss {loss_epoch} | '
                       f'Measure {measure} | Maximum {maxim} ]')
-                loss(arg, verbose=True)
+                for k, v in meta.items():
+                    print(f'{k}: {v.value:.4f}')
 
+                individual_mnorm = jax.nn.softmax(
+                    model.individual_model[batch_index],
+                    axis=-3
+                )
                 recovered_states = corr(
                     X,
-                    weight=torch.softmax(individual_model, axis=-3)
+                    weight=individual_mnorm,
                 ).mean(0)
                 plot_state_transitions(
-                    individual_mnorm[0].detach().squeeze().t().numpy(),
+                    individual_mnorm[0].squeeze().swapaxes(-1, -2),
                     transitions=transitions,
                     save=f'{save}_transitionTS-{epoch:08}.png',
                 )
                 plot_states(
-                    (vec2sym(group_model).detach().numpy() +
-                        np.eye(observed_dim)),
+                    (vec2sym(model.group_model) + jnp.eye(observed_dim)),
                     save=f'{save}_stateTemplates-{epoch:08}.png',
                     vpct=.9
                 )
                 plot_states(
-                    recovered_states.detach().numpy(),
+                    recovered_states,
                     save=f'{save}_states-{epoch:08}.png',
                     vpct=.9
                 )
                 close('all')
         realigned_best = correlation_alignment(
-            X=sym2vec(best_states).float(),
-            X_hat=sym2vec(recovered_states).float(),
+            X=sym2vec(best_states),
+            X_hat=sym2vec(recovered_states),
             n_states=n_states
         )
-        groundtruth = corr(
-            torch.FloatTensor(state_mix),
-        )
+        groundtruth = corr(state_mix)
         realigned_groundtruth = correlation_alignment(
-            X=sym2vec(groundtruth).float(),
-            X_hat=sym2vec(recovered_states).float(),
+            X=sym2vec(groundtruth),
+            X_hat=sym2vec(recovered_states),
             n_states=n_states
         )
         plot_states(
-            vec2sym(realigned_best).detach().numpy() + np.eye(observed_dim),
+            vec2sym(realigned_best) + jnp.eye(observed_dim),
             save=f'{save}_states-best.png',
             vpct=.9
         )
         plot_states(
-            (vec2sym(realigned_groundtruth).detach().numpy() +
-                np.eye(observed_dim)),
+            (vec2sym(realigned_groundtruth) +
+                jnp.eye(observed_dim)),
             save=f'{save}_states-true.png'
         )
 
 
 def main():
-    from hypercoil.synth.experiments.run import run_layer_experiments
+    from hypercoil.examples.synthetic.experiments.run import run_layer_experiments
     run_layer_experiments('corr')
 
 

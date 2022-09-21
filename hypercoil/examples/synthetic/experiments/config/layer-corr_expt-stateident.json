@@ -19,6 +19,6 @@
         "n_states" : 2,
         "state_timing" : "equipartition",
         "test_state" : 1,
-        "seed" : 11
+        "key" : 11
     }
 }
