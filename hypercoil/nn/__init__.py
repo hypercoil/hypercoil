@@ -40,9 +40,6 @@ from .resid import (
 from .semidefinite import(
     TangentProject, BatchTangentProject
 )
-from .svm import (
-    SVM
-)
 from .sylo import (
     Sylo
 )
