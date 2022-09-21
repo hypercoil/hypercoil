@@ -165,7 +165,7 @@ class Sylo(eqx.Module):
             minval=-lim,
             maxval=lim,
         )
-        if symmetry is True:
+        if symmetry == 'psd':
             weight_R = weight_L
         else:
             weight_R = jax.random.uniform(
@@ -216,7 +216,10 @@ class Sylo(eqx.Module):
     @property
     def templates(self) -> Tensor:
         weight_L = _to_jax_array(self.weight[0])
-        weight_R = _to_jax_array(self.weight[1])
+        if self.symmetry == 'psd':
+            weight_R = weight_L
+        else:
+            weight_R = _to_jax_array(self.weight[1])
         coupling = _to_jax_array(self.coupling)
         return expand_outer(
             L=weight_L,
@@ -232,7 +235,10 @@ class Sylo(eqx.Module):
         key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight_L = _to_jax_array(self.weight[0])
-        weight_R = _to_jax_array(self.weight[1])
+        if self.symmetry == 'psd':
+            weight_R = weight_L
+        else:
+            weight_R = _to_jax_array(self.weight[1])
         coupling = _to_jax_array(self.coupling)
         bias = _to_jax_array(self.bias)
         out = sylo(

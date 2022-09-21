@@ -10,12 +10,12 @@
     "notes" : [],
     "parameters" :{
         "lr" : 1e-3,
-        "max_epoch" : 50001,
+        "max_epoch" : 10001,
         "recombinator_nonnegative_l2_nu" : 0.1,
-        "nonnegative_l2_nu" : 0.01,
-        "modularity_nu" : 0.2,
+        "nonnegative_l2_nu" : 1.0,
+        "modularity_nu" : 2.0,
         "n_nodes" : 100,
         "rank" : 4,
-        "seed" : 11
+        "key" : 11
     }
 }
