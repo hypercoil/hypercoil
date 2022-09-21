@@ -388,7 +388,7 @@ class TestLossFunction:
         jax.jit(mean_scalarise(compactness))(data, coor)
 
         coor = jax.random.uniform(key_c, (3, 5))
-        jax.jit(mean_scalarise(dispersion))(coor,)
+        jax.jit(mean_scalarise(dispersion))(coor.T,)
 
     def test_mvkurtosis_expected_value(self):
         key = jax.random.PRNGKey(0)

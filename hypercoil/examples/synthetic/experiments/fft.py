@@ -239,7 +239,7 @@ def frequency_band_identification_experiment(
                     nu=dispersion_nu,
                     scalarisation=max_scalarise,
                     metric=linear_distance)
-            ], apply = lambda arg: sym2vec(arg.corr).T),
+            ], apply = lambda arg: sym2vec(arg.corr)),
         ])
         spectrum = [t.initialise_spectrum(worN=model.filter.dim, key=key_m)
                     for t in target]

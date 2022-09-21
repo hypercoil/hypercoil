@@ -753,7 +753,6 @@ class BregmanDivergenceLogitLoss(_BregmanDivergenceLoss):
 class EquilibriumLoss(Loss):
     level_axis: Union[int, Tuple[int, ...]]
     instance_axes: Union[int, Tuple[int, ...]]
-    keepdims: bool
 
     def __init__(
         self,
@@ -762,7 +761,6 @@ class EquilibriumLoss(Loss):
         *,
         level_axis: Union[int, Tuple[int, ...]] = -1,
         instance_axes: Union[int, Tuple[int, ...]] = (-2, -1),
-        keepdims: bool = False,
         scalarisation: Optional[Callable] = None,
         key: Optional['jax.random.PRNGKey'] = None,
     ):
@@ -771,12 +769,11 @@ class EquilibriumLoss(Loss):
             nu=nu,
             name=name,
             score=equilibrium,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or meansq_scalarise,
             key=key,
         )
         self.level_axis = level_axis
         self.instance_axes = instance_axes
-        self.keepdims = keepdims
 
     def __call__(
         self,
@@ -788,7 +785,6 @@ class EquilibriumLoss(Loss):
             X,
             level_axis=self.level_axis,
             instance_axes=self.instance_axes,
-            keepdims=self.keepdims,
             key=key,
         )
 
@@ -797,7 +793,6 @@ class EquilibriumLogitLoss(Loss):
     level_axis: Union[int, Tuple[int, ...]]
     prob_axis: Union[int, Tuple[int, ...]]
     instance_axes: Union[int, Tuple[int, ...]]
-    keepdims: bool
 
     def __init__(
         self,
@@ -807,7 +802,6 @@ class EquilibriumLogitLoss(Loss):
         level_axis: Union[int, Tuple[int, ...]] = -1,
         prob_axis: Union[int, Tuple[int, ...]] = -2,
         instance_axes: Union[int, Tuple[int, ...]] = (-2, -1),
-        keepdims: bool = False,
         scalarisation: Optional[Callable] = None,
         key: Optional['jax.random.PRNGKey'] = None,
     ):
@@ -822,7 +816,6 @@ class EquilibriumLogitLoss(Loss):
         self.level_axis = level_axis
         self.prob_axis = prob_axis
         self.instance_axes = instance_axes
-        self.keepdims = keepdims
 
     def __call__(
         self,
@@ -835,7 +828,6 @@ class EquilibriumLogitLoss(Loss):
             level_axis=self.level_axis,
             prob_axis=self.prob_axis,
             instance_axes=self.instance_axes,
-            keepdims=self.keepdims,
             key=key,
         )
 
@@ -1141,7 +1133,7 @@ class DispersionLoss(Loss):
         nu: float = 1.0,
         name: Optional[str] = None,
         *,
-        metric: Callable = spherical_geodesic,
+        metric: Callable = linear_distance,
         scalarisation: Optional[Callable] = None,
         key: Optional['jax.random.PRNGKey'] = None,
     ):

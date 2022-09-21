@@ -78,7 +78,7 @@ class TestLossModule:
         out = eqx.filter_jit(
             SmoothnessLoss(n=2, pad_value=-1, axis=-2))(X)
         ref = vnorm_scalarise(
-            smoothness, p=1, axis=-1)(X, n=2, pad_value=-1, axis=-2)
+            smoothness, p=1, axis=None)(X, n=2, pad_value=-1, axis=-2)
         # Not sure why this is inexact.
         assert jnp.isclose(out, ref, atol=1e-4)
 
@@ -138,7 +138,7 @@ class TestLossModule:
         assert jnp.isclose(out, ref)
 
         out = eqx.filter_jit(EquilibriumLoss())(S)
-        ref = mean_scalarise(equilibrium)(S)
+        ref = meansq_scalarise(equilibrium)(S)
         assert jnp.isclose(out, ref)
 
         out = eqx.filter_jit(
@@ -217,9 +217,9 @@ class TestLossModule:
         assert jnp.isclose(out, ref)
 
         ref = mean_scalarise(dispersion)(
-            coor_lh, metric=linear_distance)
+            coor_lh.T, metric=linear_distance)
         out = eqx.filter_jit(DispersionLoss(
-            metric=linear_distance))(coor_lh)
+            metric=linear_distance))(coor_lh.T)
         assert jnp.isclose(out, ref)
 
         U = X @ X.swapaxes(-2, -1)

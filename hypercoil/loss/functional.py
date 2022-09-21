@@ -703,7 +703,6 @@ def equilibrium(
     *,
     level_axis: Union[int, Sequence[int]] = -1,
     instance_axes: Union[int, Sequence[int]] = (-1, -2),
-    keepdims: bool = True,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
@@ -716,8 +715,8 @@ def equilibrium(
     \
     {equilibrium_spec}
     """
-    parcel = X.mean(level_axis, keepdims=keepdims)
-    total = X.mean(instance_axes, keepdims=keepdims)
+    parcel = X.mean(level_axis, keepdims=True)
+    total = X.mean(instance_axes, keepdims=True)
     return jnp.abs(parcel - total)
 
 
@@ -728,7 +727,6 @@ def equilibrium_logit(
     level_axis: Union[int, Sequence[int]] = -1,
     prob_axis: Union[int, Sequence[int]] = -2,
     instance_axes: Union[int, Sequence[int]] = (-1, -2),
-    keepdims: bool = True,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
@@ -747,7 +745,6 @@ def equilibrium_logit(
         probs,
         level_axis=level_axis,
         instance_axes=instance_axes,
-        keepdims=keepdims,
     )
 
 
@@ -1150,7 +1147,7 @@ def compactness(
 def dispersion(
     X: Tensor,
     *,
-    metric: Callable = spherical_geodesic,
+    metric: Callable = linear_distance,
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
@@ -1174,7 +1171,7 @@ def dispersion(
     Tensor
         Dispersion of the centres of mass of objects in a tensor block.
     """
-    return sym2vec(-metric(X.swapaxes(-2, -1)))
+    return sym2vec(-metric(X))
 
 
 # Multivariate kurtosis ------------------------------------------------------
