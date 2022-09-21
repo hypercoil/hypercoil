@@ -5,12 +5,12 @@ from .argument import (
     ModelArgument,
     UnpackingModelArgument,
 )
-from .sentry import (
-    Sentry,
-    SentryModule,
-    SentryMessage,
-    Epochs
-)
+# from .sentry import (
+#     Sentry,
+#     SentryModule,
+#     SentryMessage,
+#     Epochs
+# )
 # from .accumulate import (
 #     Accumulator,
 #     AccumulatingFunction,
@@ -18,17 +18,19 @@ from .sentry import (
 # )
 from .axisutil import (
     atleast_4d,
+    broadcast_ignoring,
     apply_vmap_over_outer,
     vmap_over_outer,
-    broadcast_ignoring,
     axis_complement,
     standard_axis_number,
+    negative_axis_number,
     fold_axis,
     unfold_axes,
     promote_axis,
     demote_axis,
     fold_and_promote,
     demote_and_unfold,
+    argsort,
     orient_and_conform,
 )
 # from .conveyance import (
@@ -39,10 +41,18 @@ from .axisutil import (
 #     DataPool
 # )
 from .noise import (
-    DiagonalNoiseSource, SPSDNoiseSource,
-    DiagonalDropoutSource, SPSDDropoutSource,
-    LowRankNoiseSource, BandDropoutSource,
-    UnstructuredNoiseSource, UnstructuredDropoutSource,
+    refresh,
+    StochasticTransform,
+    StochasticParameter,
+    ScalarIIDAddStochasticTransform,
+    ScalarIIDMulStochasticTransform,
+    TensorIIDAddStochasticTransform,
+    TensorIIDMulStochasticTransform,
+    EigenspaceReconditionTransform,
+    OuterProduct,
+    Diagonal,
+    Symmetric,
+    MatrixExponential,
     sample_multivariate,
 )
 from .paramutil import (
@@ -52,19 +62,19 @@ from .paramutil import (
     where_weight,
     _to_jax_array,
 )
-from .report import (
-    LossArchive,
-)
-from .schedule import (
-    LRSchedule,
-    LRLossSchedule,
-    SWA,
-    SWAPR,
-    WeightDecayMultiStepSchedule,
-    MultiplierTransformSchedule,
-    MultiplierRecursiveSchedule,
-    MultiplierRampSchedule,
-    MultiplierDecaySchedule,
-    MultiplierCascadeSchedule,
-)
+# from .report import (
+#     LossArchive,
+# )
+# from .schedule import (
+#     LRSchedule,
+#     LRLossSchedule,
+#     SWA,
+#     SWAPR,
+#     WeightDecayMultiStepSchedule,
+#     MultiplierTransformSchedule,
+#     MultiplierRecursiveSchedule,
+#     MultiplierRampSchedule,
+#     MultiplierDecaySchedule,
+#     MultiplierCascadeSchedule,
+# )
 #from .terminal import Terminal
