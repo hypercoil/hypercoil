@@ -189,7 +189,9 @@ def frequency_band_identification_experiment(
                 scalarisation=vnorm_scalarise,),
             NormedLoss(
                 name='L2',
-                nu=l2_nu),
+                nu=l2_nu,
+                axis=-1,), # The axis shouldn't be set here, but we don't want to
+                           # have to figure out the hyperparameters again.
         ], apply=lambda model: amplitude(model))
         spectrum = target.initialise_spectrum(worN=model.filter.dim, key=key_m)
         target = spectrum.T

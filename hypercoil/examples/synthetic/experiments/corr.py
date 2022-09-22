@@ -337,7 +337,8 @@ def unsupervised_state_detection_experiment(
                 NormedLoss(
                     name='ClusterWithin',
                     nu=within_nu,
-                    p=1,),
+                    p=1,
+                    axis=-1,),
                 apply=lambda arg: arg.y - arg.group,
             )
         ])
