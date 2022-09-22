@@ -8,40 +8,46 @@ from .activation import (
     CorrelationNorm,
     Isochor,
 )
-from .atlas import AtlasLinear
+from .atlas import (
+    AtlasLinear,
+)
 from .confound import (
     LinearRFNN,
     QCPredict,
     LinearCombinationSelector,
-    EliminationSelector
+    EliminationSelector,
 )
 from .cov import(
-    UnaryCovariance, UnaryCovarianceTW, UnaryCovarianceUW,
-    BinaryCovariance, BinaryCovarianceTW, BinaryCovarianceUW
+    UnaryCovariance,
+    UnaryCovarianceTW,
+    UnaryCovarianceUW,
+    BinaryCovariance,
+    BinaryCovarianceTW,
+    BinaryCovarianceUW,
 )
 from .freqfilter import (
-    FrequencyDomainFilter
+    FrequencyDomainFilter,
 )
 from .interpolate import (
     SpectralInterpolate,
     LinearInterpolate,
-    HybridInterpolate
+    HybridInterpolate,
 )
 from .iirfilter import (
     IIRFilter,
-    IIRFiltFilt
 )
 from .recombinator import (
-    Recombinator
+    Recombinator,
 )
 from .resid import (
-    Residualise
+    Residualise,
 )
 from .semidefinite import(
-    TangentProject, BatchTangentProject
+    TangentProject,
+    BatchTangentProject,
 )
 from .sylo import (
-    Sylo
+    Sylo,
 )
 from .tsconv import (
     TimeSeriesConv2D,

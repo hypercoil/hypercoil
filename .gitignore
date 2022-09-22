@@ -140,6 +140,10 @@ cython_debug/
 # MacOS
 *.DS_Store
 
+# VSCode
+.vscode/
+
 # hypercoil-specific
+hypercoil/examples/synthetic/results
 hypercoil/results
 hypercoil/neuro/datasets

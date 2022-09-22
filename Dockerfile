@@ -1,13 +1,18 @@
-FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-devel
+FROM nvidia/cuda:11.7.0-devel-ubuntu20.04
 MAINTAINER Rastko Ciric
-LABEL version="hypercoil-v0.0.x-planning"
+LABEL version="hypercoil-v0.1.z-prealpha"
+
+# install python3-pip
+RUN apt update && apt install python3-pip -y
+
+RUN pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
 RUN useradd -m -s /bin/bash -G users hypercoil
 WORKDIR /home/hypercoil
 ENV HOME="/home/hypercoil"
 
 # install software
-RUN python -m pip install https://github.com/rciric/hypercoil/archive/diffprog.zip
+RUN python -m pip install https://github.com/rciric/hypercoil/archive/main.zip
 
 # testing and visualisation dependencies
 RUN python -m pip install \
@@ -18,7 +23,8 @@ RUN python -m pip install \
 	pingouin \
 	nilearn \
 	setuptools \
-	communities
+	communities \
+	brainspace
 
 # entrypoint
 CMD bash

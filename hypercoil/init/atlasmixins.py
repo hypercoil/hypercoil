@@ -333,7 +333,6 @@ class Mask(eqx.Module):
             )
 
         def apply_mask_zero(data: Tensor, mask: Tensor) -> Tensor:
-            ax_out = standard_axis_number(ax_out, data.ndim)
             index = (
                 (Ellipsis,) +
                 (slice(None),) * (data.ndim - (default_out_axis() + 1))

@@ -13,12 +13,13 @@ import json
 import glob
 import click
 import hypercoil
+from pkg_resources import resource_filename as pkgrf
 from importlib import import_module
 
 
 def run_experiment(layer, expt, index=None):
-    experiments = (
-        f'{os.path.dirname(hypercoil.__file__)}/'
+    experiments = pkgrf(
+        'hypercoil',
         'examples/synthetic/experiments/config'
     )
     experiment = f'{experiments}/layer-{layer}_expt-{expt}.json'
@@ -37,8 +38,9 @@ def run_experiment(layer, expt, index=None):
     else:
         index = ''
 
-    results = (
-        f'{os.path.dirname(hypercoil.__file__)}/results'
+    results = pkgrf(
+        'hypercoil',
+        'examples/synthetic/results'
     )
     os.makedirs(f'{results}/layer-{layer}_expt-{expt}', exist_ok=True)
     print('\n---------------------------------------'
@@ -53,9 +55,9 @@ def run_experiment(layer, expt, index=None):
 
 
 def run_layer_experiments(layer):
-    exptdir = (
-        f'{os.path.dirname(hypercoil.__file__)}'
-        '/examples/synthetic/experiments/config'
+    exptdir = pkgrf(
+        'hypercoil',
+        'examples/synthetic/experiments/config'
     )
     experiments = glob.glob(f'{exptdir}/layer-{layer}*.json')
     for i, experiment in enumerate(experiments):
