@@ -33,6 +33,9 @@ from .axisutil import (
     argsort,
     orient_and_conform,
 )
+from .docutil import (
+    NestedDocParse,
+)
 # from .conveyance import (
 #     Conveyance,
 #     Origin,
