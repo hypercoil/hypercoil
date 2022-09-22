@@ -44,7 +44,7 @@ class TestGrammar:
             k: v for k, v in tree.children.items()
             if len(v.children) == 0
         }
-        assert intermediate.children == final
+        assert intermediate.children.keys() == final.keys()
 
     def test_shorthand(self):
         grammar = MinimalGrammar(shorthand={'vars': '(x + y + z)'})

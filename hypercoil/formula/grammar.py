@@ -11,6 +11,7 @@ import re
 import equinox as eqx
 from abc import abstractmethod, abstractstaticmethod
 from collections import defaultdict
+from copy import deepcopy
 from hashlib import sha256
 from typing import (
     Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
@@ -312,7 +313,7 @@ class SyntacticTree:
                 return # already nested
         return SyntacticTree.from_parsed(
             content=child_str,
-            children=self.children,
+            children=deepcopy(self.children),
             circumfix=circumfix,
             hashfn=self.hashfn,
         )
@@ -331,6 +332,8 @@ class SyntacticTree:
             circumfix = (query[0], query[-1])
             child_text = query[1:-1]
         child_id = self.hashfn(child_text.encode('utf-8')).hexdigest()
+        if child_id in self.children:
+            return child_id
 
         contentstr = self.materialise(recursive=recursive)
         loc = [m.span() for m in re.finditer(re.escape(query), contentstr)]
@@ -502,6 +505,8 @@ class TransformPool(eqx.Module):
         elif affix == 'circumfix':
             raise NotImplementedError(
                 'Circumfix parse is not yet implemented')
+        elif affix == 'leaf':
+            search = ()
         else:
             raise ValueError(
                 'Invalid affix')
@@ -581,11 +586,13 @@ class TransformPool(eqx.Module):
             expr = tree.materialise_recursive((token, *args[0]), tree.children)
         elif affix == 'suffix':
             expr = tree.materialise_recursive((*args[0], token), tree.children)
-        if affix == 'infix':
+        elif affix == 'infix':
             expr = tree.materialise_recursive(
                 (*args[0], token, *args[1]),
                 tree.children
             )
+        elif affix == 'leaf':
+            expr = tree.materialise_recursive((token,), tree.children)
         return expr
 
 
@@ -799,7 +806,9 @@ class Grammar(eqx.Module):
             num_kept_children = 0
             #TODO: Careful! We can exceed the max arity here! We should check
             #      that the arity is correct with a lookahead before adding
-            #      children.
+            #      children. We haven't run into this since in practice all of
+            #      our transforms have either max_arity=1, max_arity=2, or
+            #      max_arity=inf.
             while running_arity < transform.max_arity:
                 if num_children == num_kept_children:
                     break
