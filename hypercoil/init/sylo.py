@@ -212,33 +212,3 @@ class SyloInitialiser(MappedInitialiser):
         return super()._init_impl(
             init=init, model=model, param_name=param_name, key=key, **params,
         )
-
-
-def sylo_init_(*pparams, **params):
-    """Kaiming-like initialisation for sylo module.
-
-    Notes
-    -----
-    * Revisiting these notes some years later, I think this needs to be
-      revisited before this functionality is migrated out of the experimental.
-    * The overall fan is the square root of the product of
-      (1) the fan from raw weights (H x r, W x r) to expanded template
-          (H x W),
-      (2) the fan from expanded template to the output feature map.
-    * Fan (1) is the rank r of the raw weights. If the operation is symmetric
-      (the left and right weights are identical), we need to add an additional
-      term that scales quadratically with the rank and inversely with the raw
-      weight dimension (H = W). It's possible that these are the first two
-      terms of a longer series, but I'm not currently sure how to figure this
-      out.
-    * Fan (2) is computed as for convolutional networks: it's the product of
-      the number of channels and the receptive field size, which here is the
-      size of the crosshair (H + W - 1).
-    * I hacked this out empirically (don't do this...), so there's a good
-      chance that we can do better once we come up with a good theoretical
-      justification.
-    * I believe that we need to take a double square root because the template
-      is a product of the raw weights.
-    """
-    raise NotImplementedError(
-        'In-place initialisation is deprecated. Use ``sylo_init``.')

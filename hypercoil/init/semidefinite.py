@@ -90,6 +90,36 @@ def tangency_init(
     std: float = 0.,
     key: Optional[jax.random.PRNGKey] = None
 ) -> Tensor:
+    """
+    Initialise points of tangency for projection between the positive
+    semidefinite cone and a tangent subspace.
+
+    :Dimension: **init_data :** :math:`(N, *, D, D)` or :math:`(N, *, obs, C)`
+                    N denotes the number of observations over which each mean
+                    is computed. If the axis attribute of the mean
+                    specifications are configured appropriately, N need not
+                    correspond to the first axis of the input dataset.
+
+    Parameters
+    ----------
+    init_data : Tensor
+        Input dataset over which each mean is to be estimated.
+    mean_specs : list(``_SemidefiniteMean`` objects)
+        List of specifications for estimating a measure of central tendency in
+        the positive semidefinite cone. ``_SemidefiniteMean`` subclasses are
+        found at
+        :doc:`hypercoil.init.semidefinite <hypercoil.init.semidefinite.SemidefiniteMean>`.
+    std : float
+        Standard deviation of the positive semidefinite noise added to each
+        channel of the weight matrix. This can be used to ensure that
+        different channels initialised from the same mean receive different
+        gradients and differentiate from one another.
+
+    Returns
+    -------
+    Tensor
+        The initialised tensor.
+    """
     means = mean_block_spd(mean_specs, init_data)
     if std > 0:
         src = MatrixExponential(
@@ -105,6 +135,13 @@ def tangency_init(
 
 
 class TangencyInitialiser(MappedInitialiser):
+    """
+    Initialise points of tangency for projection between the positive
+    semidefinite cone and a tangent subspace.
+
+    See :func:`tangency_init` for argument details.
+    """
+
     init_data : Tensor
     mean_specs : Sequence[Callable]
     std : float
@@ -309,55 +346,3 @@ class SPDGeometricMean(_SemidefiniteMean):
             eps=self.eps, max_iter=self.max_iter,
             recondition='convexcombination'
         )
-
-
-class TangencyInit:
-    """
-    Initialise points of tangency for projection between the positive
-    semidefinite cone and a tangent subspace.
-
-    See :func:`tangency_init_` for argument details.
-    """
-    def __init__(self):
-        raise NotImplementedError
-
-def tangency_init_():
-    """
-    Initialise points of tangency for projection between the positive
-    semidefinite cone and a tangent subspace.
-
-    Dimension
-    ---------
-    - tensor : :math:`(K, *, D, D)`
-        K denotes the number of mean specs provided, D denotes the size of
-        each square positive semidefinite matrix, and `*` denotes any number
-        of intervening dimensions.
-    - init_data : :math:`(N, *, D, D)`
-        N denotes the number of observations over which each mean is computed.
-        If the axis attribute of the mean specifications are configured
-        appropriately, N need not correspond to the first axis of the input
-        dataset.
-
-    Parameters
-    ----------
-    tensor : Tensor
-        Tangency point tensor to initialise to the specified means.
-    mean_specs : list(``_SemidefiniteMean`` objects)
-        List of specifications for estimating a measure of central tendency in
-        the positive semidefinite cone. ``_SemidefiniteMean`` subclasses are
-        found at
-        :doc:`hypercoil.init.semidefinite <hypercoil.init.semidefinite.SemidefiniteMean>`.
-    init_data : Tensor
-        Input dataset over which each mean is to be estimated.
-    std : float
-        Standard deviation of the positive semidefinite noise added to each
-        channel of the weight matrix. This can be used to ensure that
-        different channels initialised from the same mean receive different
-        gradients and differentiate from one another.
-
-    Returns
-    -------
-        None. The tensor is initialised in-place.
-    """
-    raise NotImplementedError(
-        'Deprecated in-place version of `tangency_init`')

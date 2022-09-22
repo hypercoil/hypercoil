@@ -56,7 +56,7 @@ from .atlas import (
     CortexSubcortexCIfTIAtlas,
     DirichletInitVolumetricAtlas,
     DirichletInitSurfaceAtlas,
-    AtlasInit
+    AtlasInitialiser,
 )
 from .base import (
     from_distr_init,
@@ -68,11 +68,11 @@ from .base import (
 )
 from .deltaplus import (
     deltaplus_init,
-    DeltaPlusInit
+    DeltaPlusInitialiser,
 )
 from .dirichlet import (
     dirichlet_init,
-    DirichletInit
+    DirichletInitialiser,
 )
 from .freqfilter import (
     FreqFilterSpec,
@@ -84,7 +84,7 @@ from .iirfilter import (
 )
 from .laplace import (
     laplace_init,
-    LaplaceInit
+    LaplaceInitialiser,
 )
 from .mapparam import (
     IdentityMappedParameter,
@@ -99,20 +99,20 @@ from .mapparam import (
     IsochoricParameter,
 )
 from .mpbl import (
-    BipartiteLatticeInit
+    maximum_potential_bipartite_lattice,
 )
 from .semidefinite import (
     tangency_init,
-    TangencyInit,
+    TangencyInitialiser,
     SPDEuclideanMean,
     SPDHarmonicMean,
     SPDLogEuclideanMean,
     SPDGeometricMean
 )
 from .sylo import (
-    sylo_init
+    sylo_init,
+    SyloInitialiser
 )
 from .toeplitz import (
-    toeplitz_init,
-    ToeplitzInit
+    ToeplitzInitialiser
 )

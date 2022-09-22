@@ -6,7 +6,7 @@ Initialise parameters as a stack of Toeplitz-structured banded matrices.
 """
 import jax
 from typing import Optional, Tuple, Type
-from .base import BaseInitialiser, MappedInitialiser
+from .base import MappedInitialiser
 from .mapparam import MappedParameter
 from ..engine import PyTree, Tensor
 from ..functional import toeplitz
@@ -57,11 +57,3 @@ class ToeplitzInitialiser(MappedInitialiser):
         return super()._init_impl(
             init=init, model=model, param_name=param_name, key=key,
         )
-
-
-class ToeplitzInit(BaseInitialiser):
-    def __init__(self):
-        raise NotImplementedError()
-
-def toeplitz_init_(tensor, c, r=None, fill_value=0, domain=None):
-    raise NotImplementedError()
