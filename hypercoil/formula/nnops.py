@@ -6,8 +6,9 @@ Parameters
 ~~~~~~~~~~
 Transformations and grammar for addressing neural network parameters.
 """
+import equinox as eqx
 from dataclasses import field
-from functools import reduce
+from functools import partial, reduce
 from typing import Any, Callable, Dict, Literal, Optional, Sequence
 from ..engine.paramutil import PyTree
 from .grammar import (
@@ -21,6 +22,30 @@ def retrieve_parameter(model, param_name):
     if param_name is None:
         return (model,)
     return ParameterAddressGrammar().compile(param_name)(model)
+
+
+def transform_address(model, where, replace_fn):
+    if where is None:
+        return model
+    f = ParameterAddressGrammar().compile(where)
+    return eqx.tree_at(f, model, replace_fn=replace_fn)
+
+
+def filter_address(model, where):
+    def _f(matches):
+        def __f(x):
+            for m in matches:
+                if x is m:
+                    return True
+            return False
+        return __f
+
+    if where is None:
+        matches = ()
+    else:
+        f = ParameterAddressGrammar().compile(where)
+        matches = f(model)
+    return eqx.filter(model, _f(matches=matches))
 
 
 class ParameterAddressGrammar(Grammar):

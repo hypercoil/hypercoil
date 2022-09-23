@@ -10,6 +10,8 @@ import equinox as eqx
 from typing import Any
 from hypercoil.formula.nnops import (
     ParameterAddressGrammar,
+    transform_address,
+    filter_address,
 )
 
 
@@ -109,6 +111,26 @@ class TestAddress:
             model_test=model_zero,
             model_ref=model)
 
+        model_zero = transform_address(model, search_str, jnp.zeros_like)
+        self.param_zero_assert(
+            f=lambda m: m[1]['a'].weight,
+            model_test=model_zero,
+            model_ref=model)
+        self.param_zero_assert(
+            f=lambda m: m[1]['b'].weight,
+            model_test=model_zero,
+            model_ref=model)
+
+        model_filtered = eqx.filter_jit(filter_address)(model, search_str)
+        assert model_filtered[0].weight is None
+        assert model_filtered[1]['a'].weight is not None
+        assert model_filtered[1]['b'].weight is not None
+        assert all([l.weight is None for l in model_filtered[2].layers])
+        assert model_filtered[3].weight is None
+        assert model_filtered[4].sub0.weight is None
+        assert model_filtered[4].sub1.weight is None
+        assert all([l.weight is None for l in model_filtered[5:]])
+
         search_str = '#5:.weight'
         f = grammar.compile(search_str)
         f(model)
@@ -125,3 +147,13 @@ class TestAddress:
             f=lambda m: m[7].weight,
             model_test=model_zero,
             model_ref=model)
+
+        model_filtered = eqx.filter_jit(filter_address)(model, None)
+        assert model_filtered[0].weight is None
+        assert model_filtered[1]['a'].weight is None
+        assert model_filtered[1]['b'].weight is None
+        assert all([l.weight is None for l in model_filtered[2].layers])
+        assert model_filtered[3].weight is None
+        assert model_filtered[4].sub0.weight is None
+        assert model_filtered[4].sub1.weight is None
+        assert all([l.weight is None for l in model_filtered[5:]])

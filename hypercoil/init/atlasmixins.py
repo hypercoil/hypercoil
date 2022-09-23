@@ -13,7 +13,8 @@ from collections import OrderedDict
 from functools import reduce
 from pathlib import Path, PosixPath
 from typing import (
-    Any, Callable, Dict, Generator, Literal, Optional, Sequence, Tuple, Union
+    Any, Callable, Dict, Generator, Literal,
+    Mapping, Optional, Sequence, Tuple, Union
 )
 from scipy.ndimage import (
     gaussian_filter,
@@ -405,7 +406,7 @@ class Compartment(eqx.Module):
 
 
 class CompartmentSet(eqx.Module):
-    compartments : OrderedDict[str, Compartment]
+    compartments : Mapping[str, Compartment]
 
     def __init__(
         self,
