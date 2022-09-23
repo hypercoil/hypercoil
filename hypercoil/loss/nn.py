@@ -250,7 +250,7 @@ class MSELoss(Loss):
 
         super().__init__(
             score=difference,
-            scalarisation=meansq_scalarise,
+            scalarisation=meansq_scalarise(),
             nu=nu,
             name=name,
             key=key,
@@ -307,11 +307,8 @@ class NormedLoss(Loss):
         outer_scalarise: Callable = mean_scalarise,
         key: Optional['jax.random.PRNGKey'] = None,
     ):
-        scalarisation = partial(
-            vnorm_scalarise,
-            p=p,
-            axis=axis,
-            outer_scalarise=outer_scalarise,
+        scalarisation = outer_scalarise(
+            inner=vnorm_scalarise(p=p, axis=axis)
         )
         super().__init__(
             score=score,
@@ -354,7 +351,7 @@ class ConstraintViolationLoss(Loss):
         if name is None: name = 'ConstraintViolation'
         super().__init__(
             score=constraint_violation,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             nu=nu,
             name=name,
             key=key,
@@ -399,7 +396,7 @@ class UnilateralLoss(Loss):
         if name is None: name = 'UnilateralLoss'
         super().__init__(
             score=unilateral_loss,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             nu=nu,
             name=name,
             key=key,
@@ -429,7 +426,7 @@ class HingeLoss(Loss):
         if name is None: name = 'HingeLoss'
         super().__init__(
             score=hinge_loss,
-            scalarisation=scalarisation or sum_scalarise,
+            scalarisation=scalarisation or sum_scalarise(),
             nu=nu,
             name=name,
             key=key,
@@ -476,8 +473,7 @@ class SmoothnessLoss(Loss):
         if name is None: name = 'Smoothness'
         super().__init__(
             score=smoothness,
-            scalarisation=scalarisation or partial(
-                vnorm_scalarise, p=1, axis=None),
+            scalarisation=scalarisation or vnorm_scalarise(p=1, axis=None),
             nu=nu,
             name=name,
             key=key,
@@ -531,7 +527,7 @@ class BimodalSymmetricLoss(Loss):
         if name is None: name = 'BimodalSymmetric'
         super().__init__(
             score=_bimodal_symmetric_impl,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             nu=nu,
             name=name,
             key=key,
@@ -577,7 +573,7 @@ class _GramDeterminantLoss(Loss):
     ):
         super().__init__(
             score=score,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             nu=nu,
             name=name,
             key=key,
@@ -704,7 +700,7 @@ class _InformationLoss(Loss):
     ):
         super().__init__(
             score=score,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             nu=nu,
             name=name,
             key=key,
@@ -988,7 +984,7 @@ class _BregmanDivergenceLoss(Loss):
             nu=nu,
             name=name,
             score=score,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.f = f
@@ -1123,7 +1119,7 @@ class EquilibriumLoss(Loss):
             nu=nu,
             name=name,
             score=equilibrium,
-            scalarisation=scalarisation or meansq_scalarise,
+            scalarisation=scalarisation or meansq_scalarise(),
             key=key,
         )
         self.level_axis = level_axis
@@ -1181,7 +1177,7 @@ class EquilibriumLogitLoss(Loss):
             nu=nu,
             name=name,
             score=equilibrium_logit,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.level_axis = level_axis
@@ -1237,7 +1233,7 @@ class SecondMomentLoss(Loss):
             nu=nu,
             name=name,
             score=second_moment,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.standardise = standardise
@@ -1295,7 +1291,7 @@ class SecondMomentCentredLoss(Loss):
             nu=nu,
             name=name,
             score=second_moment_centred,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.standardise_data = standardise_data
@@ -1352,7 +1348,7 @@ class BatchCorrelationLoss(Loss):
             nu=nu,
             name=name,
             score=batch_corr,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.tol = tol
@@ -1431,7 +1427,7 @@ class ReferenceTetherLoss(Loss):
             nu=nu,
             name=name,
             score=reference_tether,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.ref = ref
@@ -1491,7 +1487,7 @@ class InterhemisphericTetherLoss(Loss):
             nu=nu,
             name=name,
             score=interhemispheric_tether,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.lh_coor = lh_coor
@@ -1555,7 +1551,7 @@ class CompactnessLoss(Loss):
             nu=nu,
             name=name,
             score=compactness,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.coor = coor
@@ -1610,7 +1606,7 @@ class DispersionLoss(Loss):
             nu=nu,
             name=name,
             score=dispersion,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.metric = metric
@@ -1659,7 +1655,7 @@ class MultivariateKurtosis(Loss):
             nu=nu,
             name=name,
             score=multivariate_kurtosis,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.l2 = l2
@@ -1718,7 +1714,7 @@ class ConnectopyLoss(Loss):
             nu=nu,
             name=name,
             score=connectopy,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.theta = theta
@@ -1784,7 +1780,7 @@ class ModularityLoss(Loss):
             nu=nu,
             name=name,
             score=modularity,
-            scalarisation=scalarisation or mean_scalarise,
+            scalarisation=scalarisation or mean_scalarise(),
             key=key,
         )
         self.theta = theta

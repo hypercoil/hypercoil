@@ -2,127 +2,224 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Scalarisation maps for loss functions.
+Scalarisation (or rank-reduction) maps for loss functions.
 
 A loss function is the composition of a score function and a scalarisation
-map (which might itself be the composition of different tensor rank reduction
+(which might itself be the composition of different tensor rank reduction
 maps.)
 """
 import jax
 import jax.numpy as jnp
 from typing import Any, Callable, Literal, Optional, Sequence, Union
 from .functional import identity
-from ..engine import Tensor, promote_axis, standard_axis_number
+from ..engine import (
+    NestedDocParse,
+    Tensor,
+    promote_axis,
+    standard_axis_number,
+)
 
 
 def document_scalarisation_map(func: Callable) -> Callable:
     """
-    Decorator for scalarisation maps to document them.
+    Decorator for documenting scalarisation maps.
     """
+    long_description_scalarise = """
+    .. note::
+
+        This function is a scalarisation map, which can be either used on its
+        own or composed with other scalarisation maps to form a scalarisation.
+
+        Composition is performed by passing the scalarisation map to be
+        composed as the ``inner`` argument to the outer scalarisation map.
+        This can be chained indefinitely.
+
+        The **output** of a scalarisation map (or composition thereof) is a
+        function that maps a tensor-valued function to a scalar-valued
+        function. Be mindful of the signature of scalarisation maps: they do
+        not themselves perform this map, but rather return a function that
+        does.
+
+        For example, the following are all valid scalarisations of a function
+        ``f``::
+
+            max_scalarise()(f)
+            mean_scalarise(inner=max_scalarise(axis=-1))(f)
+            mean_scalarise(inner=vnorm_scalarise(p=1, axis=(0, 2)))(f)
+
+        Calling the scalarised function will return a scalar value.
+        """
     param_spec = """
     Parameters
     ----------
-    f : Callable[Sequence[Any], Tensor]
-        The tensor-valued function to be transformed."""
+    inner : Callable, optional
+        The inner scalarisation map. If not specified, the identity map is
+        used. For many scalarisation maps, the default settings for the inner
+        map and the scalarisation axis amount to applying the scalarisation
+        map over the entire tensor. Users are advised to verify the default
+        settings for the inner map and the scalarisation axis.
+    axis: Union[int, Sequence[int]], optional
+        The axis or axes over which to apply the scalarisation map. If not
+        specified, the scalarisation map is applied over the entire tensor,
+        except in the cases of maps that are only defined over vectors or
+        matrices (e.g., norm scalarisations). Check the default arguments to
+        verify the default behaviour.
+
+        .. warning::
+
+            When composing scalarisation maps, the value of the ``axis``
+            argument will refer to the axis or axes of the reduced-rank tensor
+            that is the output of the inner scalarisation map. For example,
+            consider the following composition::
+
+                mean_scalarise(inner=max_scalarise(axis=-1), axis=-2)(f)
+
+            The ``axis`` argument of the outer scalarisation map refers to the
+            **third** from last axis of the original tensor, which is the
+            second from last axis of the tensor after the inner scalarisation
+            map has been applied.
+
+            Setting ``keepdims=True`` for the inner scalarisations will result
+            in the (perhaps more intuitive) behaviour of the ``axis`` argument
+            referring to the axis or axes of the original tensor.
+
+    keepdims: bool, optional
+        Whether to keep the reduced dimensions in the output. If ``True``, the
+        output will have the same number of dimensions as the input, each of
+        singleton size. If ``False``, the output will have one fewer dimension
+        than the input for each dimension over which the scalarisation map is
+        applied.
+
+        .. note::
+
+            It can be useful to set ``keepdims=True`` when composing
+            scalarisation maps, as the ``axis`` argument can then be specified
+            with reference to the original tensor rather than the reduced
+            tensor, only setting ``keepdims=False`` for the outermost
+            scalarisation map."""
     norm_spec = """
     p : Any
-        The norm order.
-    axis : Union[int, Sequence[int]]
-        The axis or axes along which to compute the norm."""
-    staged_spec = """
-    outer_scalarise : Optional[Callable]
-        The scalarisation map to use to map the tensor of norms to a scalar.
-        If ``None``, then the mean of the norms is used."""
+        The norm order."""
     unused_key_spec = """
     key : Optional[``jax.random.PRNGKey``]
         An optional random number generator key. Unused; exists for
-        conformance with other scalarisation maps."""
+        conformance with potential future scalarisation maps that could inject
+        randomness."""
     return_spec = """
     Returns
     -------
-    Callable[Sequence[Any], float]
-        The scalar-valued function."""
+    Callable[[Callable[..., Tensor]], Callable[..., float]]
+        The scalarisation transformation. This is a function that takes a
+        tensor-valued function and returns a scalar-valued function."""
 
-    func.__doc__ = func.__doc__.format(
+    fmt = NestedDocParse(
+        long_description_scalarise=long_description_scalarise,
         param_spec=param_spec,
         norm_spec=norm_spec,
-        staged_spec=staged_spec,
         unused_key_spec=unused_key_spec,
         return_spec=return_spec,
     )
+    func.__doc__ = func.__doc__.format_map(fmt)
     return func
 
 
 @document_scalarisation_map
 def sum_scalarise(
-    f: Callable[..., Tensor] = identity,
     *,
+    inner: Optional[Callable] = None,
+    axis: Union[int, Sequence[int]] = None,
+    keepdims: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
-) -> Callable[..., float]:
+) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by summing
     the tensor.
     \
+    {long_description_scalarise}
+    \
     {param_spec}\
-    {unused_key_spec}\
+    {unused_key_spec}
     \
     {return_spec}
     """
-    def reduced_f(*pparams, **params):
-        X = f(*pparams, **params)
-        return jnp.sum(X)
-    return reduced_f
+    if inner is None: inner = identity
+
+    def scalarisation(f: Callable[..., Tensor] = identity):
+        def reduced_f(*pparams, **params):
+            X = inner(f)(*pparams, **params)
+            return jnp.sum(X, axis=axis, keepdims=keepdims)
+        return reduced_f
+
+    return scalarisation
 
 
 @document_scalarisation_map
 def mean_scalarise(
-    f: Callable[..., Tensor] = identity,
     *,
+    inner: Optional[Callable] = None,
+    axis: Union[int, Sequence[int]] = None,
+    keepdims: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
-) -> Callable[..., float]:
+) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
     the mean of the tensor.
     \
+    {long_description_scalarise}
+    \
     {param_spec}\
-    {unused_key_spec}\
+    {unused_key_spec}
     \
     {return_spec}
     """
-    def reduced_f(*pparams, **params):
-        X = f(*pparams, **params)
-        return jnp.mean(X)
-    return reduced_f
+    if inner is None: inner = identity
+
+    def scalarisation(f: Callable[..., Tensor] = identity):
+        def reduced_f(*pparams, **params):
+            X = inner(f)(*pparams, **params)
+            return jnp.mean(X, axis=axis, keepdims=keepdims)
+        return reduced_f
+
+    return scalarisation
 
 
 @document_scalarisation_map
 def meansq_scalarise(
-    f: Callable[..., Tensor] = identity,
     *,
+    inner: Optional[Callable] = None,
+    axis: Union[int, Sequence[int]] = None,
+    keepdims: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
-) -> Callable[..., float]:
+) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
     the mean of the elementwise squared tensor.
     \
+    {long_description_scalarise}
+    \
     {param_spec}\
-    {unused_key_spec}\
+    {unused_key_spec}
     \
     {return_spec}
     """
-    def reduced_f(*pparams, **params):
-        X = f(*pparams, **params)
-        return jnp.mean(X ** 2)
-    return reduced_f
+    if inner is None: inner = identity
+
+    def scalarisation(f: Callable[..., Tensor] = identity):
+        def reduced_f(*pparams, **params):
+            X = inner(f)(*pparams, **params)
+            return jnp.mean(X ** 2, axis=axis, keepdims=keepdims)
+        return reduced_f
+
+    return scalarisation
 
 
 def max_scalarise(
-    f: Callable[..., Tensor] = identity,
     *,
-    axis: Union[int, Sequence[int]] = -1,
-    outer_scalarise: Optional[Callable] = None,
+    inner: Optional[Callable] = None,
+    axis: Union[int, Sequence[int]] = None,
+    keepdims: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
-) -> Callable[..., float]:
+) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
     the maximum of the tensor.
@@ -130,27 +227,32 @@ def max_scalarise(
     This may be more appropriate than using the infinity norm, particularly
     for negative-valued loss functions.
     \
+    {long_description_scalarise}
+    \
     {param_spec}\
-    {unused_key_spec}\
+    {unused_key_spec}
     \
     {return_spec}
     """
-    def reduced_f(*pparams, **params):
-        X = f(*pparams, **params)
-        return jnp.max(X, axis=axis)
+    if inner is None: inner = identity
 
-    scalarise = outer_scalarise or mean_scalarise
-    return scalarise(reduced_f, key=key)
+    def scalarisation(f: Callable[..., Tensor] = identity):
+        def reduced_f(*pparams, **params):
+            X = inner(f)(*pparams, **params)
+            return jnp.max(X, axis=axis, keepdims=keepdims)
+        return reduced_f
+
+    return scalarisation
 
 
 @document_scalarisation_map
 def norm_scalarise(
-    f: Callable[..., Tensor] = identity,
     *,
     p: Any = 2,
-    axis: Union[int, Sequence[int]] = -1,
     force_vector_norm: bool = False,
-    outer_scalarise: Optional[Callable] = None,
+    axis: Union[int, Sequence[int]] = -1,
+    inner: Optional[Callable] = None,
+    keepdims: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[..., float]:
     """
@@ -159,49 +261,53 @@ def norm_scalarise(
     to a composition of the norm along an axis or set of axes with an outer
     scalarisation map.
     \
+    {long_description_scalarise}
+    \
     {param_spec}\
-    {norm_spec}\
-    {staged_spec}\
+    {norm_spec}
     force_vector_norm : bool
         If ``True``, then the tensor is unfolded along the specified axis or
         axes before computing the norm. This forces the reduction to be a
         vector norm, rather than a matrix norm, if the number of reduced axes
-        is greater than one.
-    {unused_key_spec}\
+        is greater than one.\
+    {unused_key_spec}
     \
     {return_spec}
     """
-    def reduced_f(*pparams, **params):
-        X = f(*pparams, **params)
-        if force_vector_norm and not isinstance(axis, int):
-            if axis is None:
-                axes = tuple(range(X.ndim))
-            else:
-                axes = axis
-            ndim_norm = len(axes)
-            ndim = X.ndim
-            if ndim_norm > 1:
-                axes = tuple(standard_axis_number(ax, ndim) for ax in axes)
-                Xperm = X.transpose(promote_axis(ndim, axes))
-                Xperm = Xperm.reshape(-1, *Xperm.shape[ndim_norm:])
-                norm = jnp.linalg.norm(Xperm, ord=p, axis=0)
-                return norm
-            norm = jnp.linalg.norm(X, ord=p, axis=axes)
-            return norm
-        norm = jnp.linalg.norm(X, ord=p, axis=axis)
-        return norm
+    if inner is None: inner = identity
 
-    scalarise = outer_scalarise or mean_scalarise
-    return scalarise(reduced_f, key=key)
+    def scalarisation(f: Callable[..., Tensor] = identity):
+        def reduced_f(*pparams, **params):
+            X = inner(f)(*pparams, **params)
+            if force_vector_norm and not isinstance(axis, int):
+                if axis is None:
+                    axes = tuple(range(X.ndim))
+                else:
+                    axes = axis
+                ndim_norm = len(axes)
+                ndim = X.ndim
+                if ndim_norm > 1:
+                    axes = tuple(standard_axis_number(ax, ndim) for ax in axes)
+                    Xperm = X.transpose(promote_axis(ndim, axes))
+                    Xperm = Xperm.reshape(-1, *Xperm.shape[ndim_norm:])
+                    norm = jnp.linalg.norm(Xperm, ord=p, axis=0, keepdims=keepdims)
+                    return norm
+                norm = jnp.linalg.norm(X, ord=p, axis=axes, keepdims=keepdims)
+                return norm
+            norm = jnp.linalg.norm(X, ord=p, axis=axis, keepdims=keepdims)
+            return norm
+        return reduced_f
+
+    return scalarisation
 
 
 @document_scalarisation_map
 def vnorm_scalarise(
-    f: Callable[..., Tensor] = identity,
     *,
     p: Any = 2,
     axis: Union[int, Sequence[int]] = -1,
-    outer_scalarise: Optional[Callable] = None,
+    inner: Optional[Callable] = None,
+    keepdims: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[..., float]:
     """
@@ -214,19 +320,20 @@ def vnorm_scalarise(
     always a vector norm rather than a matrix norm. This is equivalent to
     using :func:`norm_scalarise` with ``force_vector_norm=True``.
     \
+    {long_description_scalarise}
+    \
     {param_spec}\
     {norm_spec}\
-    {staged_spec}\
-    {unused_key_spec}\
+    {unused_key_spec}
     \
     {return_spec}
     """
     return norm_scalarise(
-        f,
         p=p,
-        axis=axis,
         force_vector_norm=True,
-        outer_scalarise=outer_scalarise,
+        axis=axis,
+        inner=inner,
+        keepdims=keepdims,
         key=key,
     )
 
@@ -238,7 +345,7 @@ def wmean(
     keepdims: bool = False,
 ) -> Tensor:
     """
-    Reducing function for reducing losses: weighted mean.
+    Rank-reducing function for scalarisation maps: weighted mean.
 
     >>> wmean(jnp.array([1, 2, 3]), jnp.array([1, 0, 1]))
     DeviceArray(2., dtype=float32)
@@ -286,8 +393,8 @@ def selfwmean(
     softmax_invert: bool = False,
 ) -> Tensor:
     """
-    Self-weighted mean reducing function. With the softmax turned on, this
-    should be close to a soft version of the maximum.
+    Self-weighted mean rank-reducing function. With the softmax turned on,
+    this should be close to a soft version of the maximum.
     """
     if softmax_axis is False:
         weight = input
@@ -313,47 +420,68 @@ def selfwmean(
 
 @document_scalarisation_map
 def wmean_scalarise(
-    f: Callable[..., Tensor] = identity,
     *,
+    inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
-    outer_scalarise: Optional[Callable] = None,
+    keepdims: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
-):
+) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
     the weighted mean of the tensor along an axis or set of axes, and then
     mapping the resulting means to a scalar using a scalarisation map.
 
+    .. warning::
+
+        Nesting two or more ``wmean_scalarise`` scalarisation maps together
+        is not supported. Instead, broadcast multiply the scalarisation
+        weights across the axes to be reduced and use a single
+        ``wmean_scalarise`` scalarisation map.
+
+        The exception to this is when the scalarisation weights are the same
+        for all axes to be reduced by ``wmean_scalarise`` maps.
+    \
+    {long_description_scalarise}
+    \
     {param_spec}\
-    {staged_spec}\
-    {unused_key_spec}\
+    {unused_key_spec}
     \
     {return_spec}
     """
-    def reduced_f(*pparams, scalarisation_weight, **params):
-        X = f(*pparams, **params)
-        weight = jnp.linalg.norm(X, ord=2, axis=axis)
-        return wmean(X, scalarisation_weight, axis=axis)
+    if inner is None: inner = identity
 
-    scalarise = outer_scalarise or mean_scalarise
-    return scalarise(reduced_f, key=key)
+    def scalarisation(f: Callable[..., Tensor] = identity):
+        def reduced_f(*pparams, scalarisation_weight, **params):
+            X = inner(f)(*pparams, **params)
+            return wmean(
+                X,
+                scalarisation_weight,
+                axis=axis,
+                keepdims=keepdims
+            )
+        return reduced_f
+
+    return scalarisation
 
 
 @document_scalarisation_map
 def selfwmean_scalarise(
-    f: Callable[..., Tensor] = identity,
     *,
+    inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     gradpath: Optional[Literal['weight', 'input']] = 'input',
     softmax_axis: Optional[Union[Sequence[int], int, bool]] = False,
     softmax_invert: bool = False,
+    keepdims: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
-):
+) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
     the self-weighted mean of the tensor along an axis or set of axes.
-
-    {param_spec}\
+    \
+    {long_description_scalarise}
+    \
+    {param_spec}
     gradpath: Optional[Literal['weight', 'input']] (default: 'input')
         If 'weight', the gradient of the scalarisation function will be
         backpropagated through the weights only. If 'input', the gradient of
@@ -368,19 +496,24 @@ def selfwmean_scalarise(
     softmax_invert: bool (default: False)
         If True, the input is negated before passing it through the softmax.
         In this way, the softmax can be used to upweight the minimum instead
-        of the maximum.
-    {unused_key_spec}\
+        of the maximum.\
+    {unused_key_spec}
     \
     {return_spec}
     """
-    def reduced_f(*pparams, **params):
-        X = f(*pparams, **params)
-        return selfwmean(
-            X,
-            axis=axis,
-            gradpath=gradpath,
-            softmax_axis=softmax_axis,
-            softmax_invert=softmax_invert,
-        )
+    if inner is None: inner = identity
 
-    return reduced_f
+    def scalarisation(f: Callable[..., Tensor] = identity):
+        def reduced_f(*pparams, **params):
+            X = inner(f)(*pparams, **params)
+            return selfwmean(
+                X,
+                axis=axis,
+                gradpath=gradpath,
+                softmax_axis=softmax_axis,
+                softmax_invert=softmax_invert,
+                keepdims=keepdims,
+            )
+        return reduced_f
+
+    return scalarisation

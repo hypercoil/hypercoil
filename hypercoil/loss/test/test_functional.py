@@ -34,25 +34,25 @@ class TestLossFunction:
             [3, -1, 0, -2, 0]
         ])
 
-        L0 = jax.jit(vnorm_scalarise(p=0, axis=None))
+        L0 = jax.jit(vnorm_scalarise(p=0, axis=None)())
         assert L0(X) == 9
-        L0 = norm_scalarise(p=0, axis=0)(X)
+        L0 = mean_scalarise(inner=norm_scalarise(p=0, axis=0))()(X)
         assert jnp.isclose(L0, (X != 0).sum() / 5)
-        L0 = norm_scalarise(p=0, axis=-1)(X)
+        L0 = mean_scalarise(inner=norm_scalarise(p=0, axis=-1))()(X)
         assert jnp.isclose(L0, (X != 0).sum() / 3)
 
-        L1 = jax.jit(vnorm_scalarise(p=1, axis=None))
+        L1 = jax.jit(vnorm_scalarise(p=1, axis=None)())
         assert L1(X) == 14
-        L1 = norm_scalarise(p=1, axis=0)(X)
+        L1 = mean_scalarise(inner=norm_scalarise(p=1, axis=0))()(X)
         assert jnp.isclose(L1, jnp.abs(X).sum() / 5)
-        L1 = norm_scalarise(p=1, axis=-1)(X)
+        L1 = mean_scalarise(inner=norm_scalarise(p=1, axis=-1))()(X)
         assert jnp.isclose(L1, jnp.abs(X).sum() / 3)
 
-        L2 = jax.jit(vnorm_scalarise(p=2, axis=None))
+        L2 = jax.jit(vnorm_scalarise(p=2, axis=None)())
         assert L2(X) == jnp.sqrt((X ** 2).sum())
-        L2 = norm_scalarise(p=2, axis=0)(X)
+        L2 = mean_scalarise(inner=norm_scalarise(p=2, axis=0))()(X)
         assert jnp.isclose(L2, jnp.sqrt((X ** 2).sum(0)).mean())
-        L2 = norm_scalarise(p=2, axis=-1)(X)
+        L2 = mean_scalarise(inner=norm_scalarise(p=2, axis=-1))()(X)
         assert jnp.isclose(L2, jnp.sqrt((X ** 2).sum(-1)).mean())
 
     def test_unilateral_loss(self):
@@ -62,13 +62,13 @@ class TestLossFunction:
             [3, -1, 0, -2, 0]
         ])
 
-        uL0 = jax.jit(vnorm_scalarise(unilateral_loss, p=0, axis=None))
+        uL0 = jax.jit(vnorm_scalarise(p=0, axis=None)(unilateral_loss))
         assert uL0(X) == 5
         assert uL0(-X) == 4
-        uL1 = jax.jit(vnorm_scalarise(unilateral_loss, p=1, axis=None))
+        uL1 = jax.jit(vnorm_scalarise(p=1, axis=None)(unilateral_loss))
         assert uL1(X) == 9
         assert uL1(-X) == 5
-        uL2 = jax.jit(vnorm_scalarise(unilateral_loss, p=2, axis=None))
+        uL2 = jax.jit(vnorm_scalarise(p=2, axis=None)(unilateral_loss))
         assert uL2(X) == jnp.sqrt(19)
         assert uL2(-X) == jnp.sqrt(7)
 
@@ -82,10 +82,10 @@ class TestLossFunction:
         cjit = partial(jax.jit, static_argnames=('constraints',))
 
         constraints = (identity,)
-        f = cjit(vnorm_scalarise(constraint_violation, p=1, axis=None))
-        g = cjit(vnorm_scalarise(constraint_violation, p=0, axis=None))
-        h = jax.jit(vnorm_scalarise(unilateral_loss, p=1, axis=None))
-        j = vnorm_scalarise(constraint_violation, p=1, axis=None)
+        f = cjit(vnorm_scalarise(p=1, axis=None)(constraint_violation))
+        g = cjit(vnorm_scalarise(p=0, axis=None)(constraint_violation))
+        h = jax.jit(vnorm_scalarise(p=1, axis=None)(unilateral_loss))
+        j = vnorm_scalarise(p=1, axis=None)(constraint_violation)
         assert f(X, constraints=constraints) == 4
         assert f(X, constraints=constraints) == h(X)
 
@@ -118,7 +118,7 @@ class TestLossFunction:
         Y_hat_1 = jnp.array([1, 1, 1, 1, 1])
         Y_hat_minus1 = jnp.array([-1, -1, -1, -1, -1])
 
-        hinge = jax.jit(sum_scalarise(hinge_loss))
+        hinge = jax.jit(sum_scalarise()(hinge_loss))
         assert hinge(Y, Y_hat_0) == 5
         assert hinge(Y, Y_hat_1) == 4
         assert hinge(Y, Y_hat_minus1) == 6
@@ -134,9 +134,11 @@ class TestLossFunction:
         y1 = 0.17320507764816284
         sjit = partial(jax.jit, static_argnames=('axis',))
 
-        smoothness_loss = sjit(vnorm_scalarise(smoothness, axis=0))
+        smoothness_loss = sjit(
+            mean_scalarise(inner=vnorm_scalarise(axis=0))(smoothness))
         assert jnp.isclose(smoothness_loss(X, axis=0), y0)
-        smoothness_loss = sjit(vnorm_scalarise(smoothness, axis=-1))
+        smoothness_loss = sjit(
+            mean_scalarise(inner=vnorm_scalarise(axis=-1))(smoothness))
         assert jnp.isclose(smoothness_loss(X, axis=-1), y1)
 
     def test_bimodal_symmetric_loss(self):
@@ -151,10 +153,10 @@ class TestLossFunction:
         y1 = 0.58309518948453
         y2 = .65
 
-        symbm_loss = jax.jit(vnorm_scalarise(bimodal_symmetric, axis=None))
+        symbm_loss = jax.jit(vnorm_scalarise(axis=None)(bimodal_symmetric))
         assert jnp.isclose(symbm_loss(X1), y1)
         symbm_loss = jax.jit(
-            vnorm_scalarise(bimodal_symmetric, p=1, axis=None),
+            vnorm_scalarise(p=1, axis=None)(bimodal_symmetric),
             static_argnames=('modes',))
         assert jnp.isclose(symbm_loss(X2, modes=(0.95, 0.05)), y2)
 
@@ -163,8 +165,8 @@ class TestLossFunction:
         X = jax.random.normal(key, (2, 10, 5))
         dgjit = partial(jax.jit, static_argnames=('op', 'psi', 'xi',))
 
-        det_loss = dgjit(sum_scalarise(det_gram))
-        logdet_loss = dgjit(sum_scalarise(log_det_gram))
+        det_loss = dgjit(sum_scalarise()(det_gram))
+        logdet_loss = dgjit(sum_scalarise()(log_det_gram))
 
         assert jnp.isclose(det_loss(X, op=linear_kernel), 0)
         # Really, this is infinite. But due to numerical issues, it's not.
@@ -187,8 +189,8 @@ class TestLossFunction:
         distr = jax.random.uniform(key, (5, 10))
         distr = distr / distr.sum(-1, keepdims=True)
 
-        entropy_loss = jax.jit(mean_scalarise(entropy))
-        entropy_logit_loss = jax.jit(mean_scalarise(entropy_logit))
+        entropy_loss = jax.jit(mean_scalarise()(entropy))
+        entropy_logit_loss = jax.jit(mean_scalarise()(entropy_logit))
 
         out = entropy_loss(distr)
         ref = entropy_ref(distr, axis=1).mean()
@@ -210,8 +212,8 @@ class TestLossFunction:
         Q = jax.random.uniform(keyQ, (5, 10))
         Q = Q / Q.sum(-1, keepdims=True)
 
-        kl_loss = jax.jit(mean_scalarise(kl_divergence))
-        kl_logit_loss = jax.jit(mean_scalarise(kl_divergence_logit))
+        kl_loss = jax.jit(mean_scalarise()(kl_divergence))
+        kl_logit_loss = jax.jit(mean_scalarise()(kl_divergence_logit))
 
         out = kl_loss(P, Q)
         ref = entropy_ref(P, Q, axis=1).mean()
@@ -235,8 +237,8 @@ class TestLossFunction:
         Q = jax.random.uniform(keyQ, (5, 10))
         Q = Q / Q.sum(-1, keepdims=True)
 
-        js_loss = jax.jit(mean_scalarise(js_divergence))
-        js_logit_loss = jax.jit(mean_scalarise(js_divergence_logit))
+        js_loss = jax.jit(mean_scalarise()(js_divergence))
+        js_logit_loss = jax.jit(mean_scalarise()(js_divergence_logit))
 
         out = js_loss(P, Q)
         ref = (js_ref(P, Q, axis=1) ** 2).mean()
@@ -256,7 +258,7 @@ class TestLossFunction:
         X = jax.random.normal(key_x, (3, 10,))
         Y = jax.random.normal(key_y, (3, 10,))
 
-        bregman_loss = jax.jit(mean_scalarise(bregman_divergence),
+        bregman_loss = jax.jit(mean_scalarise()(bregman_divergence),
                                static_argnames=('f', 'f_dim'))
         f = lambda x: jnp.linalg.norm(x, axis=-1) ** 2
 
@@ -269,7 +271,7 @@ class TestLossFunction:
         base = jnp.ones((5, 10))
         noise = jax.random.normal(key, (5, 10))
 
-        equilibrium_loss = jax.jit(meansq_scalarise(equilibrium))
+        equilibrium_loss = jax.jit(meansq_scalarise()(equilibrium))
 
         out0 = equilibrium_loss(base)
         out1 = equilibrium_loss(base + 1e-1 * noise)
@@ -290,7 +292,7 @@ class TestLossFunction:
         weight = jnp.eye(2)[src].swapaxes(-2, -1)
         data = jax.random.normal(key=key, shape=(n_channels, n_observations))
 
-        loss = jax.jit(mean_scalarise(second_moment),
+        loss = jax.jit(mean_scalarise()(second_moment),
                        static_argnames=('standardise'))
         out = loss(data, weight, standardise=False)
         ref = jnp.stack((
@@ -319,8 +321,8 @@ class TestLossFunction:
         weight = jax.random.normal(key_w, shape=(n_groups, n_channels))
         mu = weight @ data / weight.sum(-1, keepdims=True)
 
-        loss0 = jax.jit(mean_scalarise(second_moment))
-        loss1 = jax.jit(mean_scalarise(second_moment_centred))
+        loss0 = jax.jit(mean_scalarise()(second_moment))
+        loss1 = jax.jit(mean_scalarise()(second_moment_centred))
 
         ref = loss0(data, weight)
         out = loss1(data, weight, mu)
@@ -336,11 +338,11 @@ class TestLossFunction:
         key_d, key_q = jax.random.split(key)
 
         batch_corr_loss = jax.jit(
-            mean_scalarise(batch_corr),
+            mean_scalarise()(batch_corr),
             static_argnames=('tol', 'abs')
         )
         qcfc_loss = jax.jit(
-            mean_scalarise(batch_corr),
+            mean_scalarise()(batch_corr),
             static_argnames=('tol', 'abs')
         )
 
@@ -372,7 +374,7 @@ class TestLossFunction:
         data = jax.random.uniform(key_d, (5, 100))
         coor = jax.random.uniform(key_c, (3, 100))
         coor_ref = jax.random.uniform(key_r, (3, 5))
-        jax.jit(mean_scalarise(reference_tether))(data, coor_ref, coor)
+        jax.jit(mean_scalarise()(reference_tether))(data, coor_ref, coor)
 
         key_ld, key_rd = jax.random.split(key_d)
         key_lc, key_rc = jax.random.split(key_c)
@@ -380,20 +382,20 @@ class TestLossFunction:
         coor_lh = jax.random.uniform(key_lc, (3, 100))
         data_rh = jax.random.uniform(key_rd, (5, 100))
         coor_rh = jax.random.uniform(key_rc, (3, 100))
-        jax.jit(mean_scalarise(interhemispheric_tether))(
+        jax.jit(mean_scalarise()(interhemispheric_tether))(
             data_lh, data_rh, coor_lh, coor_rh)
 
         data = jax.random.uniform(key_d, (5, 100))
         coor = jax.random.uniform(key_c, (3, 100))
-        jax.jit(mean_scalarise(compactness))(data, coor)
+        jax.jit(mean_scalarise()(compactness))(data, coor)
 
         coor = jax.random.uniform(key_c, (3, 5))
-        jax.jit(mean_scalarise(dispersion))(coor.T,)
+        jax.jit(mean_scalarise()(dispersion))(coor.T,)
 
     def test_mvkurtosis_expected_value(self):
         key = jax.random.PRNGKey(0)
 
-        mvk_loss = jax.jit(mean_scalarise(multivariate_kurtosis),
+        mvk_loss = jax.jit(mean_scalarise()(multivariate_kurtosis),
                            static_argnames=('dimensional_scaling'))
         mvks_loss = partial(mvk_loss, dimensional_scaling=True)
 
@@ -414,9 +416,9 @@ class TestLossFunction:
         Q = jax.random.normal(key_d, shape=(20, 4))
         A = jax.random.normal(key_a, shape=(3, 20, 20))
 
-        modularity_loss = jax.jit(mean_scalarise(modularity))
+        modularity_loss = jax.jit(mean_scalarise()(modularity))
         out = modularity_loss(Q, A) / 2
         ref = relaxed_modularity(A, Q).mean()
         assert jnp.allclose(out, ref)
 
-        jax.jit(mean_scalarise(eigenmaps))(Q, A)
+        jax.jit(mean_scalarise()(eigenmaps))(Q, A)

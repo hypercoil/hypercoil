@@ -9,23 +9,26 @@ import jax.numpy as jnp
 from hypercoil.loss.functional import identity
 from hypercoil.loss.scalarise import (
     selfwmean, wmean, wmean_scalarise, selfwmean_scalarise,
-    vnorm_scalarise,
+    vnorm_scalarise, mean_scalarise
 )
 
 
-class TestLossFunction:
+class TestScalarise:
 
     def test_vnorm_scalarise(self):
         key = jax.random.PRNGKey(0)
         X = jax.random.uniform(key=key, shape=(10, 20))
-        out = vnorm_scalarise(identity, axis=-1)(X)
+        out = mean_scalarise(inner=vnorm_scalarise(axis=-1))(identity)(X)
         ref = jnp.linalg.norm(X, axis=-1).mean()
         assert jnp.isclose(out, ref)
-        out = vnorm_scalarise(identity, axis=None)(X)
+        out = mean_scalarise(inner=vnorm_scalarise(axis=None))(identity)(X)
         ref = jnp.linalg.norm(X.ravel())
         assert jnp.isclose(out, ref)
-        out = vnorm_scalarise(identity, axis=0)(X)
+        out = mean_scalarise(inner=vnorm_scalarise(axis=0))(identity)(X)
         ref = jnp.linalg.norm(X, axis=0).mean()
+        assert jnp.isclose(out, ref)
+        out = mean_scalarise(inner=vnorm_scalarise(axis=(0, 1)))(identity)(X)
+        ref = jnp.linalg.norm(X.ravel())
         assert jnp.isclose(out, ref)
 
     def test_wmean(self):
@@ -59,7 +62,9 @@ class TestLossFunction:
             [(1 + 2 + 9 + 1) / 4, (0 + 1 + 6 + 7) / 4, (4 + 7 + 4 + 2) / 4]
         ]))
 
-        loss = jax.jit(wmean_scalarise(identity, axis=(0, 1)))
+        loss = jax.jit(
+            mean_scalarise(inner=wmean_scalarise(axis=(0, 1)))(identity)
+        )
         out = loss(z, scalarisation_weight=w)
         assert jnp.all(out == jnp.array([
             [(1 + 4 + 4 + 1) / 4, (4 + 6 + 6 + 4) / 4, (2 + 7 + 7 + 2) / 4]
@@ -77,5 +82,5 @@ class TestLossFunction:
         assert jnp.isclose(selfwmean(X, softmax_axis=-1), 0)
         assert not jnp.isclose(selfwmean(Y, softmax_axis=-1), 0)
 
-        loss = jax.jit(selfwmean_scalarise(identity, axis=None, softmax_axis=-1))
+        loss = jax.jit(selfwmean_scalarise(axis=None, softmax_axis=-1)(identity))
         assert jnp.isclose(loss(X), 0)

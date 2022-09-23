@@ -28,7 +28,12 @@ from hypercoil.nn import (
     FrequencyDomainFilter,
     UnaryCovarianceUW,
 )
-from hypercoil.loss.scalarise import meansq_scalarise, vnorm_scalarise, max_scalarise
+from hypercoil.loss.scalarise import (
+    mean_scalarise,
+    meansq_scalarise,
+    vnorm_scalarise,
+    max_scalarise
+)
 from hypercoil.loss.scheme import (
     LossScheme,
     LossApply,
@@ -182,11 +187,11 @@ def frequency_band_identification_experiment(
             SmoothnessLoss(
                 name='Smoothness',
                 nu=smoothness_nu,
-                scalarisation=vnorm_scalarise,),
+                scalarisation=mean_scalarise(inner=vnorm_scalarise()),),
             BimodalSymmetricLoss(
                 name='BimodalSymmetric',
                 nu=symbimodal_nu,
-                scalarisation=vnorm_scalarise,),
+                scalarisation=mean_scalarise(inner=vnorm_scalarise()),),
             NormedLoss(
                 name='L2',
                 nu=l2_nu,
@@ -222,7 +227,9 @@ def frequency_band_identification_experiment(
                 SmoothnessLoss(
                     name='Smoothness',
                     nu=smoothness_nu,
-                    scalarisation=partial(vnorm_scalarise, p=2, axis=-1),
+                    scalarisation=mean_scalarise(
+                        inner=vnorm_scalarise(p=2, axis=-1)
+                    ),
                     axis=-1),
                 EntropyLoss(
                     name='Entropy',
@@ -234,12 +241,12 @@ def frequency_band_identification_experiment(
                 BimodalSymmetricLoss(
                     name='BimodalSymmetric',
                     nu=symbimodal_nu,
-                    scalarisation=meansq_scalarise,
+                    scalarisation=meansq_scalarise(),
                     modes=(-1, 1)),
                 DispersionLoss(
                     name='Dispersion',
                     nu=dispersion_nu,
-                    scalarisation=max_scalarise,
+                    scalarisation=mean_scalarise(inner=max_scalarise(axis=-1)),
                     metric=linear_distance)
             ], apply = lambda arg: sym2vec(arg.corr)),
         ])
@@ -385,11 +392,11 @@ def dynamic_band_identification_experiment(
             SmoothnessLoss(
                 name='Smoothness',
                 nu=smoothness_nu,
-                scalarisation=vnorm_scalarise,),
+                scalarisation=mean_scalarise(inner=vnorm_scalarise()),),
             BimodalSymmetricLoss(
                 name='BimodalSymmetric',
                 nu=symbimodal_nu,
-                scalarisation=vnorm_scalarise,),
+                scalarisation=mean_scalarise(inner=vnorm_scalarise()),),
             NormedLoss(
                 name='L2',
                 nu=l2_nu)

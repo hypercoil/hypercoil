@@ -35,6 +35,7 @@ from hypercoil.loss.nn import (
 )
 from hypercoil.loss.scalarise import (
     max_scalarise,
+    mean_scalarise,
     meansq_scalarise,
     vnorm_scalarise,
 )
@@ -104,11 +105,11 @@ def state_detection_experiment(
             name='BimodalSymmetric',
             nu=0.005,
             modes=(0., 1.),
-            scalarisation=vnorm_scalarise,),
+            scalarisation=mean_scalarise(inner=vnorm_scalarise()),),
         SmoothnessLoss(
             name='Smoothness',
             nu=0.05,
-            scalarisation=vnorm_scalarise,),
+            scalarisation=mean_scalarise(inner=vnorm_scalarise()),),
     ], apply=lambda x: x.weight)
 
 
@@ -207,7 +208,9 @@ def unsupervised_state_detection_experiment(
                 SmoothnessLoss(
                     name='Smoothness',
                     nu=smoothness_nu,
-                    scalarisation=partial(vnorm_scalarise, p=2, axis=-1),
+                    scalarisation=mean_scalarise(
+                        inner=vnorm_scalarise(p=2, axis=-1)
+                    ),
                 ),
                 EntropyLoss(
                     name='Entropy',
@@ -222,7 +225,7 @@ def unsupervised_state_detection_experiment(
                     name='BimodalSymmetric',
                     nu=symbimodal_nu,
                     modes=(-1, 1),
-                    scalarisation=meansq_scalarise,
+                    scalarisation=meansq_scalarise(),
                 ),
                 DispersionLoss(
                     name='Dispersion',
@@ -301,7 +304,7 @@ def unsupervised_state_detection_experiment(
                 SmoothnessLoss(
                     name='Smoothness',
                     nu=smoothness_nu,
-                    scalarisation=meansq_scalarise,
+                    scalarisation=meansq_scalarise(),
                     #scalarisation=partial(vnorm_scalarise, p=2, axis=-1),
                 ),
                 EntropyLoss(
@@ -318,7 +321,7 @@ def unsupervised_state_detection_experiment(
                     name='BimodalSymmetric',
                     nu=symbimodal_nu,
                     modes=(-1, 1),
-                    scalarisation=meansq_scalarise,),
+                    scalarisation=meansq_scalarise(),),
                 apply=lambda arg: arg.y
             ),
             LossApply(
