@@ -110,7 +110,7 @@ from .dirichlet import DirichletInitialiser
 from .mapparam import MappedParameter, ProbabilitySimplexParameter
 from ..engine import PyTree, Tensor
 from ..engine.noise import ScalarIIDAddStochasticTransform
-from ..formula.nnops import retrieve_parameter
+from ..formula.nnops import retrieve_address
 
 
 class BaseAtlas(eqx.Module):
@@ -400,11 +400,6 @@ class DirichletInitBaseAtlas(
     init : dict(Dirichlet)
         Dict mapping from compartment names to the Dirichlet distributions
         used for parcel assignment initialisation in each compartment.
-    dtype
-        Datatype for non-Boolean (non-mask) and non-Long (non-label) tensors
-        created as part of the atlas.
-    device
-        Device on which all tensors created as part of the atlas reside.
     """
 
     compartment_labels : Dict[str, int]
@@ -440,6 +435,7 @@ class DirichletInitBaseAtlas(
                     num_classes=i,
                     axis=-2,
                     mapper=None,
+                    where=None,
                     key=k,
                 ))
                 for k, (c, i) in zip(keys, compartment_labels.items())
@@ -472,6 +468,7 @@ class DirichletInitBaseAtlas(
             num_classes=len(concentrations),
             axis=-2,
             mapper=None,
+            where=None,
             key=key,
         )
 
@@ -1140,11 +1137,11 @@ class AtlasInitialiser(MappedInitialiser):
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         **params,
     ):
-        parameters = retrieve_parameter(model, param_name=param_name)
+        parameters = retrieve_address(model, where=where)
         if key is not None:
             keys = jax.random.split(key, len(parameters))
         else:
@@ -1186,7 +1183,7 @@ class AtlasInitialiser(MappedInitialiser):
         truncate: Optional[float] = None,
         kernel_sigma: Optional[float] = None,
         noise_sigma: Optional[float] = None,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
@@ -1203,7 +1200,7 @@ class AtlasInitialiser(MappedInitialiser):
         #TODO: We're going to need our own version of _init_impl here to
         #      handle the separation of compartments into a tensor dict.
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key, **params,
+            init=init, model=model, where=where, key=key, **params,
         )
 
 

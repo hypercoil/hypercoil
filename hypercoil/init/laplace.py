@@ -7,7 +7,7 @@ Initialise parameters to match a double exponential function.
 import jax
 import jax.numpy as jnp
 from functools import reduce
-from typing import Literal, Optional, Tuple, Type, Sequence
+from typing import Callable, Literal, Optional, Tuple, Type, Sequence, Union
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
 from ..engine import Tensor, PyTree
@@ -98,7 +98,7 @@ class LaplaceInitialiser(MappedInitialiser):
         normalise: Optional[Literal['max', 'sum']] = None,
         var: float = 0.02,
         excl_axis: Optional[Sequence[int]] = None,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:
@@ -107,7 +107,7 @@ class LaplaceInitialiser(MappedInitialiser):
             var=var, excl_axis=excl_axis, mapper=mapper,
         )
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key, **params,
+            init=init, model=model, where=where, key=key, **params,
         )
 
 

@@ -9,12 +9,12 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 from abc import abstractmethod
-from typing import Optional, Tuple, Type
+from typing import Callable, Optional, Tuple, Type, Union
 from .mapparam import MappedParameter
 from ..engine.paramutil import (
     Distribution, PyTree, Tensor
 )
-from ..formula.nnops import retrieve_parameter
+from ..formula.nnops import retrieve_address
 
 
 def from_distr_init(
@@ -81,18 +81,18 @@ class Initialiser(eqx.Module):
 
     To use an initialiser, do not instantiate it directly, but instead use the
     ``init`` method of the module class that uses it. This will apply the
-    initialiser to the model parameter specified by ``param_name``.
+    initialiser to the model parameter specified by ``where``.
     """
 
     def __call__(
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         **params,
     ):
-        parameters = retrieve_parameter(model, param_name=param_name)
+        parameters = retrieve_address(model, where=where)
         if key is not None:
             keys = jax.random.split(key, len(parameters))
         else:
@@ -117,15 +117,15 @@ class Initialiser(eqx.Module):
         cls,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
         init = cls()
         init = init(
-            model=model, param_name=param_name, key=key, **params)
+            model=model, where=where, key=key, **params)
         return eqx.tree_at(
-            partial(retrieve_parameter, param_name=param_name),
+            partial(retrieve_address, where=where),
             model,
             replace=init
         )
@@ -148,7 +148,7 @@ class MappedInitialiser(Initialiser):
     .. warning::
         To use an initialiser, do not instantiate it directly, but instead use
         the ``init`` method of the module class that uses it. This will apply
-        the initialiser to the model parameter specified by ``param_name``.
+        the initialiser to the model parameter specified by ``where``.
 
     .. note::
         The initialiser is first used to initialise the requested parameter,
@@ -180,19 +180,19 @@ class MappedInitialiser(Initialiser):
     def _init_impl(
         init: Initialiser,
         model: PyTree,
-        param_name: str,
+        where: Union[str, Callable],
         key: Optional[jax.random.PRNGKey],
         **params
     ) -> PyTree:
         model = eqx.tree_at(
-            partial(retrieve_parameter, param_name=param_name),
+            partial(retrieve_address, where=where),
             model,
             replace=init(
-                model=model, param_name=param_name, key=key)
+                model=model, where=where, key=key)
         )
         if init.mapper is None:
             return model
-        return init.mapper.map(model=model, param_name=param_name, **params)
+        return init.mapper.map(model=model, where=where, **params)
 
     #TODO: This will be problematic if the mapper and the initialiser both
     #      use the same parameter name. In this case the initialiser will
@@ -206,7 +206,7 @@ class MappedInitialiser(Initialiser):
         model: PyTree,
         *,
         mapper: Optional[Type[MappedParameter]] = None,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
@@ -222,8 +222,10 @@ class MappedInitialiser(Initialiser):
             should be a subclass of
             :doc:`MappedParameter <api/hypercoil.init.mapparam.MappedParameter>`.
             If this is ``None``, the initialiser is applied as normal.
-        param_name : str (default: "weight")
-            Name of the parameter to initialise.
+        where : str or callable (default: "weight")
+            Address of the parameter to initialise. This can be a string
+            address or a callable that takes a model and returns a
+            parameter.
         key : jax.random.PRNGKey
             Pseudo-random number generator key to use for initialisation.
         **params : Any
@@ -234,7 +236,7 @@ class MappedInitialiser(Initialiser):
         return cls._init_impl(
             init=init,
             model=model,
-            param_name=param_name,
+            where=where,
             key=key,
             **params,
         )
@@ -273,13 +275,13 @@ class DistributionInitialiser(MappedInitialiser):
         *,
         mapper: Optional[Type[MappedParameter]] = None,
         distribution: Distribution = None,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
         init = cls(mapper=mapper, distribution=distribution)
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key, **params,
+            init=init, model=model, where=where, key=key, **params,
         )
 
 
@@ -315,13 +317,13 @@ class ConstantInitialiser(MappedInitialiser):
         *,
         mapper: Optional[Type[MappedParameter]] = None,
         value: float = 0,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:
         init = cls(mapper=mapper, value=value)
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key, **params,
+            init=init, model=model, where=where, key=key, **params,
         )
 
 
@@ -363,11 +365,11 @@ class IdentityInitialiser(MappedInitialiser):
         mapper: Optional[Type[MappedParameter]] = None,
         scale: float = 1,
         shift: float = 0,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:
         init = cls(mapper=mapper, scale=scale, shift=shift)
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key, **params,
+            init=init, model=model, where=where, key=key, **params,
         )

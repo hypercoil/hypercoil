@@ -14,7 +14,7 @@ from typing import Any, Callable, Literal, Optional, Tuple, Union
 from ..engine.paramutil import (
     PyTree, Tensor, _to_jax_array, where_weight
 )
-from ..formula.nnops import retrieve_parameter
+from ..formula.nnops import retrieve_address
 from ..functional.activation import isochor
 from ..functional.matrix import spd
 from ..functional.utils import (
@@ -72,7 +72,7 @@ class MappedParameter(eqx.Module):
         cls,
         model: PyTree,
         *pparams,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         **params
     ):
         """
@@ -83,8 +83,10 @@ class MappedParameter(eqx.Module):
         ----------
         model : PyTree
             The model to which the parameter belongs.
-        param_name : str (default: `"weight"`)
-            The name of the parameter in the model.
+        where : str or Callable (default: `"weight"`)
+            The address of the parameter to be mapped, specified as a string
+            or a function. For example: ``where = "weight"`` or
+            ``where = lambda mlp: mlp.layers[-1].linear.weight``.
 
         Returns
         -------
@@ -92,20 +94,20 @@ class MappedParameter(eqx.Module):
             The updated model containing the mapped parameter.
         """
         #TODO: We're inefficiently making a lot of repeated calls to
-        #      ``retrieve_parameter`` here. We might be able to do this more
+        #      ``retrieve_address`` here. We might be able to do this more
         #      efficiently, but this is low-priority as each call usually has
         #      very little overhead.
-        parameters = retrieve_parameter(model, param_name)
+        parameters = retrieve_address(model, where)
         mapped = ()
         for i, _ in enumerate(parameters):
-            where = lambda model: retrieve_parameter(model, param_name)[i]
+            where_i = lambda model: retrieve_address(model, where)[i]
             mapped += (cls(
                 model=model,
                 *pparams,
-                where=where,
+                where=where_i,
                 **params),)
         return eqx.tree_at(
-            lambda m: retrieve_parameter(m, param_name),
+            lambda m: retrieve_address(m, where),
             model,
             replace=mapped,
         )

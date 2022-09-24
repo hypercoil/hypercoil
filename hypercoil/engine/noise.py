@@ -12,12 +12,12 @@ import jax.numpy as jnp
 import distrax
 import equinox as eqx
 from abc import abstractmethod
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 from .paramutil import (
     Distribution, PyTree, Tensor, _to_jax_array, where_weight
 )
 from .axisutil import argsort, standard_axis_number, axis_complement
-from ..formula.nnops import retrieve_parameter
+from ..formula.nnops import retrieve_address
 
 
 def _symlog(input):
@@ -304,8 +304,9 @@ class StochasticParameter(eqx.Module):
     ----------
     model : PyTree
         The model to wrap.
-    param_name : str
-        The name of the parameter to wrap.
+    where : str or callable
+        The string address of the parameter to wrap or a callable that takes
+        a pytree and returns the parameter to wrap.
     transform : ``StochasticTransform``
         The transform to use for introducing stochasticity to the parameter.
         Inference mode and the kind of stochasticity are configured at the
@@ -333,26 +334,26 @@ class StochasticParameter(eqx.Module):
         cls,
         model: PyTree,
         *pparams,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         transform: StochasticTransform,
         **params,
     ) -> PyTree:
         #TODO: We're inefficiently making a lot of repeated calls to
-        #      ``retrieve_parameter`` here. We might be able to do this more
+        #      ``retrieve_address`` here. We might be able to do this more
         #      efficiently, but this is low-priority as each call usually has
         #      very little overhead.
-        parameters = retrieve_parameter(model, param_name)
+        parameters = retrieve_address(model, where)
         wrapped = ()
         for i, _ in enumerate(parameters):
-            where = lambda model: retrieve_parameter(model, param_name)[i]
+            where_i = lambda model: retrieve_address(model, where)[i]
             wrapped += (cls(
                 model=model,
                 *pparams,
-                where=where,
+                where=where_i,
                 transform=transform,
                 **params),)
         return eqx.tree_at(
-            lambda m: retrieve_parameter(m, param_name),
+            lambda m: retrieve_address(m, where),
             model,
             replace=wrapped,
         )

@@ -6,7 +6,7 @@ Initialise a tensor such that elements along a given axis are Dirichlet
 samples.
 """
 import jax
-from typing import Optional, Sequence, Tuple, Type, Union
+from typing import Callable, Optional, Sequence, Tuple, Type, Union
 from distrax import Distribution, Dirichlet
 from .base import MappedInitialiser
 from .mapparam import MappedParameter, ProbabilitySimplexParameter
@@ -93,7 +93,7 @@ class DirichletInitialiser(MappedInitialiser):
         concentration: Union[Tensor, float],
         num_classes: Optional[int] = None,
         axis: int = -1,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
@@ -112,7 +112,7 @@ class DirichletInitialiser(MappedInitialiser):
             axis=axis
         )
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key, **params,
+            init=init, model=model, where=where, key=key, **params,
         )
 
 

@@ -8,8 +8,8 @@ import math
 import jax
 import jax.numpy as jnp
 import distrax
-from typing import Literal, Optional, Tuple, Type, Union
-from .base import MappedInitialiser, retrieve_parameter
+from typing import Callable, Literal, Optional, Tuple, Type, Union
+from .base import MappedInitialiser, retrieve_address
 from .mapparam import MappedParameter
 from ..engine import PyTree, Tensor
 
@@ -146,12 +146,12 @@ class SyloInitialiser(MappedInitialiser):
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         **params,
     ):
         params_init = ()
-        parameters = retrieve_parameter(model, param_name=param_name)
+        parameters = retrieve_address(model, where=where)
         keys = jax.random.split(key, len(parameters))
         for key, parameter in zip(keys, parameters):
             if (not isinstance(parameter, jnp.DeviceArray) and
@@ -197,7 +197,7 @@ class SyloInitialiser(MappedInitialiser):
         init_distr: Literal['uniform', 'normal'] = 'uniform',
         nonlinearity: str = 'leaky_relu',
         psd: bool = False,
-        param_name: str = 'weight',
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ):
@@ -210,5 +210,5 @@ class SyloInitialiser(MappedInitialiser):
             psd=psd,
         )
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key, **params,
+            init=init, model=model, where=where, key=key, **params,
         )

@@ -8,8 +8,8 @@ Transformations and grammar for addressing neural network parameters.
 """
 import equinox as eqx
 from dataclasses import field
-from functools import partial, reduce
-from typing import Any, Callable, Dict, Literal, Optional, Sequence
+from functools import reduce
+from typing import Any, Callable, Dict, Literal, Optional, Sequence, Union
 from ..engine.paramutil import PyTree
 from .grammar import (
     Grammar,
@@ -18,20 +18,35 @@ from .grammar import (
 )
 
 
-def retrieve_parameter(model, param_name):
-    if param_name is None:
+def retrieve_address(
+    model: PyTree,
+    where: Union[str, Callable]
+):
+    if where is None:
         return (model,)
-    return ParameterAddressGrammar().compile(param_name)(model)
+    elif callable(where):
+        return where(model)
+    return ParameterAddressGrammar().compile(where)(model)
 
 
-def transform_address(model, where, replace_fn):
+def transform_address(
+    model: PyTree,
+    where: Union[str, Callable],
+    replace_fn: Callable,
+) -> PyTree:
     if where is None:
         return model
-    f = ParameterAddressGrammar().compile(where)
+    elif callable(where):
+        f = where
+    else:
+        f = ParameterAddressGrammar().compile(where)
     return eqx.tree_at(f, model, replace_fn=replace_fn)
 
 
-def filter_address(model, where):
+def filter_address(
+    model: PyTree,
+    where: Union[str, Callable],
+) -> PyTree:
     def _f(matches):
         def __f(x):
             for m in matches:
@@ -42,6 +57,8 @@ def filter_address(model, where):
 
     if where is None:
         matches = ()
+    elif callable(where):
+        matches = where(model)
     else:
         f = ParameterAddressGrammar().compile(where)
         matches = f(model)
@@ -80,7 +97,7 @@ class ParameterSelectInterpreter(LeafInterpreter):
             except AttributeError:
                 try:
                     return (model.__getitem__(leaf),)
-                except (AttributeError, KeyError) as e:
+                except (AttributeError, KeyError, TypeError) as e:
                     raise AttributeError(
                         f"Could not retrieve parameter {leaf} from model {model}."
                     )

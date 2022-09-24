@@ -5,7 +5,7 @@
 Initialise parameters as a stack of Toeplitz-structured banded matrices.
 """
 import jax
-from typing import Optional, Tuple, Type
+from typing import Callable, Optional, Tuple, Type, Union
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
 from ..engine import PyTree, Tensor
@@ -50,10 +50,10 @@ class ToeplitzInitialiser(MappedInitialiser):
         c: Tensor,
         r: Optional[Tensor] = None,
         fill_value: float = 0.,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: Optional[jax.random.PRNGKey] = None,
     ):
         init = cls(mapper=mapper, c=c, r=r, fill_value=fill_value)
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key,
+            init=init, model=model, where=where, key=key,
         )

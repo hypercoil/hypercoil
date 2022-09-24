@@ -26,7 +26,8 @@ from hypercoil.formula.imops import (
     NiftiObjectInterpreter
 )
 from ..engine import (
-    Tensor, standard_axis_number, promote_axis, demote_axis, axis_complement
+    Tensor, standard_axis_number,
+    promote_axis, demote_axis, axis_complement
 )
 from ..engine.paramutil import _to_jax_array
 from ..functional.linear import form_dynamic_slice

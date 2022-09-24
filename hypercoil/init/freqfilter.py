@@ -12,7 +12,7 @@ from dataclasses import field
 from functools import partial
 from typing import (
     Callable, Dict, Literal, Optional, Sequence, Tuple, Type, Union)
-from .base import Initialiser, MappedInitialiser, retrieve_parameter
+from .base import Initialiser, MappedInitialiser, retrieve_address
 from .mapparam import MappedParameter
 from ..engine import PyTree, Tensor
 from ..functional.utils import complex_recompose
@@ -743,12 +743,12 @@ class FreqFilterInitialiser(MappedInitialiser):
         self,
         model: PyTree,
         *,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         clamp: bool = False,
         **params,
     ):
-        parameters = retrieve_parameter(model, param_name=param_name)
+        parameters = retrieve_address(model, where=where)
         if key is not None:
             keys = jax.random.split(key, len(parameters))
         else:
@@ -781,27 +781,27 @@ class FreqFilterInitialiser(MappedInitialiser):
     def _init_impl(
         init: Initialiser,
         model: PyTree,
-        param_name: str,
+        where: Union[str, Callable],
         clamp_name: str,
         key: Optional[jax.random.PRNGKey],
         **params
     ) -> PyTree:
         model = eqx.tree_at(
-            partial(retrieve_parameter, param_name=param_name),
+            partial(retrieve_address, where=where),
             model,
             replace=init(
-                model=model, param_name=param_name, key=key)
+                model=model, where=where, key=key)
         )
         if clamp_name is not None:
             model = eqx.tree_at(
-                partial(retrieve_parameter, param_name=clamp_name),
+                partial(retrieve_address, where=clamp_name),
                 model,
                 replace=init(
-                    model=model, param_name=clamp_name, key=key, clamp=True)
+                    model=model, where=clamp_name, key=key, clamp=True)
             )
         if init.mapper is None:
             return model
-        return init.mapper.map(model=model, param_name=param_name, **params)
+        return init.mapper.map(model=model, where=where, **params)
 
     @classmethod
     def init(
@@ -810,7 +810,7 @@ class FreqFilterInitialiser(MappedInitialiser):
         *,
         mapper: Optional[Type[MappedParameter]] = None,
         filter_specs: Sequence[FreqFilterSpec],
-        param_name: str = 'weight',
+        where: str = 'weight',
         clamp_name: Optional[str] = None,
         key: 'jax.random.PRNGKey',
         **params,
@@ -821,7 +821,7 @@ class FreqFilterInitialiser(MappedInitialiser):
         )
         return cls._init_impl(
             init=init, model=model,
-            param_name=param_name,
+            where=where,
             clamp_name=clamp_name,
             key=key, **params,
         )

@@ -180,7 +180,7 @@ class TangencyInitialiser(MappedInitialiser):
         init_data: Tensor,
         mean_specs: Sequence[Callable],
         std: float = 0.,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: Optional[jax.random.PRNGKey] = None,
         **params,
     ) -> PyTree:
@@ -191,7 +191,7 @@ class TangencyInitialiser(MappedInitialiser):
             std=std
         )
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key, **params)
+            init=init, model=model, where=where, key=key, **params)
 
 
 class _SemidefiniteMean(eqx.Module):

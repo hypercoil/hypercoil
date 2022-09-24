@@ -14,7 +14,7 @@ from hypercoil.functional.matrix import sym2vec
 from hypercoil.init.mpbl import (
     maximum_potential_bipartite_lattice
 )
-from hypercoil.synth.sylo import synthesise_lowrank_block
+from hypercoil.examples.synthetic.scripts.sylo import synthesise_lowrank_block
 
 
 class TestMPBL:
@@ -58,7 +58,7 @@ class TestMPBL:
         fig.savefig(f'{results}/mpbl_{path}.png', bbox_inches='tight')
 
     def test_mpbl_symmetric(self):
-        A = synthesise_lowrank_block(100)
+        A = synthesise_lowrank_block(100, key=jax.random.PRNGKey(0))
         A = jnp.asarray(A)
         orig = A
         C2, _, u_prop = maximum_potential_bipartite_lattice(

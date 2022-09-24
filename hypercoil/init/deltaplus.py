@@ -6,7 +6,7 @@ Initialise parameters as a set of delta functions, plus Gaussian noise.
 """
 import jax
 import jax.numpy as jnp
-from typing import Optional, Tuple, Type
+from typing import Callable, Optional, Tuple, Type, Union
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
 from ..engine import PyTree, Tensor
@@ -105,13 +105,13 @@ class DeltaPlusInitialiser(MappedInitialiser):
         loc: Optional[Tuple[int, ...]] = None,
         scale: float = 1,
         var: Tensor = 0.2,
-        param_name: str = "weight",
+        where: Union[str, Callable] = "weight",
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
         init = cls(mapper=mapper, loc=loc, scale=scale, var=var)
         return super()._init_impl(
-            init=init, model=model, param_name=param_name, key=key, **params,
+            init=init, model=model, where=where, key=key, **params,
         )
 
 

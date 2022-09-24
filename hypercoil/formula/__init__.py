@@ -21,4 +21,7 @@ from .nnops import (
     ParameterAddressGrammar,
     ParameterSelectInterpreter,
     ParameterAddressRootNode,
+    transform_address,
+    filter_address,
+    retrieve_address,
 )

@@ -289,7 +289,7 @@ class TestAtlasInit:
                 distribution=distrax.Bernoulli(probs=0.2),
                 key=jax.random.PRNGKey(0),
             ),
-            param_name='weight$all',
+            where='weight$all',
         )
         #TODO: use a noise source applied voxel-wise instead of entry-wise
         empirical = 1 - (lin.weight['all'].__jax_array__() == 0).mean()
