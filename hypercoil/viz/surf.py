@@ -23,6 +23,24 @@ def is_path_like(obj: Any) -> bool:
     return isinstance(obj, (str, pathlib.Path))
 
 
+# class ProjectionKey:
+#     """
+#     Currently, PyVista does not support non-string keys for point data. This class
+#     is unused, but is a placeholder in case PyVista supports this in the future.
+#     """
+#     def __init__(self, projection: str):
+#         self.projection = projection
+
+#     def __hash__(self):
+#         return hash(f'_projection_{self.projection}')
+
+#     def __eq__(self, other):
+#         return self.projection == other.projection
+
+#     def __repr__(self):
+#         return f'Projection({self.projection})'
+
+
 @dataclass
 class ProjectedPolyData(pv.PolyData):
     """
@@ -36,13 +54,17 @@ class ProjectedPolyData(pv.PolyData):
         **params
     ):
         super().__init__(*pparams, **params)
-        self.projection = projection
-        self.projections = {
-            projection: self.points,
-        }
+        self.point_data[f'_projection_{projection}'] = self.points
 
     def __repr__(self):
         return super().__repr__()
+
+    @property
+    def projections(self):
+        return {
+            k[12:]: v for k, v in self.point_data.items()
+            if k[:12] == '_projection_'
+        }
 
     @classmethod
     def from_polydata(
@@ -64,6 +86,15 @@ class ProjectedPolyData(pv.PolyData):
                     obj.add_projection(key, value.points)
         return obj
 
+    def get_projection(self, projection: str) -> Tensor:
+        projections = self.projections
+        if projection not in projections:
+            raise KeyError(
+                f"Projection '{projection}' not found. "
+                f"Available projections: {set(projections.keys())}"
+            )
+        return projections[projection]
+
     def add_projection(
         self,
         projection: str,
@@ -72,27 +103,35 @@ class ProjectedPolyData(pv.PolyData):
         if len(points) != self.n_points:
             raise ValueError(
                 f'Number of points {len(points)} must match {self.n_points}.')
-        self.projections[projection] = points
+        self.point_data[f'_projection_{projection}'] = points
 
     def remove_projection(
         self,
         projection: str,
     ):
-        if projection not in self.projections:
-            raise KeyError(f'Projection {projection} not found.')
-        del self.projections[projection]
+        projections = self.projections
+        if projection not in projections:
+            raise KeyError(
+                f"Projection '{projection}' not found. "
+                f"Available projections: {set(projections.keys())}"
+            )
+        del self.point_data[f'_projection_{projection}']
 
     def project(
         self,
         projection: str,
     ):
-        if projection not in self.projections:
-            raise KeyError(f'Projection {projection} not found.')
-        self.points = self.projections[projection]
+        projections = self.projections
+        if projection not in projections:
+            raise KeyError(
+                f"Projection '{projection}' not found. "
+                f"Available projections: {set(projections.keys())}"
+            )
+        self.points = projections[projection]
 
 
 @dataclass
-class BrainTriSurface:
+class CortexTriSurface:
     left: ProjectedPolyData
     right: ProjectedPolyData
     mask: Optional[str] = None
@@ -108,9 +147,9 @@ class BrainTriSurface:
     ):
         if projection is None:
             projection = list(left.keys())[0]
-        left, mask_str = cls._hemisphere_darray(
+        left, mask_str = cls._hemisphere_darray_impl(
             left, left_mask, projection)
-        right, _ = cls._hemisphere_darray(
+        right, _ = cls._hemisphere_darray_impl(
             right, right_mask, projection)
         return cls(left, right, mask_str)
 
@@ -123,8 +162,8 @@ class BrainTriSurface:
         right_mask: Optional[Union[str, nb.gifti.gifti.GiftiImage]] = None,
         projection: Optional[str] = None,
     ):
-        left, left_mask = cls._hemisphere_gifti(left, left_mask)
-        right, right_mask = cls._hemisphere_gifti(right, right_mask)
+        left, left_mask = cls._hemisphere_gifti_impl(left, left_mask)
+        right, right_mask = cls._hemisphere_gifti_impl(right, right_mask)
         return cls.from_darrays(
             left={k: tuple(d.data for d in v.darrays) for k, v in left.items()},
             right={k: tuple(d.data for d in v.darrays) for k, v in right.items()},
@@ -162,13 +201,34 @@ class BrainTriSurface:
             )
         return cls.from_gifti(lh, rh, lh_mask, rh_mask, projection=projections[0])
 
+    @property
+    def n_points(self) -> Mapping[str, int]:
+        return {
+            'left': self.left.n_points,
+            'right': self.right.n_points,
+        }
+
+    @property
+    def masks(self) -> Mapping[str, Tensor]:
+        return {
+            'left': self.left.point_data[self.mask],
+            'right': self.right.point_data[self.mask],
+        }
+
+    @property
+    def mask_size(self) -> Mapping[str, int]:
+        return {
+            'left': self.masks['left'].sum().item(),
+            'right': self.masks['right'].sum().item(),
+        }
+
     @staticmethod
-    def _hemisphere_darray(data, mask, projection):
+    def _hemisphere_darray_impl(data, mask, projection):
         surf = pv.make_tri_mesh(*data[projection])
         surf = ProjectedPolyData(surf, projection=projection)
-        for key, value in data.items():
+        for key, (points, _) in data.items():
             if key != projection:
-                surf.add_projection(key, value[0])
+                surf.add_projection(key, points)
         mask_str = None
         if mask is not None:
             surf.point_data['__mask__'] = mask
@@ -176,8 +236,7 @@ class BrainTriSurface:
         return surf, mask_str
 
     @staticmethod
-    def _hemisphere_gifti(data, mask):
-        print(data)
+    def _hemisphere_gifti_impl(data, mask):
         data = {
             k: (nb.load(v) if is_path_like(v) else v)
             for k, v in data.items()}
@@ -186,19 +245,3 @@ class BrainTriSurface:
                 mask = nb.load(mask)
             mask = mask.darrays[0].data.astype(bool)
         return data, mask
-
-    def add_scalar(
-        self,
-        name: str,
-        left: Optional[Tensor] = None,
-        right: Optional[Tensor] = None,
-        apply_mask: bool = True,
-    ):
-        if left is not None:
-            if apply_mask and self.mask is not None:
-                left = left[self.left.point_data[self.mask]]
-            self.left.point_data[name] = left
-        if right is not None:
-            if apply_mask and self.mask is not None:
-                right = right[self.right.point_data[self.mask]]
-            self.right.point_data[name] = right
