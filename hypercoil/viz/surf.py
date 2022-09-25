@@ -14,7 +14,8 @@ import nibabel as nb
 import templateflow.api as tflow
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Literal, Mapping, Optional, Sequence, Tuple, Union
+from matplotlib.colors import ListedColormap
 from hypercoil.engine import Tensor
 from hypercoil.init.atlasmixins import Reference
 from hypercoil.neuro.const import (
@@ -24,6 +25,14 @@ from hypercoil.neuro.const import (
 
 def is_path_like(obj: Any) -> bool:
     return isinstance(obj, (str, pathlib.Path))
+
+
+def extend_to_max(*pparams, axis=-1):
+    max_len = max(p.shape[axis] for p in pparams)
+    pad = [(0, 0)] * pparams[0].ndim
+    for p in pparams:
+        pad[axis] = (0, max_len - p.shape[axis])
+        yield np.pad(p, pad, 'constant')
 
 
 # class ProjectionKey:
@@ -58,7 +67,7 @@ class ProjectedPolyData(pv.PolyData):
         **params
     ):
         super().__init__(*pparams, **params)
-        self.point_data[f'_projection_{projection}'] = self.points
+        self.point_data[f'_projection_{projection}'] = self.points.copy()
 
     def __repr__(self):
         return super().__repr__()
@@ -216,6 +225,13 @@ class CortexTriSurface:
         }
 
     @property
+    def point_data(self) -> Mapping[str, Mapping]:
+        return {
+            'left': self.left.point_data,
+            'right': self.right.point_data,
+        }
+
+    @property
     def masks(self) -> Mapping[str, Tensor]:
         return {
             'left': self.left.point_data[self.mask],
@@ -237,7 +253,7 @@ class CortexTriSurface:
         cifti: Union[str, nb.cifti2.cifti2.Cifti2Image],
         is_masked: bool = False,
         apply_mask: bool = True,
-        null_value: Optional[float] = 0,
+        null_value: Optional[float] = 0.,
     ):
         names_dict = {
             'CIFTI_STRUCTURE_CORTEX_LEFT' : 'left',
@@ -288,7 +304,7 @@ class CortexTriSurface:
         default_slices: bool = True,
         is_masked: bool = False,
         apply_mask: bool = True,
-        null_value: Optional[float] = 0,
+        null_value: Optional[float] = 0.,
     ):
         if data is not None:
             if left_slice is None and right_slice is None:
@@ -318,7 +334,7 @@ class CortexTriSurface:
                         "To silence this warning, provide `left_data` or "
                         "`left_slice` exclusively."
                     )
-                left_data = data[left_slice]
+                left_data = data[..., left_slice]
             if right_slice is not None:
                 if right_data is not None:
                     warnings.warn(
@@ -327,7 +343,7 @@ class CortexTriSurface:
                         "To silence this warning, provide `right_data` or "
                         "`right_slice` exclusively."
                     )
-                right_data = data[right_slice]
+                right_data = data[..., right_slice]
         if left_data is None and right_data is None:
             raise ValueError(
                 "Either no data was provided, or insufficient information "
@@ -341,6 +357,40 @@ class CortexTriSurface:
             self.right.point_data[name] = self._hemisphere_vertex_data_impl(
                 right_data, is_masked, apply_mask, null_value, 'right',
             )
+
+    def parcellate_vertex_dataset(
+        self,
+        name: str,
+        parcellation: str,
+    ) -> Tensor:
+        parcellation_left = self._hemisphere_parcellate_impl(
+            name, parcellation, 'left',
+        )
+        parcellation_right = self._hemisphere_parcellate_impl(
+            name, parcellation, 'right',
+        )
+        parcellation_left, parcellation_right = extend_to_max(
+            parcellation_left,
+            parcellation_right,
+            axis=0)
+        return parcellation_left + parcellation_right
+
+    def scatter_into_parcels(
+        self,
+        data: Tensor,
+        parcellation: str,
+        sink: Optional[str] = None
+    ) -> Tensor:
+        scattered_left = self._hemisphere_into_parcels_impl(
+            data, parcellation, 'left',
+        )
+        scattered_right = self._hemisphere_into_parcels_impl(
+            data, parcellation, 'right',
+        )
+        if sink is not None:
+            self.left.point_data[sink] = scattered_left
+            self.right.point_data[sink] = scattered_right
+        return (scattered_left, scattered_right)
 
     @staticmethod
     def _hemisphere_darray_impl(data, mask, projection):
@@ -373,18 +423,118 @@ class CortexTriSurface:
         apply_mask: bool,
         null_value: Optional[float],
         hemisphere: str,
-    ):
+    ) -> Tensor:
         if null_value is None:
             null_value = np.nan
         if is_masked:
-            init = np.full(self.n_points[hemisphere], null_value)
+            if data.ndim == 2:
+                data = data.T
+                init = np.full((self.n_points[hemisphere], data.shape[-1]), null_value)
+            else:
+                init = np.full(self.n_points[hemisphere], null_value)
             init[self.masks[hemisphere]] = data
             return init
         elif apply_mask:
+            if data.ndim == 2:
+                data = data.T
+                mask = self.masks[hemisphere][..., None]
+            else:
+                mask = self.masks[hemisphere]
             return np.where(
-                self.masks[hemisphere],
+                mask,
                 data,
                 null_value,
             )
         else:
             return data
+
+    @staticmethod
+    def _hemisphere_parcellation_impl(
+        point_data: Mapping,
+        parcellation: str,
+        null_value: Optional[float] = 0.,
+    ) -> Tensor:
+        parcellation = point_data[parcellation]
+        if null_value is None:
+            null_value = parcellation.min() - 1
+        parcellation[np.isnan(parcellation)] = null_value
+        parcellation = parcellation.astype(int)
+        if parcellation.ndim == 1:
+            parcellation = parcellation - parcellation.min()
+            null_index = int(null_value - parcellation.min())
+            n_parcels = parcellation.max() + 1
+            parcellation = np.eye(n_parcels)[parcellation]
+            parcellation = np.delete(parcellation, null_index, axis=1)
+        denom = parcellation.sum(axis=0, keepdims=True)
+        denom = np.where(denom == 0, 1, denom)
+        return parcellation / denom
+
+    def _hemisphere_parcellate_impl(
+        self,
+        name: str,
+        parcellation: str,
+        hemisphere: str,
+    ) -> Tensor:
+        try:
+            point_data = self.point_data[hemisphere]
+        except KeyError:
+            return None
+        parcellation = self._hemisphere_parcellation_impl(
+            point_data,
+            parcellation=parcellation,
+        )
+        return parcellation.T @ point_data[name]
+
+    def _hemisphere_into_parcels_impl(
+        self,
+        data: Tensor,
+        parcellation: str,
+        hemisphere: str,
+    ) -> Tensor:
+        try:
+            point_data = self.point_data[hemisphere]
+        except KeyError:
+            return None
+        parcellation = self._hemisphere_parcellation_impl(
+            point_data,
+            parcellation=parcellation,
+        )
+        return parcellation @ data[:parcellation.shape[-1]]
+
+
+def _cmap_impl_hemisphere(
+    surf: CortexTriSurface,
+    hemisphere: Literal['left', 'right'],
+    parcellation: str,
+    colours: Tensor,
+    null_value: float
+) -> Tuple[Tensor, Tuple[float, float]]:
+    parcellation = surf.point_data[hemisphere][parcellation]
+    start = int(np.min(parcellation[parcellation != null_value])) - 1
+    stop = int(np.max(parcellation))
+    cmap = ListedColormap(colours[start:stop, :3])
+    clim = (start + 0.1, stop + 0.9)
+    return cmap, clim
+
+
+def make_cmap(surf, cmap, parcellation, null_value=0):
+    colours = surf.parcellate_vertex_dataset(cmap, parcellation)
+    colours = np.minimum(colours, 1)
+    colours = np.maximum(colours, 0)
+
+    cmap_left, clim_left = _cmap_impl_hemisphere(
+        surf,
+        'left',
+        parcellation,
+        colours,
+        null_value
+    )
+    cmap_right, clim_right = _cmap_impl_hemisphere(
+        surf,
+        'right',
+        parcellation,
+        colours,
+        null_value
+    )
+
+    return (cmap_left, clim_left), (cmap_right, clim_right)
