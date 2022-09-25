@@ -7,13 +7,16 @@ Brain surfaces
 Brain surface objects for plotting.
 """
 import pathlib
+import warnings
 import pyvista as pv
+import numpy as np
 import nibabel as nb
 import templateflow.api as tflow
 
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional, Sequence, Tuple, Union
 from hypercoil.engine import Tensor
+from hypercoil.init.atlasmixins import Reference
 from hypercoil.neuro.const import (
     template_dict
 )
@@ -25,8 +28,9 @@ def is_path_like(obj: Any) -> bool:
 
 # class ProjectionKey:
 #     """
-#     Currently, PyVista does not support non-string keys for point data. This class
-#     is unused, but is a placeholder in case PyVista supports this in the future.
+#     Currently, PyVista does not support non-string keys for point data. This
+#     class is unused, but is a placeholder in case PyVista supports this in
+#     the future.
 #     """
 #     def __init__(self, projection: str):
 #         self.projection = projection
@@ -165,8 +169,10 @@ class CortexTriSurface:
         left, left_mask = cls._hemisphere_gifti_impl(left, left_mask)
         right, right_mask = cls._hemisphere_gifti_impl(right, right_mask)
         return cls.from_darrays(
-            left={k: tuple(d.data for d in v.darrays) for k, v in left.items()},
-            right={k: tuple(d.data for d in v.darrays) for k, v in right.items()},
+            left={k: tuple(d.data for d in v.darrays)
+                  for k, v in left.items()},
+            right={k: tuple(d.data for d in v.darrays)
+                   for k, v in right.items()},
             left_mask=left_mask,
             right_mask=right_mask,
             projection=projection,
@@ -199,7 +205,8 @@ class CortexTriSurface:
                 tflow.get(**mask_query, hemi='L'),
                 tflow.get(**mask_query, hemi='R')
             )
-        return cls.from_gifti(lh, rh, lh_mask, rh_mask, projection=projections[0])
+        return cls.from_gifti(lh, rh, lh_mask, rh_mask,
+                              projection=projections[0])
 
     @property
     def n_points(self) -> Mapping[str, int]:
@@ -221,6 +228,119 @@ class CortexTriSurface:
             'left': self.masks['left'].sum().item(),
             'right': self.masks['right'].sum().item(),
         }
+
+    #TODO: Harmonise this with _CortexSubcortexCIfTICompartmentMixin.
+    #      There is currently a lot of duplication.
+    def add_cifti_dataset(
+        self,
+        name: str,
+        cifti: Union[str, nb.cifti2.cifti2.Cifti2Image],
+        is_masked: bool = False,
+        apply_mask: bool = True,
+        null_value: Optional[float] = 0,
+    ):
+        names_dict = {
+            'CIFTI_STRUCTURE_CORTEX_LEFT' : 'left',
+            'CIFTI_STRUCTURE_CORTEX_RIGHT' : 'right',
+        }
+        slices = {}
+
+        if is_path_like(cifti):
+            cifti = nb.load(cifti)
+        ref = Reference(cifti, model_axes='cifti')
+        model_axis = ref.model_axobj
+
+        offset = 0
+        for struc, slc, _ in (model_axis.iter_structures()):
+            hemi = names_dict.get(struc, None)
+            if hemi is not None:
+                start, stop = slc.start, slc.stop
+                start = start if start is not None else 0
+                stop = (
+                    stop if stop is not None
+                    else offset + self.mask_size[hemi]
+                )
+                slices[hemi] = slice(start, stop)
+                offset = stop
+
+        data = ref.dataobj
+        while data.shape[0] == 1:
+            data = data[0]
+        return self.add_vertex_dataset(
+            name=name,
+            data=data,
+            left_slice=slices['left'],
+            right_slice=slices['right'],
+            default_slices=False,
+            is_masked=is_masked,
+            apply_mask=apply_mask,
+            null_value=null_value,
+        )
+
+    def add_vertex_dataset(
+        self,
+        name: str,
+        data: Optional[Tensor] = None,
+        left_data: Optional[Tensor] = None,
+        right_data: Optional[Tensor] = None,
+        left_slice: Optional[slice] = None,
+        right_slice: Optional[slice] = None,
+        default_slices: bool = True,
+        is_masked: bool = False,
+        apply_mask: bool = True,
+        null_value: Optional[float] = 0,
+    ):
+        if data is not None:
+            if left_slice is None and right_slice is None:
+                if default_slices:
+                    if is_masked:
+                        left_slice = slice(0, self.mask_size['left'])
+                        right_slice = slice(self.mask_size['left'], None)
+                    else:
+                        left_slice = slice(0, self.n_points['left'])
+                        right_slice = slice(self.n_points['left'], None)
+                else:
+                    warnings.warn(
+                        "No slices were provided for vertex data, and default "
+                        "slicing was toggled off. The `data` tensor will be "
+                        "ignored. Attempting fallback to `left_data` and "
+                        "`right_data`.\n\n"
+                        "To silence this warning, provide slices for the data "
+                        "or toggle on default slicing if a `data` tensor is "
+                        "provided. Alternatively, provide `left_data` and "
+                        "`right_data` directly and exclusively."
+                    )
+            if left_slice is not None:
+                if left_data is not None:
+                    warnings.warn(
+                        "Both `left_data` and `left_slice` were provided. "
+                        "The `left_data` tensor will be ignored. "
+                        "To silence this warning, provide `left_data` or "
+                        "`left_slice` exclusively."
+                    )
+                left_data = data[left_slice]
+            if right_slice is not None:
+                if right_data is not None:
+                    warnings.warn(
+                        "Both `right_data` and `right_slice` were provided. "
+                        "The `right_data` tensor will be ignored. "
+                        "To silence this warning, provide `right_data` or "
+                        "`right_slice` exclusively."
+                    )
+                right_data = data[right_slice]
+        if left_data is None and right_data is None:
+            raise ValueError(
+                "Either no data was provided, or insufficient information "
+                "was provided to slice the data into left and right "
+                "hemispheres.")
+        if left_data is not None:
+            self.left.point_data[name] = self._hemisphere_vertex_data_impl(
+                left_data, is_masked, apply_mask, null_value, 'left',
+            )
+        if right_data is not None:
+            self.right.point_data[name] = self._hemisphere_vertex_data_impl(
+                right_data, is_masked, apply_mask, null_value, 'right',
+            )
 
     @staticmethod
     def _hemisphere_darray_impl(data, mask, projection):
@@ -245,3 +365,26 @@ class CortexTriSurface:
                 mask = nb.load(mask)
             mask = mask.darrays[0].data.astype(bool)
         return data, mask
+
+    def _hemisphere_vertex_data_impl(
+        self,
+        data: Tensor,
+        is_masked: bool,
+        apply_mask: bool,
+        null_value: Optional[float],
+        hemisphere: str,
+    ):
+        if null_value is None:
+            null_value = np.nan
+        if is_masked:
+            init = np.full(self.n_points[hemisphere], null_value)
+            init[self.masks[hemisphere]] = data
+            return init
+        elif apply_mask:
+            return np.where(
+                self.masks[hemisphere],
+                data,
+                null_value,
+            )
+        else:
+            return data

@@ -8,6 +8,12 @@ Constants for import.
 """
 
 
+def template_dict():
+    return {
+        'fsLR': fsLR(),
+    }
+
+
 class fsLR:
     TFLOW_MASK_QUERY = {
         'template': 'fsLR',
