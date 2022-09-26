@@ -7,5 +7,6 @@
    :maxdepth: 2
 
    hypercoil.functional.interpolate.hybrid_interpolate
+   hypercoil.functional.interpolate.linear_interpolate
    hypercoil.functional.interpolate.weighted_interpolate
    hypercoil.functional.interpolate.spectral_interpolate

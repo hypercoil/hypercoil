@@ -8,9 +8,7 @@
 
    hypercoil.functional.utils.conform_mask
    hypercoil.functional.utils.apply_mask
-   hypercoil.functional.utils.wmean
+   hypercoil.functional.utils.mask_tensor
    hypercoil.functional.utils.complex_decompose
    hypercoil.functional.utils.complex_recompose
-   hypercoil.functional.utils.sparse_mm
-   hypercoil.functional.utils.sparse_rcmul
-   hypercoil.functional.utils.orient_and_conform
+   hypercoil.functional.utils.amplitude_apply

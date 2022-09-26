@@ -385,6 +385,11 @@ def toeplitz_2d(
     circulant structure. Our API is also closer to that of the scipy toeplitz
     function. We also support a fill value for the matrix. See
     :func:`toeplitz` for complete API documentation.
+
+    .. note::
+
+        Use the :func:`toeplitz` function for an API that supports any number
+        of leading dimensions.
     """
     if r is None:
         r = c

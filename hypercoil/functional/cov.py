@@ -13,7 +13,7 @@ import jax
 import jax.numpy as jnp
 from typing import Literal, Optional, Sequence, Tuple, Union
 from .utils import _conform_vector_weight
-from ..engine import Tensor, vmap_over_outer
+from ..engine import NestedDocParse, Tensor
 
 
 def document_covariance(func):
@@ -94,7 +94,7 @@ def document_covariance(func):
                     As above
                 **Output :** :math:`(N, *, C_X, C_Y)`
                     As above"""
-    func.__doc__ = func.__doc__.format(
+    fmt = NestedDocParse(
         param_spec=param_spec,
         unary_param_spec=unary_param_spec,
         binary_param_spec=binary_param_spec,
@@ -103,6 +103,7 @@ def document_covariance(func):
         unary_dim_spec=unary_dim_spec,
         binary_dim_spec=binary_dim_spec
     )
+    func.__doc__ = func.__doc__.format_map(fmt)
     return func
 
 

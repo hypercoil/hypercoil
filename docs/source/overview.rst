@@ -1,42 +1,3 @@
-A differentiable program for mapping brain function
-===================================================
-
-.. image:: https://github.com/rciric/hypercoil/actions/workflows/ci.yml/badge.svg
-  :target: https://github.com/rciric/hypercoil/actions/workflows/ci.yml
-  :alt: Continuous Integration
-
-.. image:: https://github.com/rciric/hypercoil/actions/workflows/doc.yml/badge.svg
-  :target: https://github.com/rciric/hypercoil/actions/workflows/doc.yml
-  :alt: Documentation
-
-.. image:: https://codecov.io/gh/rciric/hypercoil/branch/main/graph/badge.svg?token=FVJVK6AFQG
-  :target: https://codecov.io/gh/rciric/hypercoil
-  :alt: Code Coverage
-
-.. image:: https://img.shields.io/badge/GitHub-hypercoil-662299?logo=github
-  :target: https://github.com/rciric/hypercoil/
-  :alt: GitHub
-
-.. image:: https://img.shields.io/badge/License-Apache_2.0-informational?logo=openaccess
-  :target: https://opensource.org/licenses/Apache-2.0
-  :alt: License
-
-.. image:: https://img.shields.io/badge/cite-preprint-red?logo=arxiv
-  :target: https://arxiv.org/abs/2206.00649
-  :alt: Preprint
-
-.. image:: https://raw.githubusercontent.com/rciric/hypercoil/xrecore/docs/source/_static/logo.png
-  :width: 600px
-  :align: center
-
-In functional neuroimaging and adjacent fields, the advent of large, public data repositories has brought with it a proliferation of instruments and methods for analysing these data. This has introduced new challenges for the field: How can we ensure that our analyses are reproducible? How can we ensure that our analyses are valid? Conditioned on our dataset and our scientific question, how do we choose from among the available methods to design an analytic workflow in a principled way? How can we know that the workflow we've designed is suited to answering the questions we are asking?
-
-We typically approach the problem of designing a scientific workflow *combinatorially*: we begin from a set of analytic options, and we choose from among these to configure our workflow. The ``hypercoil`` library provides a framework for going beyond this combinatorial approach, and for designing principled workflows that are *differentiable*. Instead of selecting from among a set of available methods, we can *learn* the (locally) best workflow for our dataset and our scientific question. This approach is particularly well-suited to the functional neuroimaging domain, where the data are high-dimensional and the scientific questions are often complex.
-
-Built upon the same principles that power deep neural networks, this library provides software instruments for designing, deploying, and evaluating both differentiable programs and GPU-accelerated workflows. Our current focus is on applications related to fMRI-derived brain connectivity, but the library is designed to be eventually generalisable to other domains.
-
-**Public warning:** At this time, this software should be used as if it were in a pre-alpha state. Many operations are fragile or incompletely documented. Edge cases might not be covered, and there are certainly bugs lurking in the code base. *Expect breaking changes* as the code base is further expanded and refined. Contributions or ideas for improvement are always welcome.
-
 Technical overview
 ------------------
 
@@ -81,11 +42,6 @@ This library also includes an extensible functional grammar for various purposes
 ^^^^^^^^^^^^^^^^^^^^^^
 
 Visualisation utilities will include (*inter alia*) a PyVista-based 3D visualisation API for plotting brain surfaces, atlases, and networks, and a set of utilities for plotting brain connectivity matrices. These utilities will be designed to automatically read information from differentiable models using a functional reporting system. This framework remains under development.
-
-Installation
-------------
-
-Right now, just pip install from GitHub. Come back in a few weeks and ask again about PyPI.
 
 A simple example
 ----------------

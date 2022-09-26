@@ -1,3 +1,3 @@
 [submodule "ds-synth"]
-	path = hypercoil/examples/synthetic/data/ds-synth
+    path = hypercoil/examples/synthetic/data/ds-synth
     url = https://github.com/rciric/ds-synth
