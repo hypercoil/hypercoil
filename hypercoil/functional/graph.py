@@ -13,13 +13,11 @@ from typing import Any, Callable, Literal, Optional, Union
 from .sparse import TopKTensor, dspdmm, topk_diagaugment, topk_diagzero
 from .matrix import delete_diagonal, fill_diagonal
 from .utils import is_sparse
-from ..engine import Tensor, vmap_over_outer
+from ..engine import NestedDocParse, Tensor, vmap_over_outer
 
 
-def girvan_newman_null(A: Tensor) -> Tensor:
-    r"""
-    Girvan-Newman null model for a tensor block.
-
+def document_modularity(f: Callable) -> Callable:
+    girvan_newman_long_desc = r"""
     The Girvan-Newman null model is defined as the expected connection weight
     between each pair of vertices if all edges are cut and the resulting stubs
     then randomly rewired. For the vector of node in-degrees
@@ -31,67 +29,60 @@ def girvan_newman_null(A: Tensor) -> Tensor:
 
     or, in terms of the adjacency matrix :math:`A \in \mathbb{R}^{I \times O}`
 
-    :math:`P_{GN} = \frac{1}{\mathbf{1}^\intercal A \mathbf{1}} A \mathbf{1} \mathbf{1}^\intercal A`
-
-    :Dimension: **Input :** :math:`(N, *, I, O)`
-                    N denotes batch size, ``*`` denotes any number of
-                    intervening dimensions, I denotes number of vertices in
-                    the source set and O denotes number of vertices in the
-                    sink set. If the same set of vertices emits and receives
-                    edges, then :math:`I = O`.
-                **Output :** :math:`(N, *, I, O)`
-                    As above.
-
-    Parameters
-    ----------
-    A : Tensor
-        Block of adjacency matrices for which the Girvan-Newman null model is
-        to be computed.
-
-    Returns
-    -------
-    P : Tensor
-        Block comprising Girvan-Newman null matrices corresponding to each
-        input adjacency matrix.
-    """
-    k_i = A.sum(-1, keepdims=True)
-    k_o = A.sum(-2, keepdims=True)
-    two_m = k_i.sum(-2, keepdims=True)
-    return k_i @ k_o / two_m
-
-
-def modularity_matrix(
-    A: Tensor,
-    gamma: float = 1,
-    null: Callable = girvan_newman_null,
-    normalise: bool = False,
-    sign: Optional[Literal['+', '-']] = '+',
-    **params
-):
-    r"""
-    Modularity matrices for a tensor block.
-
+    :math:`P_{GN} = \frac{1}{\mathbf{1}^\intercal A \mathbf{1}} A \mathbf{1} \mathbf{1}^\intercal A`"""
+    modularity_matrix_long_desc = r"""
     The modularity matrix is defined as a normalised, weighted difference
     between the adjacency matrix and a suitable null model. For a weight
     :math:`\gamma`, an adjacency matrix :math:`A`, a null model :math:`P`, and
     total edge weight :math:`2m`, the modularity matrix is computed as
 
-    :math:`B = \frac{1}{2m} \left( A - \gamma P \right)`
+    :math:`B = \frac{1}{2m} \left( A - \gamma P \right)`"""
+    coaffiliation_long_desc = r"""
+    Given community affiliation matrices
+    :math:`C^{(i)} \in \mathbb{R}^{I \times C}` for source nodes and
+    :math:`C^{(o)} \in \mathbb{R}^{O \times C}` for sink nodes, and given a
+    matrix of inter-community coupling coefficients
+    :math:`\Omega \in \mathbb{R}^{C \times C}`, the coaffiliation
+    :math:`H \in \mathbb{R}^{I \times O}` is computed as
 
-    :Dimension: **Input :** :math:`(N, *, I, O)`
+    :math:`H = C^{(i)} \Omega C^{(o)\intercal}`"""
+    relaxed_modularity_long_desc = r"""
+    This relaxation supports non-deterministic assignments of vertices to
+    communities and non-assortative linkages between communities. It reverts
+    to standard behaviour when the inputs it is provided are standard.
+
+    The relaxed modularity is defined as the sum of all entries in the
+    Hadamard (elementwise) product between the modularity matrix and the
+    coaffiliation matrix.
+
+    :math:`Q = \mathbf{1}^\intercal \left( B \circ H \right) \mathbf{1}`"""
+    adjacency_dim_spec = r"""**Input :** :math:`(N, *, I, O)`
                     N denotes batch size, ``*`` denotes any number of
                     intervening dimensions, I denotes number of vertices in
                     the source set and O denotes number of vertices in the
                     sink set. If the same set of vertices emits and receives
-                    edges, then :math:`I = O`.
+                    edges, then :math:`I = O`."""
+    adjacency_out_dim_spec = r"""
                 **Output :** :math:`(N, *, I, O)`
-                    As above.
-
-    Parameters
-    ----------
+                    As above."""
+    coaffiliation_dim_spec = r"""**C_i :** :math:`(*, I, C)`
+                    `*` denotes any number of preceding dimensions, I denotes
+                    number of vertices in the source set, and C denotes the
+                    total number of communities in the proposed partition.
+                **C_o :** :math:`(*, I, C)`
+                    O denotes number of vertices in the sink set. If the same
+                    set of vertices emits and receives edges, then
+                    :math:`I = O`.
+                **L :** :math:`(*, C, C)`
+                    As above."""
+    coaffiliation_out_dim_spec = r"""
+                **Output :** :math:`(*, I, O)`
+                    As above."""
+    adjacency_param_spec = """
     A : Tensor
-        Block of adjacency matrices for which the modularity matrix is to be
-        computed.
+        Block of adjacency matrices for which the quantity of interest is to
+        be computed."""
+    modularity_matrix_param_spec = """
     gamma : nonnegative float (default 1)
         Resolution parameter for the modularity matrix. A smaller value assigns
         maximum modularity to partitions with large communities, while a larger
@@ -110,64 +101,9 @@ def modularity_matrix(
     sign : ``'+'``, ``'-'``, or None (default ``'+'``)
         Sign of connections to be considered in the modularity.
     **params
-        Any additional parameters are passed to the null model.
-
-    Returns
-    -------
-    P : Tensor
-        Block comprising modularity matrices corresponding to each input
-        adjacency matrix.
-
-    See also
-    --------
-    relaxed_modularity: Compute the modularity given a community structure.
-    """
-    if sign == '+':
-        A = relu(A)
-    elif sign == '-':
-        A = -relu(-A)
-    mod = A - gamma * null(A, **params)
-    if normalise:
-        two_m = A.sum((-2, -1), keepdims=True)
-        return mod / two_m
-    return mod
-
-
-def coaffiliation(
-    C_i: Tensor,
-    C_o: Optional[Tensor] = None,
-    L: Optional[Tensor] = None,
-    exclude_diag: bool = True,
-    normalise: bool = False
-) -> Tensor:
-    r"""
-    Coaffiliation of vertices under a community structure.
-
-    Given community affiliation matrices
-    :math:`C^{(i)} \in \mathbb{R}^{I \times C}` for source nodes and
-    :math:`C^{(o)} \in \mathbb{R}^{O \times C}` for sink nodes, and given a
-    matrix of inter-community coupling coefficients
-    :math:`\Omega \in \mathbb{R}^{C \times C}`, the coaffiliation
-    :math:`H \in \mathbb{R}^{I \times O}` is computed as
-
-    :math:`H = C^{(i)} \Omega C^{(o)\intercal}`
-
-    :Dimension: **C_i :** :math:`(*, I, C)`
-                    `*` denotes any number of preceding dimensions, I denotes
-                    number of vertices in the source set, and C denotes the
-                    total number of communities in the proposed partition.
-                **C_o :** :math:`(*, I, C)`
-                    O denotes number of vertices in the sink set. If the same
-                    set of vertices emits and receives edges, then
-                    :math:`I = O`.
-                **L :** :math:`(*, C, C)`
-                    As above.
-                **Output :** :math:`(*, I, O)`
-                    As above.
-
-    Parameters
-    ----------
-    C_i : Tensor
+        Any additional parameters are passed to the null model."""
+    coaffiliation_param_spec = """
+    C : Tensor
         Community affiliation of vertices in the source set. Each slice is a
         matrix :math:`C^{(i)} \in \mathbb{R}^{I \ times C}` that encodes the
         uncertainty in each vertex's community assignment. :math:`C^{(i)}_{jk}`
@@ -187,8 +123,114 @@ def coaffiliation(
         while nodes in different communities remain disaffiliated.
     exclude_diag : bool (default True)
         Indicates that self-links are not factored into the coaffiliation.
-    normalise : bool (default False)
-        Normalise all community assignment weights to max out at 1.
+    normalise_coaffiliation : bool (default False)
+        Normalise all community assignment weights to max out at 1."""
+
+    fmt = NestedDocParse(
+        girvan_newman_long_desc=girvan_newman_long_desc,
+        modularity_matrix_long_desc=modularity_matrix_long_desc,
+        coaffiliation_long_desc=coaffiliation_long_desc,
+        relaxed_modularity_long_desc=relaxed_modularity_long_desc,
+        adjacency_dim_spec=adjacency_dim_spec,
+        adjacency_out_dim_spec=adjacency_out_dim_spec,
+        coaffiliation_dim_spec=coaffiliation_dim_spec,
+        coaffiliation_out_dim_spec=coaffiliation_out_dim_spec,
+        adjacency_param_spec=adjacency_param_spec,
+        modularity_matrix_param_spec=modularity_matrix_param_spec,
+        coaffiliation_param_spec=coaffiliation_param_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+@document_modularity
+def girvan_newman_null(A: Tensor) -> Tensor:
+    """
+    Girvan-Newman null model for a tensor block.
+    \
+    {girvan_newman_long_desc}
+
+    :Dimension: {adjacency_dim_spec}\
+    {adjacency_out_dim_spec}
+
+    Parameters
+    ----------\
+    {adjacency_param_spec}
+
+    Returns
+    -------
+    P : Tensor
+        Block comprising Girvan-Newman null matrices corresponding to each
+        input adjacency matrix.
+    """
+    k_i = A.sum(-1, keepdims=True)
+    k_o = A.sum(-2, keepdims=True)
+    two_m = k_i.sum(-2, keepdims=True)
+    return k_i @ k_o / two_m
+
+
+@document_modularity
+def modularity_matrix(
+    A: Tensor,
+    gamma: float = 1,
+    null: Callable = girvan_newman_null,
+    normalise_modularity: bool = False,
+    sign: Optional[Literal['+', '-']] = '+',
+    **params
+):
+    """
+    Modularity matrices for a tensor block.
+    \
+    {modularity_matrix_long_desc}
+
+    :Dimension: {adjacency_dim_spec}\
+    {adjacency_out_dim_spec}
+
+    Parameters
+    ----------\
+    {adjacency_param_spec}\
+    {modularity_matrix_param_spec}
+
+    Returns
+    -------
+    B : Tensor
+        Block comprising modularity matrices corresponding to each input
+        adjacency matrix.
+
+    See also
+    --------
+    relaxed_modularity: Compute the modularity given a community structure.
+    """
+    if sign == '+':
+        A = relu(A)
+    elif sign == '-':
+        A = -relu(-A)
+    mod = A - gamma * null(A, **params)
+    if normalise_modularity:
+        two_m = A.sum((-2, -1), keepdims=True)
+        return mod / two_m
+    return mod
+
+
+@document_modularity
+def coaffiliation(
+    C: Tensor,
+    C_o: Optional[Tensor] = None,
+    L: Optional[Tensor] = None,
+    exclude_diag: bool = True,
+    normalise_coaffiliation: bool = False
+) -> Tensor:
+    """
+    Coaffiliation of vertices under a community structure.
+    \
+    {coaffiliation_long_desc}
+
+    :Dimension: {coaffiliation_dim_spec}\
+    {coaffiliation_out_dim_spec}
+
+    Parameters
+    ----------\
+    {coaffiliation_param_spec}
 
     Returns
     -------
@@ -196,7 +238,7 @@ def coaffiliation(
         Coaffiliation matrix for each input community structure.
     """
     if C_o is None: C_o = C_i
-    if normalise:
+    if normalise_coaffiliation:
         norm_fac_i = jnp.maximum(1, C_i.max((-1, -2)))
         norm_fac_o = jnp.maximum(1, C_o.max((-1, -2)))
         C_i = C_i / norm_fac_i
@@ -210,6 +252,7 @@ def coaffiliation(
     return C
 
 
+@document_modularity
 def relaxed_modularity(
     A: Tensor,
     C: Tensor,
@@ -224,94 +267,45 @@ def relaxed_modularity(
     sign: Optional[Literal['+', '-']] ='+',
     **params
 ) -> Tensor:
-    r"""
+    """
     A relaxation of the modularity of a network given a community partition.
+    \
+    {relaxed_modularity_long_desc}
 
-    This relaxation supports non-deterministic assignments of vertices to
-    communities and non-assortative linkages between communities. It reverts
-    to standard behaviour when the inputs it is provided are standard.
-
-    The relaxed modularity is defined as the sum of all entries in the
-    Hadamard (elementwise) product between the modularity matrix and the
-    coaffiliation matrix.
-
-    :math:`Q = \mathbf{1}^\intercal \left( B \circ H \right) \mathbf{1}`
-
-    :Dimension: **Input :** :math:`(N, *, I, O)`
-                    N denotes batch size, ``*`` denotes any number of
-                    intervening dimensions, I denotes number of vertices in
-                    the source set and O denotes number of vertices in the
-                    sink set. If the same set of vertices emits and receives
-                    edges, then :math:`I = O`.
-                **C :** :math:`(*, I, C)`
-                    C denotes the total number of communities in the proposed
-                    partition.
-                **C_o :** :math:`(*, I, C)`
-                    As above.
-                **L :** :math:`(*, C, C)`
-                    As above.
+    :Dimension: {adjacency_dim_spec}
+                {coaffiliation_dim_spec}
                 **Output :** :math:`(N, *)`
                     As above.
 
     Parameters
     ----------
-    A : Tensor
-        Block of adjacency matrices for which the modularity is to be computed.
-    C : Tensor
-        Community affiliation of vertices in the source set. Each slice is a
-        matrix :math:`C^{(i)} \in \mathbb{R}^{I \ times C}` that encodes the
-        uncertainty in each vertex's community assignment. :math:`C^{(i)}_{jk}`
-        denotes the probability that vertex j is assigned to community k. If
-        this is binary-valued, then it reflects a deterministic assignment.
-    C_o : Tensor or None (default None)
-        Community affiliation of vertices in the sink set. If None, then it is
-        assumed that the source and sink sets are the same, and ``C_o`` is set
-        equal to ``C``.
-    L : Tensor or None (default None)
-        Probability of affiliation between communities. Each entry
-        :math:`L_{ij}` encodes the probability of a vertex in community i
-        connecting with a vertex in community j. If None, then a strictly
-        assortative structure is assumed (equivalent to L equals identity),
-        under which nodes in the same community preferentially coaffiliate
-        while nodes in different communities remain disaffiliated.
-    exclude_diag : bool (default True)
-        Indicates that self-links are not factored into the coaffiliation.
-    gamma : nonnegative float (default 1)
-        Resolution parameter for the modularity matrix. A smaller value
-        assigns maximum modularity to partitions with large communities, while
-        a larger value assigns maximum modularity to partitions with many
-        small communities.
-    null : callable(A) (default ``girvan_newman_null``)
-        Function of ``A`` that returns, for each adjacency matrix in the input
-        tensor block, a suitable null model. By default, the
-        :doc:`Girvan-Newman null model <hypercoil.functional.graph.girvan_newman_null>`
-        is used.
-    normalise_modularity : bool (default True)
-        Indicates that the resulting matrix should be normalised by the total
-        matrix degree. This may not be necessary for many use cases -- for
-        instance, where the arg max of a function of the modularity matrix is
-        desired.
-    normalise_coaffiliation : bool (default True)
-        Indicates that all weights in the community assignment matrix block
-        should be renormalised to max out at 1. Note that this is unnecessary
-        if the affiliations have already been passed through a softmax.
+    {adjacency_param_spec}\
+    {coaffiliation_param_spec}
     directed : bool (default False)
         Indicates that the input adjacency matrices should be considered as a
-        directed graph.
-    sign : ``'+'``, ``'-'``, or None (default ``'+'``)
-        Sign of connections to be considered in the modularity.
-    **params
-        Any additional parameters are passed to the null model.
+        directed graph.\
+    {modularity_matrix_param_spec}
 
     Returns
     -------
     Q : Tensor
         Modularity of each input adjacency matrix.
     """
-    B = modularity_matrix(A, gamma=gamma, null=null,
-                          normalise=normalise_modularity, sign=sign, **params)
-    C = coaffiliation(C, C_o=C_o, L=L, exclude_diag=exclude_diag,
-                      normalise=normalise_coaffiliation)
+    B = modularity_matrix(
+        A,
+        gamma=gamma,
+        null=null,
+        normalise_modularity=normalise_modularity,
+        sign=sign,
+        **params
+    )
+    C = coaffiliation(
+        C,
+        C_o=C_o,
+        L=L,
+        exclude_diag=exclude_diag,
+        normalise_coaffiliation=normalise_coaffiliation
+    )
     Q = (B * C).sum((-2, -1))
     if not directed:
         return Q / 2

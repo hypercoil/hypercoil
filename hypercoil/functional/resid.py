@@ -5,9 +5,33 @@
 Residualise tensor block via least squares.
 """
 import jax.numpy as jnp
-from ..engine import Tensor, vmap_over_outer, broadcast_ignoring
+from typing import Callable
+from ..engine import (
+    NestedDocParse, Tensor, vmap_over_outer, broadcast_ignoring
+)
 
 
+def document_linreg(f: Callable) -> Callable:
+    regress_param_spec = """
+    rowvar : bool (default True)
+        Indicates that the last axis of the input tensor is the observation
+        axis and the penultimate axis is the variable axis. If False, then this
+        relationship is transposed.
+    l2 : float (default 0.0)
+        L2 regularisation parameter. If non-zero, the least-squares solution
+        will be regularised by adding a penalty term to the cost function.
+    return_mode : Literal['residual', 'orthogonal'] (default 'residual')
+        Indicates whether the residual or orthogonal tensor should be
+        returned. The orthogonal tensor is the projection of `Y` onto the
+        span of `X` (i.e., the least-squares solution)."""
+    fmt = NestedDocParse(
+        regress_param_spec=regress_param_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+@document_linreg
 def residualise(
     Y: Tensor,
     X: Tensor,
@@ -52,18 +76,8 @@ def residualise(
         orthogonal to the span of `X`.
     X : Tensor
         Tensor containing explanatory variables. Any variance in `Y` that can
-        be explained by variables in `X` will be removed from `Y`.
-    rowvar : bool (default True)
-        Indicates that the last axis of the input tensor is the observation
-        axis and the penultimate axis is the variable axis. If False, then this
-        relationship is transposed.
-    l2 : float (default 0.0)
-        L2 regularisation parameter. If non-zero, the least-squares solution
-        will be regularised by adding a penalty term to the cost function.
-    return_mode : Literal['residual', 'orthogonal'] (default 'residual')
-        Indicates whether the residual or orthogonal tensor should be
-        returned. The orthogonal tensor is the projection of `Y` onto the
-        span of `X` (i.e., the least-squares solution).
+        be explained by variables in `X` will be removed from `Y`.\
+    {regress_param_spec}
     """
     if rowvar:
         X_in = X.swapaxes(-1, -2)

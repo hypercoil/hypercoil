@@ -8,13 +8,21 @@ import jax
 import equinox as eqx
 from typing import Literal, Optional, Union, Tuple
 from ..engine import Tensor
-from ..functional.activation import corrnorm, isochor
+from ..functional.activation import (
+    corrnorm,
+    isochor,
+    document_corrnorm,
+    document_isochoric,
+)
 
 
+@document_corrnorm
 class CorrelationNorm(eqx.Module):
     """
     :doc:`Correlation normalisation <hypercoil.functional.activation.corrnorm>`
     module.
+    \
+    {corrnorm_spec}
     """
     factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None
     grad_path: Literal['input', 'both'] = 'both'
@@ -35,10 +43,13 @@ class CorrelationNorm(eqx.Module):
         )
 
 
+@document_isochoric
 class Isochor(eqx.Module):
     """
     :doc:`Isochoric normalisation <hypercoil.functional.activation.isochor>`
     module.
+    \
+    {isochoric_spec}
     """
     volume: float = 1.
     max_condition: Optional[float] = None

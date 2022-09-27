@@ -9,17 +9,11 @@ import jax.numpy as jnp
 from typing import Callable, Optional, Sequence, Tuple
 from .cov import corr
 from .utils import complex_decompose
-from ..engine import Tensor, orient_and_conform
+from ..engine import NestedDocParse, Tensor, orient_and_conform
 
 
-def product_filter(
-    X: Tensor,
-    weight: Tensor,
-    **params
-) -> Tensor:
-    r"""
-    Convolve a multivariate signal via multiplication in the frequency domain.
-
+def document_frequency_filter(f: Callable) -> Callable:
+    freqfilter_dim_spec = r"""
     :Dimension: **Input :** :math:`(N, *, obs)`
                     N denotes batch size, ``*`` denotes any number of
                     intervening dimensions, obs denotes number of observations
@@ -27,8 +21,8 @@ def product_filter(
                 **Weight :** :math:`(*, \left\lfloor \frac{obs}{2} \right\rfloor + 1)`
                     As above.
                 **Output :** :math:`(N, *, 2 \left\lfloor \frac{obs}{2} \right\rfloor )`
-                    As above.
-
+                    As above."""
+    freqfilter_param_spec = """
     Parameters
     ----------
     X : Tensor
@@ -41,13 +35,82 @@ def product_filter(
         according to tensor broadcasting rules.
     **params
         Any additional parameters provided will be passed to ``jnp.fft.rfft``
-        and ``jnp.fft.irfft``.
-
+        and ``jnp.fft.irfft``."""
+    freqfilter_return_spec = """
     Returns
     -------
-    out : Tensor
+    Tensor
         Original time series filtered via multiplication in the frequency
-        domain.
+        domain."""
+    fmt = NestedDocParse(
+        freqfilter_dim_spec=freqfilter_dim_spec,
+        freqfilter_param_spec=freqfilter_param_spec,
+        freqfilter_return_spec=freqfilter_return_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+def document_analytic_signal(f: Callable) -> Callable:
+    analytic_signal_base_spec = """
+    X : tensor
+        Input tensor.
+    axis : int (default -1)
+        Axis along which the transform is applied.
+    n : int (default None)
+        Number of frequency components; dimension of the Fourier transform.
+        This defaults to the size of the input along the transform axis."""
+    analytic_signal_sampling_freq = """
+    fs : float
+        Sampling frequency."""
+    analytic_signal_period = """
+    period : float (default ``2 * pi``)
+        Range over which the signal wraps. (See ``jax.numpy.unwrap``.)"""
+    analytic_signal_return_spec = """
+    Returns
+    -------
+    Tensor
+        Output tensor.
+    """
+    analytic_signal_see_also = """
+    See also
+    --------
+    :func:`analytic_signal`
+    :func:`hilbert_transform`
+    :func:`envelope`
+    :func:`instantaneous_phase`
+    :func:`instantaneous_frequency`
+    :func:`env_inst`"""
+    fmt = NestedDocParse(
+        analytic_signal_base_spec=analytic_signal_base_spec,
+        analytic_signal_sampling_freq=analytic_signal_sampling_freq,
+        analytic_signal_period=analytic_signal_period,
+        analytic_signal_return_spec=analytic_signal_return_spec,
+        analytic_signal_see_also=analytic_signal_see_also
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+@document_frequency_filter
+def product_filter(
+    X: Tensor,
+    weight: Tensor,
+    **params
+) -> Tensor:
+    """
+    Convolve a multivariate signal via multiplication in the frequency domain.
+
+    .. note::
+
+        For a filter that is guaranteed to be zero-phase even when the weight
+        tensor is not strictly real-valued, use :func:`product_filtfilt`.
+    \
+    {freqfilter_dim_spec}
+    \
+    {freqfilter_param_spec}
+    \
+    {freqfilter_return_spec}
     """
     n = X.shape[-1]
     Xf = jnp.fft.rfft(X, n=n, **params)
@@ -55,12 +118,13 @@ def product_filter(
     return jnp.fft.irfft(Xf_filt, n=n, **params)
 
 
+@document_frequency_filter
 def product_filtfilt(
     X: Tensor,
     weight: Tensor,
     **params
 ) -> Tensor:
-    r"""
+    """
     Perform zero-phase digital filtering of a signal via multiplication in the
     frequency domain.
 
@@ -68,38 +132,17 @@ def product_filtfilt(
     time-reversed copy of the filtered data again. Note that the effect on the
     amplitude is quadratic in the filter weight.
 
-    If the ``weight`` argument is strictly real, then the filter has no phase
-    delay component and it could make sense to simply use ``product_filter``
-    depending on the context.
+    .. note::
 
-    :Dimension: **Input :** :math:`(N, *, obs)`
-                    N denotes batch size, ``*`` denotes any number of
-                    intervening dimensions, obs denotes number of observations
-                    per data channel.
-                **Weight :** :math:`(*, \left\lfloor \frac{obs}{2} \right\rfloor + 1)`
-                    As above.
-                **Output :** :math:`(N, *, 2 \left\lfloor \frac{obs}{2} \right\rfloor )`
-                    As above.
-
-    Parameters
-    ----------
-    X : Tensor
-        The (potentially multivariate) signal to be filtered. The final axis
-        should correspond to the time domain of each signal or its analogue.
-    weight : Tensor
-        The filter gain at each frequency bin in the spectrum, ordered low to
-        high along the last axis. Dimensions before the last can be used to
-        apply different filters to different variables in the input signal
-        according to tensor broadcasting rules.
-    **params
-        Any additional parameters provided will be passed to `jnp.fft.rfft`
-        and `jnp.fft.irfft`.
-
-    Returns
-    -------
-    out : Tensor
-        Original time series filtered forward and backward via multiplication
-        in the frequency domain.
+        If the ``weight`` argument is strictly real, then the filter has no
+        phase delay component and it could make sense to simply use
+        :func:`product_filter` depending on the context.
+    \
+    {freqfilter_dim_spec}
+    \
+    {freqfilter_param_spec}
+    \
+    {freqfilter_return_spec}
     """
     X_filt = product_filter(X, weight, **params)
     out = product_filter(jnp.flip(X_filt,-1), weight, **params)
@@ -180,6 +223,7 @@ def unwrap(
     return unwrapped_phase
 
 
+@document_analytic_signal
 def analytic_signal(
     X: Tensor,
     axis: int = -1,
@@ -195,28 +239,12 @@ def analytic_signal(
     phase.
 
     Parameters
-    ----------
-    X : tensor
-        Tensor containining real valued signals for which the analytic signal
-        is to be computed.
-    axis : int (default -1)
-        Axis along which the transform is applied.
-    n : int (default None)
-        Number of frequency components; dimension of the Fourier transform.
-        This defaults to the size of the input along the transform axis.
-
-    Output
-    ------
-    tensor
-        Tensor containing complex-valued analytic signals.
-
-    See also
-    --------
-    :func:`hilbert_transform`
-    :func:`envelope`
-    :func:`instantaneous_phase`
-    :func:`instantaneous_frequency`
-    :func:`env_inst`
+    ----------\
+    {analytic_signal_base_spec}
+    \
+    {analytic_signal_return_spec}
+    \
+    {analytic_signal_see_also}
     """
     if jnp.iscomplexobj(X):
         raise ValueError(
@@ -240,6 +268,7 @@ def analytic_signal(
     return jnp.fft.ifft(Xf * h, axis=axis)
 
 
+@document_analytic_signal
 def hilbert_transform(
     X: Tensor,
     axis: int = -1,
@@ -249,31 +278,17 @@ def hilbert_transform(
     Hilbert transform of an input signal.
 
     Parameters
-    ----------
-    X : tensor
-        Input tensor.
-    axis : int (default -1)
-        Axis along which the transform is applied.
-    n : int (default None)
-        Number of frequency components; dimension of the Fourier transform.
-        This defaults to the size of the input along the transform axis.
-
-    Output
-    ------
-    tensor
-        Output tensor.
-
-    See also
-    --------
-    :func:`analytic_signal`
-    :func:`envelope`
-    :func:`instantaneous_phase`
-    :func:`instantaneous_frequency`
-    :func:`env_inst`
+    ----------\
+    {analytic_signal_base_spec}
+    \
+    {analytic_signal_return_spec}
+    \
+    {analytic_signal_see_also}
     """
     return analytic_signal(X=X, axis=axis, n=n).imag
 
 
+@document_analytic_signal
 def envelope(
     X: Tensor,
     axis: int = -1,
@@ -287,31 +302,17 @@ def envelope(
         envelope, :func:`env_inst` will be more efficient.
 
     Parameters
-    ----------
-    X : tensor
-        Input tensor.
-    axis : int (default -1)
-        Axis along which the transform is applied.
-    n : int (default None)
-        Number of frequency components; dimension of the Fourier transform.
-        This defaults to the size of the input along the transform axis.
-
-    Output
-    ------
-    tensor
-        Output tensor.
-
-    See also
-    --------
-    :func:`analytic_signal`
-    :func:`hilbert_transform`
-    :func:`instantaneous_phase`
-    :func:`instantaneous_frequency`
-    :func:`env_inst`
+    ----------\
+    {analytic_signal_base_spec}
+    \
+    {analytic_signal_return_spec}
+    \
+    {analytic_signal_see_also}
     """
     return jnp.abs(analytic_signal(X=X, axis=axis, n=n))
 
 
+@document_analytic_signal
 def instantaneous_phase(
     X: Tensor,
     axis: int = -1,
@@ -323,32 +324,13 @@ def instantaneous_phase(
 
     .. note::
         If you require the envelope or instantaneous frequency in addition to
-        the instantaneous phase, :func:`env_inst` will be more efficient.
-
-    Parameters
-    ----------
-    X : tensor
-        Input tensor.
-    axis : int (default -1)
-        Axis along which the transform is applied.
-    n : int (default None)
-        Number of frequency components; dimension of the Fourier transform.
-        This defaults to the size of the input along the transform axis.
-    period : float (default ``2 * pi``)
-        Range over which the signal wraps. (See :func:`unwrap`.)
-
-    Output
-    ------
-    tensor
-        Output tensor.
-
-    See also
-    --------
-    :func:`analytic_signal`
-    :func:`hilbert_transform`
-    :func:`envelope`
-    :func:`instantaneous_frequency`
-    :func:`env_inst`
+        the instantaneous phase, :func:`env_inst` will be more efficient.\
+    {analytic_signal_base_spec}\
+    {analytic_signal_period}\
+    \
+    {analytic_signal_return_spec}
+    \
+    {analytic_signal_see_also}
     """
     return jnp.unwrap(
         jnp.angle(analytic_signal(X=X, axis=axis, n=n)),
@@ -372,31 +354,14 @@ def instantaneous_frequency(
         the instantaneous frequency, :func:`env_inst` will be more efficient.
 
     Parameters
-    ----------
-    X : tensor
-        Input tensor.
-    axis : int (default -1)
-        Axis along which the transform is applied.
-    n : int (default None)
-        Number of frequency components; dimension of the Fourier transform.
-        This defaults to the size of the input along the transform axis.
-    fs : float (default 1)
-        Sampling frequency.
-    period : float (default ``2 * pi``)
-        Range over which the signal wraps. (See :func:`unwrap`.)
-
-    Output
-    ------
-    tensor
-        Output tensor.
-
-    See also
-    --------
-    :func:`analytic_signal`
-    :func:`hilbert_transform`
-    :func:`envelope`
-    :func:`instantaneous_phase`
-    :func:`env_inst`
+    ----------\
+    {analytic_signal_base_spec}\
+    {analytic_signal_period}\
+    {analytic_signal_sampling_frequency}
+    \
+    {analytic_signal_return_spec}
+    \
+    {analytic_signal_see_also}
     """
     inst_phase = instantaneous_phase(X=X, axis=axis, n=n, period=period)
     return fs * jnp.diff(inst_phase, axis=axis) / period
@@ -414,34 +379,14 @@ def env_inst(
     instantaneous phase and frequency.
 
     Parameters
-    ----------
-    X : tensor
-        Input tensor.
-    axis : int (default -1)
-        Axis along which the transform is applied.
-    n : int (default None)
-        Number of frequency components; dimension of the Fourier transform.
-        This defaults to the size of the input along the transform axis.
-    fs : float
-        Sampling frequency.
-    period : float (default ``2 * pi``)
-        Range over which the signal wraps. (See :func:`unwrap`.)
-    return_instantaneous_phase: bool (default False)
-        Indicates that the instantaneous phase should be returned in addition
-        to the instantaneous frequency.
-
-    Output
-    ------
-    tensor
-        Output tensor.
-
-    See also
-    --------
-    :func:`analytic_signal`
-    :func:`hilbert_transform`
-    :func:`envelope`
-    :func:`instantaneous_phase`
-    :func:`instantaneous_frequency`
+    ----------\
+    {analytic_signal_base_spec}\
+    {analytic_signal_period}\
+    {analytic_signal_sampling_frequency}
+    \
+    {analytic_signal_return_spec}
+    \
+    {analytic_signal_see_also}
     """
     Xa = analytic_signal(X=X, axis=axis, n=n)
     env = jnp.abs(Xa)

@@ -7,10 +7,60 @@ Crosshair kernel
 Elementary operations over a crosshair kernel.
 """
 import jax.numpy as jnp
-from typing import Tuple
-from ..engine import Tensor
+from typing import Callable, Tuple
+from ..engine import NestedDocParse, Tensor
 
 
+def document_crosshair(f: Callable) -> Callable:
+    crosshair_inner_long = """
+    For each entry of the input matrices :math:`X_{ij}`, the crosshair product
+    is the scalar sum over elements in either the same row or column as the
+    entry multiplied with the corresponding element of the other input matrix.
+    The product dimensions are accordingly equal to the dimensions of the input
+    matrices."""
+    crosshair_norm_long = """
+    For each entry of the input matrices :math:`X_{ij}`, the crosshair norm
+    is the norm over a vector containing all elements in either the same row or
+    column as the entry. The norm dimensions are accordingly equal to the
+    dimensions of the input matrices."""
+    crosshair_dim_spec = """
+    :Dimension:
+    The input tensors must have at least two axes and must have the same shape.
+    The dimension of the output tensor exactly equals the dimension of the
+    input tensor."""
+    crosshair_unary_pparams = """
+    A: Tensor
+        Input tensor."""
+    crosshair_binary_pparams = """
+    A: Tensor
+        First input tensor.
+    B: Tensor
+        Second input tensor."""
+    crosshair_rc_spec = """
+    row: int
+        Axis of the input tensors over which the row index increases.
+    col: int
+        Axis of the input tensors over which the column index increases."""
+    crosshair_return_spec = """
+    Returns
+    -------
+    Tensor
+        Tensor in which each entry contains the result of the computation
+        over a crosshair-shaped kernel."""
+    fmt = NestedDocParse(
+        crosshair_inner_long=crosshair_inner_long,
+        crosshair_norm_long=crosshair_norm_long,
+        crosshair_dim_spec=crosshair_dim_spec,
+        crosshair_unary_pparams=crosshair_unary_pparams,
+        crosshair_binary_pparams=crosshair_binary_pparams,
+        crosshair_rc_spec=crosshair_rc_spec,
+        crosshair_return_spec=crosshair_return_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+@document_crosshair
 def crosshair_dot(
     A: Tensor,
     B: Tensor,
@@ -19,34 +69,17 @@ def crosshair_dot(
 ) -> Tensor:
     """
     Local dot product between two matrices over a crosshair kernel.
-
-    For each entry of the input matrices :math:`X_{ij}`, the crosshair product
-    is the scalar sum over elements in either the same row or column as the
-    entry multiplied with the corresponding element of the other input matrix.
-    The product dimensions are accordingly equal to the dimensions of the input
-    matrices.
-
-    :Dimension:
-    The input tensors must have at least two axes and must have the same shape.
-    The dimension of the output tensor exactly equals the dimension of the
-    input tensor.
+    \
+    {crosshair_inner_long}
+    \
+    {crosshair_dim_spec}
 
     Parameters
-    ----------
-    A: Tensor
-        First input tensor.
-    B: Tensor
-        Second input tensor.
-    row: int
-        Axis of the input tensors over which the row index increases.
-    col: int
-        Axis of the input tensors over which the column index increases.
-
-    Returns
-    -------
-    output: Tensor
-        Tensor in which each entry contains the inner product between entries
-        of the two input matrices computed over a crosshair-shaped kernel.
+    ----------\
+    {crosshair_binary_pparams}\
+    {crosshair_rc_spec}
+    \
+    {crosshair_return_spec}
 
     See also
     --------
@@ -58,6 +91,7 @@ def crosshair_dot(
     return rows + cols - prod
 
 
+@document_crosshair
 def crosshair_norm_l2(
     A: Tensor,
     row: int = -2,
@@ -65,35 +99,22 @@ def crosshair_norm_l2(
 ) -> Tensor:
     """
     Compute the local L2 norm on a matrix over a crosshair kernel.
-
-    For each entry of the input matrices :math:`X_{ij}`, the crosshair norm
-    is the norm over a vector containing all elements in either the same row or
-    column as the entry. The norm dimensions are accordingly equal to the
-    dimensions of the input matrices.
-
-    :Dimension:
-    The input tensors must have at least two axes and must have the same shape.
-    The dimension of the output tensor exactly equals the dimension of the
-    input tensor.
+    \
+    {crosshair_norm_long}
+    \
+    {crosshair_dim_spec}
 
     Parameters
-    ----------
-    A: Tensor
-        Input tensor.
-    row: int
-        Axis of the input tensor over which the row index increases.
-    col: int
-        Axis of the input tensor over which the column index increases.
-
-    Returns
-    -------
-    output: Tensor
-        Tensor in which each entry contains the norm of the entries of the
-        input matrix computed over a crosshair-shaped kernel.
+    ----------\
+    {crosshair_unary_pparams}\
+    {crosshair_rc_spec}
+    \
+    {crosshair_return_spec}
     """
     return jnp.sqrt(crosshair_dot(A, A, row=row, col=col))
 
 
+@document_crosshair
 def crosshair_norm_l1(
     A: Tensor,
     row: int = -2,
@@ -101,31 +122,17 @@ def crosshair_norm_l1(
 ) -> Tensor:
     """
     Compute the local L1 norm on a matrix over a crosshair kernel.
-
-    For each entry of the input matrices :math:`X_{ij}`, the crosshair norm
-    is the norm over a vector containing all elements in either the same row or
-    column as the entry. The norm dimensions are accordingly equal to the
-    dimensions of the input matrices.
-
-    :Dimension:
-    The input tensors must have at least two axes and must have the same shape.
-    The dimension of the output tensor exactly equals the dimension of the
-    input tensor.
+    \
+    {crosshair_norm_long}
+    \
+    {crosshair_dim_spec}
 
     Parameters
-    ----------
-    A: Tensor
-        Input tensor.
-    row: int
-        Axis of the input tensor over which the row index increases.
-    col: int
-        Axis of the input tensor over which the column index increases.
-
-    Returns
-    -------
-    output: Tensor
-        Tensor in which each entry contains the norm of the entries of the
-        input matrix computed over a crosshair-shaped kernel.
+    ----------\
+    {crosshair_unary_pparams}\
+    {crosshair_rc_spec}
+    \
+    {crosshair_return_spec}
     """
     abs = jnp.abs(A)
     rows = abs.sum(row, keepdims=True)

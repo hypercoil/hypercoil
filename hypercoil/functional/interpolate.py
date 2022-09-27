@@ -12,7 +12,8 @@ from typing import Callable, Literal, Optional, Sequence, Tuple, Union
 
 from .utils import conform_mask
 from .tsconv import tsconv2d
-from ..engine import atleast_4d, vmap_over_outer, PyTree, Tensor
+from ..engine import (
+    NestedDocParse, atleast_4d, vmap_over_outer, PyTree, Tensor)
 from ..engine.axisutil import demote_axis, promote_axis
 
 
@@ -25,6 +26,147 @@ from ..engine.axisutil import demote_axis, promote_axis
 
 
 class InterpolationError(Exception): pass
+
+
+def document_interpolation(f: Callable) -> Callable:
+    hybrid_interpolate_long_desc = """
+    Hybrid interpolation uses the :func:`linear <linear_interpolate>`
+    method for unseen frames that are no more than ``max_consecutive_linear``
+    frames away from a seen frame, and the
+    :func:`spectral <spectral_interpolate>` method otherwise.
+    Imputation proceeds as follows:
+
+    * Unseen frames are divided into two groups according to the approach that
+      will be used for imputation.
+    * Spectral interpolation is applied using the seen time frames.
+    * Linear interpolation is applied using the seen time frames, together
+      with the frames interpolated using the spectral method."""
+    weighted_interpolate_long_desc = """
+    Interpolation proceeds iteratively over progressively longer window sizes.
+    It first defines a convolutional weighting/window kernel for the current
+    window size, and then sets the values of unseen time frames to the
+    convolution of seen time frames with this kernel, and marks those time
+    frames as seen for the next iteration. Iteration proceeds either until the
+    specified maximum stage or until every unseen frame is imputed.
+
+    .. note::
+        In practice, for a square window kernel, the weighted interpolation is
+        similar to a nearest-neighbour interpolation with very inefficient
+        implementation."""
+    spectral_interpolate_long_desc = """
+
+    Given a time series with missing or corrupt observations, this operation
+    estimates the time series frequency spectra by proxy of projections onto
+    sine and cosine basis functions, and then uses the frequency spectrum
+    estimates as basis function weights in the reconstruction of missing
+    observations.
+
+    .. warning::
+        Users of this approach must be advised that the missing observations
+        result in non-orthogonal basis functions, and accordingly the variance
+        captured by different frequency bins might be shared.
+
+    .. note::
+        This method is inspired by
+        `previous work from Anish Mitra and Jonathan Power
+        <https://github.com/MidnightScanClub/MSCcodebase/blob/master/Processing/FCPROCESS_MSC.m>`_
+        which in turn is inspired by the Lomb-Scargle periodogram.
+
+    This method is used to temporarily interpolate over time points flagged
+    for omission due to high artefact content, so as to reduce disruptions to
+    the autocorrelation structure introduced by either artefactual outliers or
+    zeroing (or arguably linearly interpolating) those outliers. This is
+    useful for operations such as filtering and convolution for which the
+    autocorrelation structure of the data is relevant. It should not be used
+    for operations in which the autocorrelation structure plays no role, such
+    as covariance estimation, for which the weights of missing observations
+    can easily be set to 0.
+
+    .. warning::
+        ``spectral_interpolate`` expects batched input ``data`` and ``tmask``
+        arguments. If your inputs are not batched, ``unsqueeze`` their first
+        dimension before providing them as inputs.
+
+    .. warning::
+        If the input time series contains either no or all missing
+        observations, then the output time series will be identical to the
+        input time series."""
+    interpolate_base_spec = """
+    data : tensor
+        Time series data.
+    mask : boolean tensor
+        Boolean tensor indicating whether the value in each frame of the input
+        time series is observed. ``True`` indicates that the original data are
+        "good" or observed, while ``False`` indicates that they are "bad" or
+        missing and flags them for interpolation."""
+    interpolate_hybrid_spec = """
+    max_consecutive_linear : int or None (default 3)
+        The maximum number of consecutive frames for which the linear method
+        will be used; any unseen frames that cannot be imputed using this
+        maximum are instead imputed using the spectral approach."""
+    interpolate_spectral_spec = """
+    oversampling_frequency : float (default 8)
+        Determines the number of frequency bins to use when estimating the
+        sine and cosine spectra. 1 indicates that the number of bins should be
+        the same as in a Fourier transform, while larger values indicate that
+        frequency bins should be oversampled.
+    maximum_frequency : float (default 1)
+        Maximum frequency bin to consider in the fit, as a fraction of
+        Nyquist.
+    sampling_period : float (default 1)
+        Period separating consecutive samples in ``data``.
+    frequency_thresh : float (default 0.3)
+        Because of the non-orthogonality of the basis functions, spurious
+        variance will often be captured in the spectral estimates. To control
+        this spurious variance, all frequency bins whose estimates are less
+        than ``frequency_thresh``, as a fraction of the maximum estimate
+        across all bins, are set to 0."""
+    interpolate_weighted_spec = """
+    start_stage : int
+        The first stage of weighted interpolation. The meaning of this is
+        governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
+        argument is otherwise specified, it sets the initial size of a boxcar
+        window for averaging. (A value of 1 corresponds to averaging over the
+        current frame, together with 1 frame in each of the forward and
+        reverse directions.)
+    max_stage : int or None (default None)
+        The final stage of weighted interpolation. The meaning of this is
+        governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
+        argument is otherwise specified, it sets the maximum size of a boxcar
+        window for averaging. By default, no maximum size is specified, and
+        iteration proceeds until every unseen time point is imputed.
+    map_to_kernel : callable(int -> tensor)
+        A function that uses the integer value of the current stage to create
+        a convolutional kernel for weighting of neighbours. By default, a
+        boxcar window that includes the current frame, together with ``stage``
+        frames in each of the forward and backward directions, is returned."""
+    # This is no longer used, but I'm leaving it here for now in case we want
+    # to add it back in.
+    handle_fail_spec = """
+    handle_fail : ``'raise'`` or ``'orig'`` (default ``'orig'``)
+        Specifies behaviour if the interpolation fails (which typically occurs
+        if every frame is labelled as unseen). ``'raise'`` raises an
+        exception, while ``'orig'`` returns values from the input time series
+        for any frames that are still missing after interpolation."""
+    interpolate_return_spec = """
+    Returns
+    -------
+    Tensor
+        Input dataset with missing frames imputed."""
+
+    fmt = NestedDocParse(
+        interpolate_base_spec=interpolate_base_spec,
+        interpolate_hybrid_spec=interpolate_hybrid_spec,
+        interpolate_spectral_spec=interpolate_spectral_spec,
+        interpolate_weighted_spec=interpolate_weighted_spec,
+        handle_fail_spec=handle_fail_spec,
+        interpolate_return_spec=interpolate_return_spec,
+        weighted_interpolate_long_desc=weighted_interpolate_long_desc,
+        spectral_interpolate_long_desc=spectral_interpolate_long_desc,
+        hybrid_interpolate_long_desc=hybrid_interpolate_long_desc,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
 
 
 def _number_consecutive_impl(carry: int, x: Tensor) -> Tuple[int, int]:
@@ -52,12 +194,14 @@ def first_and_last(x: Tensor, mask: Tensor) -> Tensor:
     return frst, last
 
 
+@document_interpolation
 def hybrid_interpolate(
     data: Tensor,
     mask: Tensor,
     max_consecutive_linear: int = 3,
     oversampling_frequency: float = 8,
-    maximum_frequency: float = 1,
+    maximum_frequency: float = 1.,
+    sampling_period: float = 1.,
     frequency_thresh: float = 0.3,
 ) -> Tensor:
     """
@@ -65,62 +209,16 @@ def hybrid_interpolate(
     :func:`linear <linear_interpolate>` and
     :func:`spectral <spectral_interpolate>`
     methods.
-
-    Hybrid interpolation uses the :func:`linear <linear_interpolate>`
-    method for unseen frames that are no more than ``max_consecutive_linear``
-    frames away from a seen frame, and the
-    :func:`spectral <spectral_interpolate>` method otherwise.
-    Imputation proceeds as follows:
-
-    * Unseen frames are divided into two groups according to the approach that
-      will be used for imputation.
-    * Spectral interpolation is applied using the seen time frames.
-    * Linear interpolation is applied using the seen time frames, together
-      with the frames interpolated using the spectral method.
+    \
+    {hybrid_interpolate_long_desc}
 
     Parameters
-    ----------
-    data : tensor
-        Time series data.
-    mask : boolean tensor
-        Boolean tensor indicating whether the value in each frame of the input
-        time series is observed. ``True`` indicates that the original data are
-        "good" or observed, while ``False`` indicates that they are "bad" or
-        missing and flags them for interpolation.
-    max_consecutive_linear : int or None (default 3)
-        The maximum number of consecutive frames for which the linear method
-        will be used; any unseen frames that cannot be imputed using this
-        maximum are instead imputed using the spectral approach.
-    map_to_kernel : callable(int -> tensor)
-        A function that uses the integer value of the current stage to create
-        a convolutional kernel for weighting of neighbours. By default, a
-        boxcar window that includes the current frame, together with ``stage``
-        frames in each of the forward and backward directions, is returned.
-    oversampling_frequency : float (default 8)
-        Determines the number of frequency bins to use when estimating the
-        sine and cosine spectra in spectral interpolation. 1 indicates that
-        the number of bins should be the same as in a Fourier transform,
-        while larger values indicate that frequency bins should be
-        oversampled.
-    maximum_frequency : float (default 1)
-        Maximum frequency bin to consider in the spectral fit, as a fraction
-        of Nyquist.
-    frequency_thresh : float (default 0.3)
-        Because of the non-orthogonality of the basis functions, spurious
-        variance will often be captured in the spectral estimates. To control
-        this spurious variance, all frequency bins whose estimates are less
-        than ``thresh``, as a fraction of the maximum estimate across all
-        bins, are set to 0.
-    handle_fail : ``'raise'`` or ``'orig'`` (default ``'orig'``)
-        Specifies behaviour if the interpolation fails (which typically occurs
-        if every frame is labelled as unseen). ``'raise'`` raises an
-        exception, while ``'orig'`` returns values from the input time series
-        for any frames that are still missing after interpolation.
-
-    Returns
-    -------
-    tensor
-        Input dataset with missing frames imputed.
+    ----------\
+    {interpolate_base_spec}\
+    {interpolate_hybrid_spec}\
+    {interpolate_spectral_spec}
+    \
+    {interpolate_return_spec}
     """
     data = atleast_4d(data)
     mask = atleast_4d(mask)
@@ -139,7 +237,8 @@ def hybrid_interpolate(
         data=data, mask=mask,
         oversampling_frequency=oversampling_frequency,
         maximum_frequency=maximum_frequency,
-        thresh=frequency_thresh
+        frequency_thresh=frequency_thresh,
+        sampling_period=sampling_period,
     )
     return linear_interpolate(
         data=rec, mask=~linear_mask
@@ -199,29 +298,20 @@ def _partition_consecutive(
     return out, out
 
 
+@document_interpolation
 def linear_interpolate(
     data: Tensor,
     mask: Tensor,
 ) -> Tensor:
     """
-    Interpolate unseen time frames as a convex combination of nearest
-    neighbours.
+    Interpolate unseen time frames as a proximity-weighted convex combination
+    of nearest neighbours.
 
     Parameters
-    ----------
-    data : tensor
-        Time series data.
-    mask : boolean tensor
-        Boolean tensor indicating whether the value in each frame of the input
-        time series is observed. ``True`` indicates that the original data are
-        "good" or observed, while ``False`` indicates that they are "bad" or
-        missing and flags them for interpolation.
-
-    Returns
-    -------
-    tensor
-        Input dataset with missing frames imputed using the specified weighted
-        average.
+    ----------\
+    {interpolate_base_spec}
+    \
+    {interpolate_return_spec}
     """
     data = atleast_4d(data)
     mask = atleast_4d(mask)
@@ -338,6 +428,7 @@ def _interpolate_from_deltas(
     )[1]
 
 
+@document_interpolation
 def weighted_interpolate(
     data: Tensor,
     mask: Tensor,
@@ -348,52 +439,15 @@ def weighted_interpolate(
 ):
     """
     Interpolate unseen time frames as a weighted average of neighbours.
-
-    Interpolation proceeds iteratively over progressively longer window sizes.
-    It first defines a convolutional weighting/window kernel for the current
-    window size, and then sets the values of unseen time frames to the
-    convolution of seen time frames with this kernel, and marks those time
-    frames as seen for the next iteration. Iteration proceeds either until the
-    specified maximum stage or until every unseen frame is imputed.
-
-    .. note::
-        In practice, for a square window kernel, the weighted interpolation is
-        similar to a nearest-neighbour interpolation with very inefficient
-        implementation.
+    \
+    {weighted_interpolate_long_desc}
 
     Parameters
-    ----------
-    data : tensor
-        Time series data.
-    mask : boolean tensor
-        Boolean tensor indicating whether the value in each frame of the input
-        time series is observed. ``True`` indicates that the original data are
-        "good" or observed, while ``False`` indicates that they are "bad" or
-        missing and flags them for interpolation.
-    start_stage : int
-        The first stage of weighted interpolation. The meaning of this is
-        governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
-        argument is otherwise specified, it sets the initial size of a boxcar
-        window for averaging. (A value of 1 corresponds to averaging over the
-        current frame, together with 1 frame in each of the forward and
-        reverse directions.)
-    max_stage : int or None (default None)
-        The final stage of weighted interpolation. The meaning of this is
-        governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
-        argument is otherwise specified, it sets the maximum size of a boxcar
-        window for averaging. By default, no maximum size is specified, and
-        iteration proceeds until every unseen time point is imputed.
-    map_to_kernel : callable(int -> tensor)
-        A function that uses the integer value of the current stage to create
-        a convolutional kernel for weighting of neighbours. By default, a
-        boxcar window that includes the current frame, together with ``stage``
-        frames in each of the forward and backward directions, is returned.
-
-    Returns
-    -------
-    tensor
-        Input dataset with missing frames imputed using the specified weighted
-        average.
+    ----------\
+    {interpolate_base_spec}\
+    {interpolate_weighted_spec}
+    \
+    {interpolate_return_spec}
     """
     data = atleast_4d(data)
     mask = atleast_4d(mask)
@@ -478,85 +532,26 @@ def reconstruct_weighted(
     return val / wt # (wt + jnp.finfo(wt.dtype).eps)
 
 
+@document_interpolation
 def spectral_interpolate(
     data: Tensor,
     mask: Tensor,
     oversampling_frequency: float = 8,
     maximum_frequency: float = 1,
     sampling_period: float = 1,
-    thresh: float = 0
+    frequency_thresh: float = 0
 ):
     """
     Spectral interpolation based on basis function projection.
-
-    Given a time series with missing or corrupt observations, this operation
-    estimates the time series frequency spectra by proxy of projections onto
-    sine and cosine basis functions, and then uses the frequency spectrum
-    estimates as basis function weights in the reconstruction of missing
-    observations.
-
-    .. warning::
-        Users of this approach must be advised that the missing observations
-        result in non-orthogonal basis functions, and accordingly the variance
-        captured by different frequency bins might be shared.
-
-    .. note::
-        This method is inspired by
-        `previous work from Anish Mitra and Jonathan Power
-        <https://github.com/MidnightScanClub/MSCcodebase/blob/master/Processing/FCPROCESS_MSC.m>`_
-        which in turn is inspired by the Lomb-Scargle periodogram.
-
-    This method is used to temporarily interpolate over time points flagged
-    for omission due to high artefact content, so as to reduce disruptions to
-    the autocorrelation structure introduced by either artefactual outliers or
-    zeroing (or arguably linearly interpolating) those outliers. This is
-    useful for operations such as filtering and convolution for which the
-    autocorrelation structure of the data is relevant. It should not be used
-    for operations in which the autocorrelation structure plays no role, such
-    as covariance estimation, for which the weights of missing observations
-    can easily be set to 0.
-
-    .. warning::
-        ``spectral_interpolate`` expects batched input ``data`` and ``tmask``
-        arguments. If your inputs are not batched, ``unsqueeze`` their first
-        dimension before providing them as inputs.
-
-    .. warning::
-        If the input time series contains either no or all missing
-        observations, then the output time series will be identical to the
-        input time series.
+    \
+    {spectral_interpolate_long_desc}
 
     Parameters
-    ----------
-    data : tensor
-        Time series data.
-    tmask : boolean tensor
-        Boolean tensor indicating whether the value in each frame of the input
-        time series is observed. ``True`` indicates that the original data are
-        "good" or observed, while ``False`` indicates that they are "bad" or
-        missing and flags them for interpolation.
-    oversampling_frequency : float (default 8)
-        Determines the number of frequency bins to use when estimating the
-        sine and cosine spectra. 1 indicates that the number of bins should be
-        the same as in a Fourier transform, while larger values indicate that
-        frequency bins should be oversampled.
-    maximum_frequency : float (default 1)
-        Maximum frequency bin to consider in the fit, as a fraction of
-        Nyquist.
-    sampling_period : float (default 1)
-        Period separating consecutive samples in ``data``.
-    thresh : float (default 0)
-        Because of the non-orthogonality of the basis functions, spurious
-        variance will often be captured in the spectral estimates. To control
-        this spurious variance, all frequency bins whose estimates are less
-        than ``thresh``, as a fraction of the maximum estimate across all
-        bins, are set to 0.
-
-    Returns
-    -------
-    tensor
-        Input ``data`` whose flagged frames are replaced using the spectral
-        interpolation procedure.
+    ----------\
+    {interpolate_base_spec}\
+    {interpolate_spectral_spec}
+    \
+    {interpolate_return_spec}
     """
     data = atleast_4d(data)
     tmask = atleast_4d(mask)
@@ -570,7 +565,7 @@ def spectral_interpolate(
         _spectral_interpolate_single,
         all_samples=all_samples,
         angular_frequencies=angular_frequencies,
-        thresh=thresh,
+        thresh=frequency_thresh,
     ), 3)((data, tmask))
     msk = conform_mask(data, tmask.squeeze(), axis=-1, batch=True)
     return jnp.where(msk, data, recon)

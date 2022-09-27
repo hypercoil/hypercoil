@@ -6,9 +6,9 @@ Additional activation functions for neural network layers.
 """
 import jax
 import jax.numpy as jnp
-from typing import Literal, Optional, Tuple, Union
+from typing import Callable, Literal, Optional, Tuple, Union
 from .utils import complex_decompose, complex_recompose
-from ..engine import vmap_over_outer, Tensor
+from ..engine import NestedDocParse, vmap_over_outer, Tensor
 
 
 def laplace(
@@ -250,14 +250,8 @@ def _corrnorm_factor(input: Tensor) -> Tensor:
     return factor + jnp.finfo(input.dtype).eps
 
 
-def corrnorm(
-    input: Tensor,
-    factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
-    gradpath: Literal['input', 'both'] = 'both'
-) -> Tensor:
-    r"""
-    Correlation normalisation activation function.
-
+def document_corrnorm(f: Callable) -> Callable:
+    corrnorm_spec = r"""
     Divide each entry :math:`A_{ij}` of the input matrix :math:`A` by the
     product of the signed square roots of the corresponding diagonals:
 
@@ -297,7 +291,24 @@ def corrnorm(
     Returns
     -------
     Tensor
-        Normalised input.
+        Normalised input."""
+    fmt = NestedDocParse(
+        corrnorm_spec=corrnorm_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+@document_corrnorm
+def corrnorm(
+    input: Tensor,
+    factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
+    gradpath: Literal['input', 'both'] = 'both'
+) -> Tensor:
+    """
+    Correlation normalisation activation function.
+    \
+    {corrnorm_spec}
     """
     if isinstance(factor, jnp.DeviceArray):
         return input / factor
@@ -310,16 +321,8 @@ def corrnorm(
     return input / factor
 
 
-def isochor(
-    input: Tensor,
-    volume: float = 1,
-    max_condition: Optional[float] = None,
-    softmax_temp: Optional[float] = None
-) -> Tensor:
-    r"""
-    Volume-normalising activation function for symmetric, positive definite
-    matrices.
-
+def document_isochoric(f: Callable) -> Callable:
+    isochoric_spec = r"""
     This activation function first finds the eigendecomposition of each input
     matrix. The eigenvalues are then each divided by
     :math:`\sqrt[n]{\frac{v_{in}}{v_{target}}}`
@@ -361,7 +364,27 @@ def isochor(
     Returns
     -------
     tensor
-        Volume-normalised tensor.
+        Volume-normalised tensor."""
+
+    fmt = NestedDocParse(
+        isochoric_spec=isochoric_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+@document_isochoric
+def isochor(
+    input: Tensor,
+    volume: float = 1,
+    max_condition: Optional[float] = None,
+    softmax_temp: Optional[float] = None
+) -> Tensor:
+    """
+    Volume-normalising activation function for symmetric, positive definite
+    matrices.
+    \
+    {isochoric_spec}
     """
     L, Q = jnp.linalg.eigh(input)
     if softmax_temp is not None:
