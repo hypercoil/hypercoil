@@ -52,4 +52,3 @@
    api/hypercoil.loss.scalarise.selfwmean_scalarise
    api/hypercoil.loss.scheme.LossApply
    api/hypercoil.loss.scheme.LossScheme
-   api/hypercoil.loss.scheme.LossReturn

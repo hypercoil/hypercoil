@@ -6,7 +6,7 @@
 .. toctree::
    :maxdepth: 1
 
-   hypercoil.functional.sparse.random_sparse,
+   hypercoil.functional.sparse.random_sparse
    hypercoil.functional.sparse.spdiagmm
    hypercoil.functional.sparse.dspdmm
    hypercoil.functional.sparse.spspmm_full

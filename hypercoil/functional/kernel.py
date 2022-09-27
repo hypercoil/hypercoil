@@ -495,7 +495,7 @@ def cosine_kernel(
     """
     Parameterised cosine kernel between input tensors.
     \
-    {gaussian_kernel_long_desc}
+    {cosine_kernel_long_desc}
     \
     {kernel_fmt_note}
     \

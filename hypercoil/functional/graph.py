@@ -266,7 +266,7 @@ def relaxed_modularity(
     normalise_coaffiliation: bool = True,
     directed: bool = False,
     sign: Optional[Literal['+', '-']] ='+',
-    **params
+    **params,
 ) -> Tensor:
     """
     A relaxation of the modularity of a network given a community partition.

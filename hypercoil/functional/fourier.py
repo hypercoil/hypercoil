@@ -324,7 +324,10 @@ def instantaneous_phase(
 
     .. note::
         If you require the envelope or instantaneous frequency in addition to
-        the instantaneous phase, :func:`env_inst` will be more efficient.\
+        the instantaneous phase, :func:`env_inst` will be more efficient.
+
+    Parameters
+    ----------\
     {analytic_signal_base_spec}\
     {analytic_signal_period}\
     \

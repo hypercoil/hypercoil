@@ -226,6 +226,7 @@ def maximum_potential_bipartite_lattice(
     Carlo approach. A naive solution to the vertical compression problem.
 
     .. warning::
+
         This function is experimental and currently incompatible with
         JAX JIT compilation.
 
@@ -273,6 +274,7 @@ def maximum_potential_bipartite_lattice(
     criterion: function
         Objective function that accepts three parameters and returns a scalar
         value.
+
         * `orig` is the original objective matrix.
         * `recon` is the reconstructed objective matrix
           (compressed and uncompressed).

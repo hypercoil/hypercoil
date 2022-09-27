@@ -1,6 +1,6 @@
 ``orient_and_conform``
 ======================
 
-.. currentmodule:: hypercoil.functional.utils
+.. currentmodule:: hypercoil.engine.axisutil
 
 .. autofunction:: orient_and_conform

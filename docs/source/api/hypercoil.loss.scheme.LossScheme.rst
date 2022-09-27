@@ -1,6 +1,5 @@
 ``LossScheme``: Scheme for multiple losses
 ==========================================
-
-.. automodule:: hypercoil.loss.scheme
+.. currentmodule:: hypercoil.loss.scheme
 
 .. autoclass:: LossScheme

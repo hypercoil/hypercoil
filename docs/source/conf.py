@@ -76,6 +76,9 @@ html_logo = "_static/logo.png"
 html_theme_options = {
     "show_prev_next": False
 }
+html_context = {
+   "default_mode": "dark"
+}
 
 def linkcode_resolve(domain, info):
     """

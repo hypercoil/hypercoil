@@ -52,7 +52,7 @@ def document_semidefinite_block_mean(f: Callable) -> Callable:
 
 @document_semidefinite_block_mean
 def mean_block_spd(
-    mean_specs: list[Callable],
+    mean_specs: Sequence[Callable],
     data: Tensor
 ) -> Tensor:
     """
@@ -72,7 +72,7 @@ def mean_block_spd(
 
 @document_semidefinite_block_mean
 def mean_apply_block(
-    mean_specs: list[Callable],
+    mean_specs: Sequence[Callable],
     data: Tensor
 ) -> Tensor:
     """
@@ -95,7 +95,7 @@ def mean_apply_block(
 def tangency_init(
     init_data: Tensor,
     *,
-    mean_specs: list[Callable],
+    mean_specs: Sequence[Callable],
     std: float = 0.,
     key: Optional[jax.random.PRNGKey] = None
 ) -> Tensor:

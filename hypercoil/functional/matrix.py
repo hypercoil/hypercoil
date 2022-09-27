@@ -18,12 +18,14 @@ def cholesky_invert(X: Tensor) -> Tensor:
     Invert a symmetric positive definite matrix using Cholesky decomposition.
 
     .. warning::
+
         The input matrix must be symmetric and positive definite. If this is
         not the case, the function will either raise a `LinAlgError` or
         produce undefined results. For positive semidefinite matrices, the
         Moore-Penrose pseudoinverse can be used instead.
 
-    .. admonition::
+    .. admonition:: Performance
+
         This does not appear to be any faster than using the inverse directly.
         In fact, it is almost always slower than ``jnp.linalg.inv``. It's
         retained for historical reasons.

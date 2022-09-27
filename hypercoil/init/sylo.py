@@ -128,7 +128,7 @@ class SyloInitialiser(MappedInitialiser):
 
     def __init__(
         self,
-        negative_slope:float = 0,
+        negative_slope: float = 0,
         mode: Literal['fan_in', 'fan_out'] = 'fan_in',
         init_distr: Literal['uniform', 'normal'] = 'uniform',
         nonlinearity: str = 'leaky_relu',
@@ -192,7 +192,7 @@ class SyloInitialiser(MappedInitialiser):
         model: PyTree,
         *,
         mapper: Optional[Type[MappedParameter]] = None,
-        negative_slope:float = 0,
+        negative_slope: float = 0,
         mode: Literal['fan_in', 'fan_out'] = 'fan_in',
         init_distr: Literal['uniform', 'normal'] = 'uniform',
         nonlinearity: str = 'leaky_relu',

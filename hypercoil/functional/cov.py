@@ -94,6 +94,34 @@ def document_covariance(func):
                     As above
                 **Output :** :math:`(N, *, C_X, C_Y)`
                     As above"""
+
+    corr_long_description = r"""
+    The correlation is obtained via normalisation of the covariance. Given a
+    covariance matrix
+    :math:`\hat{\Sigma} \in \mathbb{R}^{n \times n}`, each
+    entry of the correlation matrix
+    :math:`R \in \mathbb{R}^{n \times n}`
+    is defined according to
+
+    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\sqrt{\hat{\Sigma}_{ii}} \sqrt{\hat{\Sigma}_{jj}}}`"""
+
+    conditional_cov_long_description = r"""
+
+    The conditional covariance is the covariance of one set of variables X
+    conditioned on another set of variables Y. The conditional covariance is
+    computed from the covariance :math:`\Sigma_{{XX}}` of X ,
+    the covariance :math:`\Sigma_{{YY}}` of Y, and the
+    covariance :math:`\Sigma_{{XY}}` between X and Y.
+    It is defined as the Schur complement of :math:`\Sigma_{{YY}}`:
+
+    :math:`\Sigma_{X|Y} = \Sigma_{XX} - \Sigma_{XY} \Sigma_{YY}^{{-1}} \Sigma_{XY}^\intercal`
+
+    The conditional covariance is equivalent to the covariance of the first set
+    of variables after residualising them with respect to the second set of
+    variables (plus an intercept term). This can be interpreted as the
+    covariance of variables of interest (the first set) after controlling for
+    the effects of confounds or nuisance variables (the second set)."""
+
     fmt = NestedDocParse(
         param_spec=param_spec,
         unary_param_spec=unary_param_spec,
@@ -101,7 +129,9 @@ def document_covariance(func):
         conditional_param_spec=conditional_param_spec,
         inverting_param_spec=inverting_param_spec,
         unary_dim_spec=unary_dim_spec,
-        binary_dim_spec=binary_dim_spec
+        binary_dim_spec=binary_dim_spec,
+        corr_long_description=corr_long_description,
+        conditional_cov_long_description=conditional_cov_long_description,
     )
     func.__doc__ = func.__doc__.format_map(fmt)
     return func
@@ -159,17 +189,10 @@ def corr(
     X: Tensor,
     **params
 ) -> Tensor:
-    r"""
+    """
     Pearson correlation of variables in a tensor batch.
-
-    The correlation is obtained via normalisation of the covariance. Given a
-    covariance matrix
-    :math:`\hat{{\Sigma}} \in \mathbb{{R}}^{{n \times n}}`, each
-    entry of the correlation matrix
-    :math:`R \in \mathbb{{R}}^{{n \times n}}`
-    is defined according to
-
-    :math:`R_{{ij}} = \frac{{\hat{{\Sigma}}_{{ij}}}}{{\sqrt{{\hat{{\Sigma}}_{{ii}}}} \sqrt{{\hat{{\Sigma}}_{{jj}}}}`
+    \
+    {corr_long_description}
 
     :Dimension: {unary_dim_spec}
 
@@ -339,15 +362,8 @@ def pairedcorr(
 ) -> Tensor:
     """
     Empirical Pearson correlation between variables in two tensor batches.
-
-    The empirical paired correlation is obtained via normalisation of the
-    paired covariance. Given a paired covariance matrix
-    :math:`\hat{{\Sigma}} \in \mathbb{{R}}^{{n \\times m}}`, each
-    entry of the paired correlation matrix
-    :math:`R \in \mathbb{{R}}^{{n \\times m}}`
-    is defined according to
-
-    :math:`R_{{ij}} = \\frac{{\hat{{\Sigma}}_{{ij}}}}{{\sqrt{{\hat{{\Sigma}}_{{ii}}}} \sqrt{{\hat{{\Sigma}}_{{jj}}}}`
+    \
+    {corr_long_description}
 
     .. danger::
         The ``l2`` parameter has no effect on this function. It is included only
@@ -374,6 +390,7 @@ def pairedcorr(
     return pairedcov(X, Y, rowvar=rowvar, bias=bias, ddof=ddof, **params) / fact
 
 
+@document_covariance
 def conditionalcov(
     X: Tensor,
     Y: Tensor,
@@ -382,21 +399,8 @@ def conditionalcov(
 ) -> Tensor:
     """
     Conditional covariance of variables in a tensor batch.
-
-    The conditional covariance is the covariance of one set of variables X
-    conditioned on another set of variables Y. The conditional covariance is
-    computed from the covariance :math:`\Sigma_{{XX}}` of X ,
-    the covariance :math:`\Sigma_{{YY}}` of Y, and the
-    covariance :math:`\Sigma_{{XY}}` between X and Y.
-    It is defined as the Schur complement of :math:`\Sigma_{{YY}}`:
-
-    :math:`\Sigma_{{X|Y}} = \Sigma_{{XX}} - \Sigma_{{XY}} \Sigma_{{YY}}^{{-1}} \Sigma_{{XY}}^\intercal`
-
-    The conditional covariance is equivalent to the covariance of the first set
-    of variables after residualising them with respect to the second set of
-    variables (plus an intercept term). This can be interpreted as the
-    covariance of variables of interest (the first set) after controlling for
-    the effects of confounds or nuisance variables (the second set).
+    \
+    {conditional_cov_long_description}
 
     :Dimension: {binary_dim_spec}
 
@@ -432,15 +436,10 @@ def conditionalcorr(
 ) -> Tensor:
     """
     Conditional Pearson correlation of variables in a tensor batch.
-
-    The correlation is obtained via normalisation of the conditional
-    covariance. Given a conditional covariance matrix
-    :math:`\hat{{\Sigma}} \in \mathbb{{R}}^{{n \times n}}`, each
-    entry of the conditional correlation matrix
-    :math:`R \in \mathbb{{R}}^{{n \times n}}`
-    is defined according to
-
-    :math:`R_{{ij}} = \frac{{\hat{{\Sigma}}_{{ij}}}}{{\sqrt{{\hat{{\Sigma}}_{{ii}}}} \sqrt{{\hat{{\Sigma}}_{{jj}}}}`
+    \
+    {conditional_cov_long_description}
+    \
+    {corr_long_description}
 
     :Dimension: {binary_dim_spec}
 
