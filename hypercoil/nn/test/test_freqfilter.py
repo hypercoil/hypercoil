@@ -25,7 +25,7 @@ class TestFreqFilter:
             FreqFilterSpec(Wn=Wn, N=N, ftype='cheby1', rp=0.01),
             FreqFilterSpec(Wn=Wn, N=N, ftype='cheby2', rs=20),
             FreqFilterSpec(Wn=Wn, N=N, ftype='ellip', rs=20, rp=0.1),
-            FreqFilterSpec(Wn=((0.2, 0.3), (0.4, 0.6)), N=N,
+            FreqFilterSpec(Wn=((0.1, 0.3), (0.4, 0.7)), N=N,
                            ftype='bessel', norm='amplitude'),
             FreqFilterSpec(Wn=Wn, ftype='randn'),
         )
