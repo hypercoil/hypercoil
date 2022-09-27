@@ -5,7 +5,6 @@
 Unit tests for infinite impulse response filter layer
 """
 import pytest
-import torch
 import numpy as np
 from scipy.signal import butter, lfilter, filtfilt
 from hypercoil.nn.iirfilter import DTDF

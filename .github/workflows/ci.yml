@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OS: ubuntu-latest
-      PYTHON: '3.8'
+      PYTHON: '3.10.4'
 
     steps:
     - name: Checkout
@@ -23,7 +23,7 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v3
       with:
-        python-version: 3.8
+        python-version: 3.10.4
 
     - name: Install dependencies
       run: |
@@ -34,6 +34,7 @@ jobs:
         python -m pip install vtk
         python -m pip install https://github.com/wiheto/netplotbrain/archive/535a07bb7d2be1a2c95746bcb82b41e69f19a8f1.tar.gz
         python -m pip install https://github.com/rciric/surfplot/archive/9b4a1e65aac89daf5e6747cee0419b6fc39d2392.tar.gz
+        python -m pip install --upgrade --force-reinstall --no-deps https://github.com/deepmind/distrax/archive/4787902ae49ccfccb1c903e759d15bc61e6a20b4.tar.gz
         python -m pip install scikit-image
         python -m pip install pingouin
         python -m pip install nilearn
