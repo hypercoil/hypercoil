@@ -4,13 +4,17 @@
 """
 Tools for initialising parameters for an IIR filter layer.
 """
-import torch
+import jax.numpy as jnp
+import equinox as eqx
+from typing import Literal, Optional, Tuple, Union
 from scipy import signal
 from numpy.random import uniform
-from .domain import Identity
+from ..engine import Tensor
 
 
-class IIRFilterSpec(object):
+#TODO: mark this as experimental until the IIR filter module is properly
+#      differentiable.
+class IIRFilterSpec(eqx.Module):
     """
     Specification for filter coefficients for recursive IIR filter classes.
 
@@ -46,8 +50,31 @@ class IIRFilterSpec(object):
         Critical frequency normalisation. Consult the ``scipy.signal.bessel``
         documentation for details.
     """
-    def __init__(self, Wn=None, N=1, ftype='butter', btype='bandpass', fs=None,
-                 rp=0.1, rs=20, norm='phase'):
+
+    Wn: Union[float, Tuple[float, float]]
+    N: int
+    ftype: Literal[
+        'butter', 'cheby1', 'cheby2', 'ellip', 'bessel',] = 'butter'
+    btype: Literal['bandpass', 'bandstop', 'lowpass', 'highpass'] = 'bandpass'
+    fs: Optional[float] = None
+    rp: float = 0.1
+    rs: float = 20
+    norm: Literal['phase', 'mag', 'delay'] = 'phase'
+    coefs: Tensor
+
+    def __init__(
+        self,
+        Wn: Union[float, Tuple[float, float]],
+        N: int,
+        ftype: Literal[
+            'butter', 'cheby1', 'cheby2', 'ellip', 'bessel',] = 'butter',
+        btype: Literal['bandpass', 'bandstop', 'lowpass', 'highpass'] = 'bandpass',
+        fs: Optional[float] = None,
+        rp: float = 0.1,
+        rs: float = 20,
+        norm: Literal['phase', 'mag', 'delay'] = 'phase',
+    ):
+        super().__init__()
         self.Wn = Wn
         self.N = N
         self.ftype = ftype
@@ -56,11 +83,9 @@ class IIRFilterSpec(object):
         self.rp = rp
         self.rs = rs
         self.norm = norm
+        self.initialise_coefs()
 
-    def initialise_coefs(self, domain=None):
-        if domain is not None:
-            raise NotImplementedError('No domain support yet in IIRFilterSpec')
-        domain = domain or Identity()
+    def initialise_coefs(self):
         if self.ftype == 'butter':
             iirfilter = signal.butter
             filter_params = {}
@@ -91,19 +116,23 @@ class IIRFilterSpec(object):
         )
 
 
-
-def iirfilter_coefs(iirfilter, N, Wn, btype='bandpass', fs=None,
-                    filter_params=None):
-    import numpy as np
+def iirfilter_coefs(
+    iirfilter,
+    N,
+    Wn,
+    btype='bandpass',
+    fs=None,
+    filter_params=None
+) -> Tuple[Tensor, Tensor]:
     filter_params = filter_params or {}
-    N = _ensure_ndarray(N).astype(int)
-    Wn = _ensure_ndarray(Wn)
+    N = jnp.atleast_1d(N).astype(int)
+    Wn = jnp.atleast_1d(Wn).astype(float)
     if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
         Wn = Wn.reshape(-1, 2)
-    return [
+    return tuple(
         iirfilter(N=n, Wn=wn, btype=btype, fs=fs, **filter_params)
         for n, wn in zip(N, Wn)
-    ]
+    )
 
 
 #TODO: this is not correctly implemented. See
@@ -117,16 +146,3 @@ def kuznetsov_init(N, btype='bandpass'):
     a = uniform(-0.5, 0.5, N * multiplier + 1)
     a[0] = 1
     return b, a
-
-
-def _ensure_ndarray(obj):
-    """
-    Ensure that the object is an iterable ndarray with dimension greater than
-    or equal to 1. Another function we'd do well to get rid of in the future.
-    """
-    import numpy as np
-    try:
-        i = iter(obj)
-        return np.array(obj)
-    except TypeError:
-        return np.array([obj])

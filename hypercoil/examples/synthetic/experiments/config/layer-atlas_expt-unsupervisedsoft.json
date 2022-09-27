@@ -1,0 +1,24 @@
+{
+    "layer" : "atlas",
+    "expt" : "unsupervisedsoft",
+    "name" : "Unsupervised -- Soft Parcellation",
+    "type" : "atlas_experiment",
+    "tags" : [
+        "atlas", "parcellation", "spatial", "unsupervised",
+        "soft", "overlap"
+    ],
+    "notes" : ["The specified seed number is relatively easy for the model to learn, and it performs reasonably well. For a more challenging seed number, try 7."],
+    "parameters" :{
+        "lr" : 0.001,
+        "max_epoch" : 10001,
+        "log_interval" : 100,
+        "parcellation" : "soft",
+        "entropy_nu" : 0,
+        "logdet_nu" : 0.02,
+        "secondmoment_nu" : 0.005,
+        "compactness_nu" : 1,
+        "compactness_floor" : 5,
+        "equilibrium_nu" : 0,
+        "key" : 13
+    }
+}

@@ -7,59 +7,52 @@ https://github.com/boris-kuz/differentiable_iir_filters
 
 If you use this in published work, you must cite:
 
-Kuznetsov B, Parker JD, Esqueda F (2020) Differentiable IIR filters for machine
-learning applications. DAFx2020, Vienna, Austria, September 2020-21.
+Kuznetsov B, Parker JD, Esqueda F (2020) Differentiable IIR filters for
+machine learning applications. DAFx2020, Vienna, Austria, September 2020-21.
 
 .. warning::
-    This is not yet implemented.
+    A stable backward pass is not yet implemented.
 """
-import torch
-import numpy as np
-from torch.nn import Module, Parameter
-from torch import FloatTensor
-from numpy.random import uniform
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+from typing import Optional, Tuple
+from ..engine import Tensor
+from ..init.iirfilter import IIRFilterSpec
 
 
-class DTDFCell(Module):
-    def __init__(self, init_spec, dtype=None, device=None):
+#TODO: mark all code as experimental until the IIR filter module is properly
+#      differentiable and the zero-phase filtering is implemented.
+class DTDFCell(eqx.Module):
+    N: int
+    multiplier: int
+    b: Tensor
+    a: Tensor
 
-        factory_kwargs = {'device': device, 'dtype': dtype}
+    def __init__(
+        self,
+        init_spec: IIRFilterSpec
+    ):
 
-        super(DTDFCell, self).__init__()
         self.N = init_spec.N
         self.multiplier = 1
         if init_spec.btype in ('bandpass', 'bandstop'):
             self.multiplier = 2
-        self.b = Parameter(
-            torch.zeros(self.multiplier * self.N + 1, **factory_kwargs)
-        )
-        self.a = Parameter(
-            torch.zeros(self.multiplier * self.N, **factory_kwargs)
-        )
-        self.init_params(init_spec, **factory_kwargs)
 
-    def forward(self, input, v):
-        output = input * self.b[0] + v[..., 0].unsqueeze(-1)
-
-        v_new = input * self.b[1:] - output * self.a
-        v_new[..., :-1] = v_new[..., :-1] + v[..., 1:]
-        return output.squeeze(-1), v_new
-
-    def init_states(self, size, **factory_kwargs):
-        v = torch.zeros(
-            *size, self.multiplier * self.N,
-            **factory_kwargs
-        ).to(next(self.parameters()).device)
-        return v
-
-    def init_params(self, spec, **factory_kwargs):
-        spec.initialise_coefs()
-        coefs = torch.tensor(np.array(spec.coefs), **factory_kwargs)
+        coefs = jnp.array(init_spec.coefs)
         b = coefs[..., 0, :]
         a = coefs[..., 1, :][..., 1:]
-        with torch.no_grad():
-            self.b[:] = b
-            self.a[:] = a
+        self.b, self.a = b, a
+
+    def init_states(self, shape: Tuple[int]) -> Tensor:
+        return jnp.zeros((*shape, self.multiplier * self.N))
+
+    def __call__(self, input: Tensor, v: Tensor) -> Tuple[Tensor, Tensor]:
+        output = input * self.b[..., 0] + v[..., 0][..., None]
+
+        v_new = input * self.b[..., 1:] - output * self.a
+        v_new = v_new.at[..., :-1].set(v_new[..., :-1] + v[..., 1:])
+        return output.squeeze(-1), v_new
 
 
 class Spec(object):
@@ -68,39 +61,43 @@ class Spec(object):
         self.btype = 'lowpass'
 
 
-class DTDF(Module):
-    def __init__(self, spec, device=None, dtype=None):
-        super(DTDF, self).__init__()
-        factory_kwargs = {'device': device, 'dtype': dtype}
-        self.factory_kwargs = factory_kwargs
-        self.cell = DTDFCell(init_spec=spec, **factory_kwargs)
+class DTDF(eqx.Module):
+    cell: DTDFCell
 
-    def forward(self, input, initial_states=None, feature_ax=False):
+    def __init__(
+        self,
+        spec: IIRFilterSpec,
+    ):
+
+        self.cell = DTDFCell(init_spec=spec)
+
+    def __call__(
+        self,
+        input: Tensor,
+        initial_states: Optional[Tensor] = None,
+        feature_ax: bool = False,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
         if not feature_ax:
-            input = input.unsqueeze(-1)
+            input = input[..., None]
         else:
             raise NotImplementedError('No support for final feature axis yet')
         batch_size = input.shape[0]
         sequence_length = input.shape[-2]
 
         if initial_states is None:
-            states = self.cell.init_states(
-                input.shape[:-2],
-                **self.factory_kwargs
-            )
+            states = self.cell.init_states(shape=input.shape[:-2])
         else:
             states = initial_states
 
-        out_sequence = torch.zeros(
-            input.shape[:-1],
-            **self.factory_kwargs
-        ).to(input.device)
+        out_sequence = jnp.zeros(input.shape[:-1])
         for s_idx in range(sequence_length):
-            out_sequence[..., s_idx], states = self.cell(
+            out, states = self.cell(
                 input[..., s_idx, :],
                 states
             )
-        out_sequence = out_sequence
+            out_sequence = out_sequence.at[..., s_idx].set(out)
 
         if initial_states is None:
             return out_sequence
@@ -113,21 +110,29 @@ class IIRFilter(DTDF):
 
 
 class IIRFiltFilt(IIRFilter):
-    def forward(self, input, initial_states=None, feature_ax=False):
-        out = super().forward(
+    def __call__(
+        self,
+        input: Tensor,
+        initial_states: Optional[Tensor] = None,
+        feature_ax: bool = False,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
+        raise NotImplementedError('Zero-phase filter not yet implemented')
+        out = super()(
             input=input,
             initial_states=initial_states,
             feature_ax=feature_ax
         )
         if not feature_ax:
-            out = out.flip(-1)
+            out = jnp.flip(out, -1)
         else:
-            out = out.flip(-2)
-        out = super().forward(
+            out = jnp.flip(out, -2)
+        out = super()(
             input=out,
             initial_states=initial_states,
             feature_ax=feature_ax
         )
         if not feature_ax:
-            return out.flip(-1)
-        return out.flip(-2)
+            return jnp.flip(out, -1)
+        return jnp.flip(out, -2)

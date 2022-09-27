@@ -1,0 +1,32 @@
+{
+    "layer" : "denoise",
+    "expt" : "homogeneous",
+    "name" : "Homogeneous Artefact",
+    "type" : "model_selection_experiment",
+    "tags" : [
+        "denoise", "denoising", "qc-fc", "qcfc",
+        "motion", "artefact", "batchcorr"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "model" : "combination",
+        "lr" : 0.01,
+        "max_epoch" : 31,
+        "log_interval" : 2,
+        "l1_nu" : 0,
+        "batch_size" : null,
+        "time_dim" : 1000,
+        "latent_dim" : 30,
+        "observed_dim" : 20,
+        "subject_dim" : 100,
+        "artefact_dim" : 20,
+        "correlated_artefact": false,
+        "spatial_heterogeneity" : false,
+        "subject_heterogeneity" : false,
+        "noise_scale" : 0.2,
+        "jitter" : [0.05, 0.05, 0.05],
+        "include" : [1, 1, 1],
+        "lp" : 0.3,
+        "key" : 8
+    }
+}

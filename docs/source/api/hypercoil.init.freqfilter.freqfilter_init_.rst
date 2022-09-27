@@ -1,6 +1,6 @@
-``freqfilter_init_``
-====================
+``freqfilter_init``
+===================
 
 .. currentmodule:: hypercoil.init.freqfilter
 
-.. autofunction:: freqfilter_init_
+.. autofunction:: freqfilter_init

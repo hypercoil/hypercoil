@@ -20,47 +20,36 @@ parcellations. Modifications can be applied easily to promote better learning
 signals. For the case of the atlas layer, for instance, hard parcels can be
 smoothed (in either Euclidean or
 :doc:`spherical topology <api/hypercoil.functional.sphere>`
-) or pre-transformed through a
-:doc:`multi-logit <api/hypercoil.init.domain.MultiLogit>`
-(softmax) domain transformation to change the properties of the gradients they
-receive.
+) or constrained to the
+:doc:`probability simplex <api/hypercoil.init.mapparam.ProbabilitySimplexParameter>`
+(using a softmax domain transformation) to change the properties of the
+gradients they receive.
 
 Also available are more general initialisation schemes for use cases where a
 clean slate is desired as a starting point. For example, a random
 :doc:`Dirichlet initialisation <api/hypercoil.init.dirichlet>`
 , when combined with a
-:doc:`multi-logit domain <api/hypercoil.init.domain.MultiLogit>`
+:doc:`probability simplex projection <api/hypercoil.init.mapparam.ProbabilitySimplexParameter>`
 , lends columns in a parcellation matrix the intuitive interpretation of
 probability distributions over parcels.
 
 Most initialisation scheme classes (eventually, all) can be combined with a
-:doc:`domain mapper <api/hypercoil.init.domain>`.
-If a domain mapper is used to initialise a compatible module's parameters, the
-parameters are internally stored by the module as "pre-parameters" and then
-transformed through the domain mapper before they interact with inputs.
-Some schemes are paired with a domain mapper by default. For instance,
+:doc:`parameter mapping <api/hypercoil.init.mapparam>`.
+If a parameter mapping is used to initialise a compatible module's parameters,
+the parameters are internally stored by the module as "original parameters"
+and then transformed through the mapping before they interact with inputs.
+Some schemes are paired with a mapping by default. For instance,
 :doc:`Dirichlet initialisation <api/hypercoil.init.dirichlet>`
 is by default paired with a
-:doc:`multi-logit <api/hypercoil.init.domain.MultiLogit>`
-domain to constrain Dirichlet-initialised weights to the probability simplex.
+:doc:`probability simplex projection <api/hypercoil.init.domain.ProbabilitySimplexParameter>`
+domain to constrain Dirichlet-initialised weights to always be valid
+probability distributions.
 
 .. warning::
     Any and all APIs here are experimental and subject to change. Test
     coverage is inadequate and extreme discretion is warranted when using this
     functionality. Please report any bugs by opening an issue.
 """
-from .domainbase import (
-    Identity,
-    Linear,
-    Affine
-)
-from .domain import (
-    Atanh,
-    AmplitudeAtanh,
-    Logit,
-    MultiLogit,
-    AmplitudeMultiLogit
-)
 from .atlas import (
     DiscreteVolumetricAtlas,
     MultiVolumetricAtlas,
@@ -68,50 +57,64 @@ from .atlas import (
     CortexSubcortexCIfTIAtlas,
     DirichletInitVolumetricAtlas,
     DirichletInitSurfaceAtlas,
-    AtlasInit
+    AtlasInitialiser,
 )
 from .base import (
-    from_distr_init_,
-    constant_init_,
-    identity_init_,
+    from_distr_init,
+    constant_init,
+    identity_init,
     DistributionInitialiser,
-    ConstantInitialiser
+    ConstantInitialiser,
+    IdentityInitialiser,
+    MappedInitialiser,
 )
 from .deltaplus import (
-    deltaplus_init_,
-    DeltaPlusInit
+    deltaplus_init,
+    DeltaPlusInitialiser,
 )
 from .dirichlet import (
-    dirichlet_init_,
-    DirichletInit
+    dirichlet_init,
+    DirichletInitialiser,
 )
 from .freqfilter import (
     FreqFilterSpec,
-    freqfilter_init_,
-    clamp_init_
+    freqfilter_init,
+    clamp_init
 )
 from .iirfilter import (
     IIRFilterSpec
 )
 from .laplace import (
-    laplace_init_,
-    LaplaceInit
+    laplace_init,
+    LaplaceInitialiser,
+)
+from .mapparam import (
+    IdentityMappedParameter,
+    AffineMappedParameter,
+    TanhMappedParameter,
+    AmplitudeTanhMappedParameter,
+    MappedLogits,
+    NormSphereParameter,
+    ProbabilitySimplexParameter,
+    AmplitudeProbabilitySimplexParameter,
+    OrthogonalParameter,
+    IsochoricParameter,
 )
 from .mpbl import (
-    BipartiteLatticeInit
+    maximum_potential_bipartite_lattice,
 )
 from .semidefinite import (
-    tangency_init_,
-    TangencyInit,
+    tangency_init,
+    TangencyInitialiser,
     SPDEuclideanMean,
     SPDHarmonicMean,
     SPDLogEuclideanMean,
     SPDGeometricMean
 )
 from .sylo import (
-    sylo_init_
+    sylo_init,
+    SyloInitialiser
 )
 from .toeplitz import (
-    toeplitz_init_,
-    ToeplitzInit
+    ToeplitzInitialiser
 )

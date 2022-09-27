@@ -2,285 +2,539 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Brain surface plots with `surfplot`.
-These currently require a custom patch of `surfplot`.
+Brain surfaces
+~~~~~~~~~~~~~~
+Brain surface objects for plotting.
 """
-import torch
-import surfplot
+import pathlib
+import warnings
+import pyvista as pv
 import numpy as np
 import nibabel as nb
-import matplotlib
-import matplotlib.pyplot as plt
 import templateflow.api as tflow
-from hypercoil.engine import Sentry
-from hypercoil.functional.cmass import cmass_coor
-from hypercoil.functional.sphere import spherical_geodesic
-from hypercoil.neuro.const import fsLR
-from hypercoil.viz.surfutils import _CMapFromSurfMixin
+
+from dataclasses import dataclass
+from typing import Any, Literal, Mapping, Optional, Sequence, Tuple, Union
+from matplotlib.colors import ListedColormap
+from hypercoil.engine import Tensor
+from hypercoil.init.atlasmixins import Reference
+from hypercoil.neuro.const import (
+    template_dict
+)
 
 
-POLE_DECODER = {
-    'cortex_L': np.array([
-        'medial', 'anterior', 'dorsal',
-        'lateral', 'posterior', 'ventral'
-    ]),
-    'cortex_R': np.array([
-        'lateral', 'anterior', 'dorsal',
-        'medial', 'posterior', 'ventral'
-    ]),
-}
-
-POLES = torch.tensor([
-    [100., 0., 0.],
-    [0., 100., 0.],
-    [0., 0., 100.],
-    [-100., 0., 0.],
-    [0., -100., 0.],
-    [0., 0., -100.],
-])
+def is_path_like(obj: Any) -> bool:
+    return isinstance(obj, (str, pathlib.Path))
 
 
-VIEWS = {
-    'dorsal' : {
-        'views' : 'dorsal',
-        'size' : (250, 300),
-        'zoom' : 3
-    },
-    'ventral' : {
-        'views' : 'ventral',
-        'size' : (250, 300),
-        'zoom' : 3,
-        'flip' : True
-    },
-    'posterior' : {
-        'views' : 'posterior',
-        'size' : (300, 300),
-        'zoom' : 3
-    },
-    'anterior' : {
-        'views' : 'anterior',
-        'size' : (300, 300),
-        'zoom' : 3,
-        'flip' : True
-    },
-    'medial' : {
-        'views' : 'medial',
-        'size' : (900, 300),
-        'zoom' : 1.8,
-    },
-    'lateral' : {
-        'views' : 'lateral',
-        'size' : (900, 300),
-        'zoom' : 1.8,
-    },
-}
+def extend_to_max(*pparams, axis=-1):
+    max_len = max(p.shape[axis] for p in pparams)
+    pad = [(0, 0)] * pparams[0].ndim
+    for p in pparams:
+        pad[axis] = (0, max_len - p.shape[axis])
+        yield np.pad(p, pad, 'constant')
 
 
-class fsLRSurfacePlot(Sentry):
-    def __init__(self, atlas):
-        super().__init__()
-        self.module = atlas
-        self.atlas = atlas.atlas
-        coor_query = fsLR().TFLOW_COOR_QUERY
-        coor_query.update(suffix='veryinflated')
-        self.lh, self.rh = (
-            tflow.get(**coor_query, hemi='L'),
-            tflow.get(**coor_query, hemi='R')
-        )
-        self.dim_lh = nb.load(self.lh).darrays[0].dims[0]
-        self.dim_rh = nb.load(self.rh).darrays[0].dims[0]
-        self.dim = self.dim_lh + self.dim_rh
+# class ProjectionKey:
+#     """
+#     Currently, PyVista does not support non-string keys for point data. This
+#     class is unused, but is a placeholder in case PyVista supports this in
+#     the future.
+#     """
+#     def __init__(self, projection: str):
+#         self.projection = projection
 
-        self.data_mask = {
-            'cortex_L' : torch.ones_like(self.atlas.mask),
-            'cortex_R' : torch.ones_like(self.atlas.mask),
-            'all' : torch.ones_like(self.atlas.mask)
+#     def __hash__(self):
+#         return hash(f'_projection_{self.projection}')
+
+#     def __eq__(self, other):
+#         return self.projection == other.projection
+
+#     def __repr__(self):
+#         return f'Projection({self.projection})'
+
+
+@dataclass
+class ProjectedPolyData(pv.PolyData):
+    """
+    PyVista ``PolyData`` object with multiple projections.
+    """
+
+    def __init__(
+        self,
+        *pparams,
+        projection: str,
+        **params
+    ):
+        super().__init__(*pparams, **params)
+        self.point_data[f'_projection_{projection}'] = self.points.copy()
+
+    def __repr__(self):
+        return super().__repr__()
+
+    @property
+    def projections(self):
+        return {
+            k[12:]: v for k, v in self.point_data.items()
+            if k[:12] == '_projection_'
         }
-        self.cmap_mask = {
-            'cortex_L' : self.atlas.compartments['cortex_L'].clone(),
-            'cortex_R' : self.atlas.compartments['cortex_R'].clone(),
-            'all' : self.atlas.mask.clone()
-        }
-        self.data_mask['cortex_L'][self.dim_lh:] = False
-        self.data_mask['cortex_R'][:self.dim_lh] = False
-        self.data_mask['cortex_R'][self.dim:] = False
-        self.data_mask['all'][self.dim:] = False
-        self.cmap_mask['cortex_L'][self.dim_lh:] = False
-        self.cmap_mask['cortex_R'][:self.dim_lh] = False
-        self.cmap_mask['cortex_R'][self.dim:] = False
-        self.cmap_mask['all'][self.dim:] = False
-        self.cortical_mask = (
-            self.atlas.compartments['cortex_L'] |
-            self.atlas.compartments['cortex_R']
+
+    @classmethod
+    def from_polydata(
+        cls,
+        *,
+        projection: str,
+        ignore_errors: bool = False,
+        **params
+    ):
+        obj = cls(params[projection], projection=projection)
+        for key, value in params.items():
+            if key != projection:
+                if ignore_errors:
+                    try:
+                        obj.add_projection(key, value.points)
+                    except Exception:
+                        continue
+                else:
+                    obj.add_projection(key, value.points)
+        return obj
+
+    def get_projection(self, projection: str) -> Tensor:
+        projections = self.projections
+        if projection not in projections:
+            raise KeyError(
+                f"Projection '{projection}' not found. "
+                f"Available projections: {set(projections.keys())}"
+            )
+        return projections[projection]
+
+    def add_projection(
+        self,
+        projection: str,
+        points: Tensor,
+    ):
+        if len(points) != self.n_points:
+            raise ValueError(
+                f'Number of points {len(points)} must match {self.n_points}.')
+        self.point_data[f'_projection_{projection}'] = points
+
+    def remove_projection(
+        self,
+        projection: str,
+    ):
+        projections = self.projections
+        if projection not in projections:
+            raise KeyError(
+                f"Projection '{projection}' not found. "
+                f"Available projections: {set(projections.keys())}"
+            )
+        del self.point_data[f'_projection_{projection}']
+
+    def project(
+        self,
+        projection: str,
+    ):
+        projections = self.projections
+        if projection not in projections:
+            raise KeyError(
+                f"Projection '{projection}' not found. "
+                f"Available projections: {set(projections.keys())}"
+            )
+        self.points = projections[projection]
+
+
+@dataclass
+class CortexTriSurface:
+    left: ProjectedPolyData
+    right: ProjectedPolyData
+    mask: Optional[str] = None
+
+    @classmethod
+    def from_darrays(
+        cls,
+        left: Mapping[str, Tuple[Tensor, Tensor]],
+        right: Mapping[str, Tuple[Tensor, Tensor]],
+        left_mask: Optional[Tensor] = None,
+        right_mask: Optional[Tensor] = None,
+        projection: Optional[str] = None,
+    ):
+        if projection is None:
+            projection = list(left.keys())[0]
+        left, mask_str = cls._hemisphere_darray_impl(
+            left, left_mask, projection)
+        right, _ = cls._hemisphere_darray_impl(
+            right, right_mask, projection)
+        return cls(left, right, mask_str)
+
+    @classmethod
+    def from_gifti(
+        cls,
+        left: Mapping[str, Union[str, nb.gifti.gifti.GiftiImage]],
+        right: Mapping[str, Union[str, nb.gifti.gifti.GiftiImage]],
+        left_mask: Optional[Union[str, nb.gifti.gifti.GiftiImage]] = None,
+        right_mask: Optional[Union[str, nb.gifti.gifti.GiftiImage]] = None,
+        projection: Optional[str] = None,
+    ):
+        left, left_mask = cls._hemisphere_gifti_impl(left, left_mask)
+        right, right_mask = cls._hemisphere_gifti_impl(right, right_mask)
+        return cls.from_darrays(
+            left={k: tuple(d.data for d in v.darrays)
+                  for k, v in left.items()},
+            right={k: tuple(d.data for d in v.darrays)
+                   for k, v in right.items()},
+            left_mask=left_mask,
+            right_mask=right_mask,
+            projection=projection,
         )
-        self.coor_all = self.atlas.coors[self.cortical_mask[self.atlas.mask]]
 
-    def drop_null(self, null=0):
-        subset = (self.data != null)
-        return self.data[subset], self.coor_all[subset]
-
-
-class fsLRAtlasParcels(
-    _CMapFromSurfMixin,
-    fsLRSurfacePlot
-):
-    def __call__(self, cmap, views=('lateral', 'medial'), save=None):
-        offscreen = False
-        if save is not None:
-            matplotlib.use('agg')
-            offscreen = True
-        data = torch.zeros_like(self.atlas.mask, dtype=torch.long)
-        for compartment in ('cortex_L', 'cortex_R'):
-            mask = self.atlas.compartments[compartment]
-            labels = self.module.weight[compartment].argmax(0).detach()
-            compartment_data = (
-                self.atlas.decoder[compartment][labels]
+    @classmethod
+    def from_tflow(
+        cls,
+        template: str = 'fsLR',
+        projections: Union[str, Sequence[str]] = 'veryinflated',
+        load_mask: bool = False,
+    ):
+        if isinstance(projections, str):
+            projections = (projections,)
+        template = template_dict()[template]
+        coor_query = template.TFLOW_COOR_QUERY
+        lh, rh = {}, {}
+        for projection in projections:
+            coor_query.update(suffix=projection)
+            lh_path, rh_path = (
+                tflow.get(**coor_query, hemi='L'),
+                tflow.get(**coor_query, hemi='R')
             )
-            compartment_data[self.module.weight[compartment].sum(0) == 0] = 0
-            data[mask] = compartment_data
-        self.data = data[self.cmap_mask['all']].cpu()
-        labels = self.atlas.decoder['_all']
-        cmap = self._select_cmap(cmap=cmap, labels=labels)
-        self.data = data[self.data_mask['all']].cpu().numpy()
+            lh[projection] = lh_path
+            rh[projection] = rh_path
+        lh_mask, rh_mask = None, None
+        if load_mask:
+            mask_query = template.TFLOW_MASK_QUERY
+            lh_mask, rh_mask = (
+                tflow.get(**mask_query, hemi='L'),
+                tflow.get(**mask_query, hemi='R')
+            )
+        return cls.from_gifti(lh, rh, lh_mask, rh_mask,
+                              projection=projections[0])
 
-        for view in views:
-            view_args = VIEWS[view]
-            p = surfplot.Plot(
-                surf_lh=self.lh,
-                surf_rh=self.rh,
-                brightness=0.1,
-                **view_args
+    @property
+    def n_points(self) -> Mapping[str, int]:
+        return {
+            'left': self.left.n_points,
+            'right': self.right.n_points,
+        }
+
+    @property
+    def point_data(self) -> Mapping[str, Mapping]:
+        return {
+            'left': self.left.point_data,
+            'right': self.right.point_data,
+        }
+
+    @property
+    def masks(self) -> Mapping[str, Tensor]:
+        return {
+            'left': self.left.point_data[self.mask],
+            'right': self.right.point_data[self.mask],
+        }
+
+    @property
+    def mask_size(self) -> Mapping[str, int]:
+        return {
+            'left': self.masks['left'].sum().item(),
+            'right': self.masks['right'].sum().item(),
+        }
+
+    #TODO: Harmonise this with _CortexSubcortexCIfTICompartmentMixin.
+    #      There is currently a lot of duplication.
+    def add_cifti_dataset(
+        self,
+        name: str,
+        cifti: Union[str, nb.cifti2.cifti2.Cifti2Image],
+        is_masked: bool = False,
+        apply_mask: bool = True,
+        null_value: Optional[float] = 0.,
+    ):
+        names_dict = {
+            'CIFTI_STRUCTURE_CORTEX_LEFT' : 'left',
+            'CIFTI_STRUCTURE_CORTEX_RIGHT' : 'right',
+        }
+        slices = {}
+
+        if is_path_like(cifti):
+            cifti = nb.load(cifti)
+        ref = Reference(cifti, model_axes='cifti')
+        model_axis = ref.model_axobj
+
+        offset = 0
+        for struc, slc, _ in (model_axis.iter_structures()):
+            hemi = names_dict.get(struc, None)
+            if hemi is not None:
+                start, stop = slc.start, slc.stop
+                start = start if start is not None else 0
+                stop = (
+                    stop if stop is not None
+                    else offset + self.mask_size[hemi]
+                )
+                slices[hemi] = slice(start, stop)
+                offset = stop
+
+        data = ref.dataobj
+        while data.shape[0] == 1:
+            data = data[0]
+        return self.add_vertex_dataset(
+            name=name,
+            data=data,
+            left_slice=slices['left'],
+            right_slice=slices['right'],
+            default_slices=False,
+            is_masked=is_masked,
+            apply_mask=apply_mask,
+            null_value=null_value,
+        )
+
+    def add_vertex_dataset(
+        self,
+        name: str,
+        data: Optional[Tensor] = None,
+        left_data: Optional[Tensor] = None,
+        right_data: Optional[Tensor] = None,
+        left_slice: Optional[slice] = None,
+        right_slice: Optional[slice] = None,
+        default_slices: bool = True,
+        is_masked: bool = False,
+        apply_mask: bool = True,
+        null_value: Optional[float] = 0.,
+    ):
+        if data is not None:
+            if left_slice is None and right_slice is None:
+                if default_slices:
+                    if is_masked:
+                        left_slice = slice(0, self.mask_size['left'])
+                        right_slice = slice(self.mask_size['left'], None)
+                    else:
+                        left_slice = slice(0, self.n_points['left'])
+                        right_slice = slice(self.n_points['left'], None)
+                else:
+                    warnings.warn(
+                        "No slices were provided for vertex data, and default "
+                        "slicing was toggled off. The `data` tensor will be "
+                        "ignored. Attempting fallback to `left_data` and "
+                        "`right_data`.\n\n"
+                        "To silence this warning, provide slices for the data "
+                        "or toggle on default slicing if a `data` tensor is "
+                        "provided. Alternatively, provide `left_data` and "
+                        "`right_data` directly and exclusively."
+                    )
+            if left_slice is not None:
+                if left_data is not None:
+                    warnings.warn(
+                        "Both `left_data` and `left_slice` were provided. "
+                        "The `left_data` tensor will be ignored. "
+                        "To silence this warning, provide `left_data` or "
+                        "`left_slice` exclusively."
+                    )
+                left_data = data[..., left_slice]
+            if right_slice is not None:
+                if right_data is not None:
+                    warnings.warn(
+                        "Both `right_data` and `right_slice` were provided. "
+                        "The `right_data` tensor will be ignored. "
+                        "To silence this warning, provide `right_data` or "
+                        "`right_slice` exclusively."
+                    )
+                right_data = data[..., right_slice]
+        if left_data is None and right_data is None:
+            raise ValueError(
+                "Either no data was provided, or insufficient information "
+                "was provided to slice the data into left and right "
+                "hemispheres.")
+        if left_data is not None:
+            self.left.point_data[name] = self._hemisphere_vertex_data_impl(
+                left_data, is_masked, apply_mask, null_value, 'left',
             )
-            p.offscreen = offscreen
-            p.add_layer(
-                self.data.astype('long')[:self.dim],
-                cmap=cmap,
-                color_range=(1, len(cmap.colors)),
-                cbar=None
+        if right_data is not None:
+            self.right.point_data[name] = self._hemisphere_vertex_data_impl(
+                right_data, is_masked, apply_mask, null_value, 'right',
             )
-            fig = p.build()
-            fig.set_dpi(200)
-            if save is not None:
-                plt.savefig(f'{save}_view-{view}.png',
-                            dpi=1000,
-                            bbox_inches='tight')
-                plt.close('all')
+
+    def parcellate_vertex_dataset(
+        self,
+        name: str,
+        parcellation: str,
+    ) -> Tensor:
+        parcellation_left = self._hemisphere_parcellate_impl(
+            name, parcellation, 'left',
+        )
+        parcellation_right = self._hemisphere_parcellate_impl(
+            name, parcellation, 'right',
+        )
+        parcellation_left, parcellation_right = extend_to_max(
+            parcellation_left,
+            parcellation_right,
+            axis=0)
+        return parcellation_left + parcellation_right
+
+    def scatter_into_parcels(
+        self,
+        data: Tensor,
+        parcellation: str,
+        sink: Optional[str] = None
+    ) -> Tensor:
+        scattered_left = self._hemisphere_into_parcels_impl(
+            data, parcellation, 'left',
+        )
+        scattered_right = self._hemisphere_into_parcels_impl(
+            data, parcellation, 'right',
+        )
+        if sink is not None:
+            self.left.point_data[sink] = scattered_left
+            self.right.point_data[sink] = scattered_right
+        return (scattered_left, scattered_right)
+
+    @staticmethod
+    def _hemisphere_darray_impl(data, mask, projection):
+        surf = pv.make_tri_mesh(*data[projection])
+        surf = ProjectedPolyData(surf, projection=projection)
+        for key, (points, _) in data.items():
+            if key != projection:
+                surf.add_projection(key, points)
+        mask_str = None
+        if mask is not None:
+            surf.point_data['__mask__'] = mask
+            mask_str = '__mask__'
+        return surf, mask_str
+
+    @staticmethod
+    def _hemisphere_gifti_impl(data, mask):
+        data = {
+            k: (nb.load(v) if is_path_like(v) else v)
+            for k, v in data.items()}
+        if mask is not None:
+            if is_path_like(mask):
+                mask = nb.load(mask)
+            mask = mask.darrays[0].data.astype(bool)
+        return data, mask
+
+    def _hemisphere_vertex_data_impl(
+        self,
+        data: Tensor,
+        is_masked: bool,
+        apply_mask: bool,
+        null_value: Optional[float],
+        hemisphere: str,
+    ) -> Tensor:
+        if null_value is None:
+            null_value = np.nan
+        if is_masked:
+            if data.ndim == 2:
+                data = data.T
+                init = np.full((self.n_points[hemisphere], data.shape[-1]), null_value)
             else:
-                fig.show()
-
-
-class fsLRAtlasMaps(fsLRSurfacePlot):
-    def plot_nodemaps(self, figs, max_per_batch=21, scale=(2, 2),
-                      nodes_per_row=3, start_batch=0, stop_batch=None,
-                      save=None):
-        # This ridiculous-looking hack is necessary to ensure the first
-        # figure is saved with the correct proportions.
-        plt.figure()
-        plt.close('all')
-
-        n_figs = len(figs)
-        n_batches = int(np.ceil(n_figs / max_per_batch))
-
-        figs_plotted = 0
-        figs_remaining = n_figs
-        batch_index = start_batch
-        if stop_batch is None:
-            stop_batch = n_batches
-        stop_batch = min(stop_batch, n_batches)
-
-        while batch_index < stop_batch:
-            start_fig = batch_index * max_per_batch
-            figs_remaining = n_figs - start_fig
-            figs_per_batch = min(max_per_batch, figs_remaining)
-            stop_fig = start_fig + figs_per_batch
-
-            n_rows = int(np.ceil(figs_per_batch / nodes_per_row))
-            figsize = (6 * nodes_per_row, 3 * n_rows)
-
-
-            fig, ax = plt.subplots(
-                n_rows,
-                nodes_per_row,
-                figsize=figsize,
-                num=1,
-                clear=True
-            )
-            batch_figs = figs[start_fig:stop_fig]
-            for index, (name, f) in enumerate(batch_figs):
-                i = index // nodes_per_row
-                j = index % nodes_per_row
-                f._check_offscreen()
-                x = f.to_numpy(transparent_bg=True, scale=(scale))
-                ax[i, j].imshow(x)
-                ax[i, j].set_xticks([])
-                ax[i, j].set_yticks([])
-                ax[i, j].set_title(f'Node {name}')
-
-            if save:
-                plt.tight_layout()
-                plt.savefig(f'{save}_batch-{batch_index}.png',
-                            dpi=300,
-                            bbox_inches='tight')
-                fig.clear()
-                plt.close('all')
+                init = np.full(self.n_points[hemisphere], null_value)
+            init[self.masks[hemisphere]] = data
+            return init
+        elif apply_mask:
+            if data.ndim == 2:
+                data = data.T
+                mask = self.masks[hemisphere][..., None]
             else:
-                fig.show()
-            batch_index += 1
-
-    def __call__(self, cmap='Blues', color_range=(0, 1),
-                 max_per_batch=21, stop_batch=None, save=None):
-        offscreen = False
-        if save is not None:
-            matplotlib.use('agg')
-            offscreen = True
-        figs = [None for _ in range(self.atlas.decoder['_all'].max() + 1)]
-        for compartment in ('cortex_L', 'cortex_R'):
-            map = self.module.weight[compartment]
-            decoder = self.atlas.decoder[compartment]
-            compartment_mask = self.atlas.compartments[compartment]
-            coor = self.atlas.coors[compartment_mask[self.atlas.mask]].t()
-            cmasses = cmass_coor(map, coor, radius=100)
-            closest_poles = spherical_geodesic(
-                cmasses.t(),
-                POLES.to(device=cmasses.device, dtype=cmasses.dtype)
-            ).argsort(-1)[:, :3].cpu()
-            closest_poles = POLE_DECODER[compartment][closest_poles.numpy()]
-            if compartment == 'cortex_L':
-                surf_lh = self.lh
-                surf_rh = None
-            elif compartment == 'cortex_R':
-                surf_lh = None
-                surf_rh = self.rh
-            for node, views, name in zip(map, closest_poles, decoder):
-                data = torch.zeros_like(
-                    self.atlas.mask,
-                    dtype=map.dtype
-                )
-                data[compartment_mask] = node.detach()
-                data = data[self.data_mask[compartment]].cpu().numpy()
-                p = surfplot.Plot(
-                    surf_lh=surf_lh,
-                    surf_rh=surf_rh,
-                    brightness=1,
-                    views=views.tolist(),
-                    zoom=1.25,
-                    size=(400, 200)
-                )
-                p.offscreen = offscreen
-                p.add_layer(
-                    data[:self.dim],
-                    cmap=cmap,
-                    cbar=None,
-                    color_range=color_range
-                )
-                figs[name] = p.render()
-        figs = [(i, f) for i, f in enumerate(figs) if f is not None]
-
-        n_figs = len(figs)
-        batches_per_run = 5
-        if stop_batch is None:
-            total_batches = int(np.ceil(n_figs / max_per_batch))
+                mask = self.masks[hemisphere]
+            return np.where(
+                mask,
+                data,
+                null_value,
+            )
         else:
-            total_batches = stop_batch
-        self.plot_nodemaps(figs=figs, save=save,
-                           stop_batch=total_batches)
+            return data
+
+    @staticmethod
+    def _hemisphere_parcellation_impl(
+        point_data: Mapping,
+        parcellation: str,
+        null_value: Optional[float] = 0.,
+    ) -> Tensor:
+        parcellation = point_data[parcellation]
+        if null_value is None:
+            null_value = parcellation.min() - 1
+        parcellation[np.isnan(parcellation)] = null_value
+        parcellation = parcellation.astype(int)
+        if parcellation.ndim == 1:
+            parcellation = parcellation - parcellation.min()
+            null_index = int(null_value - parcellation.min())
+            n_parcels = parcellation.max() + 1
+            parcellation = np.eye(n_parcels)[parcellation]
+            parcellation = np.delete(parcellation, null_index, axis=1)
+        denom = parcellation.sum(axis=0, keepdims=True)
+        denom = np.where(denom == 0, 1, denom)
+        return parcellation / denom
+
+    def _hemisphere_parcellate_impl(
+        self,
+        name: str,
+        parcellation: str,
+        hemisphere: str,
+    ) -> Tensor:
+        try:
+            point_data = self.point_data[hemisphere]
+        except KeyError:
+            return None
+        parcellation = self._hemisphere_parcellation_impl(
+            point_data,
+            parcellation=parcellation,
+        )
+        return parcellation.T @ point_data[name]
+
+    def _hemisphere_into_parcels_impl(
+        self,
+        data: Tensor,
+        parcellation: str,
+        hemisphere: str,
+    ) -> Tensor:
+        try:
+            point_data = self.point_data[hemisphere]
+        except KeyError:
+            return None
+        parcellation = self._hemisphere_parcellation_impl(
+            point_data,
+            parcellation=parcellation,
+        )
+        return parcellation @ data[:parcellation.shape[-1]]
+
+
+def _cmap_impl_hemisphere(
+    surf: CortexTriSurface,
+    hemisphere: Literal['left', 'right'],
+    parcellation: str,
+    colours: Tensor,
+    null_value: float
+) -> Tuple[Tensor, Tuple[float, float]]:
+    parcellation = surf.point_data[hemisphere][parcellation]
+    start = int(np.min(parcellation[parcellation != null_value])) - 1
+    stop = int(np.max(parcellation))
+    cmap = ListedColormap(colours[start:stop, :3])
+    clim = (start + 0.1, stop + 0.9)
+    return cmap, clim
+
+
+def make_cmap(surf, cmap, parcellation, null_value=0):
+    colours = surf.parcellate_vertex_dataset(cmap, parcellation)
+    colours = np.minimum(colours, 1)
+    colours = np.maximum(colours, 0)
+
+    cmap_left, clim_left = _cmap_impl_hemisphere(
+        surf,
+        'left',
+        parcellation,
+        colours,
+        null_value
+    )
+    cmap_right, clim_right = _cmap_impl_hemisphere(
+        surf,
+        'right',
+        parcellation,
+        colours,
+        null_value
+    )
+
+    return (cmap_left, clim_left), (cmap_right, clim_right)

@@ -17,74 +17,89 @@ using
 :doc:`LossArgument <hypercoil.engine.argument.ModelArgument>`, and
 :doc:`LossScheme <hypercoil.loss.base.LossScheme>`
 functionality.
-
-All loss objects additionally inherit
-:doc:`sentry <hypercoil.engine.sentry>` functionality, enabling them to send
-and receive information about events from elsewhere and respond accordingly.
-For instance, this can facilitate archival of each loss value over the course
-of training to inform hyperparameter tuning. It can also be used to update
-multipliers over the course of training by listening for epoch changes.
 """
-from .base import (
-    LossApply,
-    ReducingLoss,
-    LossArgument,
-    UnpackingLossArgument
+from .functional import (
+    identity,
+    zero,
+    difference,
+    constraint_violation,
+    unilateral_loss,
+    hinge_loss,
+    smoothness,
+    bimodal_symmetric,
+    det_gram,
+    log_det_gram,
+    entropy,
+    entropy_logit,
+    kl_divergence,
+    kl_divergence_logit,
+    js_divergence,
+    js_divergence_logit,
+    bregman_divergence,
+    bregman_divergence_logit,
+    equilibrium,
+    equilibrium_logit,
+    second_moment,
+    second_moment_centred,
+    auto_tol,
+    batch_corr,
+    qcfc,
+    reference_tether,
+    interhemispheric_tether,
+    compactness,
+    dispersion,
+    multivariate_kurtosis,
+    connectopy,
+    modularity,
 )
-from .batchcorr import (
-    BatchCorrelation,
-    QCFC
-)
-from .cmass import (
-    Compactness,
-    CentroidAnchor,
-    HemisphericTether
-)
-from .determinant import (
-    Determinant,
-    LogDet,
-    DetCorr,
-    LogDetCorr
-)
-from .dispersion import (
-    VectorDispersion
-)
-from .entropy import (
-    Entropy,
-    SoftmaxEntropy
-)
-from .equilibrium import (
-    Equilibrium,
-    SoftmaxEquilibrium
-)
-from .hinge import (
-    HingeLoss
-)
-from .jsdiv import (
-    JSDivergence,
-    SoftmaxJSDivergence
-)
-from .modularity import (
-    ModularityLoss
-)
-from .mvkurtosis import (
-    MultivariateKurtosis
-)
-from .norm import (
+from .nn import (
+    Loss,
+    ParameterisedLoss,
+    MSELoss,
     NormedLoss,
-    UnilateralNormedLoss
+    ConstraintViolationLoss,
+    UnilateralLoss,
+    HingeLoss,
+    SmoothnessLoss,
+    BimodalSymmetricLoss,
+    GramDeterminantLoss,
+    GramLogDeterminantLoss,
+    EntropyLoss,
+    EntropyLogitLoss,
+    KLDivergenceLoss,
+    KLDivergenceLogitLoss,
+    JSDivergenceLoss,
+    JSDivergenceLogitLoss,
+    BregmanDivergenceLoss,
+    BregmanDivergenceLogitLoss,
+    EquilibriumLoss,
+    EquilibriumLogitLoss,
+    SecondMomentLoss,
+    SecondMomentCentredLoss,
+    BatchCorrelationLoss,
+    QCFCLoss,
+    ReferenceTetherLoss,
+    InterhemisphericTetherLoss,
+    CompactnessLoss,
+    DispersionLoss,
+    MultivariateKurtosis,
+    ConnectopyLoss,
+    ModularityLoss,
+)
+from .scalarise import (
+    sum_scalarise,
+    mean_scalarise,
+    meansq_scalarise,
+    max_scalarise,
+    norm_scalarise,
+    vnorm_scalarise,
+    wmean_scalarise,
+    selfwmean_scalarise,
 )
 from .scheme import (
-    LossScheme
-)
-from .secondmoment import (
-    SecondMoment,
-    SecondMomentCentred
-)
-from .smoothness import (
-    SmoothnessPenalty
-)
-from .symbimodal import (
-    SymmetricBimodal,
-    SymmetricBimodalNorm
+    LossApply,
+    LossScheme,
+    LossReturn,
+    LossArgument,
+    UnpackingLossArgument,
 )

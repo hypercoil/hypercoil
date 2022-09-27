@@ -4,96 +4,101 @@
 """
 Modules for performing interpolation.
 """
-import torch
-from ..functional import (
+import jax
+import equinox as eqx
+from typing import Optional
+from ..engine import Tensor
+from ..functional.interpolate import (
     spectral_interpolate,
-    weighted_interpolate,
-    hybrid_interpolate
+    linear_interpolate,
+    hybrid_interpolate,
+    document_interpolation,
 )
 
 
-class SpectralInterpolate(torch.nn.Module):
+@document_interpolation
+class SpectralInterpolate(eqx.Module):
     """
     :doc:`Spectral interpolation <hypercoil.functional.interpolate.spectral_interpolate>`
     module.
-    """
-    def __init__(
-        self,
-        oversampling_frequency=8,
-        maximum_frequency=1,
-        sampling_period=1,
-        thresh=0
-    ):
-        super().__init__()
-        self.oversampling_frequency = oversampling_frequency
-        self.maximum_frequency = maximum_frequency
-        self.sampling_period = sampling_period
-        self.thresh = thresh
+    \
+    {spectral_interpolate_long_desc}
 
-    def forward(self, input, mask):
+    Parameters
+    ----------\
+    {interpolate_spectral_spec}
+    """
+    oversampling_frequency: float = 8
+    maximum_frequency: float = 1
+    sampling_period: float = 1
+    frequency_thresh: float = 0
+
+    def __call__(
+        self,
+        input: Tensor,
+        mask: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
         return spectral_interpolate(
             data=input,
-            tmask=mask,
+            mask=mask,
             oversampling_frequency=self.oversampling_frequency,
             maximum_frequency=self.maximum_frequency,
             sampling_period=self.sampling_period,
-            thresh=self.thresh
+            frequency_thresh=self.frequency_thresh
         )
 
 
-class WeightedInterpolate(torch.nn.Module):
+class LinearInterpolate(eqx.Module):
     """
-    :doc:`Weighted interpolation <hypercoil.functional.interpolate.weighted_interpolate>`
+    :doc:`Linear interpolation <hypercoil.functional.interpolate.linear_interpolate>`
     module.
     """
-    def __init__(
+    def __call__(
         self,
-        start_stage=1,
-        max_stage=None,
-        map_to_kernel=None
-    ):
-        super().__init__()
-        self.start_stage = start_stage
-        self.max_stage = max_stage
-        self.map_to_kernel = map_to_kernel
-
-    def forward(self, input, mask):
-        return weighted_interpolate(
+        input: Tensor,
+        mask: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
+        return linear_interpolate(
             data=input,
             mask=mask,
-            start_stage=self.start_stage,
-            max_stage=self.max_stage,
-            map_to_kernel=self.map_to_kernel
         )
 
 
-class HybridInterpolate(torch.nn.Module):
+@document_interpolation
+class HybridInterpolate(eqx.Module):
     """
     :doc:`Hybrid interpolation <hypercoil.functional.interpolate.hybrid_interpolate>`
     module.
-    """
-    def __init__(
-        self,
-        max_weighted_stage=3,
-        map_to_kernel=None,
-        oversampling_frequency=8,
-        maximum_frequency=1,
-        frequency_thresh=0.3
-    ):
-        super().__init__()
-        self.max_weighted_stage = max_weighted_stage
-        self.map_to_kernel = map_to_kernel
-        self.oversampling_frequency = oversampling_frequency
-        self.maximum_frequency = maximum_frequency
-        self.frequency_thresh = frequency_thresh
+    \
+    {hybrid_interpolate_long_desc}
 
-    def forward(self, input, mask):
+    Parameters
+    ----------\
+    {interpolate_hybrid_spec}
+    """
+    max_consecutive_linear: int = 3
+    oversampling_frequency: float = 8
+    maximum_frequency: float = 1
+    sampling_period: float = 1
+    frequency_thresh: float = 0.3
+
+    def __call__(
+        self,
+        input: Tensor,
+        mask: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
         return hybrid_interpolate(
             data=input,
             mask=mask,
-            max_weighted_stage=self.max_weighted_stage,
-            map_to_kernel=self.map_to_kernel,
+            max_consecutive_linear=self.max_consecutive_linear,
             oversampling_frequency=self.oversampling_frequency,
             maximum_frequency=self.maximum_frequency,
+            sampling_period=self.sampling_period,
             frequency_thresh=self.frequency_thresh
         )

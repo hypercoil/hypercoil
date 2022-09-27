@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.semidefinite
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.semidefinite.tangent_project_spd
    hypercoil.functional.semidefinite.cone_project_spd

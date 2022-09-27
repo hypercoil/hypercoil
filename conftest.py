@@ -6,7 +6,7 @@ PyTest Configuration
 ~~~~~~~~~~~~~~~~~~~~
 Settings configuring pytest for the differentiable programming library.
 """
-import torch
+#import torch
 import pytest
 
 
@@ -67,6 +67,7 @@ def pytest_collection_modifyitems(config, items):
     else:
         pass
 
+"""
     if torch.cuda.is_available():
         pass
     else:
@@ -75,3 +76,4 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if 'cuda' in item.keywords:
                 item.add_marker(skip_cuda)
+"""

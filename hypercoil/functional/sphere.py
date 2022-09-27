@@ -4,30 +4,25 @@
 """
 Operations supporting spherical coordinate systems.
 """
-import torch
+import jax.numpy as jnp
 from functools import partial
+from typing import Callable, Optional
+from ..engine import Tensor
 
 
-#TODO
-# Create a common functional submodule for similarity kernels.
-def kernel_gaussian(x, scale=1):
+#TODO: Switch to using kernel.gaussian_kernel instead of this everywhere
+def kernel_gaussian(x: Tensor, scale: float = 1) -> Tensor:
     """
     An example of an isotropic kernel. Zero-centered Gaussian kernel with
     specified scale parameter.
     """
-    # Written for consistency with scipy's gaussian_filter1d.
-    # I do not know where the constant 4 comes from in the denominator.
-    # Constants shouldn't matter much for our purposes anyway...
-    # TODO
-    # It's not even consistent. Drop the normalisation and update the unit
-    # tests to just check that the ratio is consistent.
     return (
-        torch.exp(-((x / scale) ** 2) / 2) /
-        (4 * scale * (2 * torch.pi) ** 0.5)
+        jnp.exp(-((x / scale) ** 2) / 2) /
+        (scale * (2 * jnp.pi) ** 0.5)
     )
 
 
-def sphere_to_normals(coor, r=1):
+def sphere_to_normals(coor: Tensor, r: float = 1) -> Tensor:
     r"""
     Convert spherical coordinates from latitude/longitude format to normal
     vector format. Note this only works for 2-spheres as of now.
@@ -49,17 +44,15 @@ def sphere_to_normals(coor, r=1):
         Tensor containing 3-tuple coordinates indicating zero-centred x, y, and
         z values of each point at radius r.
     """
-    lat, long = coor.transpose(-2, -1)
-    coor = torch.empty(
-        (coor.shape[0], 3), device=coor.device, dtype=coor.dtype
-    )
-    coor[:, 0] = r * torch.cos(lat) * torch.cos(long)
-    coor[:, 1] = r * torch.cos(lat) * torch.sin(long)
-    coor[:, 2] = r * torch.sin(lat)
-    return coor
+    lat, lon = coor.swapaxes(-2, -1)
+    cos_lat = jnp.cos(lat)
+    x = r * cos_lat * jnp.cos(lon)
+    y = r * cos_lat * jnp.sin(lon)
+    z = r * jnp.sin(lat)
+    return jnp.stack((x, y, z), axis=-1)
 
 
-def sphere_to_latlong(coor):
+def sphere_to_latlong(coor: Tensor) -> Tensor:
     r"""
     Convert spherical coordinates from normal vector format to latitude/
     longitude format. Note this only works for 2-spheres as of now.
@@ -79,17 +72,19 @@ def sphere_to_latlong(coor):
         Tensor containing 2-tuple coordinates indicating the latitude and
         longitude of each point.
     """
-    x, y, z = coor.transpose(-2, -1)
-    R = torch.sqrt((coor[0] ** 2).sum())
-    coor = torch.empty(
-        (coor.shape[0], 2), device=coor.device, dtype=coor.dtype
-    )
-    coor[:, 0] = torch.atan2(z, torch.sqrt(x ** 2 + y ** 2))
-    coor[:, 1] = torch.atan2(y, x)
-    return coor
+    x, y, z = coor.swapaxes(-2, -1)
+    #R = jnp.sqrt((coor[0] ** 2).sum())
+    #lat = jnp.arcsin(z / R)
+    lat = jnp.arctan2(z, jnp.sqrt(x ** 2 + y ** 2))
+    lon = jnp.arctan2(y, x)
+    return jnp.stack((lat, lon), axis=-1)
 
 
-def spherical_geodesic(X, Y=None, r=1):
+def spherical_geodesic(
+    X: Tensor,
+    Y: Optional[Tensor] = None,
+    r: float = 1
+) -> Tensor:
     r"""
     Geodesic great-circle distance between two sets of spherical coordinates
     formatted as normal vectors.
@@ -122,22 +117,35 @@ def spherical_geodesic(X, Y=None, r=1):
         Tensor containing pairwise great-circle distances between each
         coordinate in X and each coordinate in Y.
     """
-    if not isinstance(Y, torch.Tensor):
+    if Y is None:
         Y = X
-    X = X.unsqueeze(-2)
-    Y = Y.unsqueeze(-3)
-    X, Y = torch.broadcast_tensors(X, Y)
-    crXY = torch.cross(X, Y, dim=-1)
-    num = (crXY ** 2).sum(-1).sqrt()
-    denom = torch.sum(X * Y, dim=-1)
-    dist = torch.atan2(num, denom)
-    #TODO: replace in-place op
-    dist[dist < 0] += torch.pi
-    return r * dist
+    if X.shape[-1] != 3:
+        raise ValueError("X must have shape (*, N, 3)")
+    if Y.shape[-1] != 3:
+        raise ValueError("Y must have shape (*, N, 3)")
+    X = X[..., None, :]
+    Y = Y[..., None, :, :]
+    X, Y = jnp.broadcast_arrays(X, Y)
+    crXY = jnp.cross(X, Y, axis=-1)
+    num = jnp.sqrt((crXY ** 2).sum(-1))
+    denom = (X * Y).sum(-1)
+    dist = jnp.arctan2(num, denom)
+    dist = jnp.where(
+        dist < 0,
+        dist + jnp.pi,
+        dist
+    )
+    return dist * r
 
 
-def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
-                 max_bin=10000, truncate=None):
+def spatial_conv(
+    data: Tensor,
+    coor: Tensor,
+    kernel: Callable = kernel_gaussian,
+    metric: Callable = spherical_geodesic,
+    max_bin: int = 10000,
+    truncate: Optional[float] = None
+) -> Tensor:
     r"""
     Convolve data on a manifold with an isotropic kernel.
 
@@ -192,21 +200,28 @@ def spatial_conv(data, coor, kernel=kernel_gaussian, metric=spherical_geodesic,
     """
     start = 0
     end = min(start + max_bin, data.shape[-2])
-    data_conv = torch.zeros_like(data)
+    data_conv = jnp.zeros_like(data)
     while start < data.shape[-2]:
         # TODO: Won't work if the array is more than 2D.
         coor_block = coor[start:end, :]
         dist = metric(coor_block, coor)
         weight = kernel(dist)
         if truncate is not None:
-            weight[dist > truncate] = 0
-        data_conv[start:end, :] = weight @ data
+            weight = jnp.where(dist > truncate, 0, weight)
+        data_conv = data_conv.at[start:end, :].set(weight @ data)
         start = end
         end += max_bin
     return data_conv
 
 
-def spherical_conv(data, coor, scale=1, r=1, max_bin=10000, truncate=None):
+def spherical_conv(
+    data: Tensor,
+    coor: Tensor,
+    scale: float = 1,
+    r: float = 1,
+    max_bin: int = 10000,
+    truncate: Optional[float] = None
+):
     r"""
     Convolve data on a 2-sphere with an isotropic Gaussian kernel.
 
@@ -260,15 +275,21 @@ def _euc_dist(X, Y=None):
     """
     Euclidean L2 norm metric.
     """
-    if not isinstance(Y, torch.Tensor):
+    if Y is None:
         Y = X
-    X = X.unsqueeze(-2)
-    Y = Y.unsqueeze(-3)
-    X, Y = torch.broadcast_tensors(X, Y)
-    return torch.sqrt(((X - Y) ** 2).sum(-1))
+    X = X[..., None, :]
+    Y = Y[..., None, :, :]
+    X, Y = jnp.broadcast_arrays(X, Y)
+    return jnp.sqrt(((X - Y) ** 2).sum(-1))
 
 
-def euclidean_conv(data, coor, scale=1, max_bin=10000, truncate=None):
+def euclidean_conv(
+    data: Tensor,
+    coor: Tensor,
+    scale: float = 1,
+    max_bin: int = 10000,
+    truncate: Optional[float] = None
+):
     """
     Spatial convolution using the standard L2 metric and a Gaussian kernel.
 

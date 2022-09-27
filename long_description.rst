@@ -1,15 +1,11 @@
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Differentiable programming for multiverse optimisation
+A differentiable program for mapping brain function
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This package intends to implement atoms and compositions to support writing
-differentiable programs for neuroimaging analysis. With numerous analytic
-options available, it is often unclear how to select the best option for
-satisfying a particular objective. Provided the objective can be formulated or
-approximated as a differentiable function, this package can help optimise over
-the space of possible parametrisations.
+In functional neuroimaging and adjacent fields, the advent of large, public data repositories has brought with it a proliferation of instruments and methods for analysing these data. This has introduced new challenges for the field: How can we ensure that our analyses are reproducible? How can we ensure that our analyses are valid? Conditioned on our dataset and our scientific question, how do we choose from among the available methods to design an analytic workflow in a principled way? How can we know that the workflow we've designed is suited to answering the questions we are asking?
 
-Essentially, this system implements common analytic steps as neural network
-layers that can be initialised to reasonable defaults that yield performance
-identical to a conventional pipeline. They can then be concatenated with neural
-network models and trained via backpropagation to improve that performance.
+We typically approach the problem of designing a scientific workflow *combinatorially*: we begin from a set of analytic options, and we choose from among these to configure our workflow. The ``hypercoil`` library provides a framework for going beyond this combinatorial approach, and for designing principled workflows that are *differentiable*. Instead of selecting from among a set of available methods, we can *learn* the (locally) best workflow for our dataset and our scientific question. This approach is particularly well-suited to the functional neuroimaging domain, where the data are high-dimensional and the scientific questions are often complex.
+
+Built upon the same principles that power deep neural networks, this library provides software instruments for designing, deploying, and evaluating both differentiable programs and GPU-accelerated workflows. Our current focus is on applications related to fMRI-derived brain connectivity, but the library is designed to be eventually generalisable to other domains.
+
+This library is implemented using `JAX <https://jax.readthedocs.io/en/latest/>`_, which combines a NumPy-like API with automatic differentiation and support for GPU acceleration. The library is designed to be modular and extensible, and to be used in conjunction with existing tools in the Python ecosystem. The library is currently under active development, and is not yet ready for use outside of research and development.

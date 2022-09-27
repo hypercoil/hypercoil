@@ -5,7 +5,7 @@
 Unit tests for crosshair similarity operations
 """
 import pytest
-import torch
+import numpy as np
 from hypercoil.functional.crosssim import (
     crosshair_similarity,
     crosshair_cosine_similarity,
@@ -20,45 +20,22 @@ from hypercoil.functional.crosssim import (
 class TestCrossSim:
     @pytest.fixture(autouse=True)
     def setup_class(self):
-        self.X = torch.rand(10, 3, 4, 7, 7)
-        self.W = torch.rand(6, 4, 7, 7)
-        self.exp_shape = torch.Size([10, 3, 6, 7, 7])
-        if torch.cuda.is_available():
-            self.XC = self.X.clone().cuda()
-            self.WC = self.W.clone().cuda()
+        self.X = np.random.rand(10, 3, 4, 7, 7)
+        self.W = np.random.rand(6, 4, 7, 7)
+        self.exp_shape = (10, 3, 6, 7, 7)
 
     def test_crosssim_shape(self):
         out = crosshair_similarity(self.X, self.W)
-        assert out.size() == self.exp_shape
+        assert out.shape == self.exp_shape
 
     def test_crosssim_cosine_shape(self):
         out = crosshair_cosine_similarity(self.X, self.W)
-        assert out.size() == self.exp_shape
+        assert out.shape == self.exp_shape
 
     def test_crosssim_l1_shape(self):
         out = crosshair_l1_similarity(self.X, self.W)
-        assert out.size() == self.exp_shape
+        assert out.shape == self.exp_shape
 
     def test_crosssim_l2_shape(self):
         out = crosshair_l2_similarity(self.X, self.W)
-        assert out.size() == self.exp_shape
-
-    @pytest.mark.cuda
-    def test_crosssim_shape_cuda(self):
-        out = crosshair_similarity(self.XC, self.WC)
-        assert out.size() == self.exp_shape
-
-    @pytest.mark.cuda
-    def test_crosssim_cosine_shape_cuda(self):
-        out = crosshair_cosine_similarity(self.XC, self.WC)
-        assert out.size() == self.exp_shape
-
-    @pytest.mark.cuda
-    def test_crosssim_l1_shape_cuda(self):
-        out = crosshair_l1_similarity(self.XC, self.WC)
-        assert out.size() == self.exp_shape
-
-    @pytest.mark.cuda
-    def test_crosssim_l2_shape_cuda(self):
-        out = crosshair_l2_similarity(self.XC, self.WC)
-        assert out.size() == self.exp_shape
+        assert out.shape == self.exp_shape

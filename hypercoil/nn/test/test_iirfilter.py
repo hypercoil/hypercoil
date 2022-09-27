@@ -5,13 +5,13 @@
 Unit tests for infinite impulse response filter layer
 """
 import pytest
-import torch
 import numpy as np
 from scipy.signal import butter, lfilter, filtfilt
 from hypercoil.nn.iirfilter import DTDF
 from hypercoil.init.iirfilter import IIRFilterSpec
 
 
+#TODO: add JIT support and test
 class TestIIRFilter:
     @pytest.fixture(autouse=True)
     def setup_class(self):
@@ -25,17 +25,8 @@ class TestIIRFilter:
 
     def compare_spec_and_ref(self, spec, ref):
         ff = DTDF(spec)
-        out = ff(torch.tensor(self.Z)).detach()
+        out = ff(self.Z)
         assert np.allclose(ref, out, atol=1e-6)
-
-    def compare_spec_and_ref_cuda(self, spec, ref):
-        ff = DTDF(spec, device='cuda', dtype=torch.half)
-        out = ff(torch.tensor(
-            self.Z,
-            device='cuda',
-            dtype=torch.half
-        )).detach()
-        assert np.allclose(ref, out.cpu(), atol=1e-2)
 
     def test_order2(self):
         ref = lfilter(self.bw[0], self.bw[1], self.Z)
@@ -68,11 +59,3 @@ class TestIIRFilter:
         # implemented
         #ref2 = lfilter(bw[0], bw[1], Z2, axis=-2)
         #out2 = ff(torch.tensor(Z2), feature_ax=True)
-
-    @pytest.mark.cuda
-    def test_cuda_forward(self):
-        ref = lfilter(self.bwbp[0], self.bwbp[1], self.Z)
-        spec = IIRFilterSpec(
-            N=2, Wn=(0.1, 0.2), fs=1,
-            ftype='butter', btype='bandpass')
-        self.compare_spec_and_ref_cuda(spec, ref)

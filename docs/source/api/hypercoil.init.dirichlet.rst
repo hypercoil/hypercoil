@@ -5,8 +5,8 @@
 
 ``dirichlet_init``
 ------------------
-.. autofunction:: dirichlet_init_
+.. autofunction:: dirichlet_init
 
-``DirichletInit``
------------------
-.. autoclass:: DirichletInit
+``DirichletInitialiser``
+------------------------
+.. autoclass:: DirichletInitialiser

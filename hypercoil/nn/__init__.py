@@ -4,50 +4,56 @@
 """
 Neural network modules.
 """
-from .atlas import AtlasLinear, AtlasAccumuline
+from .activation import (
+    CorrelationNorm,
+    Isochor,
+)
+from .atlas import (
+    AtlasLinear,
+)
+from .confound import (
+    LinearRFNN,
+    QCPredict,
+    LinearCombinationSelector,
+    EliminationSelector,
+)
 from .cov import(
-    UnaryCovariance, UnaryCovarianceTW, UnaryCovarianceUW,
-    BinaryCovariance, BinaryCovarianceTW, BinaryCovarianceUW
+    UnaryCovariance,
+    UnaryCovarianceTW,
+    UnaryCovarianceUW,
+    BinaryCovariance,
+    BinaryCovarianceTW,
+    BinaryCovarianceUW,
 )
 from .freqfilter import (
-    FrequencyDomainFilter
+    FrequencyDomainFilter,
 )
 from .interpolate import (
     SpectralInterpolate,
-    WeightedInterpolate,
-    HybridInterpolate
+    LinearInterpolate,
+    HybridInterpolate,
 )
 from .iirfilter import (
     IIRFilter,
-    IIRFiltFilt
-)
-from .polyconv import (
-    PolyConv2D
 )
 from .recombinator import (
-    Recombinator
+    Recombinator,
 )
 from .resid import (
-    Residualise
-)
-from .select import (
-    ResponseFunctionLinearSelector,
-    QCPredict,
-    LinearCombinationSelector,
-    EliminationSelector
+    Residualise,
 )
 from .semidefinite import(
-    TangentProject, BatchTangentProject
-)
-from .spdnoise import (
-    SPDNoise
-)
-from .svm import (
-    SVM
+    TangentProject,
+    BatchTangentProject,
 )
 from .sylo import (
-    Sylo
+    Sylo,
+)
+from .tsconv import (
+    TimeSeriesConv2D,
+    PolyConv2D,
+    BasisConv2D,
 )
 from .window import (
-    WindowAmplifier
+    WindowAmplifier,
 )

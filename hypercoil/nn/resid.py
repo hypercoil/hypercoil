@@ -3,41 +3,47 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
 Residualise tensor block via least squares. No parameters here.
-
-.. warning::
-    In some cases, we have found that the least-squares fit returned is
-    incorrect for reasons that are not clear. (Incorrect results are
-    returned by
-    ``torch.linalg.lstsq``, although correct results are returned if
-    ``torch.linalg.pinv`` is used instead.) Verify that results are
-    reasonable when using this operation.
 """
-import torch
-from torch.nn import Module
-from ..functional.resid import residualise
+import jax
+from typing import Literal, Optional
+from equinox import Module
+from ..engine import Tensor
+from ..functional.resid import residualise, document_linreg
 
 
 #TODO: assess backprop properties of this approach vs conditional correlation
+#TODO: Do we really need this, or can we just use eqx.nn.Lambda? Turns out we
+#      can't without making it ugly, so we'll keep this for now.
+@document_linreg
 class Residualise(Module):
     """
-    .. warning::
-        In some cases, we have found that the least-squares fit returned is
-        incorrect for reasons that are not clear. (Incorrect results are
-        returned by
-        ``torch.linalg.lstsq``, although correct results are returned if
-        ``torch.linalg.pinv`` is used instead.) Verify that results are
-        reasonable when using this operation.
+    Residualise a tensor block via ordinary linear least squares.
+    \
+    {regress_warning}
+
+    Parameters
+    ----------\
+    {regress_param_spec}
     """
-    def __init__(self, rowvar=True, driver='gelsd'):
-        super(Residualise, self).__init__()
+    rowvar: bool = True
+    l2: float = 0.0
+    return_mode: Literal['residual', 'orthogonal'] = 'residual'
 
-        self.rowvar = rowvar
-        self.driver = driver
-
-    def forward(self, Y, X, mask=None):
+    def __call__(
+        self,
+        Y: Tensor,
+        X: Tensor,
+        mask: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
         if mask is not None:
             Y = mask * Y
             X = mask * X
         return residualise(
-            Y=Y, X=X, rowvar=self.rowvar, driver=self.driver
+            Y=Y,
+            X=X,
+            l2=self.l2,
+            rowvar=self.rowvar,
+            return_mode=self.return_mode
         )

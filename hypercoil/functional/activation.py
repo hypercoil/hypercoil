@@ -4,11 +4,18 @@
 """
 Additional activation functions for neural network layers.
 """
-import torch
+import jax
+import jax.numpy as jnp
+from typing import Callable, Literal, Optional, Tuple, Union
 from .utils import complex_decompose, complex_recompose
+from ..engine import NestedDocParse, vmap_over_outer, Tensor
 
 
-def laplace(input, loc=0, width=1):
+def laplace(
+    input: Tensor,
+    loc: Union[float, Tensor] = 0,
+    width: Union[float, Tensor] = 1
+) -> Tensor:
     r"""
     Double exponential activation function.
 
@@ -40,10 +47,13 @@ def laplace(input, loc=0, width=1):
     out : Tensor
         Transformed input tensor.
     """
-    return torch.exp(-torch.abs(input - loc) / width)
+    return jnp.exp(-jnp.abs(input - loc) / width)
 
 
-def expbarrier(input, barrier=1):
+def expbarrier(
+    input: Tensor,
+    barrier: Union[float, Tensor] = 1
+) -> Tensor:
     r"""
     Exponential barrier activation function.
 
@@ -72,11 +82,27 @@ def expbarrier(input, barrier=1):
     out : Tensor
         Transformed input tensor.
     """
-    ampl = torch.abs(input)
-    return barrier * torch.sqrt(1 - torch.exp(-ampl / barrier ** 2))
+    ampl = jnp.abs(input)
+    return barrier * jnp.sqrt(1 - jnp.exp(-ampl / barrier ** 2))
 
 
-def amplitude_laplace(input, loc=0, width=1):
+# It's not even continuous, let alone differentiable. Let's not use this.
+def threshold(
+    input: Tensor,
+    threshold : Union[Tensor, float],
+    dead: Union[Tensor, int] = 0,
+    leak: float = 0
+) -> Tensor:
+    if leak == 0:
+        return jnp.where(input > threshold, input, dead)
+    return jnp.where(input > threshold, input, dead + leak * input)
+
+
+def amplitude_laplace(
+    input: Tensor,
+    loc: Union[float, Tensor] = 0,
+    width: Union[float, Tensor] = 1
+) -> Tensor:
     r"""
     Double exponential activation function applied to the amplitude only.
 
@@ -112,12 +138,15 @@ def amplitude_laplace(input, loc=0, width=1):
     out : Tensor
         Transformed input tensor.
     """
-    ampl = torch.abs(input - loc)
-    fact = torch.exp(-ampl / width) / ampl
+    ampl = jnp.abs(input - loc)
+    fact = jnp.exp(-ampl / width) / ampl
     return input * fact
 
 
-def amplitude_expbarrier(input, barrier=1):
+def amplitude_expbarrier(
+    input: Tensor,
+    barrier: Union[float, Tensor] = 1
+) -> Tensor:
     r"""
     Exponential barrier activation function applied to the amplitude only.
 
@@ -138,10 +167,8 @@ def amplitude_expbarrier(input, barrier=1):
     input : Tensor
         Tensor whose amplitude is to be transformed elementwise by the double
         exponential activation function.
-    loc : float or broadcastable Tensor (default 0)
-        Centre parameter :math:`\mu` of the double exponential function.
-    width : float or broadcastable Tensor (default 1)
-        Spread parameter b of the double exponential function.
+    barrier : float or broadcastable Tensor (default 0)
+        Barrier parameter b of the exponential function.
 
     Returns
     -------
@@ -149,11 +176,11 @@ def amplitude_expbarrier(input, barrier=1):
         Transformed input tensor.
     """
     ampl, phase = complex_decompose(input)
-    xfm = barrier * torch.sqrt(1 - torch.exp(-ampl / barrier ** 2))
-    return xfm * torch.exp(phase * 1j)
+    xfm = barrier * jnp.sqrt(1 - jnp.exp(-ampl / barrier ** 2))
+    return xfm * jnp.exp(phase * 1j)
 
 
-def amplitude_tanh(input):
+def amplitude_tanh(input: Tensor) -> Tensor:
     r"""
     Hyperbolic tangent activation function applied to the amplitude only.
 
@@ -181,10 +208,10 @@ def amplitude_tanh(input):
         Transformed input tensor.
     """
     ampl, phase = complex_decompose(input)
-    return complex_recompose(torch.tanh(ampl), phase)
+    return complex_recompose(jnp.tanh(ampl), phase)
 
 
-def amplitude_atanh(input):
+def amplitude_atanh(input: Tensor) -> Tensor:
     r"""
     Inverse hyperbolic tangent (hyperbolic arctangent) activation function
     applied to the amplitude only.
@@ -213,22 +240,18 @@ def amplitude_atanh(input):
         Transformed input tensor.
     """
     ampl, phase = complex_decompose(input)
-    return complex_recompose(torch.atanh(ampl), phase)
+    return complex_recompose(jnp.arctanh(ampl), phase)
 
 
-def _corrnorm_factor(input):
-    factor = torch.diagonal(input, dim1=-2, dim2=-1)
-    factor = (-torch.sign(factor) *
-              torch.sqrt(torch.abs(factor))).unsqueeze(-1)
-    factor = (factor @ factor.transpose(-1, -2) +
-              torch.finfo(input.dtype).eps)
-    return factor
+def _corrnorm_factor(input: Tensor) -> Tensor:
+    factor = jnp.diagonal(input, axis1=-2, axis2=-1)
+    factor = (-jnp.sign(factor) * jnp.sqrt(jnp.abs(factor)))
+    factor = vmap_over_outer(jnp.outer, 1)((factor, factor))
+    return factor + jnp.finfo(input.dtype).eps
 
 
-def corrnorm(input, factor=None, gradpath='both'):
-    r"""
-    Correlation normalisation activation function.
-
+def document_corrnorm(f: Callable) -> Callable:
+    corrnorm_spec = r"""
     Divide each entry :math:`A_{ij}` of the input matrix :math:`A` by the
     product of the signed square roots of the corresponding diagonals:
 
@@ -239,9 +262,12 @@ def corrnorm(input, factor=None, gradpath='both'):
     (detailed below). This activation function is also similar to a signed
     version of the normalisation operation for a graph Laplacian matrix.
 
-    :Dimension: As this activation function is applied elementwise, it
-                conserves dimension; the output will be of the same shape as
-                the input.
+    :Dimension: **input :** :math:`(*, P, P)`
+                    P denotes the row and column dimensions of the input
+                    matrices. ``*`` denotes any number of additional
+                    dimensions.
+                **output :** :math:`(*, P, P)`
+                    As above.
 
     Parameters
     ----------
@@ -265,16 +291,115 @@ def corrnorm(input, factor=None, gradpath='both'):
     Returns
     -------
     Tensor
-        Normalised input.
+        Normalised input."""
+    fmt = NestedDocParse(
+        corrnorm_spec=corrnorm_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+@document_corrnorm
+def corrnorm(
+    input: Tensor,
+    factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
+    gradpath: Literal['input', 'both'] = 'both'
+) -> Tensor:
     """
-    if isinstance(factor, torch.Tensor):
+    Correlation normalisation activation function.
+    \
+    {corrnorm_spec}
+    """
+    if isinstance(factor, jnp.DeviceArray):
         return input / factor
     elif factor is not None:
-        factor = (factor[0] @ factor[1].transpose(-1, -2) +
-                  torch.finfo(input.dtype).eps)
+        factor = jnp.outer(factor[0], factor[1]) + jnp.finfo(input.dtype).eps
     elif gradpath == 'input':
-        with torch.no_grad():
-            factor = _corrnorm_factor(input)
+        factor = jax.lax.stop_gradient(_corrnorm_factor(input))
     else:
         factor = _corrnorm_factor(input)
     return input / factor
+
+
+def document_isochoric(f: Callable) -> Callable:
+    isochoric_spec = r"""
+    This activation function first finds the eigendecomposition of each input
+    matrix. The eigenvalues are then each divided by
+    :math:`\sqrt[n]{\frac{v_{in}}{v_{target}}}`
+    to normalise the determinant to
+    :math:`v_{target}`. Before normalisation, there are options to rescale the
+    eigenvalues through a softmax and/or to enforce a maximal condition number
+    for the output tensor. If the input tensors are being used to represent
+    ellipsoids, for instance, this can constrain the eccentricity of those
+    ellipsoids. Finally, the matrix is reconstituted using the original
+    eigenvectors and the rescaled eigenvalues.
+
+    :Dimension: **input :** :math:`(*, P, P)`
+                    P denotes the row and column dimensions of the input
+                    matrices. ``*`` denotes any number of additional
+                    dimensions.
+                **output :** :math:`(*, P, P)`
+                    As above.
+
+    Parameters
+    ----------
+    input : tensor
+        Tensor containing symmetric, positive definite matrices.
+    volume : float (default 1)
+        Target volume for the normalisation procedure. All output tensors will
+        have this determinant.
+    max_condition : float :math:`\in [1, \infty)` or None (default None)
+        Maximum permissible condition number among output tensors. This can be
+        used to constrain the eccentricity of isochoric ellipsoids. To enforce
+        this maximum, the eigenvalues of the input tensors are replaced with a
+        convex combination of the original eigenvalues and a vector of ones
+        such that the largest eigenvalue is no more than ``max_condition``
+        times the smallest eigenvalue. Note that a ``max_condition`` of 1
+        will always return (a potentially isotropically scaled) identity.
+    softmax_temp : float or None (default None)
+        If this is provided, then the eigenvalues of the input tensor are
+        passed through a softmax with the specified temperature before any
+        other processing.
+
+    Returns
+    -------
+    tensor
+        Volume-normalised tensor."""
+
+    fmt = NestedDocParse(
+        isochoric_spec=isochoric_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+@document_isochoric
+def isochor(
+    input: Tensor,
+    volume: float = 1,
+    max_condition: Optional[float] = None,
+    softmax_temp: Optional[float] = None
+) -> Tensor:
+    """
+    Volume-normalising activation function for symmetric, positive definite
+    matrices.
+    \
+    {isochoric_spec}
+    """
+    L, Q = jnp.linalg.eigh(input)
+    if softmax_temp is not None:
+        L = jax.nn.softmax(L / softmax_temp, axis=-1)
+    if max_condition is not None:
+        large = L.max(-1, keepdims=True)
+        small = L.min(-1, keepdims=True)
+        psi = (
+            (large - small / max_condition) /
+            ((large - 1) - (small - 1) / max_condition)
+        )
+        psi = jax.nn.relu(psi)
+        L = (1 - psi) * L + psi * jnp.ones_like(L)
+    Lnorm = jnp.exp((
+        jnp.log(L).sum(-1, keepdims=True) - jnp.log(volume)
+    ) * (1 / L.shape[-1]))
+    L = L / Lnorm
+    return Q @ (L[..., None] * Q.swapaxes(-1, -2))

@@ -4,172 +4,372 @@
 """
 Base initialisers for module parameters.
 """
-import torch
 from functools import partial
-from .domainbase import Identity
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+from abc import abstractmethod
+from typing import Callable, Optional, Tuple, Type, Union
+from .mapparam import MappedParameter
+from ..engine.paramutil import (
+    Distribution, PyTree, Tensor
+)
+from ..formula.nnops import retrieve_address
 
 
-def from_distr_init_(tensor, distr):
+def from_distr_init(
+    *,
+    shape: Tuple[int],
+    distr: Distribution,
+    key: jax.random.PRNGKey,
+) -> Tensor:
     """
-    Populate a tensor with values sampled from a specified distribution.
+    Sample a tensor from a specified distribution.
+
+    Thin wrapper around ``distrax``.
 
     Parameters
     ----------
-    tensor : Tensor
-        Tensor to populate or initialise from the specified distribution.
+    shape : Tensor
+        Shape of the tensor to populate or initialise from the specified
+        distribution.
     distr : Distribution
-        Pytorch distribution object from which to sample values used to
+        Distrax distribution object from which to sample values used to
         populate the tensor.
     """
-    val = distr.sample(tensor.shape).to(
-        dtype=tensor.dtype,
-        device=tensor.device
-    )
-    tensor[:] = val
+    return distr.sample(seed=key, sample_shape=shape)
 
 
-def uniform_init_(tensor, min=0, max=1):
-    """
-    Populate a tensor with values uniformly sampled i.i.d. from a specified
-    interval. The tensor is updated in place.
-
-    This is a convenience wrapper around ``from_distr_init_``.
-
-    Parameters
-    ----------
-    tensor : Tensor
-        Tensor to populate or initialise from the specified distribution.
-    min : float
-        Lower bound of the interval from which the tensor's elements are
-        sampled.
-    max : float
-        Upper bound of the interval from which the tensor's elements are
-        sampled.
-    """
-    distr = torch.distributions.Uniform(min, max)
-    from_distr_init_(tensor, distr)
-
-
-def constant_init_(tensor, value=0):
+def constant_init(
+    *,
+    shape: Tuple[int],
+    value: float = 0,
+    key: Optional[jax.random.PRNGKey] = None
+) -> Tensor:
     """
     Initialise a tensor to a constant value throughout. (The specified value
     doesn't actually have to be scalar as long as it is broadcastable to the
     tensor being initialised.)
     """
-    tensor[:] = value
+    return jnp.full(shape, value)
 
 
-def identity_init_(tensor, scale=1):
+def identity_init(
+    *,
+    shape: Tuple[int],
+    scale: float = 1,
+    shift: float = 0,
+    key: Optional[jax.random.PRNGKey] = None
+) -> Tensor:
     """
     Initialise a tensor such that each of its slices is an identity matrix.
     Currently this sets each slice defined by the last two axes to identity.
     If there is a use case for other slices, it can be made more flexible in
     the future.
     """
-    dim = tensor.size(-1)
-    tensor[:] = scale * torch.eye(
-        dim,
-        dtype=tensor.dtype,
-        device=tensor.device
-    )
+    return jnp.tile(jnp.eye(shape[-1]) * scale + shift, (*shape[:-2], 1, 1))
 
 
-class DomainInitialiser(object):
+class Initialiser(eqx.Module):
     """
-    Initialiser for a tensor whose values are the preimage of some function.
+    Initialiser base class.
 
-    For example, a layer can internally store a "preweight" that is passed
-    through a logistic function to produce the actual weight seen by data in
-    the forward pass. This constrains the actual weight to the interval (0, 1)
-    and makes the unconstrained preweight the learnable parameter. We might
-    often wish to initialise the actual weight from some distribution rather
-    than initialising the preweight; this class provides a convenient way to
-    do so.
+    This class must be subclassed to be used. Subclasses must implement the
+    ``_init`` method, which takes a desired output shape (``shape``) and a
+    random number generator key (``key``) and returns a tensor of the
+    requested shape.
 
-    A ``DomainInitialiser`` is callable with a single required argument: a
-    tensor to be initialised following the specified initialisation scheme.
-
-    Parameters
-    ----------
-    init : callable
-        A python callable that takes as its single required parameter the
-        tensor that is to be initialised; the callable should, when called,
-        initialise the tensor in place. Callables with additional arguments
-        can be constrained using ``partial`` from ``functools`` or an
-        appropriate lambda function. If no `init` is explicitly specified,
-        ``DomainInitialiser`` defaults to a uniform initialisation in the
-        interval (0, 1).
-    domain : Domain object
-        A representation of the function used to map between the learnable
-        preweight and the weight "seen" by the data. It must have a
-        ``preimage`` method that maps values in the weight domain to their
-        preimage under the function: the corresponding values in the preweight
-        domain. Examples are provided in
-        :doc:`init.domain <hypercoil.init.domain>`.
-        If no ``domain`` is
-        explicitly specified, ``DomainInitialiser`` defaults to identity
-        (preweight and weight are the same).
+    To use an initialiser, do not instantiate it directly, but instead use the
+    ``init`` method of the module class that uses it. This will apply the
+    initialiser to the model parameter specified by ``where``.
     """
-    def __init__(self, init=None, domain=None):
-        self.init = init or uniform_init_
-        self.domain = domain or Identity()
 
-    def __call__(self, tensor, **params):
-        with torch.no_grad():
-            self.init(tensor, **params)
-            tensor[:] = self.domain.preimage(tensor)
+    def __call__(
+        self,
+        model: PyTree,
+        *,
+        where: Union[str, Callable] = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ):
+        parameters = retrieve_address(model, where=where)
+        if key is not None:
+            keys = jax.random.split(key, len(parameters))
+        else:
+            keys = (None,) * len(parameters)
+        return tuple(self._init(
+            shape=parameter.shape,
+            key=key,
+            **params,
+        ) for key, parameter in zip(keys, parameters))
 
+    @abstractmethod
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+        **params
+    ) -> Tensor:
+        raise NotImplementedError
 
-class BaseInitialiser(DomainInitialiser):
-    """
-    Basic initialiser class. This class mostly exists to be subclassed.
-
-    Parameters
-    ----------
-    init : callable
-        A python callable that takes as its single required parameter the
-        tensor that is to be initialised; the callable should, when called,
-        initialise the tensor in place. Callables with additional arguments
-        can be constrained using ``partial`` from ``functools`` or an
-        appropriate lambda function. If no ``init`` is explicitly specified,
-        ``BaseInitialiser`` defaults to a uniform initialisation in the
-        interval (0, 1).
-    """
-    def __init__(self, init=None):
-        self.init = init or uniform_init_
-        self.domain = Identity()
-
-    def __call__(self, tensor, **params):
-        with torch.no_grad():
-            self.init(tensor, **params)
-
-
-class DistributionInitialiser(DomainInitialiser):
-    """
-    Parameter initialiser from a distribution.
-
-    See :func:`from_distr_init_` and :class:`DomainInitialiser` for argument
-    details.
-    """
-    def __init__(self, distr, domain=None):
-        self.distr = distr
-        init = partial(from_distr_init_, distr=self.distr)
-        super(DistributionInitialiser, self).__init__(
-            init=init,
-            domain=domain
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        where: Union[str, Callable] = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ) -> PyTree:
+        init = cls()
+        init = init(
+            model=model, where=where, key=key, **params)
+        return eqx.tree_at(
+            partial(retrieve_address, where=where),
+            model,
+            replace=init
         )
 
 
-class ConstantInitialiser(DomainInitialiser):
+class MappedInitialiser(Initialiser):
+    """
+    Parameter initialiser base class that also admits an optional
+    :doc:`parameter map <api/hypercoil.init.mapparam>`.
+
+    This is useful for combining initialisation and re-parameterisation into a
+    single step. The supplied parameter map should not be an instance but a
+    class. If no map is supplied, the initialiser is applied as normal.
+
+    This class must be subclassed to be used. Subclasses must implement the
+    ``_init`` method, which takes a desired output shape (``shape``) and a
+    random number generator key (``key``) and returns a tensor of the
+    requested shape.
+
+    .. warning::
+        To use an initialiser, do not instantiate it directly, but instead use
+        the ``init`` method of the module class that uses it. This will apply
+        the initialiser to the model parameter specified by ``where``.
+
+    .. note::
+        The initialiser is first used to initialise the requested parameter,
+        and the mapping function is thereafter applied to the resulting
+        tensor. If the initialisation produces out-of-domain values for the
+        mapping function, the tensor that is ultimately instantiated might
+        not reflect the specifications of the initialiser, as the mapping
+        function will automatically apply any out-of-domain handlers.
+
+    .. note::
+        Any extra keyword arguments to the ``init`` method are passed to the
+        mapping function when it is applied.
+    """
+
+    mapper: Optional[Type[MappedParameter]] = None
+
+    def __init__(
+        self,
+        mapper: Optional[Type[MappedParameter]] = None
+    ):
+        self.mapper = mapper
+
+    @abstractmethod
+    def _init(self, shape: Tuple[int, ...],
+              key: jax.random.PRNGKey) -> Tensor:
+        raise NotImplementedError
+
+    @staticmethod
+    def _init_impl(
+        init: Initialiser,
+        model: PyTree,
+        where: Union[str, Callable],
+        key: Optional[jax.random.PRNGKey],
+        **params
+    ) -> PyTree:
+        model = eqx.tree_at(
+            partial(retrieve_address, where=where),
+            model,
+            replace=init(
+                model=model, where=where, key=key)
+        )
+        if init.mapper is None:
+            return model
+        return init.mapper.map(model=model, where=where, **params)
+
+    #TODO: This will be problematic if the mapper and the initialiser both
+    #      use the same parameter name. In this case the initialiser will
+    #      consume the parameter and it will fail to reach the mapper.
+    #
+    #      This is a major problem and should be addressed with highest
+    #      priority.
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        where: Union[str, Callable] = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ) -> PyTree:
+        """
+        Initialise a parameter using the specified initialiser and mapper.
+
+        Parameters
+        ----------
+        model : PyTree
+            Model whose parameter to initialise.
+        mapper : Optional[Type[MappedParameter]] (default: None)
+            Mapping function to apply to the initialised parameter. This
+            should be a subclass of
+            :doc:`MappedParameter <api/hypercoil.init.mapparam.MappedParameter>`.
+            If this is ``None``, the initialiser is applied as normal.
+        where : str or callable (default: "weight")
+            Address of the parameter to initialise. This can be a string
+            address or a callable that takes a model and returns a
+            parameter.
+        key : jax.random.PRNGKey
+            Pseudo-random number generator key to use for initialisation.
+        **params : Any
+            Extra keyword arguments; these are forwarded to the mapper when it
+            is instantiated and applied.
+        """
+        init = cls(mapper=mapper)
+        return cls._init_impl(
+            init=init,
+            model=model,
+            where=where,
+            key=key,
+            **params,
+        )
+
+
+class DistributionInitialiser(MappedInitialiser):
+    """
+    Parameter initialiser from a distribution.
+
+    See :func:`from_distr_init` and :class:`MappedInitialiser` for usage
+    details.
+    """
+
+    distribution : Distribution
+
+    def __init__(
+        self,
+        distribution: Distribution,
+        mapper: Optional[Type[MappedParameter]] = None
+    ):
+        self.distribution = distribution
+        super().__init__(mapper=mapper)
+
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
+        return from_distr_init(
+            shape=shape, distr=self.distribution, key=key)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        distribution: Distribution = None,
+        where: Union[str, Callable] = "weight",
+        key: jax.random.PRNGKey,
+        **params,
+    ) -> PyTree:
+        init = cls(mapper=mapper, distribution=distribution)
+        return super()._init_impl(
+            init=init, model=model, where=where, key=key, **params,
+        )
+
+
+class ConstantInitialiser(MappedInitialiser):
     """
     Initialise a parameter to a constant value throughout.
 
-    See :func:`constant_init_` and :class:`DomainInitialiser` for argument
+    See :func:`constant_init` and :class:`MappedInitialiser` for argument
     details.
     """
-    def __init__(self, value=1, domain=None):
-        init = partial(constant_init_, value=value)
-        super(ConstantInitialiser, self).__init__(
-            init=init,
-            domain=domain
+
+    value : float
+
+    def __init__(
+        self,
+        value: float,
+        mapper: Optional[Type[MappedParameter]] = None
+    ):
+        self.value = value
+        super().__init__(mapper=mapper)
+
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
+        return constant_init(shape=shape, value=self.value, key=key)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        value: float = 0,
+        where: Union[str, Callable] = "weight",
+        key: jax.random.PRNGKey = None,
+        **params,
+    ) -> PyTree:
+        init = cls(mapper=mapper, value=value)
+        return super()._init_impl(
+            init=init, model=model, where=where, key=key, **params,
+        )
+
+
+class IdentityInitialiser(MappedInitialiser):
+    """
+    Initialise a parameter such that all slices along the final two axes are
+    identity matrices.
+
+    See :func:`identity_init` and :class:`MappedInitialiser` for argument
+    details.
+    """
+
+    scale : float
+    shift : float
+
+    def __init__(
+        self,
+        scale: float = 1,
+        shift: float = 0,
+        mapper: Optional[Type[MappedParameter]] = None
+    ):
+        self.scale = scale
+        self.shift = shift
+        super().__init__(mapper=mapper)
+
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
+        return identity_init(
+            shape=shape, scale=self.scale, shift=self.shift, key=key)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        scale: float = 1,
+        shift: float = 0,
+        where: Union[str, Callable] = "weight",
+        key: jax.random.PRNGKey = None,
+        **params,
+    ) -> PyTree:
+        init = cls(mapper=mapper, scale=scale, shift=shift)
+        return super()._init_impl(
+            init=init, model=model, where=where, key=key, **params,
         )

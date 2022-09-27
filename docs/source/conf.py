@@ -34,6 +34,7 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinx.ext.mathjax',
     'sphinx.ext.graphviz',
+    'sphinx.ext.linkcode',
     'numpydoc'
 ]
 
@@ -71,7 +72,47 @@ html_static_path = ['_static']
 #numpydoc_show_class_members = False
 numpydoc_show_inherited_class_members = False
 
-html_logo = "_static/logo.svg"
+html_logo = "_static/logo.png"
 html_theme_options = {
-  "show_prev_next": False
+    "show_prev_next": False
 }
+
+def linkcode_resolve(domain, info):
+    """
+    Basically following @aaugustin here:
+    https://github.com/aaugustin/websockets/blob/ ...
+    9535c2137bdcdc0d34cf8367d2bb16c91a6fc083/docs/conf.py#L102-L134
+    """
+    import importlib, inspect
+    code_url = ("https://github.com/rciric/hypercoil/tree/main/")
+    """
+    if domain != 'py':
+        return None
+    if not info['module']:
+        return None
+    filename = info['module'].replace('.', '/')
+    return (f"{url}/{filename}.py")
+    """
+    mod = importlib.import_module(info["module"])
+    if "." in info["fullname"]:
+        objname, attrname = info["fullname"].split(".")
+        obj = getattr(mod, objname)
+        try:
+            # object is a method of a class
+            obj = getattr(obj, attrname)
+        except AttributeError:
+            # object is an attribute of a class
+            return None
+    else:
+        obj = getattr(mod, info["fullname"])
+
+    try:
+        file = inspect.getsourcefile(obj)
+        lines = inspect.getsourcelines(obj)
+    except TypeError:
+        # e.g. object is a typing.Union
+        return None
+    file = os.path.relpath(file, os.path.abspath(".."))
+    start, end = lines[1] - 1, lines[1] + len(lines[0]) - 1
+
+    return f"{code_url}/{file}#L{start}-L{end}"

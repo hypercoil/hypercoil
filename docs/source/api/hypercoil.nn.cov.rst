@@ -4,9 +4,9 @@
 .. automodule:: hypercoil.nn.cov
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-   hypercoil.nn.cov._Cov
+   hypercoil.nn.cov.BaseCovariance
    hypercoil.nn.cov.UnaryCovariance
    hypercoil.nn.cov.UnaryCovarianceTW
    hypercoil.nn.cov.UnaryCovarianceUW

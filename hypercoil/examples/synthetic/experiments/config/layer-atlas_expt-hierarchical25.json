@@ -1,0 +1,24 @@
+{
+    "layer" : "atlas",
+    "expt" : "hierarchical25",
+    "name" : "Unsupervised -- Hierarchical -- Tier 25",
+    "type" : "atlas_experiment",
+    "tags" : [
+        "atlas", "parcellation", "spatial", "unsupervised",
+        "hierarchical", "fractal"
+    ],
+    "notes" : ["Hierarchical parcellation at the 25-parcel tier"],
+    "parameters" :{
+        "lr" : 0.01,
+        "max_epoch" : 601,
+        "log_interval" : 10,
+        "parcellation" : "hierarchical",
+        "entropy_nu" : 0,
+        "logdet_nu" : 0.02,
+        "secondmoment_nu" : 0.005,
+        "compactness_nu" : 0,
+        "equilibrium_nu" : 0,
+        "parcel_count" : 25,
+        "key" : 11
+    }
+}

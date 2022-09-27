@@ -4,7 +4,13 @@
 """
 Top-level import
 """
-from . import data
+from .__about__ import (
+    __packagename__,
+    __version__,
+    __url__,
+    __credits__,
+    __copyright__,
+)
 from . import formula
 from . import functional
 from . import init

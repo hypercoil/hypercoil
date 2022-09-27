@@ -12,14 +12,17 @@ to different locations and accepts a second argument that indicates explicitly
 the coordinates of each location
 (:func:`cmass_coor`, :func:`diffuse`, :func:`cmass_reference_displacement`).
 """
-import torch
-from functools import partial
+import jax.numpy as jnp
+from typing import Any, Optional, Sequence
+from .sphere import spherical_geodesic
+from ..engine import Tensor
 
 
-from ..functional.sphere import spherical_geodesic
-
-
-def cmass(X, axes=None, na_rm=False):
+def cmass(
+    X: Tensor,
+    axes: Optional[Sequence[int]] = None,
+    na_rm: bool = False
+) -> Tensor:
     r"""
     Differentiably compute a weight's centre of mass. This can be used to
     regularise the weight so that its centre of mass is close to a provided
@@ -58,29 +61,36 @@ def cmass(X, axes=None, na_rm=False):
         Centre of mass vectors for each slice from the input tensor. The
         coordinates are ordered according to the specification in ``axes``.
     """
-    dim = X.size()
-    ndim = X.dim()
+    dim = X.shape
+    ndim = X.ndim
     all_axes = list(range(ndim))
-    if axes is not None:
-        axes = [all_axes[ax] for ax in axes]
-    else:
-        axes = all_axes
+    axes = [all_axes[ax] for ax in axes] if axes is not None else all_axes
+    axes = tuple(axes)
     out_dim = [s for ax, s in enumerate(dim) if all_axes[ax] not in axes]
     out_dim += [len(axes)]
-    out = torch.zeros(out_dim, dtype=X.dtype, device=X.device)
+    out = jnp.zeros(out_dim)
     for i, ax in enumerate(axes):
-        coor = torch.arange(1, X.size(ax) + 1, dtype=X.dtype, device=X.device)
-        while coor.dim() < ndim - all_axes[ax]:
-            coor.unsqueeze_(-1)
+        coor = jnp.arange(1, X.shape[ax] + 1)
+        #TODO
+        # This is going to lead to trouble with jit since the shape of the
+        # coordinate tensor is set according to the shape of the input tensor.
+        # Add a test case for this and fix it.
+        while coor.ndim < ndim - all_axes[ax]:
+            coor = coor[..., None]
         num = (coor * X).sum(axes)
         denom = X.sum(axes)
-        out[..., i] = num / denom - 1
+        out = out.at[..., i].set(num / denom - 1)
         if na_rm is not False:
-            out[denom == 0, i] = na_rm
+            out = jnp.where(denom == 0, na_rm, out)
     return out
 
 
-def cmass_reference_displacement_grid(weight, refs, axes=None, na_rm=False):
+def cmass_reference_displacement_grid(
+    weight: Tensor,
+    refs: Tensor,
+    axes: Optional[Sequence[int]] = None,
+    na_rm: bool = False
+) -> Tensor:
     """
     Displacement of centres of mass from reference points -- grid version.
 
@@ -90,7 +100,12 @@ def cmass_reference_displacement_grid(weight, refs, axes=None, na_rm=False):
     return cm - refs
 
 
-def cmass_reference_displacement(weight, refs, coor, radius=None):
+def cmass_reference_displacement(
+    weight: Tensor,
+    refs: Tensor,
+    coor: Tensor,
+    radius: Optional[float] = None
+) -> Tensor:
     """
     Displacement of centres of mass from reference points -- explicit
     coordinate version.
@@ -101,7 +116,11 @@ def cmass_reference_displacement(weight, refs, coor, radius=None):
     return cm - refs
 
 
-def cmass_coor(X, coor, radius=None):
+def cmass_coor(
+    X: Tensor,
+    coor: Tensor,
+    radius: Optional[float] = None
+) -> Tensor:
     r"""
     Differentiably compute a weight's centre of mass.
 
@@ -130,15 +149,21 @@ def cmass_coor(X, coor, radius=None):
         input X. Coordinates are ordered as in the second-to-last axis of
         ``coor``.
     """
-    num = (X.unsqueeze(-3) * coor.unsqueeze(-2)).sum(-1)
+    num = (X[..., None, :, :] * coor[..., None, :]).sum(-1)
     denom = X.sum(-1)
     if radius is not None:
         cmass_euc = num / denom
-        return radius * cmass_euc / torch.linalg.norm(cmass_euc, 2, -2)
+        return radius * cmass_euc / jnp.linalg.norm(cmass_euc, ord=2, axis=-2)
     return num / denom
 
 
-def diffuse(X, coor, norm=2, floor=0, radius=None):
+def diffuse(
+    X: Tensor,
+    coor: Tensor,
+    norm: Any = 2,
+    floor: float = 0,
+    radius: Optional[float] = None
+) -> Tensor:
     r"""
     Compute a compactness score for a weight.
 
@@ -176,14 +201,13 @@ def diffuse(X, coor, norm=2, floor=0, radius=None):
     """
     cm = cmass_coor(X, coor, radius=radius)
     if radius is None:
-        dist = cm.unsqueeze(-1) - coor.unsqueeze(-2)
-        dist = torch.linalg.norm(dist, ord=2, dim=-3)
+        dist = cm[..., None] - coor[..., None, :]
+        dist = jnp.linalg.norm(dist, ord=2, axis=-3)
     else:
         dist = spherical_geodesic(
-            coor.transpose(-1, -2),
-            cm.transpose(-1, -2),
+            coor.swapaxes(-1, -2),
+            cm.swapaxes(-1, -2),
             r=radius
-        ).transpose(-1, -2)
-    dist = torch.maximum(dist - floor, torch.tensor(
-        0, dtype=dist.dtype, device=dist.device))
+        ).swapaxes(-1, -2)
+    dist = jnp.maximum(dist - floor, 0)
     return (X * dist).mean(-1)

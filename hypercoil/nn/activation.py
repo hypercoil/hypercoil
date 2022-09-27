@@ -4,26 +4,66 @@
 """
 Activation function modules.
 """
-import torch
-from torch.nn import Module
-from ..functional.activation import corrnorm
+import jax
+import equinox as eqx
+from typing import Literal, Optional, Union, Tuple
+from ..engine import Tensor
+from ..functional.activation import (
+    corrnorm,
+    isochor,
+    document_corrnorm,
+    document_isochoric,
+)
 
 
-class CorrelationNorm(Module):
-	"""
-	:doc:`Correlation normalisation <hypercoil.functional.activation.corrnorm>`
-	module.
-	"""
-	def __init__(self, factor=None, grad_path='both'):
-		super().__init__()
-		self.factor = factor
-		self.grad_path = grad_path
+@document_corrnorm
+class CorrelationNorm(eqx.Module):
+    """
+    :doc:`Correlation normalisation <hypercoil.functional.activation.corrnorm>`
+    module.
+    \
+    {corrnorm_spec}
+    """
+    factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None
+    grad_path: Literal['input', 'both'] = 'both'
 
-	def forward(self, input, factor=None):
-		if factor is None:
-			factor = self.factor
-		return corrnorm(
-			input=input,
-			factor=factor,
-			gradpath=self.grad_path
-		)
+    def __call__(
+        self,
+        input: Tensor,
+        factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
+        if factor is None:
+            factor = self.factor
+        return corrnorm(
+            input=input,
+            factor=factor,
+            gradpath=self.grad_path
+        )
+
+
+@document_isochoric
+class Isochor(eqx.Module):
+    """
+    :doc:`Isochoric normalisation <hypercoil.functional.activation.isochor>`
+    module.
+    \
+    {isochoric_spec}
+    """
+    volume: float = 1.
+    max_condition: Optional[float] = None
+    softmax_temp: Optional[float] = None
+
+    def __call__(
+        self,
+        input: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> Tensor:
+        return isochor(
+            input=input,
+            volume=self.volume,
+            max_condition=self.max_condition,
+            softmax_temp=self.softmax_temp,
+        )

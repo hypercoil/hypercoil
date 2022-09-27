@@ -4,7 +4,6 @@
 .. automodule:: hypercoil.nn.recombinator
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.nn.recombinator.Recombinator
-   hypercoil.nn.recombinator.QueryEncoder

@@ -1,0 +1,26 @@
+{
+    "layer" : "fft",
+    "expt" : "dynamicband",
+    "name" : "Unsupervised Discovery of a Dynamic Band",
+    "type" : "dynamic_band_identification_experiment",
+    "tags" : [
+        "fft", "frequency", "filter", "band identification",
+        "unsupervised", "dynamic"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "lr" : 1e-3,
+        "max_epoch" : 1001,
+        "latent_dim" : 10,
+        "observed_dim" : 50,
+        "time_dim" : 1000,
+        "n_switches" : 20,
+        "mvkurtosis_nu" : 0.001,
+        "smoothness_nu" : 0.2,
+        "symbimodal_nu" : 0.05,
+        "l2_nu" : 0.25,
+        "mvkurtosis_l2" : 0.01,
+        "log_interval" : 100,
+        "key" : 99
+    }
+}

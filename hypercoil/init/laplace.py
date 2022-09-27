@@ -4,10 +4,111 @@
 """
 Initialise parameters to match a double exponential function.
 """
-import torch
-from functools import reduce, partial
-from .base import BaseInitialiser
-from .domain import Identity
+import jax
+import jax.numpy as jnp
+from functools import reduce
+from typing import Callable, Literal, Optional, Tuple, Type, Sequence, Union
+from .base import MappedInitialiser
+from .mapparam import MappedParameter
+from ..engine import Tensor, PyTree
+
+
+def laplace_init(
+    *,
+    shape: Tuple[int, ...],
+    loc: Optional[Sequence[int]] = None,
+    width: Optional[Sequence[float]] = 1,
+    normalise: Optional[Literal['max', 'sum']] = None,
+    var: float = 0.02,
+    excl_axis: Optional[Sequence[int]] = None,
+    key: jax.random.PRNGKey,
+) -> Tensor:
+    if loc is None: loc = [(x - 1) / 2 for x in shape]
+    if width is None: width = [1. for _ in range(len(shape))]
+    ndim = len(loc)
+    if excl_axis is None: excl_axis  = ()
+
+    axes = []
+    for ax, l, w in zip(shape[-ndim:], loc, width[-ndim:]):
+        new_ax = jnp.arange(
+            -l, -l + ax,
+        )
+        new_ax = jnp.exp(-jnp.abs(new_ax) / w)
+        axes += [new_ax]
+
+    ax_shape = [-1]
+    val = []
+    for i, ax in enumerate(reversed(axes)):
+        if -(i + 1) not in excl_axis and (ndim - i - 1) not in excl_axis:
+            val = [ax.reshape(ax_shape)] + val
+        ax_shape += [1]
+    val = reduce(jnp.multiply, val)
+    if normalise == 'max':
+        val /= val.max()
+    elif normalise == 'sum':
+        val /= val.sum()
+    val = jnp.broadcast_to(val, shape)
+    if var != 0:
+        return val + jax.random.normal(key=key, shape=shape) * var
+    return val
+
+
+class LaplaceInitialiser(MappedInitialiser):
+
+    loc : Optional[Sequence[int]]
+    width : Optional[Sequence[float]]
+    normalise : Optional[Literal['max', 'sum']]
+    var : float
+    excl_axis : Optional[Sequence[int]]
+
+    def __init__(
+        self,
+        loc: Optional[Sequence[int]] = None,
+        width: Optional[Sequence[float]] = None,
+        normalise: Optional[Literal['max', 'sum']] = None,
+        var: float = 0.02,
+        excl_axis: Optional[Sequence[int]] = None,
+        mapper: Optional[Type[MappedParameter]] = None,
+    ):
+        self.loc = loc
+        self.width = width
+        self.normalise = normalise
+        self.var = var
+        self.excl_axis = excl_axis
+        super().__init__(mapper=mapper)
+
+    def _init(
+        self,
+        shape: Tuple[int, ...],
+        key: jax.random.PRNGKey,
+    ) -> Tensor:
+        return laplace_init(
+            shape=shape, loc=self.loc, width=self.width,
+            normalise=self.normalise, var=self.var, excl_axis=self.excl_axis,
+            key=key)
+
+    @classmethod
+    def init(
+        cls,
+        model: PyTree,
+        *,
+        mapper: Optional[Type[MappedParameter]] = None,
+        loc: Optional[Sequence[int]] = None,
+        width: Optional[Sequence[float]] = None,
+        normalise: Optional[Literal['max', 'sum']] = None,
+        var: float = 0.02,
+        excl_axis: Optional[Sequence[int]] = None,
+        where: Union[str, Callable] = "weight",
+        key: jax.random.PRNGKey = None,
+        **params,
+    ) -> PyTree:
+        init = cls(
+            loc=loc, width=width, normalise=normalise,
+            var=var, excl_axis=excl_axis, mapper=mapper,
+        )
+        return super()._init_impl(
+            init=init, model=model, where=where, key=key, **params,
+        )
 
 
 def laplace_init_(tensor, loc=None, width=None, norm=None,
@@ -60,40 +161,10 @@ def laplace_init_(tensor, loc=None, width=None, norm=None,
     -------
     None. The input tensor is initialised in-place.
     """
-    domain = domain or Identity()
-    loc = loc or [(x - 1) / 2 for x in tensor.size()]
-    width = width or [1 for _ in range(tensor.dim())]
-    width = torch.tensor(width, dtype=tensor.dtype, device=tensor.device)
-    dim = len(loc)
-    excl_axis = excl_axis or []
-    axes = []
-    for ax, l, w in zip(tensor.size()[-dim:], loc, width[-dim:]):
-        new_ax = torch.arange(
-            -l, -l + ax,
-            dtype=tensor.dtype,
-            device=tensor.device
-        )
-        new_ax = torch.exp(-torch.abs(new_ax) / w)
-        axes += [new_ax]
-    shape = [-1]
-    val = []
-    for i, ax in enumerate(reversed(axes)):
-        if -(i + 1) not in excl_axis and (dim - i - 1) not in excl_axis:
-            val = [ax.view(shape)] + val
-        shape += [1]
-    val = reduce(torch.multiply, val)
-    if norm == 'max':
-        val /= val.max()
-    elif norm == 'sum':
-        val /= val.sum()
-    val = domain.preimage(val)
-    if var != 0:
-        val = val + torch.randn_like(tensor) * var
-    with torch.no_grad():
-        tensor.copy_(val)
+    raise NotImplementedError
 
 
-class LaplaceInit(BaseInitialiser):
+class LaplaceInit:
     """
     Double exponential initialisation.
 
@@ -104,12 +175,4 @@ class LaplaceInit(BaseInitialiser):
     """
     def __init__(self, loc=None, width=None, norm=None,
                  var=0.02, excl_axis=None, domain=None):
-        init = partial(laplace_init_, loc=loc, width=width, norm=norm,
-                       var=var, excl_axis=excl_axis, domain=domain)
-        super(LaplaceInit, self).__init__(init=init)
-        self.loc = loc
-        self.width = width
-        self.norm = norm
-        self.var = var
-        self.excl_axis = excl_axis
-        self.domain = domain
+        raise NotImplementedError

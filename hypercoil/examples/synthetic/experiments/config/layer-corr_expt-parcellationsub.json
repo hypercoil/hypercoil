@@ -1,0 +1,30 @@
+{
+    "layer" : "corr",
+    "expt" : "parcellationsub",
+    "name" : "Single-Subject State Parcellation",
+    "type" : "unsupervised_state_detection_experiment",
+    "tags" : [
+        "corr", "correlation", "cov", "covariance",
+        "state", "state detection", "state identification",
+        "dynamics", "unsupervised", "subject-level"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "lr" : 0.01,
+        "max_epoch" : 1001,
+        "log_interval" : 20,
+        "smoothness_nu" : 20,
+        "symbimodal_nu" : 100,
+        "entropy_nu" : 0,
+        "equilibrium_nu" : 2e4,
+        "dist_nu" : 2,
+        "time_dim" : 1000,
+        "latent_dim" : 10,
+        "observed_dim" : 30,
+        "subject_dim" : 1,
+        "n_states" : 6,
+        "state_weight" : 1,
+        "subject_weight" : 1,
+        "key" : 1
+    }
+}

@@ -4,19 +4,24 @@
 """
 Formula interfaces
 """
-from .coltransforms import (
-    ColumnTransform
+from .dfops import (
+    ConfoundFormulaGrammar,
+    ColumnSelectInterpreter,
+    DeduplicateRootNode,
 )
-from .expression import (
-    Expression
+from .grammar import (
+    Grammar,
 )
-from .fc import (
-    FCConfoundModelSpec
+from .imops import (
+    ImageMathsGrammar,
+    NiftiFileInterpreter,
+    NiftiObjectInterpreter,
 )
-from .model import (
-    ModelSpec
-)
-from .shorthand import (
-    Shorthand,
-    ShorthandFilter
+from .nnops import (
+    ParameterAddressGrammar,
+    ParameterSelectInterpreter,
+    ParameterAddressRootNode,
+    transform_address,
+    filter_address,
+    retrieve_address,
 )

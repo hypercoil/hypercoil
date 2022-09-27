@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.cov
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.cov.cov
    hypercoil.functional.cov.corr

@@ -5,21 +5,24 @@
 Unit tests for specialised matrix operations
 """
 import pytest
-import torch
+import jax
+import jax.numpy as jnp
 import numpy as np
 from scipy.linalg import toeplitz as toeplitz_ref
 from hypercoil.functional import (
-    invert_spd,
+    cholesky_invert,
     toeplitz,
     symmetric,
     spd,
     expand_outer,
     recondition_eigenspaces,
     delete_diagonal,
+    fill_diagonal,
     sym2vec,
     vec2sym,
     squareform
 )
+from hypercoil.engine import vmap_over_outer
 
 
 class TestMatrix:
@@ -29,243 +32,172 @@ class TestMatrix:
         self.tol = 5e-3
         self.approx = lambda out, ref: np.allclose(out, ref, atol=self.tol)
         np.random.seed(10)
-        torch.manual_seed(10)
 
 
         A = np.random.rand(10, 10)
         self.A = A @ A.T
         self.c = np.random.rand(3)
         self.r = np.random.rand(3)
+        self.r[0] = self.c[0]
         self.C = np.random.rand(3, 3)
-        self.R = np.random.rand(4, 3)
-        self.f = np.random.rand(3)
-        self.At = torch.Tensor(self.A)
-        self.ct = torch.Tensor(self.c)
-        self.rt = torch.Tensor(self.r)
-        self.Ct = torch.Tensor(self.C)
-        self.Rt = torch.Tensor(self.R)
-        self.ft = torch.Tensor(self.f)
-        self.Bt = torch.rand(20, 10, 10)
-        BLRt = torch.rand(20, 10, 2)
-        self.BLRt = BLRt @ BLRt.transpose(-1, -2)
+        self.R = np.random.rand(3, 4)
+        self.R[:, 0] = self.C[:, 0]
+        self.f = 2
+        self.B = np.random.rand(20, 10, 10)
+        BLR = np.random.rand(20, 10, 2)
+        self.BLR = BLR @ BLR.swapaxes(-1, -2)
 
-        if torch.cuda.is_available():
-            self.AtC = self.At.clone().cuda()
-            self.BtC = self.Bt.clone().cuda()
-            self.BLRtC = self.BLRt.clone().cuda()
-            self.ctC = self.ct.clone().cuda()
-            self.rtC = self.rt.clone().cuda()
-            self.CtC = self.Ct.clone().cuda()
-            self.RtC = self.Rt.clone().cuda()
-            self.ftC = self.ft.clone().cuda()
-
-    def test_invert_spd(self):
-        out = invert_spd(invert_spd(self.At))
-        ref = self.At
-        assert torch.allclose(out, ref, atol=1e-2)
+    def test_cholesky_invert(self):
+        out = cholesky_invert(cholesky_invert(self.A))
+        ref = self.A
+        assert np.allclose(out, ref, atol=1e-2)
 
     def test_symmetric(self):
-        out = symmetric(self.Bt)
-        ref = out.transpose(-1, -2)
+        out = symmetric(self.B)
+        ref = out.swapaxes(-1, -2)
         assert self.approx(out, ref)
 
     def test_expand_outer(self):
-        L = torch.rand(8, 4, 10, 3)
-        C = -torch.rand(8, 4, 3, 1)
+        L = np.random.rand(8, 4, 10, 3)
+        C = -np.random.rand(8, 4, 3, 1)
         out = expand_outer(L, C=C)
-        assert torch.all(out <= 0)
-        C = torch.diag_embed(C.squeeze())
+        assert np.all(out <= 0)
+        C = vmap_over_outer(jnp.diagflat, 1)((C.squeeze(),))
         out2 = expand_outer(L, C=C)
-        assert torch.allclose(out, out2)
+        assert np.allclose(out, out2)
+
+        out3 = jax.jit(expand_outer)(L, C=C)
+        assert np.allclose(out, out3)
+
+        L = np.random.rand(10)
+        R = np.random.rand(10)
+        out = expand_outer(L, R, symmetry='cross')
+        ref = np.outer(L, R)
+        ref = (ref + ref.T) / 2
+        assert np.allclose(out, ref)
 
     def test_spd(self):
-        out = spd(self.Bt)
-        ref = out.transpose(-1, -2)
+        out = spd(self.B)
+        ref = out.swapaxes(-1, -2)
         assert self.approx(out, ref)
-        L = torch.linalg.eigvalsh(out)
-        assert torch.all(L > 0)
+        L = np.linalg.eigvalsh(out)
+        assert np.all(L > 0)
+
+        out = spd(self.B, method='svd')
+        ref = out.swapaxes(-1, -2)
+        assert self.approx(out, ref)
+        L = np.linalg.eigvalsh(out)
+        assert np.all(L > 0)
 
     def test_spd_singular(self):
-        out = spd(self.BLRt, method='eig')
-        ref = out.transpose(-1, -2)
+        out = spd(self.BLR, method='eig')
+        ref = out.swapaxes(-1, -2)
         assert self.approx(out, ref)
-        L = torch.linalg.eigvalsh(out)
-        assert torch.all(L > 0)
+        L = jnp.linalg.eigvalsh(out)
+        assert np.all(L > 0)
 
     def test_toeplitz(self):
-        out = toeplitz(self.ct, self.rt).numpy()
+        out = toeplitz(self.c, self.r)
         ref = toeplitz_ref(self.c, self.r)
         assert self.approx(out, ref)
 
     def test_toeplitz_stack(self):
-        out = toeplitz(self.Ct, self.Rt).numpy()
-        ref = np.stack([toeplitz_ref(c, r)
-                        for c, r in zip(self.C.T, self.R.T)])
+        C = np.random.rand(3, 10)
+        R = np.random.rand(2, 3, 8)
+        out = toeplitz(C, R)
+        assert toeplitz(C, R).shape == (2, 3, 10, 8)
+
+        out = jax.jit(toeplitz)(C, R)
+        assert toeplitz(C, R).shape == (2, 3, 10, 8)
+
+        rr = R[0, 1]
+        cc = C[1]
+        ref = toeplitz(cc, rr)
+        assert self.approx(out[0, 1], ref)
+
+        out = toeplitz(self.C, self.R)
+        ref = np.stack([toeplitz_ref(c, r) for c, r in zip(self.C, self.R)],
+                       axis=0)
         assert self.approx(out, ref)
 
     def test_toeplitz_extend(self):
-        dim = (8, 8)
-        out = toeplitz(self.Ct, self.Rt, dim=dim)
-        Cx, Rx = (np.zeros((dim[0], self.C.shape[1])),
-                  np.zeros((dim[1], self.R.shape[1])))
-        Cx[:self.C.shape[0], :] = self.C
-        Rx[:self.R.shape[0], :] = self.R
-        ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx.T, Rx.T)])
+        shape = (10, 8)
+        out = toeplitz(self.C, self.R, shape=shape)
+        assert out.shape == (3, 10, 8)
+        Cx, Rx = (np.zeros((self.C.shape[0], shape[0])),
+                  np.zeros((self.R.shape[0], shape[1])))
+        Cx[:, :self.C.shape[-1]] = self.C
+        Rx[:, :self.R.shape[-1]] = self.R
+        ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx, Rx)])
         assert self.approx(out, ref)
 
     def test_toeplitz_fill(self):
-        dim = (8, 8)
-        out = toeplitz(self.Ct, self.Rt, dim=dim, fill_value=self.ft)
-        Cx, Rx = (np.zeros((dim[0], self.C.shape[1])) + self.f,
-                  np.zeros((dim[1], self.R.shape[1])) + self.f)
-        Cx[:self.C.shape[0], :] = self.C
-        Rx[:self.R.shape[0], :] = self.R
-        ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx.T, Rx.T)])
+        shape = (8, 8)
+        out = toeplitz(self.C, self.R, shape=shape, fill_value=self.f)
+        assert out.shape == (3, 8, 8)
+        #out = toeplitz(self.C, self.R, shape=shape, fill_value=self.f)
+        Cx, Rx = (np.zeros((self.C.shape[0], shape[0])) + self.f,
+                  np.zeros((self.R.shape[0], shape[1])) + self.f)
+        Cx[:, :self.C.shape[-1]] = self.C
+        Rx[:, :self.R.shape[-1]] = self.R
+        ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx, Rx)])
         assert self.approx(out, ref)
 
     def test_recondition(self):
-        V = torch.ones((7, 3))
-        V.requires_grad = True
-        (V @ V.t()).svd()[0].sum().backward()
-        assert torch.all(torch.isnan(V.grad))
-        V.grad.zero_()
+        key = jax.random.PRNGKey(np.random.randint(0, 2**32))
+        V = jnp.ones((7, 3))
+        d = d = jax.grad(
+            lambda X: jnp.linalg.svd(X, full_matrices=False)[0].sum())
+        assert np.all(np.isnan(d(V @ V.T)))
 
-        recondition_eigenspaces(
-            V @ V.t(), psi=1e-3, xi=1e-3
-        ).svd()[0].sum().backward()
-        assert torch.logical_not(torch.any(torch.isnan(V.grad)))
+        arg = recondition_eigenspaces(V @ V.T, key=key, psi=1e-3, xi=1e-3)
+        assert np.logical_not(np.any(np.isnan(d(arg))))
 
     def test_sym2vec_correct(self):
         from scipy.spatial.distance import squareform
-        K = symmetric(torch.rand(3, 4, 5, 5))
+        K = symmetric(np.random.rand(3, 4, 5, 5))
         out = sym2vec(K)
 
         ref = np.stack([
             np.stack([
-                squareform(j.numpy() * (1 - np.eye(j.shape[0])))
+                squareform(j * (1 - np.eye(j.shape[0])))
                 for j in k
             ]) for k in K
         ])
         assert np.allclose(out, ref)
 
+    def test_fill_diag(self):
+        d = 6
+        key = jax.random.PRNGKey(np.random.randint(0, 2**32))
+        A = jax.random.uniform(key=key, shape=(2, 2, 2, d, d))
+        A_fd = fill_diagonal(A)
+        A_dd = delete_diagonal(A)
+        assert np.allclose(A_fd, A_dd)
+        A_fd = fill_diagonal(A, 5)
+        assert np.allclose(A_fd, A_dd + 5 * np.eye(d))
+
+        grad = jax.grad(lambda A: fill_diagonal(3 * A, 4).sum())(A)
+        grad_ref = 3. * ~np.eye(d, dtype=bool)
+        assert np.allclose(grad, grad_ref)
+
+        d2 = 3
+        A = jax.random.uniform(key=key, shape=(3, 1, 4, d, d2))
+        A_fd = fill_diagonal(A, offset=-1, fill=float('nan'))
+        ref = jnp.diagflat(jnp.ones(d, dtype=bool), k=-1)
+        ref = ref[:d, :d2]
+        assert np.all(np.isnan(A_fd.sum((0, 1, 2))) == ref)
+
     def test_sym2vec_inversion(self):
-        K = symmetric(torch.rand(3, 4, 5, 5))
+        K = symmetric(np.random.rand(3, 4, 5, 5))
         out = vec2sym(sym2vec(K, offset=0), offset=0)
-        assert torch.allclose(out, K)
+        assert np.allclose(out, K)
 
     def test_squareform_equivalence(self):
-        K = symmetric(torch.rand(3, 4, 5, 5))
+        K = symmetric(np.random.rand(3, 4, 5, 5))
         out = squareform(K)
         ref = sym2vec(K)
-        assert torch.allclose(out, ref)
+        assert np.allclose(out, ref)
 
         out = squareform(out)
         ref = vec2sym(ref)
-        assert torch.allclose(out, ref)
-
-    @pytest.mark.cuda
-    def test_invert_spd_cuda(self):
-        out = invert_spd(invert_spd(self.AtC))
-        ref = self.AtC
-        assert self.approx(out.cpu(), ref)
-
-    @pytest.mark.cuda
-    def test_symmetric_cuda(self):
-        out = symmetric(self.BtC)
-        ref = out.transpose(-1, -2)
-        assert self.approx(out.cpu(), ref.cpu())
-
-    @pytest.mark.cuda
-    def test_spd_cuda(self):
-        out = spd(self.BtC)
-        ref = out.transpose(-1, -2)
-        assert self.approx(out.clone().cpu(), ref.cpu())
-        L = torch.linalg.eigvalsh(out)
-        assert torch.all(L > 0)
-
-    @pytest.mark.cuda
-    def test_spd_singular_cuda(self):
-        out = spd(self.BLRtC, method='eig')
-        ref = out.transpose(-1, -2)
-        assert self.approx(out.clone().cpu(), ref.cpu())
-        L = torch.linalg.eigvalsh(out)
-        assert torch.all(L > 0)
-
-    @pytest.mark.cuda
-    def test_toeplitz_cuda(self):
-        out = toeplitz(self.ctC, self.rtC).cpu().numpy()
-        ref = toeplitz_ref(self.c, self.r)
-        assert self.approx(out, ref)
-
-    @pytest.mark.cuda
-    def test_toeplitz_stack_cuda(self):
-        out = toeplitz(self.CtC, self.RtC).cpu().numpy()
-        ref = np.stack([toeplitz_ref(c, r)
-                        for c, r in zip(self.C.T, self.R.T)])
-        assert self.approx(out, ref)
-
-    @pytest.mark.cuda
-    def test_toeplitz_extend_cuda(self):
-        dim = (8, 8)
-        out = toeplitz(self.CtC, self.RtC, dim=dim)
-        Cx, Rx = (np.zeros((dim[0], self.C.shape[1])),
-                  np.zeros((dim[1], self.R.shape[1])))
-        Cx[:self.C.shape[0], :] = self.C
-        Rx[:self.R.shape[0], :] = self.R
-        ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx.T, Rx.T)])
-        assert self.approx(out.cpu(), ref)
-
-    @pytest.mark.cuda
-    def test_toeplitz_fill_cuda(self):
-        dim = (8, 8)
-        out = toeplitz(self.CtC, self.RtC, dim=dim, fill_value=self.ftC)
-        Cx, Rx = (np.zeros((dim[0], self.C.shape[1])) + self.f,
-                  np.zeros((dim[1], self.R.shape[1])) + self.f)
-        Cx[:self.C.shape[0], :] = self.C
-        Rx[:self.R.shape[0], :] = self.R
-        ref = np.stack([toeplitz_ref(c, r) for c, r in zip(Cx.T, Rx.T)])
-        assert self.approx(out.cpu(), ref)
-
-    @pytest.mark.cuda
-    def test_recondition_cuda(self):
-        V = torch.ones((7, 3), device='cuda')
-        V.requires_grad = True
-        (V @ V.t()).svd()[0].sum().backward()
-        assert torch.all(torch.isnan(V.grad))
-        V.grad.zero_()
-
-        recondition_eigenspaces(
-            V @ V.t(), psi=1e-3, xi=1e-3
-        ).svd()[0].sum().backward()
-        assert torch.logical_not(torch.any(torch.isnan(V.grad)))
-
-    @pytest.mark.cuda
-    def test_sym2vec_correct_cuda(self):
-        from scipy.spatial.distance import squareform
-        K = symmetric(torch.rand(3, 4, 5, 5, device='cuda'))
-        out = sym2vec(K)
-
-        ref = np.stack([
-            np.stack([
-                squareform(j.numpy() * (1 - np.eye(j.shape[0])))
-                for j in k
-            ]) for k in K.cpu()
-        ])
-        assert np.allclose(out.cpu(), ref)
-
-    @pytest.mark.cuda
-    def test_sym2vec_inversion_cuda(self):
-        K = symmetric(torch.rand(3, 4, 5, 5, device='cuda'))
-        out = vec2sym(sym2vec(K, offset=0), offset=0)
-        assert torch.allclose(out, K)
-
-    @pytest.mark.cuda
-    def test_squareform_equivalence_cuda(self):
-        K = symmetric(torch.rand(3, 4, 5, 5, device='cuda'))
-        out = squareform(K)
-        ref = sym2vec(K)
-        assert torch.allclose(out, ref)
-
-        out = squareform(out)
-        ref = vec2sym(ref)
-        assert torch.allclose(out, ref)
+        assert np.allclose(out, ref)

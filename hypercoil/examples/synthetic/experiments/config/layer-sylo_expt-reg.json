@@ -1,0 +1,21 @@
+{
+    "layer" : "sylo",
+    "expt" : "reg",
+    "name" : "Regularisation",
+    "type" : "shallow_autoencoder_experiment",
+    "tags" : [
+        "sylo", "autoencoder", "overfit", "self-supervised",
+        "regularisation", "modularity"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "lr" : 1e-3,
+        "max_epoch" : 10001,
+        "recombinator_nonnegative_l2_nu" : 0.1,
+        "nonnegative_l2_nu" : 1.0,
+        "modularity_nu" : 2.0,
+        "n_nodes" : 100,
+        "rank" : 4,
+        "key" : 11
+    }
+}

@@ -1,0 +1,24 @@
+{
+    "layer" : "fft",
+    "expt" : "bandident0",
+    "name" : "Supervised Band Identification: Low-Frequency",
+    "type" : "frequency_band_identification_experiment",
+    "tags" : [
+        "fft", "frequency", "filter", "band identification",
+        "supervised"
+    ],
+    "notes" : [],
+    "parameters" :{
+        "lr" : 5e-3,
+        "max_epoch" : 301,
+        "log_interval" : 5,
+        "latent_dim" : 7,
+        "observed_dim" : 100,
+        "time_dim" : 1000,
+        "smoothness_nu" : 0.2,
+        "symbimodal_nu" : 0.05,
+        "l2_nu" : 0.015,
+        "test_band" : 0,
+        "key" : 0
+    }
+}

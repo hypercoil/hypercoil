@@ -4,62 +4,46 @@
 """
 Unit tests for loss schemes.
 """
-import pytest
-import torch
-from hypercoil.engine.terminal import (
-    ReactiveTerminal
-)
-from hypercoil.loss import (
-    LossScheme,
-    LossApply,
-    LossArgument,
-    Entropy,
-    Equilibrium,
-    Compactness
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+from hypercoil.engine.argument import ModelArgument as LossArgument
+from hypercoil.loss.scheme import LossScheme
+from hypercoil.loss.nn import (
+    EntropyLoss,
+    EquilibriumLoss,
+    CompactnessLoss,
 )
 
 
 class TestLossScheme:
 
-    def test_spatial_loss_equivalence(self):
-        torch.manual_seed(0)
+    def test_loss_scheme(self):
+        key = jax.random.PRNGKey(0)
         n_groups = 4
         n_channels = 10
         n_dims = 3
-        coor = torch.randn(n_dims, n_channels)
-        weight = torch.randn(n_groups, n_channels)
-        weight = torch.softmax(weight, axis=-2)
-        coor.requires_grad = True
-        weight.requires_grad = True
+        coor = jax.random.normal(key, (n_dims, n_channels))
+        weight = jax.random.normal(key, (n_groups, n_channels))
+        weight = jax.nn.softmax(weight, axis=-2)
 
-        entropy = Entropy(nu=0.2)
-        equilibrium = Equilibrium(nu=20)
-        compactness = ReactiveTerminal(
-            Compactness(nu=2, coor=coor),
-            slice_target='X',
-            slice_axis=-2,
-            max_slice=2
-        )
+        entropy = EntropyLoss(nu=0.2)
+        equilibrium = EquilibriumLoss(nu=20)
+        compactness = CompactnessLoss(nu=2, coor=coor)
 
-        overall_scheme = LossScheme((
-            LossScheme(
-                (entropy, equilibrium),
-                apply=lambda arg: arg.X
-            ),
-            compactness
-        ))
+        loss = LossScheme((entropy, equilibrium, compactness),
+                          apply = lambda arg: arg.X)
 
-        ref = entropy(weight) + equilibrium(weight)
-        ref.backward()
-        _ = compactness({'X': weight})
-
-        g_ref = weight.grad.clone()
-        weight.grad.zero_()
+        def ref(X):
+            return entropy(X) + equilibrium(X) + compactness(X)
+        ref, g_ref = jax.value_and_grad(ref)(weight)
 
         arg = LossArgument(X=weight)
-        out = overall_scheme(arg)
-        out.backward()
-        g_out = weight.grad.clone()
+        (out, meta), g_out = eqx.filter_jit(eqx.filter_value_and_grad(
+            loss, has_aux=True))(arg, key=key)
 
-        assert torch.isclose(out, ref)
-        assert torch.allclose(g_out, g_ref)
+        assert jnp.allclose(ref, out)
+        assert jnp.allclose(g_ref, g_out.X)
+
+        for s in 'Compactness', 'Equilibrium', 'Entropy':
+            assert s in meta

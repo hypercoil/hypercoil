@@ -1,0 +1,32 @@
+{
+    "layer" : "corr",
+    "expt" : "parcellationgroup",
+    "name" : "Sample-Level State Parcellation",
+    "type" : "unsupervised_state_detection_experiment",
+    "tags" : [
+        "corr", "correlation", "cov", "covariance",
+        "state", "state detection", "state identification",
+        "dynamics", "unsupervised", "group-level"
+    ],
+    "notes" : ["Still haven't gotten performance to the levels of the PyTorch version. That version attained a measure score of 0.895 and a maximum score close to 0.92. This version currently maxes out at 0.836 and 0.90 respectively, with early stopping."],
+    "parameters" :{
+        "lr" : 1e-2,
+        "max_epoch" : 501,
+        "log_interval" : 20,
+        "smoothness_nu" : 1e5,
+        "symbimodal_nu" : 50,
+        "entropy_nu" : 0.1,
+        "equilibrium_nu" : 1e5,
+        "dist_nu" : 5e1,
+        "within_nu" : 1,
+        "between_nu" : 0.5,
+        "time_dim" : 1000,
+        "latent_dim" : 10,
+        "observed_dim" : 30,
+        "subject_dim" : 100,
+        "n_states" : 6,
+        "state_weight" : 1,
+        "subject_weight" : 1,
+        "key" : 1
+    }
+}

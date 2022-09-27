@@ -2,40 +2,50 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Unit tests for differentiable terminals.
+Unit tests for interpolation functions for evenly sampled time series.
 """
-import pytest
-import torch
+import jax
+import jax.numpy as jnp
+import numpy as np
 import matplotlib.pyplot as plt
 from pkg_resources import resource_filename as pkgrf
-from hypercoil.functional import hybrid_interpolate
+from hypercoil.functional.interpolate import (
+    hybrid_interpolate, spectral_interpolate,
+    linear_interpolate, weighted_interpolate,
+    centred_square_kernel, _weighted_interpolate_stage
+)
 
 
 class TestInterpolation:
 
-    def synthesise_data(self, seed, mode):
-        torch.manual_seed(seed)
+    def synthesise_data(self, key, mode, mask_key=None):
+        if mask_key is None:
+            mask_key = key
+        key = jax.random.PRNGKey(key)
+        mask_key = jax.random.PRNGKey(mask_key)
+
         k = 2000
 
-        fsp = torch.zeros((k // 2) + 1)
+        fsp = np.zeros((k // 2) + 1)
         fsp[3] = 1
         fsp[15] = 1
         fsp[22] = 1
         #fsp[222] = 1
-        t = torch.fft.irfft(fsp)
+        t = np.fft.irfft(fsp)
+        t -= t.mean(-1, keepdims=True)
         t /= t.std()
-        noise = torch.randn(3, k)
+        noise = jax.random.normal(key, (3, k))
+        noise -= noise.mean(-1, keepdims=True)
         if mode == 'interpolate':
-            mask0 = (torch.rand(3, k) > 0.6)
-            mask1 = ((torch.arange(k) <= (k // 4)) +
-                     (torch.arange(k) >= (3 * k // 4)))
+            mask0 = jax.random.bernoulli(mask_key, 0.4, (3, k))
+            mask1 = ((jnp.arange(k) <= (k // 4)) +
+                     (jnp.arange(k) >= (3 * k // 4)))
         elif mode == 'extrapolate':
-            mask0 = (torch.rand(3, k) > 0.3)
-            mask1 = (torch.arange(k) <= (k // 4))
+            mask0 = jax.random.bernoulli(mask_key, 0.7, (3, k))
+            mask1 = (jnp.arange(k) <= (k // 4))
         mask = mask0 * mask1
-        seen = torch.where(mask, t, noise).unsqueeze(-2).squeeze()
+        seen = jnp.where(mask, t, noise)
 
-        seen = seen - seen.mean()
         return seen, t, mask
 
     def plot_figure(self, rec, seen, t, path):
@@ -51,29 +61,29 @@ class TestInterpolation:
         ax7 = fig.add_subplot(gs[2, 2])
 
         ax1.plot(seen[0], color='grey')
-        ax1.plot(t.t(), color='blue')
-        ax1.plot(rec.squeeze()[0].t(), color='red')
+        ax1.plot(t.T, color='blue')
+        ax1.plot(rec[0, 0, 0, :], color='red')
         ax1.set_xticks([])
         ax1.set_yticks([])
         ax1.legend(['Observed', 'Actual', 'Reconstructed'])
 
-        ax2.plot(torch.fft.rfft(seen[0]), color='grey')
+        ax2.plot(np.fft.rfft(seen[0]), color='grey')
         ax2.set_xticks([])
         ax2.set_yticks([])
-        ax3.plot(torch.fft.rfft(t), color='blue')
+        ax3.plot(np.fft.rfft(t), color='blue')
         ax3.set_xticks([])
         ax3.set_yticks([])
-        ax4.plot(torch.fft.rfft(rec.squeeze()[0]), color='red')
+        ax4.plot(np.fft.rfft(rec[0, 0, 0, :]), color='red')
         ax4.set_xticks([])
         ax4.set_yticks([])
 
-        ax5.plot(torch.fft.rfft(seen[0])[:50], color='grey')
+        ax5.plot(np.fft.rfft(seen[0])[:50], color='grey')
         ax5.set_xticks([])
         ax5.set_yticks([])
-        ax6.plot(torch.fft.rfft(t)[:50], color='blue')
+        ax6.plot(np.fft.rfft(t)[:50], color='blue')
         ax6.set_xticks([])
         ax6.set_yticks([])
-        ax7.plot(torch.fft.rfft(rec.squeeze()[0])[:50], color='red')
+        ax7.plot(np.fft.rfft(rec[0, 0, 0, :])[:50], color='red')
         ax7.set_xticks([])
         ax7.set_yticks([])
 
@@ -81,29 +91,108 @@ class TestInterpolation:
             'hypercoil',
             'results/'
         )
-        fig.savefig(f'{results}/hybrid_{path}.png', bbox_inches='tight')
+        fig.savefig(f'{results}/interpolate_{path}.png', bbox_inches='tight')
 
     def test_hybrid_interpolate(self):
-        seen, t, mask = self.synthesise_data(77, 'interpolate')
+        seen0, t, mask = self.synthesise_data(77, 'interpolate', mask_key=77)
+        seen1, _, _ = self.synthesise_data(18, 'interpolate', mask_key=77)
+
+        seen = np.concatenate(
+            (seen0.reshape(3, 1, 1, -1), seen1.reshape(3, 1, 1, -1)),
+            axis=-2
+        )
 
         rec = hybrid_interpolate(
-            seen.view(3, 1, 1, -1),
-            mask.view(3, 1, 1, -1),
-            max_weighted_stage=5,
+            seen,
+            mask.reshape(3, 1, 1, -1),
+            max_consecutive_linear=15,
             frequency_thresh=0.8
         )
 
-        self.plot_figure(rec, seen, t, 'interpolate')
-
+        self.plot_figure(
+            np.array(rec)[[-1]][:, [0]][..., [-1], :],
+            seen[[-1], 0, -1, :],
+            t,
+            'hybrid-interpolate'
+        )
 
     def test_hybrid_extrapolate(self):
         seen, t, mask = self.synthesise_data(77, 'extrapolate')
 
         rec = hybrid_interpolate(
-            seen.view(3, 1, 1, -1),
-            mask.view(3, 1, 1, -1),
-            max_weighted_stage=5,
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1),
+            max_consecutive_linear=15,
             frequency_thresh=0.9
         )
 
-        self.plot_figure(rec, seen, t, 'extrapolate')
+        self.plot_figure(rec, seen, t, 'hybrid-extrapolate')
+
+    def test_linear_interpolate(self):
+        seen, t, mask = self.synthesise_data(77, 'interpolate')
+
+        rec = linear_interpolate(
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1)
+        )
+
+        self.plot_figure(rec, seen, t, 'linear-interpolate')
+
+    def test_linear_extrapolate(self):
+        seen, t, mask = self.synthesise_data(77, 'extrapolate')
+
+        rec = linear_interpolate(
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1)
+        )
+
+        self.plot_figure(rec, seen, t, 'linear-extrapolate')
+
+    def test_spectral_interpolate(self):
+        seen, t, mask = self.synthesise_data(77, 'interpolate')
+
+        rec = spectral_interpolate(
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1),
+            frequency_thresh=0.8,
+        )
+
+        self.plot_figure(rec, seen, t, 'spectral-interpolate')
+
+    def test_spectral_extrapolate(self):
+        seen, t, mask = self.synthesise_data(77, 'extrapolate')
+
+        rec = spectral_interpolate(
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1),
+            frequency_thresh=0.8,
+        )
+
+        self.plot_figure(rec, seen, t, 'spectral-extrapolate')
+
+    def test_weighted_interpolate(self):
+        seen, t, mask = self.synthesise_data(77, 'interpolate')
+
+        rec = weighted_interpolate(
+            seen.reshape(3, 1, 1, -1),
+            mask.reshape(3, 1, 1, -1),
+            stages=list(range(10, 100)) + [1500]
+        )
+
+        self.plot_figure(rec, seen, t, 'weighted-interpolate')
+
+    def test_weighted_interpolate_single_stage(self):
+        seen, t, mask = self.synthesise_data(77, 'interpolate')
+
+        kernel = centred_square_kernel(2, 1000)
+        (rec, mask), _ = _weighted_interpolate_stage(seen, mask, kernel)
+        rec = np.where(mask, rec, float('nan'))
+
+        self.plot_figure(rec, seen, t, 'weighted-singlestage2-interpolate')
+
+    def test_default_kernel(self):
+        max_stage = 5
+        ker = centred_square_kernel(3, max_stage)
+        assert np.all(ker == np.array([0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0]))
+        ker = centred_square_kernel(2, max_stage)
+        assert np.all(ker == np.array([0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0]))
