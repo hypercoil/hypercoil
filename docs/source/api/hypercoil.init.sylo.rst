@@ -3,4 +3,10 @@
 
 .. automodule:: hypercoil.init.sylo
 
-.. autofunction:: sylo_init_
+``sylo_init``
+-------------
+.. autofunction:: sylo_init
+
+``SyloInitialiser``
+-------------------
+.. autoclass:: SyloInitialiser

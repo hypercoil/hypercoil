@@ -3,4 +3,4 @@
 
 .. automodule:: hypercoil.init.mpbl
 
-.. autoclass:: BipartiteLatticeInit
+.. autofunction:: maximum_potential_bipartite_lattice

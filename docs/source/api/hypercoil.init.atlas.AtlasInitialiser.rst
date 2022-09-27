@@ -1,9 +1,9 @@
-``AtlasInit``
-=============
+``AtlasInitialiser``
+====================
 
 .. currentmodule:: hypercoil.init.atlas
 
-.. autoclass:: AtlasInit
+.. autoclass:: AtlasInitialiser
 
    .. rubric:: Methods Documentation
 

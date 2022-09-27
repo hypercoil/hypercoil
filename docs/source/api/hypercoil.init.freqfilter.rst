@@ -7,5 +7,5 @@
    :maxdepth: 2
 
    hypercoil.init.freqfilter.FreqFilterSpec
-   hypercoil.init.freqfilter.freqfilter_init_
-   hypercoil.init.freqfilter.clamp_init_
+   hypercoil.init.freqfilter.freqfilter_init
+   hypercoil.init.freqfilter.clamp_init

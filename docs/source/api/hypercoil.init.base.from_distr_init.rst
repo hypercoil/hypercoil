@@ -1,6 +1,6 @@
-``from_distr_init_``
+``from_distr_init``
 ====================
 
 .. currentmodule:: hypercoil.init.base
 
-.. autofunction:: from_distr_init_
+.. autofunction:: from_distr_init

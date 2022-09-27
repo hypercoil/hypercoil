@@ -1,6 +1,6 @@
-``clamp_init_``
-====================
+``clamp_init``
+==============
 
 .. currentmodule:: hypercoil.init.freqfilter
 
-.. autofunction:: clamp_init_
+.. autofunction:: clamp_init

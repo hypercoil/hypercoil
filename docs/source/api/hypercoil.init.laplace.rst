@@ -5,8 +5,8 @@
 
 ``laplace_init``
 ----------------
-.. autofunction:: laplace_init_
+.. autofunction:: laplace_init
 
-``LaplaceInit``
----------------
-.. autoclass:: LaplaceInit
+``LaplaceInitialiser``
+----------------------
+.. autoclass:: LaplaceInitialiser

@@ -6,5 +6,5 @@
 .. toctree::
    :maxdepth: 2
 
-   hypercoil.init.semidefinite.TangencyInit
+   hypercoil.init.semidefinite.TangencyInitialiser
    hypercoil.init.semidefinite.SemidefiniteMean

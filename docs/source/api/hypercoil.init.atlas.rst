@@ -15,4 +15,4 @@
    hypercoil.init.atlas.CortexSubcortexCIfTIAtlas
    hypercoil.init.atlas.DirichletInitVolumetricAtlas
    hypercoil.init.atlas.DirichletInitSurfaceAtlas
-   hypercoil.init.atlas.AtlasInit
+   hypercoil.init.atlas.AtlasInitialiser

@@ -3,14 +3,29 @@
 
 .. automodule:: hypercoil.init.atlasmixins
 
+Abstractions
+------------
+
+.. autoclass:: Reference
+
+.. autoclass:: Mask
+
+.. autoclass:: Compartment
+
+.. autoclass:: CompartmentSet
+
 ``~ReferenceMixin``
 -------------------
 
-.. autoclass:: _ObjectReferenceMixin
+.. autoclass:: _VolumeObjectReferenceMixin
 
-.. autoclass:: _SingleReferenceMixin
+.. autoclass:: _SurfaceObjectReferenceMixin
 
-.. autoclass:: _MultiReferenceMixin
+.. autoclass:: _VolumeSingleReferenceMixin
+
+.. autoclass:: _SurfaceSingleReferenceMixin
+
+.. autoclass:: _VolumeMultiReferenceMixin
 
 .. autoclass:: _PhantomReferenceMixin
 
