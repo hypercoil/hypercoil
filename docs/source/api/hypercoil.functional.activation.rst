@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.activation
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.activation.amplitude_tanh
    hypercoil.functional.activation.amplitude_atanh

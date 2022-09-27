@@ -1,6 +1,6 @@
 ``vertical_compression``
 ========================
 
-.. currentmodule:: hypercoil.nn.vertcom
+.. currentmodule:: hypercoil.functional.sylo
 
 .. autofunction:: vertical_compression

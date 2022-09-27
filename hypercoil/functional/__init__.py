@@ -140,6 +140,8 @@ from .sphere import (
 )
 from .sylo import (
     sylo,
+    recombine,
+    vertical_compression,
 )
 from .symmap import (
     symmap,

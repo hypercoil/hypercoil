@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.sphere
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.sphere.spherical_geodesic
    hypercoil.functional.sphere.sphere_to_normals

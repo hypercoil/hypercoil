@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.symmap
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.symmap.symmap
    hypercoil.functional.symmap.symexp

@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import distrax
 import equinox as eqx
 from collections import OrderedDict
-from typing import Dict, Literal, Optional, Tuple, Type
+from typing import Callable, Dict, Literal, Optional, Tuple, Type
 from ..engine import PyTree, Tensor
 from ..engine.paramutil import _to_jax_array
 from ..functional.linear import compartmentalised_linear
@@ -17,74 +17,21 @@ from ..init.atlas import AtlasInitialiser, BaseAtlas
 from ..init.mapparam import MappedParameter
 
 
-class AtlasLinear(eqx.Module):
-    r"""
-    Time series extraction from an atlas via a linear map.
-
-    Dimension
-    ---------
-    - Input: :math:`(N, *, V, T)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      V denotes total number of voxels or spatial locations, T denotes number
-      of time points or observations.
-    - Output: :math:`(N, *, L, T)`
-      L denotes number of labels in the provided atlas.
-
-    Parameters
-    ----------
-    atlas : Atlas object
-        A neuroimaging atlas, implemented as an instance of a subclass of
-        :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`.
-        This initialises the atlas labels from which representative time
-        series are extracted.
-    kernel_sigma : float (default None)
-        If this is a float, then a Gaussian smoothing kernel with the
-        specified width is applied to each label at initialisation.
-    noise_sigma : float (default None)
-        If this is a float, then Gaussian noise with the specified standard
-        deviation is added to the label at initialisation.
-    mask_input : bool (default False)
-        Indicates that each input contains non-atlas locations and should be
-        masked before time series extraction. If True, then the boolean tensor
-        stored in the ``mask`` field of the ``atlas`` input is used to subset
-        each input.
-    spatial_dropout : float in [0, 1) (default 0)
-        Probability of dropout for each voxel. If this is nonzero, then during
-        training each voxel's weight has some probability of being set to zero,
-        thus discounting the voxel from the time series estimate.
-        Conjecturally, this can perhaps promote learning a weight that is
-        robust to the influence of any single voxel.
-    min_voxels : positive int (default 1)
-        Minimum number of voxels that each region must contain after dropout.
-        If a random dropout results in fewer remaining voxels, then another
-        random dropout will be sampled until the criterion is satisfied. Has no
-        effect if ``spatial_dropout`` is zero.
-    domain : Domain object (default ``Identity``)
-        A domain mapper from
-        :doc:`hypercoil.init.domain <hypercoil.init.domain>`, used to specify
-        the domain of the atlas weights. An
-        :doc:`Identity <hypercoil.init.domainbase.Identity>`
-        object yields the raw atlas weights, while an
-        :doc:`Atanh <hypercoil.init.domain.Atanh>` object constrains weights
-        to ``(-a, a)``, and a :doc:`Logit <hypercoil.init.domain.Logit>`
-        object constrains weights to ``(0, a)`` by transforming the raw
-        weights through a tanh or sigmoid function, respectively. A
-        :doc:`MultiLogit <hypercoil.init.domain.MultiLogit>` domain mapper
-        lends the atlas an intuitive interpretation as a probabilistic
-        parcellation. Using an appropriate domain can ensure that weights are
-        nonnegative and that they do not grow explosively.
-    reduction : ``'mean'``, ``'absmean'``, ``'zscore'``, ``'psc'``, or ``'sum'`` (default ``'mean'``)
-        Strategy for reducing across voxels and generating a representative
+def document_atlas_lin_init(f: Callable) -> Callable:
+    atlas_lin_init_param_spec = r"""
+    normalisation : ``'mean'``, ``'absmean'``, ``'zscore'``, ``'psc'``, or None (default ``'mean'``)
+        Strategy for normalising across voxels and generating a representative
         time series for each label.
 
-        * ``sum``: Weighted sum over voxel time series.
+        * None or ``sum``: No normalisation, i.e., use the weighted sum over
+          voxel time series.
         * ``mean``: Compute the weighted mean over voxel time series.
         * ``absmean``: Compute the weighted mean over voxel time series,
           treating any negative voxel weights as though they were positive.
         * ``zscore``: Transform the sum of time series such that its temporal
           mean is 0 and its temporal standard deviation is 1.
         * ``psc``: Transform the time series such that its value indicates the
-          percent signal change from the mean. (**untested**))
+          percent signal change from the mean.
     forward_mode : ``'map'`` or ``'project'``
         Strategy for extracting regional time series from parcels.
 
@@ -107,34 +54,54 @@ class AtlasLinear(eqx.Module):
 
             &= \left(A A^\intercal\right)^{-1} A T_{in}
             \end{aligned}
-    solver : any valid driver for ``torch.linalg.lstsq``
-        LAPACK/MAGMA driver for least-squares approximation. By default, the
-        ``'gels'`` driver is used if module parameters are on CUDA and the
-        ``'gelsy'`` driver is used if they are on CPU.
+    concatenate : bool, optional (default=True)
+        Whether to concatenate the output time series across compartments."""
 
-    Attributes
+
+@document_atlas_lin_init
+class AtlasLinear(eqx.Module):
+    r"""
+    Time series extraction from an atlas via a linear map.
+
+    :Dimension: **Input :** :math:`(N, *, V, T)`
+                    N denotes batch size, `*` denotes any number of intervening
+                    dimensions, V denotes total number of voxels or spatial
+                    locations, T denotes number of time points or observations.
+                **Output :** :math:`(N, *, L, T)`
+                    L denotes number of labels in the provided atlas.
+
+    .. note::
+
+        To initialise the atlas linear module from a pre-defined atlas, use
+        the class method :meth:`from_atlas` or the
+        :class:`hypercoil.init.atlas.AtlasInitialiser` class after defining
+        the atlas as a :class:`hypercoil.init.atlas.BaseAtlas` instance.
+
+        If the module is initialised withouth an atlas, the atlas linear
+        module will be initialised from a Dirichlet distribution with
+        concentration :math:`50` for each label.
+
+    Parameters
     ----------
-    preweight : Tensor :math:`(L, V)`
-        Atlas map in the module's domain. L denotes the number of labels, and
-        V denotes the number of voxels. Identical to ``weight`` if the domain
-        is ``Identity``.
-    weight : Tensor :math:`(L, V)`
-        Representation of the atlas as a linear map from voxels to labels,
-        applied independently to each time point in each input image.
-    postweight : Tensor :math:`(L, V)`
-        Atlas map after application of spatial dropout or noise. Spatial
-        dropout has a chance of randomly removing each voxel from
-        consideration when extracting each time series. Spatial dropout
-        is applied only during training. Identical to ``weight`` if there is
-        no spatial dropout.
-    mask : Tensor :math:`(V)`
-        Boolean-valued tensor indicating the voxels that should be included as
-        inputs to the atlas transformation.
-    coors : Tensor :math:`(V, D)`
-        Spatial coordinates of each location in the atlas.
+    n_locations : Dict[str, int]
+        Number of locations (e.g., voxels or vertices) in each compartment.
+    n_labels : Dict[str, int]
+        Number of labels in each compartment.
+    limits : Dict[str, Tuple[int, int]], optional (default=None)
+        Limits of each compartment. The first element of the tuple denotes the
+        lower limit and the second element denotes the size, i.e., the number
+        of locations in the compartment -- *not* the upper limit. If None, the
+        limits are set to the default values, which are defined using the
+        cumulative sum of the number of locations in each compartment.
+    decoder : Optional[Dict[str, Tensor]], optional (default=None)
+        Decoder for labels in each compartment. The decoder is an
+        integer-valued tensor that defines the map from row numbers to label
+        numbers. If None, the decoder corresponds to the identity map -- i.e.,
+        the row numbers are the same as the label numbers.\
+    {atlas_lin_init_param_spec}
     """
     weight: Dict[str, Tensor]
-    limits: Dict[str, Tuple[float, float]]
+    limits: Dict[str, Tuple[int, int]]
     decoder: Optional[Dict[str, Tensor]]
     normalisation: (
         Optional[Literal['mean', 'absmean', 'zscore', 'psc']]) = None
@@ -145,7 +112,7 @@ class AtlasLinear(eqx.Module):
         self,
         n_locations: Dict[str, int],
         n_labels: Dict[str, int],
-        limits: Dict[str, Tuple[float, float]] = None,
+        limits: Dict[str, Tuple[int, int]] = None,
         decoder: Optional[Dict[str, Tensor]] = None,
         normalisation: (
             Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
@@ -194,6 +161,7 @@ class AtlasLinear(eqx.Module):
         return limits
 
     @classmethod
+    @document_atlas_lin_init
     def from_atlas(
         cls,
         atlas: BaseAtlas,
@@ -214,6 +182,20 @@ class AtlasLinear(eqx.Module):
         key: 'jax.random.PRNGKey',
         **params,
     ) -> PyTree:
+        """
+        Initialise the atlas module from an instance of a ``BaseAtlas``
+        subclass, perhaps representing *a priori* knowledge about the
+        functional organisation of the brain.
+
+        Parameters
+        ----------
+        atlas : Atlas object
+            A neuroimaging atlas, implemented as an instance of a subclass of
+            :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`.
+            This initialises the atlas labels from which representative time
+            series are extracted.\
+        {atlas_lin_init_param_spec}
+        """
         m_key, i_key = jax.random.split(key, 2)
         n_locations = {c: o.size for c, o in atlas.compartments.items()}
         n_labels = {c: atlas.maps[c].shape[-2]

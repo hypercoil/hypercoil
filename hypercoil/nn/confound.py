@@ -259,7 +259,8 @@ class LinearCombinationSelector(LinearRFNN):
     Model selection as a linear combination.
 
     Learn linear combinations of candidate vectors to produce a model. Thin
-    wrapper around :class:`LinearRFNN`.
+    wrapper around :class:`LinearRFNN` without the convolutional layers for
+    learning response functions.
 
     :Dimension: **Input :** :math:`(*, I, T)`
                     ``*`` denotes any number of preceding dimensions,

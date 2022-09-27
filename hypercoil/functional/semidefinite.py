@@ -131,6 +131,21 @@ def document_semidefinite_mean(f: Callable) -> Callable:
         Indicates that the input matrix must be nonsingular. If this is
         False, then the Moore-Penrose pseudoinverse is computed instead of
         the inverse."""
+    semidefinite_mean_psi_spec = r"""
+    psi : float in [0, 1]
+        Conditioning factor to promote positive definiteness. If this is in
+        (0, 1], the original input will be replaced with a convex combination
+        of the input and an identity matrix.
+
+        :math:`\hat{X} = (1 - \psi) X + \psi I`
+
+        A suitable value can be used to ensure that all eigenvalues are
+        positive and therefore guarantee that the matrix is in the domain of
+        projection operations."""
+    semidefinite_mean_maxiter_spec = """
+    max_iter : nonnegative int
+        The maximum number of iterations of gradient descent to run before
+        termination."""
     semidefinite_mean_return_spec = """
     Returns
     -------
@@ -146,6 +161,8 @@ def document_semidefinite_mean(f: Callable) -> Callable:
         semidefinite_mean_input_spec=semidefinite_mean_input_spec,
         semidefinite_mean_axis_spec=semidefinite_mean_axis_spec,
         semidefinite_mean_nonsingular_spec=semidefinite_mean_nonsingular_spec,
+        semidefinite_mean_psi_spec=semidefinite_mean_psi_spec,
+        semidefinite_mean_maxiter_spec=semidefinite_mean_maxiter_spec,
         semidefinite_mean_return_spec=semidefinite_mean_return_spec,
     )
     f.__doc__ = f.__doc__.format_map(fmt)
@@ -337,10 +354,8 @@ def mean_geom_spd(
     Parameters
     ----------\
     {semidefinite_mean_input_spec}\
-    {semidefinite_mean_axis_spec}
-    max_iter : nonnegative int
-        The maximum number of iterations of gradient descent to run before
-        termination.\
+    {semidefinite_mean_axis_spec}\
+    {semidefinite_mean_maxiter_spec}\
     {symmap_param_spec}
     \
     {semidefinite_mean_return_spec}

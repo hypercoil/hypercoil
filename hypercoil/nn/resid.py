@@ -3,36 +3,27 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
 Residualise tensor block via least squares. No parameters here.
-
-.. warning::
-    When using ``torch``, we have found in some cases that the least-squares
-    fit returned was incorrect for reasons that are not clear. (Incorrect
-    results are returned by
-    ``torch.linalg.lstsq``, although correct results are returned if
-    ``torch.linalg.pinv`` is used instead.) Verify that results are
-    reasonable when using this operation.
-
-    It is not clear whether the same is true for ``jax``. Caution is advised.
 """
 import jax
 from typing import Literal, Optional
 from equinox import Module
 from ..engine import Tensor
-from ..functional.resid import residualise
+from ..functional.resid import residualise, document_linreg
 
 
 #TODO: assess backprop properties of this approach vs conditional correlation
 #TODO: Do we really need this, or can we just use eqx.nn.Lambda? Turns out we
 #      can't without making it ugly, so we'll keep this for now.
+@document_linreg
 class Residualise(Module):
     """
-    .. warning::
-        In some cases, we have found that the least-squares fit returned is
-        incorrect for reasons that are not clear. (Incorrect results are
-        returned by
-        ``torch.linalg.lstsq``, although correct results are returned if
-        ``torch.linalg.pinv`` is used instead.) Verify that results are
-        reasonable when using this operation.
+    Residualise a tensor block via ordinary linear least squares.
+    \
+    {regress_warning}
+
+    Parameters
+    ----------\
+    {regress_param_spec}
     """
     rowvar: bool = True
     l2: float = 0.0

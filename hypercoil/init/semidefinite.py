@@ -10,18 +10,47 @@ import jax.numpy as jnp
 import distrax
 import equinox as eqx
 from typing import Callable, Optional, Sequence, Tuple, Type, Union
+
+from hypercoil.engine.docutil import NestedDocParse
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
 from ..engine import PyTree, Tensor
 from ..engine.noise import (
     Symmetric, MatrixExponential
 )
-from ..functional import (
+from ..functional.semidefinite import (
     mean_euc_spd, mean_harm_spd,
     mean_logeuc_spd, mean_geom_spd,
+    document_semidefinite_mean,
 )
 
 
+def document_semidefinite_block_mean(f: Callable) -> Callable:
+    semidefinite_block_mean_dim = """N denotes the number of observations over
+                    which each mean is computed, ``*`` denotes any number of
+                    preceding dimensions, and D denotes the size of each square
+                    positive semidefinite matrix. If the axis attribute of the
+                    mean specifications are configured appropriately, N need
+                    not correspond to the first axis of the input dataset.
+                **Output :** :math:`(K, *, D, D)`
+                    K denotes the number of mean specs provided."""
+    semidefinite_block_mean_spec = """
+    mean_specs : list(_SemidefiniteMean objects)
+        List of specifications for estimating a measure of central tendency in
+        the positive semidefinite cone. SemidefiniteMean subclasses are found
+        at `hypercoil.init`.
+    data : Tensor
+        Input dataset over which each mean is to be estimated."""
+
+    fmt = NestedDocParse(
+        semidefinite_block_mean_dim=semidefinite_block_mean_dim,
+        semidefinite_block_mean_spec=semidefinite_block_mean_spec
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
+
+
+@document_semidefinite_block_mean
 def mean_block_spd(
     mean_specs: list[Callable],
     data: Tensor
@@ -32,26 +61,16 @@ def mean_block_spd(
     Dimension
     ---------
     - data : :math:`(N, *, D, D)`
-        N denotes the number of observations over which each mean is computed,
-        `*` denotes any number of preceding dimensions, and D denotes the size
-        of each square positive semidefinite matrix. If the axis attribute of
-        the mean specifications are configured appropriately, N need not
-        correspond to the first axis of the input dataset.
-    - output : :math:`(K, *, D, D)`
-        K denotes the number of mean specs provided.
+        {semidefinite_block_mean_dim}
 
     Parameters
-    ----------
-    mean_specs : list(_SemidefiniteMean objects)
-        List of specifications for estimating a measure of central tendency in
-        the positive semidefinite cone. SemidefiniteMean subclasses are found
-        at `hypercoil.init`.
-    data : Tensor
-        Input dataset over which each mean is to be estimated.
+    ----------\
+    {semidefinite_block_mean_spec}
     """
     return jnp.stack([spec(data) for spec in mean_specs])
 
 
+@document_semidefinite_block_mean
 def mean_apply_block(
     mean_specs: list[Callable],
     data: Tensor
@@ -63,22 +82,12 @@ def mean_apply_block(
     Dimension
     ---------
     - data : :math:`(K, N, *, D, D)`
-        K denotes the number of mean specs provided. N denotes the number of
-        observations over which each mean is computed, `*` denotes any number
-        of intervening dimensions, and D denotes the size of each square
-        positive semidefinite matrix. If the axis attribute of the mean
-        specifications are configured appropriately, N need not correspond to
-        the first axis of the input dataset.
-    - output : :math:`(K, *, D, D)`
+        K denotes the number of mean specs provided. \
+        {semidefinite_block_mean_dim}
 
     Parameters
-    ----------
-    mean_specs : list(_SemidefiniteMean objects)
-        List of specifications for estimating a measure of central tendency in
-        the positive semidefinite cone. SemidefiniteMean subclasses are found
-        at `hypercoil.init`.
-    data : Tensor
-        Input dataset over which each mean is to be estimated.
+    ----------\
+    {semidefinite_block_mean_spec}
     """
     return jnp.stack([spec(d) for spec, d in zip(mean_specs, data)])
 
@@ -201,82 +210,47 @@ class _SemidefiniteMean(eqx.Module):
     axis: Union[int, Sequence[int]] = (0,)
 
 
+@document_semidefinite_mean
 class SPDEuclideanMean(_SemidefiniteMean):
-    r"""
-    Batch-wise Euclidean mean of tensors in the positive semidefinite cone.
-
-    This is the familiar arithmetic mean:
-
-    :math:`\frac{1}{N}\sum_{i=1}^N X_{i}`
-
-    Dimension
-    ---------
-    - Input: :math:`(N, *, D, D)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      D denotes matrix row and column dimension. If the axis attribute is
-      configured appropriately, N need not correspond to the first axis of the
-      input dataset.
-    - Output: :math:`(*, D, D)`
+    """\
+    {euclidean_mean_desc}
+    \
+    {semidefinite_mean_dim}
 
     Parameters
-    ----------
-    axis : int (default 0)
-        Axis corresponding to observations over which the mean is computed.
+    ----------\
+    {semidefinite_mean_axis_spec}
     """
     def __call__(self, input):
         return mean_euc_spd(input, axis=self.axis)
 
 
+@document_semidefinite_mean
 class SPDHarmonicMean(_SemidefiniteMean):
-    r"""
-    Batch-wise harmonic mean of tensors in the positive semidefinite cone.
-
-    The harmonic mean is computed as the matrix inverse of the Euclidean mean
-    of matrix inverses:
-
-    :math:`\left(\frac{1}{N}\sum_{i=1}^N X_{i}^{-1}\right)^{-1}`
-
-    Dimension
-    ---------
-    - Input: :math:`(N, *, D, D)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      D denotes matrix row and column dimension. If the axis attribute is
-      configured appropriately, N need not correspond to the first axis of the
-      input dataset.
-    - Output: :math:`(*, D, D)`
+    """\
+    {harmonic_mean_desc}
+    \
+    {semidefinite_mean_dim}
 
     Parameters
-    ----------
-    axis : int (default 0)
-        Axis corresponding to observations over which the mean is computed.
+    ----------\
+    {semidefinite_mean_axis_spec}
     """
     def __call__(self, input):
         return mean_harm_spd(input, axis=self.axis)
 
 
+@document_semidefinite_mean
 class SPDLogEuclideanMean(_SemidefiniteMean):
-    r"""
-    Batch-wise log-Euclidean mean of tensors in the positive semidefinite
-    cone.
-
-    The log-Euclidean mean is computed as the matrix exponential of the mean
-    of matrix logarithms.
-
-    :math:`\exp_M \left(\frac{1}{N}\sum_{i=1}^N \log_M X_{i}\right)`
-
-    Dimension
-    ---------
-    - Input: :math:`(N, *, D, D)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      D denotes matrix row and column dimension. If the axis attribute is
-      configured appropriately, N need not correspond to the first axis of the
-      input dataset.
-    - Output: :math:`(*, D, D)`
+    """\
+    {logeuc_mean_desc}
+    \
+    {semidefinite_mean_dim}
 
     Parameters
-    ----------
-    axis : int (default 0)
-        Axis corresponding to observations over which the mean is computed.
+    ----------\
+    {semidefinite_mean_axis_spec}\
+    {semidefinite_psi_spec}
     """
     psi: float = 0.
 
@@ -285,56 +259,18 @@ class SPDLogEuclideanMean(_SemidefiniteMean):
                                recondition='convexcombination')
 
 
+@document_semidefinite_mean
 class SPDGeometricMean(_SemidefiniteMean):
-    r"""
-    Batch-wise geometric mean of tensors in the positive semidefinite cone.
-
-    The geometric mean is computed via gradient descent along the geodesic on
-    the manifold. In brief:
-
-    Initialisation :
-     - The estimate of the mean is initialised to the Euclidean mean.
-    Iteration :
-     - Using the working estimate of the mean as the point of tangency, the
-       tensors are projected into a tangent space.
-     - The arithmetic mean of the tensors is computed in tangent space.
-     - This mean is projected back into the positive semidefinite cone using
-       the same point of tangency. It now becomes a new working estimate of
-       the mean and thus a new point of tangency.
-    Termination / convergence :
-     - The algorithm terminates either when the Frobenius norm of the
-       difference between the new estimate and the previous estimate is less
-       than a specified threshold, or when a maximum number of iterations has
-       been attained.
-
-    Dimension
-    ---------
-    - Input: :math:`(N, *, D, D)`
-      N denotes batch size, `*` denotes any number of intervening dimensions,
-      D denotes matrix row and column dimension. If the axis attribute is
-      configured appropriately, N need not correspond to the first axis of the
-      input dataset.
-    - Output: :math:`(*, D, D)`
+    r"""\
+    {geometric_mean_desc}
+    \
+    {semidefinite_mean_dim}
 
     Parameters
-    ----------
-    axis : int (default 0)
-        Axis corresponding to observations over which the mean is computed.
-    psi : float in [0, 1]
-        Conditioning factor to promote positive definiteness. If this is in
-        (0, 1], the original input will be replaced with a convex combination
-        of the input and an identity matrix.
-
-        :math:`\hat{X} = (1 - \psi) X + \psi I`
-
-        A suitable value can be used to ensure that all eigenvalues are
-        positive and therefore guarantee that the matrix is in the domain of
-        projection operations.
-    eps : float
-        The minimum value of the Frobenius norm required for convergence.
-    max_iter : nonnegative int
-        The maximum number of iterations of gradient descent to run before
-        termination.
+    ----------\
+    {semidefinite_mean_axis_spec}\
+    {semidefinite_mean_psi_spec}\
+    {semidefinite_mean_maxiter_spec}
     """
     psi: float = 0.
     eps: float = 1e-5
@@ -342,7 +278,9 @@ class SPDGeometricMean(_SemidefiniteMean):
 
     def __call__(self, input):
         return mean_geom_spd(
-            input, axis=self.axis, psi=self.psi,
-            eps=self.eps, max_iter=self.max_iter,
+            input,
+            axis=self.axis,
+            psi=self.psi,
+            max_iter=self.max_iter,
             recondition='convexcombination'
         )

@@ -1070,8 +1070,6 @@ class AtlasInitialiser(MappedInitialiser):
 
     Parameters
     ----------
-    tensor : Tensor
-        Tensor to initialise in-place.
     atlas : Atlas object
         Atlas object to use for tensor initialisation.
     normalise : bool (default False)
@@ -1087,17 +1085,6 @@ class AtlasInitialiser(MappedInitialiser):
     noise_sigma : float or None (default None)
         If this is not None, then Gaussian noise with the specified standard
         deviation is added to each label.
-    domain : :doc:`Domain <hypercoil.functional.domainbase>` or None
-        If this is a ``Domain`` instance, then the tensor dict is instead
-        initialised as the preimage of the specified atlas with respect to the
-        domain transformation. If this is None, then ``AtlasInit`` will search
-        the atlas's ``init`` attribute for a domain; if it finds none, then it
-        will default to an identity domain. Note that, for atlases initialised
-        from a Dirichlet distribution, ``AtlasInit`` will by default find a
-        :doc:`MultiLogit <hypercoil.functional.domain.MultiLogit>`
-        domain and accordingly place the pre-weights in the preimage of a
-        softmax so that the weights actually seen by data remain on the
-        probability simplex as the parcellation is learned.
     """
 
     atlas: BaseAtlas

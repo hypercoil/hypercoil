@@ -16,7 +16,8 @@ from ..functional.sylo import recombine
 
 
 class Recombinator(eqx.Module):
-    r"""Linear recombinator layer for feature maps. It should also be possible
+    r"""
+    Linear recombinator layer for feature maps. It should also be possible
     to substitute a 1x1 convolutional layer with similar results.
 
     Parameters

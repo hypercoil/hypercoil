@@ -4,8 +4,8 @@
 .. automodule:: hypercoil.nn.interpolate
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.nn.interpolate.SpectralInterpolate
-   hypercoil.nn.interpolate.WeightedInterpolate
+   hypercoil.nn.interpolate.LinearInterpolate
    hypercoil.nn.interpolate.HybridInterpolate

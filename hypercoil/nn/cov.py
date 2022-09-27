@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 from typing import Callable, Literal, Optional
-from ..engine import Tensor
+from ..engine import NestedDocParse, Tensor
 from ..engine.paramutil import _to_jax_array
 from ..functional import expand_outer, toeplitz
 
@@ -206,7 +206,7 @@ def document_cov_nn(cls):
         :math:`e^0`). The ``weight`` attribute is a property that is generated
         from these parameters as needed."""
 
-    cls.__doc__ = cls.__doc__.format(
+    fmt = NestedDocParse(
         unary_nn_spec=unary_nn_spec,
         binary_nn_spec=binary_nn_spec,
         weighted_nn_spec=weighted_nn_spec,
@@ -216,21 +216,13 @@ def document_cov_nn(cls):
         weighted_attr_spec=weighted_attr_spec,
         toeplitz_attr_spec=toeplitz_attr_spec,
     )
+    cls.__doc__ = cls.__doc__.format_map(fmt)
     return cls
 
 
 class BaseCovariance(eqx.Module):
     """
     Base class for modules that estimate covariance or derived measures.
-
-    ``_Cov`` provides a common initialisation pattern together with methods
-    for:
-
-    * injecting noise into the weights to regularise them
-    * toggling between train and test modes
-    * mapping between the learnable ``'preweight'`` internally stored by the
-      module and the weight that is actually ``'seen'`` by the data where this
-      is necessary
 
     Consult specific implementations for comprehensive documentation.
     """
@@ -523,7 +515,7 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
         )
 
 
-#TODO: I hate having these __init__ methods -- feels very much like an anti-
+#TODO: I don't like these __init__ methods -- feels very much like an anti-
 # pattern. But I can't think of a better way to do it right now.
 
 

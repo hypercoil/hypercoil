@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.utils
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.utils.conform_mask
    hypercoil.functional.utils.apply_mask

@@ -1,6 +1,6 @@
 ``EliminationSelector``
 =======================
 
-.. currentmodule:: hypercoil.nn.select
+.. currentmodule:: hypercoil.nn.confound
 
 .. autoclass:: EliminationSelector

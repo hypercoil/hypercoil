@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.matrix
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.matrix.cholesky_invert
    hypercoil.functional.matrix.symmetric

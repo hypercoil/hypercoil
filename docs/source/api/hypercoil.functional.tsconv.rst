@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.tsconv
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.tsconv.conv
    hypercoil.functional.tsconv.tsconv2d

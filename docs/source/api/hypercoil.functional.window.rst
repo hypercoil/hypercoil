@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.window
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.window.sample_windows
    hypercoil.functional.window.sample_nonoverlapping_windows_existing_ax

@@ -12,6 +12,29 @@ from ..engine import (
 
 
 def document_linreg(f: Callable) -> Callable:
+    regress_warning = """
+    .. warning::
+        When using ``torch``, we have found in some cases that the
+        least-squares fit returned was incorrect for reasons that are not
+        clear. (Incorrect results are returned by
+        ``torch.linalg.lstsq``, although correct results are returned if
+        ``torch.linalg.pinv`` is used instead.) Verify that results are
+        reasonable when using this operation.
+
+        It is not clear whether the same is true for ``jax``. Caution is
+        advised."""
+
+    regress_dim = """
+    :Dimension: **Input Y :** :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
+                    N denotes batch size, `*` denotes any number of
+                    intervening dimensions, :math:`C_Y` denotes number of data
+                    channels or variables, obs denotes number of observations
+                    per channel
+                **Input X :** :math:`(N, *, C_X, obs)` or :math:`(N, *, obs, C_X)`
+                    :math:`C_X` denotes number of data channels or variables
+                **Output :**  :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
+                    As above."""
+
     regress_param_spec = """
     rowvar : bool (default True)
         Indicates that the last axis of the input tensor is the observation
@@ -25,6 +48,8 @@ def document_linreg(f: Callable) -> Callable:
         returned. The orthogonal tensor is the projection of `Y` onto the
         span of `X` (i.e., the least-squares solution)."""
     fmt = NestedDocParse(
+        regress_warning=regress_warning,
+        regress_dim=regress_dim,
         regress_param_spec=regress_param_spec,
     )
     f.__doc__ = f.__doc__.format_map(fmt)
@@ -41,32 +66,15 @@ def residualise(
 ) -> Tensor:
     r"""
     Residualise a tensor block via ordinary linear least squares.
-
-    .. warning::
-        When using ``torch``, we have found in some cases that the
-        least-squares fit returned was incorrect for reasons that are not
-        clear. (Incorrect results are returned by
-        ``torch.linalg.lstsq``, although correct results are returned if
-        ``torch.linalg.pinv`` is used instead.) Verify that results are
-        reasonable when using this operation.
-
-        It is not clear whether the same is true for ``jax``. Caution is
-        advised.
+    \
+    {regress_warning}
 
     .. note::
         The :doc:`conditional covariance <hypercoil.functional.cov.conditionalcov>`
         or :doc:`conditional correlation <hypercoil.functional.cov.conditionalcorr>`
         may be used instead where appropriate.
-
-    :Dimension: **Input Y :** :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
-                    N denotes batch size, `*` denotes any number of
-                    intervening dimensions, :math:`C_Y` denotes number of data
-                    channels or variables, obs denotes number of observations
-                    per channel
-                **Input X :** :math:`(N, *, C_X, obs)` or :math:`(N, *, obs, C_X)`
-                    :math:`C_X` denotes number of data channels or variables
-                **Output :**  :math:`(N, *, C_Y, obs)` or :math:`(N, *, obs, C_Y)`
-                    As above.
+    \
+    {regress_dim}
 
     Parameters
     ----------

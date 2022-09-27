@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.nn.semidefinite
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.nn.semidefinite.TangentProject
    hypercoil.nn.semidefinite.BatchTangentProject

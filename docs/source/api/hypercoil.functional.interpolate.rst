@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.interpolate
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.interpolate.hybrid_interpolate
    hypercoil.functional.interpolate.linear_interpolate

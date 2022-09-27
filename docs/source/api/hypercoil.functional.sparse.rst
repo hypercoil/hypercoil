@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.sparse
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.sparse.random_sparse,
    hypercoil.functional.sparse.spdiagmm

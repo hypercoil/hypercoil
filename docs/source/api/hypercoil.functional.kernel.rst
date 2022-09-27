@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.kernel
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.kernel.linear_kernel
    hypercoil.functional.kernel.param_norm

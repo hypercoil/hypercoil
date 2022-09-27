@@ -8,22 +8,30 @@ import jax
 import equinox as eqx
 from typing import Optional
 from ..engine import Tensor
-from ..functional import (
+from ..functional.interpolate import (
     spectral_interpolate,
     linear_interpolate,
-    hybrid_interpolate
+    hybrid_interpolate,
+    document_interpolation,
 )
 
 
+@document_interpolation
 class SpectralInterpolate(eqx.Module):
     """
     :doc:`Spectral interpolation <hypercoil.functional.interpolate.spectral_interpolate>`
     module.
+    \
+    {spectral_interpolate_long_desc}
+
+    Parameters
+    ----------\
+    {interpolate_spectral_spec}
     """
     oversampling_frequency: float = 8
     maximum_frequency: float = 1
     sampling_period: float = 1
-    thresh: float = 0
+    frequency_thresh: float = 0
 
     def __call__(
         self,
@@ -38,7 +46,7 @@ class SpectralInterpolate(eqx.Module):
             oversampling_frequency=self.oversampling_frequency,
             maximum_frequency=self.maximum_frequency,
             sampling_period=self.sampling_period,
-            thresh=self.thresh
+            frequency_thresh=self.frequency_thresh
         )
 
 
@@ -60,14 +68,22 @@ class LinearInterpolate(eqx.Module):
         )
 
 
+@document_interpolation
 class HybridInterpolate(eqx.Module):
     """
     :doc:`Hybrid interpolation <hypercoil.functional.interpolate.hybrid_interpolate>`
     module.
+    \
+    {hybrid_interpolate_long_desc}
+
+    Parameters
+    ----------\
+    {interpolate_hybrid_spec}
     """
     max_consecutive_linear: int = 3
     oversampling_frequency: float = 8
     maximum_frequency: float = 1
+    sampling_period: float = 1
     frequency_thresh: float = 0.3
 
     def __call__(
@@ -83,5 +99,6 @@ class HybridInterpolate(eqx.Module):
             max_consecutive_linear=self.max_consecutive_linear,
             oversampling_frequency=self.oversampling_frequency,
             maximum_frequency=self.maximum_frequency,
+            sampling_period=self.sampling_period,
             frequency_thresh=self.frequency_thresh
         )

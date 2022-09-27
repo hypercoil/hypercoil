@@ -4,7 +4,7 @@
 .. automodule:: hypercoil.functional.fourier
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.functional.fourier.product_filter
    hypercoil.functional.fourier.product_filtfilt

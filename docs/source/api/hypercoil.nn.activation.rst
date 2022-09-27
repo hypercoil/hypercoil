@@ -4,6 +4,7 @@
 .. automodule:: hypercoil.nn.activation
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    hypercoil.nn.activation.CorrelationNorm
+   hypercoil.nn.activation.Isochor
