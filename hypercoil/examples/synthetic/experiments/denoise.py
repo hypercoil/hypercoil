@@ -131,7 +131,7 @@ def model_selection_experiment(
         #      so whatever
         init_distr = Diagonal(init_distr, artefact_dim)
         DistributionInitialiser.init(
-            model, distribution=init_distr, param_name='#0.weight')
+            model, distribution=init_distr, where='#0.weight')
         # model[0].weight[:] = (
         #     torch.eye(artefact_dim) + 0.1 * torch.rand(artefact_dim, artefact_dim)
         # )

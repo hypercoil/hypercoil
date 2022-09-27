@@ -100,7 +100,7 @@ def shallow_autoencoder_experiment(
                 name='MSE',
                 nu=1.0),
             apply=lambda arg: UnpackingLossArgument(
-                X=arg.input,
+                Y_hat=arg.input,
                 Y=arg.target
             )
         )

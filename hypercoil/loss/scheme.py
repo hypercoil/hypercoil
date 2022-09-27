@@ -126,7 +126,8 @@ class LossScheme(eqx.Module):
             )
         ).format()
 
-
+    #TODO: Check if the multiplier for each loss is 0, and if so, don't
+    #      evaluate it.
     def __call__(self, *pparams, key='jax.random.PRNGKey', **params):
         total_loss = 0
         all_items = {}

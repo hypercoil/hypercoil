@@ -162,11 +162,11 @@ def atlas_experiment(
         model = DistributionInitialiser.init(
             model,
             distribution=distrax.Uniform(0, 1),
-            param_name='weight$all',
+            where='weight$all',
             key=key_m)
         X = ts
     model = ProbabilitySimplexParameter.map(
-        model, param_name='weight$all', axis=-2)
+        model, where='weight$all', axis=-2)
 
     opt = optax.adam(learning_rate=lr)
     opt_state = opt.init(eqx.filter(model, eqx.is_inexact_array))

@@ -256,7 +256,12 @@ class MSELoss(Loss):
             key=key,
         )
 
-    def __call__(self, Y: Tensor, Y_hat: Tensor) -> float:
+    def __call__(
+        self,
+        Y: Tensor,
+        Y_hat: Tensor,
+        key: Optional['jax.random.PRNGKey'] = None
+    ) -> float:
         return super().__call__(X=Y, Y=Y_hat)
 
 

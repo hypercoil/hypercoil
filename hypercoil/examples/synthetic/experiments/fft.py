@@ -144,7 +144,7 @@ def frequency_band_identification_experiment(
             fftfilter, distribution=distrax.Normal(0.5, 0.01), key=key_m,
         )
         fftfilter = ProbabilitySimplexParameter.map(
-            fftfilter, axis=0, param_name='weight')
+            fftfilter, axis=0, where='weight')
 
     class FFTSeq(eqx.Module):
         filter: PyTree
@@ -172,7 +172,7 @@ def frequency_band_identification_experiment(
         weight=jnp.ones((1, time_dim)),
     )
     model = StochasticParameter.wrap(
-        model, param_name='weight', transform=dropout)
+        model, where='weight', transform=dropout)
 
     Y = Y[test_band]
 
