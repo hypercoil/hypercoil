@@ -6,11 +6,9 @@ Functions supporting convolution of time series and other data.
 """
 import jax
 import jax.numpy as jnp
-from collections.abc import Iterable
-from itertools import repeat
 from typing import Callable, List, Literal, Optional, Sequence, Tuple, Union
 from equinox.nn.conv import _ntuple
-from ..engine import Tensor, atleast_4d
+from ..engine import NestedDocParse, Tensor, atleast_4d
 
 
 torch_dims = {
@@ -19,6 +17,68 @@ torch_dims = {
     2: ('NCHW', 'OIHW', 'NCHW'),
     3: ('NCHWD', 'OIHWD', 'NCHWD'),
 }
+
+
+def document_time_series_convolution(f: Callable) -> Callable:
+    ts_conv_dim = r"""
+    :Dimension: **Input :** :math:`(N, *, C, obs)`
+                    N denotes batch size, ``*`` denotes any number of
+                    intervening dimensions, C denotes number of data channels
+                    or variables, obs denotes number of observations per
+                    channel.
+                **Weight :** :math:`(C_o, K, *, C\ \mathrm{or}\ 1, R)`
+                    :math:`C_o` denotes number of output channels, K denotes
+                    number of input channels (equivalent to the maximum degree
+                    of the polynomial), and R < obs denotes the number of
+                    observations viewed at once (i.e., in a single
+                    convolutional window)
+                **Output :** :math:`(N, C_o, *, C, obs)`
+                    As above."""
+
+    basis_conv_spec = """
+    X : Tensor
+        Input dataset to the basis functions. The last two dimensions are
+        seen by each kernel channel. For time series data, these could be
+        variables and sequential observations.
+    weight : Tensor
+        Basis convolution kernel. The first dimension corresponds to the
+        output channels and the second to the input channels, each of which
+        corresponds to the evaluation of a basis function over ``X``. The
+        final dimension corresponds to the number of observations convolved
+        together. For a time series, this corresponds to ``R // 2`` past
+        frames, ``R // 2`` future frames, and the current frame. For a time
+        series, the penultimate dimension determines whether the same
+        convolution is applied to all variables (if it is 1) or
+        variable-specific convolutions can be learned (if it is equal to the
+        number of variables). To permit some diversity in kernels while
+        enforcing consistency across variables, it is possible to penalise
+        a measure of spread such as the variance across the variable axis.
+    include_const : bool (default False)
+        Indicates that a constant or intercept term should be included. The
+        first channel of the weight sees the constant term.
+    bias : Tensor or None
+        Bias term for convolution. See ``torch.conv2d`` documentation for
+        details.
+    padding : 2-tuple or None
+        Padding for convolution, as for ``torch.conv2d``. If not explicitly
+        specified, this will default to ``'time series'`` padding: no padding
+        in the penultimate axis, and ``R // 2`` in the final axis.
+    **params
+        Additional parameters can be passed to ``torch.conv2d``."""
+
+    basis_conv_return_spec = """
+    Returns
+    -------
+    Tensor
+        Input dataset transformed via basis channel convolution."""
+
+    fmt = NestedDocParse(
+        ts_conv_dim=ts_conv_dim,
+        basis_conv_spec=basis_conv_spec,
+        basis_conv_return_spec=basis_conv_return_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
 
 
 def conv(
@@ -63,6 +123,7 @@ def conv(
     return out
 
 
+@document_time_series_convolution
 def tsconv2d(
     X: Tensor,
     weight: Tensor,
@@ -81,6 +142,8 @@ def tsconv2d(
 
     Padding can be applied to the initial or final observations of the input
     dataset, or both.
+    \
+    {ts_conv_dim}
     """
     X = _configure_input_for_ts_conv(X)
     weight = _configure_weight_for_ts_conv(weight)
@@ -96,6 +159,7 @@ def tsconv2d(
     )
 
 
+@document_time_series_convolution
 def basisconv2d(
     X: Tensor,
     weight: Tensor,
@@ -106,63 +170,19 @@ def basisconv2d(
     conv_fn: Optional[Callable] = None,
     **params
 ) -> Tensor:
-    r"""
+    """
     Perform convolution using basis function channel mapping.
 
     Convolution using a kernel whose ith input channel evaluates the ith basis
     function over the input dataset.
-
-    :Dimension: **Input :** :math:`(N, *, C, obs)`
-                    N denotes batch size, ``*`` denotes any number of
-                    intervening dimensions, C denotes number of data channels
-                    or variables, obs denotes number of observations per
-                    channel.
-                **Weight :** :math:`(C_o, K, *, C\ \mathrm{or}\ 1, R)`
-                    :math:`C_o` denotes number of output channels, K denotes
-                    number of input channels (equivalent to the maximum degree
-                    of the polynomial), and R < obs denotes the number of
-                    observations viewed at once (i.e., in a single
-                    convolutional window)
-                **Output :** :math:`(N, C_o, *, C, obs)`
-                    As above.
+    \
+    {ts_conv_dim}
 
     Parameters
-    ----------
-    X : Tensor
-        Input dataset to the basis functions. The last two dimensions are
-        seen by each kernel channel. For time series data, these could be
-        variables and sequential observations.
-    weight : Tensor
-        Basis convolution kernel. The first dimension corresponds to the
-        output channels and the second to the input channels, each of which
-        corresponds to the evaluation of a basis function over ``X``. The
-        final dimension corresponds to the number of observations convolved
-        together. For a time series, this corresponds to ``R // 2`` past
-        frames, ``R // 2`` future frames, and the current frame. For a time
-        series, the penultimate dimension determines whether the same
-        convolution is applied to all variables (if it is 1) or
-        variable-specific convolutions can be learned (if it is equal to the
-        number of variables). To permit some diversity in kernels while
-        enforcing consistency across variables, it is possible to penalise
-        a measure of spread such as the variance across the variable axis.
-    include_const : bool (default False)
-        Indicates that a constant or intercept term should be included. The
-        first channel of the weight sees the constant term.
-    bias : Tensor or None
-        Bias term for convolution. See ``torch.conv2d`` documentation for
-        details.
-    padding : 2-tuple or None
-        Padding for convolution, as for ``torch.conv2d``. If not explicitly
-        specified, this will default to ``'time series'`` padding: no padding
-        in the penultimate axis, and ``R // 2`` in the final axis.
-    **params
-        Additional parameters can be passed to ``torch.conv2d``.
-
-    Returns
-    -------
-    out : Tensor
-        Input dataset transformed via convolution over basis function-mapped
-        channels.
+    ----------\
+    {basis_conv_spec}
+    \
+    {basis_conv_return_spec}
     """
     weight = _configure_weight_for_ts_conv(weight)
     assert weight.shape[1] - include_const == len(basis_functions)
@@ -182,6 +202,7 @@ def basisconv2d(
     )
 
 
+@document_time_series_convolution
 def polyconv2d(
     X: Tensor,
     weight: Tensor,
@@ -192,7 +213,7 @@ def polyconv2d(
     conv_fn: Optional[Callable] = None,
     **params
 ) -> Tensor:
-    r"""
+    """
     Perform convolution using a polynomial channel basis.
 
     Convolution using a kernel whose ith input channel views the input dataset
@@ -202,58 +223,14 @@ def polyconv2d(
         This function automatically creates a channel for each specified
         power. If your input already includes a channel for each power, you
         should use ``tsconv2d`` instead.
-
-    :Dimension: **Input :** :math:`(N, *, C, obs)`
-                    N denotes batch size, ``*`` denotes any number of
-                    intervening dimensions, C denotes number of data channels
-                    or variables, obs denotes number of observations per
-                    channel.
-                **Weight :** :math:`(C_o, K, *, C\ \mathrm{or}\ 1, R)`
-                    :math:`C_o` denotes number of output channels, K denotes
-                    number of input channels (equivalent to the maximum degree
-                    of the polynomial), and R < obs denotes the number of
-                    observations viewed at once (i.e., in a single
-                    convolutional window)
-                **Output :** :math:`(N, C_o, *, C, obs)`
-                    As above.
+    \
+    {ts_conv_dim}
 
     Parameters
-    ----------
-    X : Tensor
-        Input dataset to be expanded polynomially. The last two dimensions are
-        seen by each kernel channel. For time series data, these could be
-        variables and sequential observations.
-    weight : Tensor
-        Polynomial convolution kernel. The first dimension corresponds to the
-        output channels and the second to the input channels, each of which
-        corresponds to the input X raised to a different power. The final
-        dimension corresponds to the number of observations convolved together.
-        For a time series, this corresponds to R // 2 past frames, R // 2
-        future frames, and the current frame. For a time series, the
-        penultimate dimension determines whether the same convolution is
-        applied to all variables (if it is 1) or variable-specific convolutions
-        can be learned (if it is equal to the number of variables). To permit
-        some diversity in kernels while enforcing consistency across variables,
-        it is possible to penalise a measure of spread such as the variance
-        across the variable axis.
-    include_const : bool (default False)
-        Indicates that a constant or intercept term corresponding to the zeroth
-        power should be included. The first channel of the weight sees the
-        constant term.
-    bias : Tensor or None
-        Bias term for convolution. See ``torch.conv2d`` documentation for
-        details.
-    padding : 2-tuple or None
-        Padding for convolution, as for ``torch.conv2d``. If not explicitly
-        specified, this will default to 'time series' padding: no padding in
-        the penultimate axis, and R // 2 in the final axis.
-    **params
-        Additional parameters can be passed to ``torch.conv2d``.
-
-    Returns
-    -------
-    out : Tensor
-        Input dataset transformed via polynomial convolution.
+    ----------\
+    {basis_conv_spec}
+    \
+    {basis_conv_return_spec}
     """
     weight = _configure_weight_for_ts_conv(weight)
     degree = weight.shape[1] - include_const
@@ -316,9 +293,8 @@ def basischan(
     Parameters
     ----------
     X : Tensor
-        Dataset to expand as a polynomial basis. A new channel will be created
-        containing the same dataset raised to each power up to the specified
-        degree.
+        Dataset to expand with basis functions. A new channel will be created
+        containing the same dataset transformed using each basis function.
     basis_functions : list(callable)
        Functions to use to constitute the basis. Each function's signature
        must map a single input to a single output of the same dimension. Use

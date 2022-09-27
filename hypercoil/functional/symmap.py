@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 from typing import Callable, Literal, Optional
 from . import symmetric, recondition_eigenspaces
-from ..engine import Tensor
+from ..engine import NestedDocParse, Tensor
 
 
 #TODO: Look here more closely:
@@ -26,7 +26,8 @@ from ..engine import Tensor
 
 
 def document_symmetric_map(func):
-    param_spec = r"""psi : float in [0, 1]
+    symmap_param_spec = r"""
+    psi : float in [0, 1]
         Conditioning factor to promote positive definiteness.
     key: Tensor or None (default None)
         Key for pseudo-random number generation. Required if ``recondition`` is
@@ -64,9 +65,10 @@ def document_symmetric_map(func):
         definite. For these use cases, consider using the ``psi`` and
         ``recondition`` parameters.
     """
-    func.__doc__ = func.__doc__.format(
-        param_spec=param_spec
+    fmt = NestedDocParse(
+        symmap_param_spec=symmap_param_spec,
     )
+    func.__doc__ = func.__doc__.format_map(fmt)
     return func
 
 
@@ -106,8 +108,8 @@ def symmap(
     spd : bool (default True)
         Indicates that the matrices in the input batch are symmetric positive
         semidefinite; guards against numerical rounding errors and ensures all
-        eigenvalues are nonnegative.
-    {param_spec}
+        eigenvalues are nonnegative.\
+    {symmap_param_spec}
 
     Returns
     -------
@@ -169,8 +171,8 @@ def symlog(
     Parameters
     ----------
     input : Tensor
-        Batch of symmetric tensors to transform using the matrix logarithm.
-    {param_spec}
+        Batch of symmetric tensors to transform using the matrix logarithm.\
+    {symmap_param_spec}
 
     Returns
     -------
@@ -263,8 +265,8 @@ def symsqrt(
     Parameters
     ----------
     input : Tensor
-        Batch of symmetric tensors to transform using the matrix square root.
-    {param_spec}
+        Batch of symmetric tensors to transform using the matrix square root.\
+    {symmap_param_spec}
 
     Returns
     -------

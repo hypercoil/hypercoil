@@ -339,6 +339,7 @@ def instantaneous_phase(
     )
 
 
+@document_analytic_signal
 def instantaneous_frequency(
     X: Tensor,
     axis: int = -1,
@@ -367,6 +368,7 @@ def instantaneous_frequency(
     return fs * jnp.diff(inst_phase, axis=axis) / period
 
 
+@document_analytic_signal
 def env_inst(
     X: Tensor,
     axis: int = -1,
