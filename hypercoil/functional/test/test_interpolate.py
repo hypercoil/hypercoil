@@ -154,7 +154,7 @@ class TestInterpolation:
         rec = spectral_interpolate(
             seen.reshape(3, 1, 1, -1),
             mask.reshape(3, 1, 1, -1),
-            thresh=0.8
+            frequency_thresh=0.8,
         )
 
         self.plot_figure(rec, seen, t, 'spectral-interpolate')
@@ -165,7 +165,7 @@ class TestInterpolation:
         rec = spectral_interpolate(
             seen.reshape(3, 1, 1, -1),
             mask.reshape(3, 1, 1, -1),
-            thresh=0.8
+            frequency_thresh=0.8,
         )
 
         self.plot_figure(rec, seen, t, 'spectral-extrapolate')

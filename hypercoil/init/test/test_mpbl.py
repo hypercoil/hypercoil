@@ -5,6 +5,7 @@
 Unit tests for "bipartite lattice" initialisation using the maximum potential
 propagation algorithm.
 """
+import pytest
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -57,6 +58,7 @@ class TestMPBL:
         )
         fig.savefig(f'{results}/mpbl_{path}.png', bbox_inches='tight')
 
+    @pytest.mark.sim
     def test_mpbl_symmetric(self):
         A = synthesise_lowrank_block(100, key=jax.random.PRNGKey(0))
         A = jnp.asarray(A)
@@ -92,6 +94,7 @@ class TestMPBL:
             orig, C10 @ C5 @ C2, C10 @ C5 @ C2, 'factor10'
         )
 
+    @pytest.mark.sim
     def test_mpbl_asymmetric(self):
         # Note: this is a very simple example, and the results are not
         # particularly good. This is because the algorithm was not designed

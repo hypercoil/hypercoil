@@ -42,7 +42,7 @@ class TestGraph:
         self.L = np.random.rand(4, 4)
 
     def test_modularity_matrix(self):
-        out = modularity_matrix(self.X, normalise=True)
+        out = modularity_matrix(self.X, normalise_modularity=True)
         ref = np.stack([modularity_matrix_ref(x) for x in self.X])
         assert self.approx(out, ref)
 

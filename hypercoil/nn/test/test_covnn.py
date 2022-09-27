@@ -146,10 +146,10 @@ class TestCovNN:
         assert cov.weight[3, 13, 17] == 0
         eqx.filter_jit(cov)(self.X)
         cov = StochasticParameter.wrap(
-            cov, param_name='weight_col;weight_row', transform=self.nns
+            cov, where='weight_col;weight_row', transform=self.nns
         )
         cov = StochasticParameter.wrap(
-            cov, param_name='weight_col;weight_row', transform=self.bds
+            cov, where='weight_col;weight_row', transform=self.bds
         )
         eqx.filter_jit(cov)(self.X)
 

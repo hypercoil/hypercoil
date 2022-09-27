@@ -1951,11 +1951,19 @@ def modularity(
     {return_spec}
     """
     def dissimilarity(Q, theta):
-        return coaffiliation(Q, L=theta, normalise=True,
-                             exclude_diag=exclude_diag)
+        return coaffiliation(
+            Q,
+            L=theta,
+            normalise_coaffiliation=True,
+            exclude_diag=exclude_diag
+        )
 
     def affinity(A, omega):
-        return modularity_matrix(A, gamma=omega, normalise=True)
+        return modularity_matrix(
+            A,
+            gamma=omega,
+            normalise_modularity=True
+        )
 
     return connectopy(
         Q=Q,

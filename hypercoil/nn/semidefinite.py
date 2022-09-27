@@ -352,7 +352,7 @@ class BatchTangentProject(_TangentProject):
             mean_specs=mean_specs,
             std=std,
             key=i_key,
-            param_name='default_weight',
+            where='default_weight',
         )
 
     def __call__(

@@ -30,13 +30,13 @@ class TestTanProject:
         ]
 
         model = TangentProject.from_specs(
-            init_spec, init_data, recondition=1e-5, std=0, key=mkey
+            init_spec, init_data, psi=1e-5, std=0, key=mkey
         )
         assert model.weight.shape == (4, 10, 10)
         assert (model.weight[0] == init_data.mean(0)).all()
 
         model = TangentProject.from_specs(
-            init_spec, init_data, recondition=1e-5, std=0.6, key=mkey
+            init_spec, init_data, psi=1e-5, std=0.6, key=mkey
         )
         out = eqx.filter_jit(model)(init_data, key=key)
         assert out.shape == (5, 4, 10, 10)
@@ -57,7 +57,7 @@ class TestTanProject:
         ]
 
         model = BatchTangentProject.from_specs(
-            init_spec, init_data, recondition=1e-5, std=0, key=mkey
+            init_spec, init_data, psi=1e-5, std=0, key=mkey
         )
         assert model.default_weight.shape == (4, 10, 10)
         assert (model.default_weight[0] == init_data.mean(0)).all()

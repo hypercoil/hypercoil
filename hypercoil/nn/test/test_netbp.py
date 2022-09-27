@@ -8,7 +8,7 @@ Overfitting a simple neural network to test elementary learning capacity for
 the frequency-domain filtering module.
 """
 import pytest
-from hypercoil.synth.experiments.run import run_experiment
+from hypercoil.examples.synthetic.experiments.run import run_experiment
 
 
 class TestFrequencyFilterNetwork:

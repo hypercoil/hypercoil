@@ -10,7 +10,7 @@ import distrax
 import equinox as eqx
 from collections import OrderedDict
 from typing import Callable, Dict, Literal, Optional, Tuple, Type
-from ..engine import PyTree, Tensor
+from ..engine import NestedDocParse, PyTree, Tensor
 from ..engine.paramutil import _to_jax_array
 from ..functional.linear import compartmentalised_linear
 from ..init.atlas import AtlasInitialiser, BaseAtlas
@@ -56,6 +56,12 @@ def document_atlas_lin_init(f: Callable) -> Callable:
             \end{aligned}
     concatenate : bool, optional (default=True)
         Whether to concatenate the output time series across compartments."""
+
+    fmt = NestedDocParse(
+        atlas_lin_init_param_spec=atlas_lin_init_param_spec,
+    )
+    f.__doc__ = f.__doc__.format_map(fmt)
+    return f
 
 
 @document_atlas_lin_init

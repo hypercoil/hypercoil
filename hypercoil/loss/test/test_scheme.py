@@ -40,7 +40,7 @@ class TestLossScheme:
 
         arg = LossArgument(X=weight)
         (out, meta), g_out = eqx.filter_jit(eqx.filter_value_and_grad(
-            loss, has_aux=True))(arg)
+            loss, has_aux=True))(arg, key=key)
 
         assert jnp.allclose(ref, out)
         assert jnp.allclose(g_ref, g_out.X)

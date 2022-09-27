@@ -93,7 +93,7 @@ def document_modularity(f: Callable) -> Callable:
         tensor block, a suitable null model. By default, the
         :doc:`Girvan-Newman null model <hypercoil.functional.graph.girvan_newman_null>`
         is used.
-    normalise : bool (default False)
+    normalise_modularity : bool (default False)
         Indicates that the resulting matrix should be normalised by the total
         matrix degree. This may not be necessary for many use cases -- for
         instance, where the arg max of a function of the modularity matrix is
@@ -237,6 +237,7 @@ def coaffiliation(
     C : Tensor
         Coaffiliation matrix for each input community structure.
     """
+    C_i = C
     if C_o is None: C_o = C_i
     if normalise_coaffiliation:
         norm_fac_i = jnp.maximum(1, C_i.max((-1, -2)))
