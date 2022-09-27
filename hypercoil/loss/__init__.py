@@ -17,13 +17,6 @@ using
 :doc:`LossArgument <hypercoil.engine.argument.ModelArgument>`, and
 :doc:`LossScheme <hypercoil.loss.base.LossScheme>`
 functionality.
-
-All loss objects additionally inherit
-:doc:`sentry <hypercoil.engine.sentry>` functionality, enabling them to send
-and receive information about events from elsewhere and respond accordingly.
-For instance, this can facilitate archival of each loss value over the course
-of training to inform hyperparameter tuning. It can also be used to update
-multipliers over the course of training by listening for epoch changes.
 """
 from .functional import (
     identity,

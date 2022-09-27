@@ -1,26 +1,16 @@
-``Equilibrium`` and ``SoftmaxEquilibrium``
-==========================================
+``equilibrium``: Equilibrium loss
+=================================
 
-.. automodule:: hypercoil.loss.equilibrium
+.. currentmodule:: hypercoil.loss
 
-``Equilibrium``
-***************
+``equilibrium``
+---------------
+.. autofunction:: equilibrium
 
-.. autoclass:: Equilibrium
+.. autofunction:: equilibrium_logit
 
-   .. rubric:: Methods Documentation
+``EquilibriumLoss``
+-------------------
+.. autoclass:: EquilibriumLoss
 
-   .. automethod:: forward
-   .. automethod:: register_sentry
-   .. automethod:: register_action
-
-``SoftmaxEquilibrium``
-**********************
-
-.. autoclass:: SoftmaxEquilibrium
-
-   .. rubric:: Methods Documentation
-
-   .. automethod:: forward
-   .. automethod:: register_sentry
-   .. automethod:: register_action
+.. autoclass:: EquilibriumLogitLoss

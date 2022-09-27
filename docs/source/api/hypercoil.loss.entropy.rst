@@ -1,26 +1,16 @@
-``Entropy`` and ``SoftmaxEntropy``
-==================================
+``entropy``: Categorical entropy
+================================
 
-.. automodule:: hypercoil.loss.entropy
+.. currentmodule:: hypercoil.loss
 
-``Entropy``
-***********
+``entropy``
+-----------
+.. autofunction:: entropy
 
-.. autoclass:: Entropy
+.. autofunction:: entropy_logit
 
-   .. rubric:: Methods Documentation
+``EntropyLoss``
+---------------
+.. autoclass:: EntropyLoss
 
-   .. automethod:: forward
-   .. automethod:: register_sentry
-   .. automethod:: register_action
-
-``SoftmaxEntropy``
-******************
-
-.. autoclass:: SoftmaxEntropy
-
-   .. rubric:: Methods Documentation
-
-   .. automethod:: forward
-   .. automethod:: register_sentry
-   .. automethod:: register_action
+.. autoclass:: EntropyLogitLoss

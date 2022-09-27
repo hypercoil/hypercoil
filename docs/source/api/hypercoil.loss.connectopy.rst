@@ -1,6 +1,12 @@
-Connectopy loss functional
-==========================
+``connectopy``: Generalised connectopy
+======================================
 
-.. currentmodule:: hypercoil.loss.connectopy
+.. currentmodule:: hypercoil.loss
 
-.. autofunction:: connectopy_loss
+``connectopy``
+--------------
+.. autofunction:: connectopy
+
+``ConnectopyLoss``
+------------------
+.. autoclass:: ConnectopyLoss

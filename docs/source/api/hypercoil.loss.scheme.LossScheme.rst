@@ -1,10 +1,6 @@
-``LossScheme``
-==============
+``LossScheme``: Scheme for multiple losses
+==========================================
 
 .. automodule:: hypercoil.loss.scheme
 
 .. autoclass:: LossScheme
-
-    .. automethod:: forward
-    .. automethod:: register_sentry
-    .. automethod:: register_action
