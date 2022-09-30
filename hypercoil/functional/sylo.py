@@ -9,21 +9,24 @@ that should be favourable for learning on a set of unordered dense matrices,
 and designed with analogy to convolutional layers. There are still a lot of
 quirks to work out before it's usable.
 """
-import jax
+from __future__ import annotations
 from typing import Callable, Literal, Optional
+
+import jax
+
+from ..engine import Tensor
 from .matrix import delete_diagonal, expand_outer, sym2vec
 from .crosssim import crosshair_similarity
-from ..engine import Tensor
 
 
-#TODO: marking this as an experimental function (or add some tests)
+# TODO: marking this as an experimental function (or add some tests)
 def sylo(
     X: Tensor,
     L: Tensor,
     R: Optional[Tensor] = None,
     C: Optional[Tensor] = None,
     bias: Optional[Tensor] = None,
-    symmetry: Optional[Literal['cross', 'skew']] = None,
+    symmetry: Optional[Literal["cross", "skew"]] = None,
     similarity: Callable = crosshair_similarity,
     remove_diagonal: bool = False,
 ) -> Tensor:
@@ -118,7 +121,7 @@ def sylo(
         # Deleting diagonals of both W and X is redundant/wasteful with all of
         # our current similarity measures.
         W = delete_diagonal(W)
-        #X = delete_diagonal(X)
+        # X = delete_diagonal(X)
     output = similarity(X, W)
     if bias is not None:
         output += bias[..., None, None]
@@ -231,13 +234,19 @@ def vertical_compression(
     if sign is not None:
         compressed = sign * compressed
     if renormalise:
+        # fmt: off
         if remove_diagonal:
-            fac = (sym2vec(compressed).std(-1, keepdims=True) /
-                   sym2vec(input).std(-1, keepdims=True))[..., None]
+            fac = (
+                sym2vec(compressed).std(-1, keepdims=True)
+                / sym2vec(input).std(-1, keepdims=True)
+            )[..., None]
         else:
-            fac = (compressed.std((-1, -2), keepdims=True) /
-                input.std((-1, -2), keepdims=True))
+            fac = (
+                compressed.std((-1, -2), keepdims=True)
+                / input.std((-1, -2), keepdims=True)
+            )
         compressed = compressed / fac
+        # fmt: on
     if fold_channels:
         h, w = compressed.shape[-2:]
         if compressed.ndim > 4:

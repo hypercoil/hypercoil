@@ -4,11 +4,14 @@
 """
 Compartmentalised linear map: abstraction for atlas-based dimension reduction.
 """
-import jax
-import jax.numpy as jnp
+from __future__ import annotations
 from collections import OrderedDict
 from functools import reduce
 from typing import Callable, Literal, Mapping, Optional, Sequence, Tuple
+
+import jax
+import jax.numpy as jnp
+
 from ..engine import Tensor, standard_axis_number
 from ..engine.paramutil import _to_jax_array
 
@@ -35,10 +38,10 @@ def normalise_psc(data: Tensor, weight: Optional[Tensor] = None) -> Tensor:
 
 def _norm() -> Mapping[str, Callable]:
     return {
-        'mean': normalise_mean,
-        'absmean': normalise_absmean,
-        'zscore': normalise_zscore,
-        'psc': normalise_psc
+        "mean": normalise_mean,
+        "absmean": normalise_absmean,
+        "zscore": normalise_zscore,
+        "psc": normalise_psc,
     }
 
 
@@ -50,10 +53,10 @@ def form_dynamic_slice(
 ) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
     ndim = len(shape)
     slice_axis = standard_axis_number(slice_axis, ndim)
-    indices = tuple(0 if i != slice_axis else slice_index
-                    for i in range(ndim))
-    sizes = tuple(s if i != slice_axis else slice_size
-                  for i, s in enumerate(shape))
+    indices = tuple(0 if i != slice_axis else slice_index for i in range(ndim))
+    sizes = tuple(
+        s if i != slice_axis else slice_size for i, s in enumerate(shape)
+    )
     return indices, sizes
 
 
@@ -70,11 +73,11 @@ def select_compartment(
 def linear_call(
     input: Tensor,
     weight: Tensor,
-    forward_mode: Literal['map', 'project'] = 'map',
+    forward_mode: Literal["map", "project"] = "map",
 ) -> Tensor:
-    if forward_mode == 'map':
+    if forward_mode == "map":
         return weight @ input
-    elif forward_mode == 'project':
+    elif forward_mode == "project":
         return jnp.linalg.lstsq(weight.swapaxes(-2, -1), input)[0]
 
 
@@ -83,7 +86,7 @@ def _compartmentalised_linear_impl(
     weight: Tensor,
     limits: Tuple[int, int],
     normalisation: Optional[str] = None,
-    forward_mode: Literal['map', 'project'] = 'map',
+    forward_mode: Literal["map", "project"] = "map",
 ) -> Tensor:
     """
     Linear layer with compartment-specific weights.
@@ -107,7 +110,7 @@ def concatenate_and_decode(
     if decoder is not None:
         out = jnp.empty(shape)
         for compartment, tensor in data.items():
-            loc = (decoder[compartment] - 1)
+            loc = decoder[compartment] - 1
             out = out.at[..., loc, :].set(tensor)
     else:
         out = jnp.concatenate(tuple(v for v in data.values()), -2)
@@ -121,8 +124,9 @@ def compartmentalised_linear(
     decoder: Optional[Mapping[str, Tensor]] = None,
     bias: Optional[Tensor] = None,
     normalisation: (
-        Optional[Literal['mean', 'absmean', 'zscore', 'psc']]) = None,
-    forward_mode: Literal['map', 'project'] = 'map',
+        Optional[Literal["mean", "absmean", "zscore", "psc"]]
+    ) = None,
+    forward_mode: Literal["map", "project"] = "map",
     concatenate: bool = True,
 ) -> Tensor:
     """
@@ -163,11 +167,9 @@ def compartmentalised_linear(
         )
     out_shape = (
         *input.shape[:-2],
-        reduce(
-            lambda x, y: x + y,
-            (v.shape[-2] for v in out.values())
-        ),
-        input.shape[-1])
+        reduce(lambda x, y: x + y, (v.shape[-2] for v in out.values())),
+        input.shape[-1],
+    )
     out = concatenate_and_decode(
         data=out,
         decoder=decoder,

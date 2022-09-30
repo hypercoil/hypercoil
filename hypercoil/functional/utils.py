@@ -6,14 +6,16 @@ A hideous, disorganised group of utility functions. Hopefully someday they
 can disappear altogether or be moved elsewhere, but for now they exist, a sad
 blemish.
 """
-import jax
+from __future__ import annotations
+from typing import Callable, Optional, Sequence, Tuple, Union
+
 import jax.numpy as jnp
 from jax.experimental.sparse import BCOO
-from typing import Callable, Optional, Sequence, Tuple, Union
+
 from ..engine.paramutil import Tensor
 
 
-#TODO: This will not work if JAX ever adds sparse formats other than BCOO.
+# TODO: This will not work if JAX ever adds sparse formats other than BCOO.
 def is_sparse(X):
     return isinstance(X, BCOO)
 
@@ -30,7 +32,7 @@ def conform_mask(
     tensor: Tensor,
     mask: Tensor,
     axis: Sequence[int],
-    batch=False
+    batch=False,
 ) -> Tensor:
     """
     Conform a mask or weight for elementwise applying to a tensor.
@@ -41,7 +43,7 @@ def conform_mask(
     --------
     :func:`apply_mask`
     """
-    #TODO: require axis to be ordered as in `orient_and_conform`.
+    # TODO: require axis to be ordered as in `orient_and_conform`.
     # Ideally, we should create a common underlying function for
     # the shared parts of both operations (i.e., identifying
     # aligning vs. expanding axes).
@@ -95,7 +97,7 @@ def apply_mask(
     if axis == -1:
         shape_sfx = ()
     else:
-        shape_sfx = tensor.shape[(axis + 1):]
+        shape_sfx = tensor.shape[(axis + 1) :]
     msk = jnp.tile(msk, (*shape_pfx, 1))
     return tensor[msk].reshape(*shape_pfx, -1, *shape_sfx)
 
@@ -104,7 +106,7 @@ def mask_tensor(
     tensor: Tensor,
     mask: Tensor,
     axis: Sequence[int],
-    fill_value: Union[float, Tensor] = 0
+    fill_value: Union[float, Tensor] = 0,
 ):
     mask = conform_mask(tensor=tensor, mask=mask, axis=axis)
     return jnp.where(mask, tensor, fill_value)
@@ -165,7 +167,7 @@ def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
     """
     # TODO : consider using the complex exponential function,
     # depending on the gradient properties
-    #return ampl * jnp.exp(phase * 1j)
+    # return ampl * jnp.exp(phase * 1j)
     return ampl * (jnp.cos(phase) + 1j * jnp.sin(phase))
 
 
@@ -174,7 +176,9 @@ def amplitude_apply(func: Callable) -> Callable:
     Decorator for applying a function to the amplitude component of a complex
     tensor.
     """
+
     def wrapper(complex: Tensor) -> Tensor:
         ampl, phase = complex_decompose(complex)
         return complex_recompose(func(ampl), phase)
+
     return wrapper

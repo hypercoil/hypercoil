@@ -9,13 +9,20 @@ subspace tangent to the Riemann manifold.
     Nearly all operations here, as currently implemented, exhibit numerical
     instability in both forward and backward passes.
 """
-import jax.numpy as jnp
+from __future__ import annotations
 from typing import Callable, Literal, Optional, Sequence, Union
+
+import jax.numpy as jnp
+
+from ..engine import NestedDocParse, Tensor
 from hypercoil.functional.matrix import spd
 from hypercoil.functional.symmap import (
-    symmap, symlog, symexp, symsqrt, document_symmetric_map
+    symmap,
+    symlog,
+    symexp,
+    symsqrt,
+    document_symmetric_map,
 )
-from ..engine import NestedDocParse, Tensor
 
 
 def document_semidefinite_projection(f: Callable) -> Callable:
@@ -176,7 +183,7 @@ def tangent_project_spd(
     reference: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -203,13 +210,22 @@ def tangent_project_spd(
     cone_project_spd: The inverse projection, into the semidefinite cone.
     """
     ref_sri = symmap(
-        reference, lambda x: x ** -0.5,
-        psi=psi, key=key, recondition=recondition,
-        fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
+        reference,
+        lambda x: x**-0.5,
+        psi=psi,
+        key=key,
+        recondition=recondition,
+        fill_nans=fill_nans,
+        truncate_eigenvalues=truncate_eigenvalues,
+    )
     return symlog(
         ref_sri @ input @ ref_sri,
-        psi=psi, key=key, recondition=recondition,
-        fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
+        psi=psi,
+        key=key,
+        recondition=recondition,
+        fill_nans=fill_nans,
+        truncate_eigenvalues=truncate_eigenvalues,
+    )
 
 
 @document_symmetric_map
@@ -219,7 +235,7 @@ def cone_project_spd(
     reference: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -248,8 +264,12 @@ def cone_project_spd(
     """
     ref_sr = symsqrt(
         reference,
-        psi=psi, key=key, recondition=recondition,
-        fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
+        psi=psi,
+        key=key,
+        recondition=recondition,
+        fill_nans=fill_nans,
+        truncate_eigenvalues=truncate_eigenvalues,
+    )
     cone = ref_sr @ symexp(input) @ ref_sr
     # Note that we do not undo the reconditioning, and so the map is not
     # a well-formed inverse of the tangent_project_spd map if the input is not
@@ -281,7 +301,7 @@ def mean_euc_spd(
 def mean_harm_spd(
     input: Tensor,
     axis: Union[int, Sequence[int]] = 0,
-    require_nonsingular: bool = True
+    require_nonsingular: bool = True,
 ) -> Tensor:
     """\
     {harmonic_mean_desc}
@@ -307,7 +327,7 @@ def mean_logeuc_spd(
     axis: Union[int, Sequence[int]] = 0,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -325,13 +345,19 @@ def mean_logeuc_spd(
     \
     {semidefinite_mean_return_spec}
     """
-    return symexp(symlog(
-        input, psi=psi, key=key, recondition=recondition,
-        fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues
-    ).mean(axis))
+    return symexp(
+        symlog(
+            input,
+            psi=psi,
+            key=key,
+            recondition=recondition,
+            fill_nans=fill_nans,
+            truncate_eigenvalues=truncate_eigenvalues,
+        ).mean(axis)
+    )
 
 
-#TODO: Reformulate this as an optimiser / descent algorithm. Implement
+# TODO: Reformulate this as an optimiser / descent algorithm. Implement
 #      the gradient using the implicit function theorem if possible.
 @document_symmetric_map
 @document_semidefinite_mean
@@ -342,7 +368,7 @@ def mean_geom_spd(
     max_iter: int = 10,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -363,18 +389,30 @@ def mean_geom_spd(
     ref = mean_euc_spd(input, axis)
     for _ in range(max_iter):
         tan = tangent_project_spd(
-            input, ref, psi=psi, key=key, recondition=recondition,
-            fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
+            input,
+            ref,
+            psi=psi,
+            key=key,
+            recondition=recondition,
+            fill_nans=fill_nans,
+            truncate_eigenvalues=truncate_eigenvalues,
+        )
         reftan = tan.mean(axis)
         ref = cone_project_spd(
-            reftan, ref, psi=psi, key=key, recondition=recondition,
-            fill_nans=fill_nans, truncate_eigenvalues=truncate_eigenvalues)
+            reftan,
+            ref,
+            psi=psi,
+            key=key,
+            recondition=recondition,
+            fill_nans=fill_nans,
+            truncate_eigenvalues=truncate_eigenvalues,
+        )
     return ref
 
 
-#TODO: marking this as an experimental function
+# TODO: marking this as an experimental function
 def mean_kullback_spd(input, alpha, recondition=0):
     S = symsqrt(mean_euc_spd(input), recondition)
-    R = symmap(mean_euc_spd(input), lambda X: X ** -0.5, psi=recondition)
+    R = symmap(mean_euc_spd(input), lambda X: X**-0.5, psi=recondition)
     T = R @ mean_harm_spd(input) @ R
     return S @ symmap(T, lambda X: jnp.power(X, alpha)) @ S

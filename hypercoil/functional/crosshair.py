@@ -6,8 +6,11 @@ Crosshair kernel
 ~~~~~~~~~~~~~~~~
 Elementary operations over a crosshair kernel.
 """
-import jax.numpy as jnp
+from __future__ import annotations
 from typing import Callable, Tuple
+
+import jax.numpy as jnp
+
 from ..engine import NestedDocParse, Tensor
 
 
@@ -65,7 +68,7 @@ def crosshair_dot(
     A: Tensor,
     B: Tensor,
     row: int = -2,
-    col: int = -1
+    col: int = -1,
 ) -> Tensor:
     """
     Local dot product between two matrices over a crosshair kernel.
@@ -95,7 +98,7 @@ def crosshair_dot(
 def crosshair_norm_l2(
     A: Tensor,
     row: int = -2,
-    col: int = -1
+    col: int = -1,
 ) -> Tensor:
     """
     Compute the local L2 norm on a matrix over a crosshair kernel.
@@ -118,7 +121,7 @@ def crosshair_norm_l2(
 def crosshair_norm_l1(
     A: Tensor,
     row: int = -2,
-    col: int = -1
+    col: int = -1,
 ) -> Tensor:
     """
     Compute the local L1 norm on a matrix over a crosshair kernel.
@@ -140,11 +143,11 @@ def crosshair_norm_l1(
     return rows + cols - abs
 
 
-#TODO: marking this as an experimental function
+# TODO: marking this as an experimental function
 def crosshair_dot_gen(
     A: Tensor,
     B: Tensor,
-    axes: Tuple[int, int] = (-2, -1)
+    axes: Tuple[int, int] = (-2, -1),
 ) -> Tensor:
     """
     A generalised version of the crosshair dot product where the crosshair can

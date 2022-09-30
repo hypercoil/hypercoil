@@ -4,17 +4,20 @@
 """
 Additional activation functions for neural network layers.
 """
+from __future__ import annotations
+from typing import Callable, Literal, Optional, Tuple, Union
+
 import jax
 import jax.numpy as jnp
-from typing import Callable, Literal, Optional, Tuple, Union
-from .utils import complex_decompose, complex_recompose
+
 from ..engine import NestedDocParse, vmap_over_outer, Tensor
+from .utils import complex_decompose, complex_recompose
 
 
 def laplace(
     input: Tensor,
     loc: Union[float, Tensor] = 0,
-    width: Union[float, Tensor] = 1
+    width: Union[float, Tensor] = 1,
 ) -> Tensor:
     r"""
     Double exponential activation function.
@@ -52,7 +55,7 @@ def laplace(
 
 def expbarrier(
     input: Tensor,
-    barrier: Union[float, Tensor] = 1
+    barrier: Union[float, Tensor] = 1,
 ) -> Tensor:
     r"""
     Exponential barrier activation function.
@@ -83,15 +86,15 @@ def expbarrier(
         Transformed input tensor.
     """
     ampl = jnp.abs(input)
-    return barrier * jnp.sqrt(1 - jnp.exp(-ampl / barrier ** 2))
+    return barrier * jnp.sqrt(1 - jnp.exp(-ampl / barrier**2))
 
 
 # It's not even continuous, let alone differentiable. Let's not use this.
 def threshold(
     input: Tensor,
-    threshold : Union[Tensor, float],
+    threshold: Union[Tensor, float],
     dead: Union[Tensor, int] = 0,
-    leak: float = 0
+    leak: float = 0,
 ) -> Tensor:
     if leak == 0:
         return jnp.where(input > threshold, input, dead)
@@ -101,7 +104,7 @@ def threshold(
 def amplitude_laplace(
     input: Tensor,
     loc: Union[float, Tensor] = 0,
-    width: Union[float, Tensor] = 1
+    width: Union[float, Tensor] = 1,
 ) -> Tensor:
     r"""
     Double exponential activation function applied to the amplitude only.
@@ -145,7 +148,7 @@ def amplitude_laplace(
 
 def amplitude_expbarrier(
     input: Tensor,
-    barrier: Union[float, Tensor] = 1
+    barrier: Union[float, Tensor] = 1,
 ) -> Tensor:
     r"""
     Exponential barrier activation function applied to the amplitude only.
@@ -176,7 +179,7 @@ def amplitude_expbarrier(
         Transformed input tensor.
     """
     ampl, phase = complex_decompose(input)
-    xfm = barrier * jnp.sqrt(1 - jnp.exp(-ampl / barrier ** 2))
+    xfm = barrier * jnp.sqrt(1 - jnp.exp(-ampl / barrier**2))
     return xfm * jnp.exp(phase * 1j)
 
 
@@ -245,7 +248,7 @@ def amplitude_atanh(input: Tensor) -> Tensor:
 
 def _corrnorm_factor(input: Tensor) -> Tensor:
     factor = jnp.diagonal(input, axis1=-2, axis2=-1)
-    factor = (-jnp.sign(factor) * jnp.sqrt(jnp.abs(factor)))
+    factor = -jnp.sign(factor) * jnp.sqrt(jnp.abs(factor))
     factor = vmap_over_outer(jnp.outer, 1)((factor, factor))
     return factor + jnp.finfo(input.dtype).eps
 
@@ -303,7 +306,7 @@ def document_corrnorm(f: Callable) -> Callable:
 def corrnorm(
     input: Tensor,
     factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
-    gradpath: Literal['input', 'both'] = 'both'
+    gradpath: Literal["input", "both"] = "both",
 ) -> Tensor:
     """
     Correlation normalisation activation function.
@@ -314,7 +317,7 @@ def corrnorm(
         return input / factor
     elif factor is not None:
         factor = jnp.outer(factor[0], factor[1]) + jnp.finfo(input.dtype).eps
-    elif gradpath == 'input':
+    elif gradpath == "input":
         factor = jax.lax.stop_gradient(_corrnorm_factor(input))
     else:
         factor = _corrnorm_factor(input)
@@ -378,7 +381,7 @@ def isochor(
     input: Tensor,
     volume: float = 1,
     max_condition: Optional[float] = None,
-    softmax_temp: Optional[float] = None
+    softmax_temp: Optional[float] = None,
 ) -> Tensor:
     """
     Volume-normalising activation function for symmetric, positive definite
@@ -392,14 +395,14 @@ def isochor(
     if max_condition is not None:
         large = L.max(-1, keepdims=True)
         small = L.min(-1, keepdims=True)
-        psi = (
-            (large - small / max_condition) /
-            ((large - 1) - (small - 1) / max_condition)
+        psi = (large - small / max_condition) / (
+            (large - 1) - (small - 1) / max_condition
         )
         psi = jax.nn.relu(psi)
         L = (1 - psi) * L + psi * jnp.ones_like(L)
-    Lnorm = jnp.exp((
-        jnp.log(L).sum(-1, keepdims=True) - jnp.log(volume)
-    ) * (1 / L.shape[-1]))
+    Lnorm = jnp.exp(
+        (jnp.log(L).sum(-1, keepdims=True) - jnp.log(volume))
+        * (1 / L.shape[-1])
+    )
     L = L / Lnorm
     return Q @ (L[..., None] * Q.swapaxes(-1, -2))

@@ -4,13 +4,16 @@
 """
 Special matrix functions.
 """
-import jax
-import jax.numpy as jnp
+from __future__ import annotations
 import math
 from functools import partial
 from typing import Literal, Optional, Tuple
-from .utils import conform_mask
+
+import jax
+import jax.numpy as jnp
+
 from ..engine import Tensor, vmap_over_outer
+from .utils import conform_mask
 
 
 def cholesky_invert(X: Tensor) -> Tensor:
@@ -55,7 +58,7 @@ def cholesky_invert(X: Tensor) -> Tensor:
 def symmetric(
     X: Tensor,
     skew: bool = False,
-    axes: Tuple[int, int] = (-2, -1)
+    axes: Tuple[int, int] = (-2, -1),
 ) -> Tensor:
     """
     Impose symmetry on a tensor block.
@@ -85,7 +88,7 @@ def symmetric(
         return (X - X.swapaxes(*axes)) / 2
 
 
-#TODO: marking this as an experimental function
+# TODO: marking this as an experimental function
 #      When it's implemented, we should change symmetric to single dispatch.
 #      It unfortunately won't work with our top-k format for sparse tensors
 #      without potentially deleting some existing nonzero entries.
@@ -95,7 +98,7 @@ def symmetric(
 #     skew: bool = False,
 #     n_vertices: Optional[int] = None,
 #     divide: bool = True,
-#     return_coo: bool = False
+#     return_coo: bool = False,
 # ) -> Tensor:
 #     r"""
 #     Impose symmetry (undirectedness) on a weight-edge index pair
@@ -169,7 +172,7 @@ def symmetric(
 def spd(
     X: Tensor,
     eps: float = 1e-6,
-    method: Literal['eig', 'svd'] = 'eig'
+    method: Literal["eig", "svd"] = "eig",
 ) -> Tensor:
     """
     Impose symmetric positive definiteness on a tensor block.
@@ -217,23 +220,21 @@ def spd(
     output : Tensor
         Input modified so that each slice is symmetric and positive definite.
     """
-    if method == 'eig':
+    if method == "eig":
         L = vmap_over_outer(jnp.linalg.eigvalsh, 2)((symmetric(X),))
         lmin = L.min(axis=-1) - eps
         lmin = jnp.minimum(lmin, 0).squeeze()
-        return symmetric(
-            X - lmin[..., None, None] * jnp.eye(X.shape[-1]))
-    elif method == 'svd':
+        return symmetric(X - lmin[..., None, None] * jnp.eye(X.shape[-1]))
+    elif method == "svd":
         Q, L, _ = vmap_over_outer(jnp.linalg.svd, 2)((symmetric(X),))
-        return symmetric(
-            Q @ (L[..., None] * Q.swapaxes(-1, -2)))
+        return symmetric(Q @ (L[..., None] * Q.swapaxes(-1, -2)))
 
 
 def expand_outer(
     L: Tensor,
     R: Optional[Tensor] = None,
     C: Optional[Tensor] = None,
-    symmetry: Optional[Literal['cross', 'skew']] = None
+    symmetry: Optional[Literal["cross", "skew"]] = None,
 ) -> Tensor:
     r"""
     Multiply out a left and a right generator matrix as an outer product.
@@ -293,17 +294,17 @@ def expand_outer(
         output = L @ C @ R.swapaxes(-2, -1)
     else:
         output = L @ (C * R.swapaxes(-2, -1))
-    #TODO: Unit tests are not hitting this conditional...
-    if symmetry == 'cross' or symmetry == 'skew':
-        return symmetric(output, skew=(symmetry == 'skew'))
+    # TODO: Unit tests are not hitting this conditional...
+    if symmetry == "cross" or symmetry == "skew":
+        return symmetric(output, skew=(symmetry == "skew"))
     return output
 
 
 def recondition_eigenspaces(
     A: Tensor,
-    psi : float,
-    xi : float,
-    key : Tensor
+    psi: float,
+    xi: float,
+    key: Tensor,
 ) -> Tensor:
     r"""
     Recondition a positive semidefinite matrix such that it has no zero
@@ -363,7 +364,7 @@ def fill_diagonal(A: Tensor, fill: float = 0, offset: int = 0) -> Tensor:
     dim = A.shape[-2:]
     mask = jnp.ones(max(dim) - abs(offset), dtype=bool)
     mask = diag_embed(mask, offset=offset)
-    mask = mask[:dim[0], :dim[1]]
+    mask = mask[: dim[0], : dim[1]]
     mask = conform_mask(A, mask, axis=(-2, -1))
     return jnp.where(mask, fill, A)
 
@@ -372,7 +373,7 @@ def toeplitz_2d(
     c: Tensor,
     r: Optional[Tensor] = None,
     shape: Optional[Tuple[int, int]] = None,
-    fill_value: float = 0
+    fill_value: float = 0,
 ) -> Tensor:
     """
     Construct a 2D Toeplitz matrix from a column and row vector.
@@ -407,13 +408,15 @@ def toeplitz_2d(
     c_arg = jnp.flip(c_arg, -1)
 
     mask = jnp.zeros(2 * d - 1, dtype=bool)
-    mask = mask.at[:(d - 1)].set(True)
+    mask = mask.at[: (d - 1)].set(True)
     iota = jnp.arange(d)
+
     def roll(c, r, i, mask):
         rs = jnp.roll(r, i, axis=-1)
         cs = jnp.roll(c, i + 1, axis=-1)
         ms = jnp.roll(mask, i, axis=-1)[-d:]
         return jnp.where(ms, cs, rs)
+
     f = jax.vmap(roll, in_axes=(None, None, 0, None))
     return f(c_arg, r_arg, iota[..., None], mask)[..., :m, :n]
 
@@ -422,7 +425,7 @@ def toeplitz(
     c: Tensor,
     r: Optional[Tensor] = None,
     shape: Optional[Tuple[int, int]] = None,
-    fill_value: float = 0.,
+    fill_value: float = 0.0,
 ) -> Tensor:
     r"""
     Populate a block of tensors with Toeplitz banded structure.
@@ -513,7 +516,7 @@ def sym2vec(sym: Tensor, offset: int = 1) -> Tensor:
     """
     idx = jnp.triu_indices(m=sym.shape[-2], n=sym.shape[-1], k=offset)
     shape = sym.shape[:-2]
-    #print(idx, shape)
+    # print(idx, shape)
     vec = sym[..., idx[0], idx[1]]
     return vec.reshape(*shape, -1)
 
@@ -579,8 +582,7 @@ def squareform(X: Tensor) -> Tensor:
         If the input block is in vector form, returns it
         :doc:`in square matrix form <hypercoil.functional.matrix.vec2sym>`.
     """
-    if (X.shape[-2] == X.shape[-1]
-        and jnp.allclose(X, X.swapaxes(-1, -2))):
+    if X.shape[-2] == X.shape[-1] and jnp.allclose(X, X.swapaxes(-1, -2)):
         return sym2vec(X, offset=1)
     else:
         return vec2sym(X, offset=1)

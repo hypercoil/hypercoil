@@ -4,22 +4,22 @@
 """
 Operations supporting spherical coordinate systems.
 """
-import jax.numpy as jnp
+from __future__ import annotations
 from functools import partial
 from typing import Callable, Optional
+
+import jax.numpy as jnp
+
 from ..engine import Tensor
 
 
-#TODO: Switch to using kernel.gaussian_kernel instead of this everywhere
+# TODO: Switch to using kernel.gaussian_kernel instead of this everywhere
 def kernel_gaussian(x: Tensor, scale: float = 1) -> Tensor:
     """
     An example of an isotropic kernel. Zero-centered Gaussian kernel with
     specified scale parameter.
     """
-    return (
-        jnp.exp(-((x / scale) ** 2) / 2) /
-        (scale * (2 * jnp.pi) ** 0.5)
-    )
+    return jnp.exp(-((x / scale) ** 2) / 2) / (scale * (2 * jnp.pi) ** 0.5)
 
 
 def sphere_to_normals(coor: Tensor, r: float = 1) -> Tensor:
@@ -73,9 +73,9 @@ def sphere_to_latlong(coor: Tensor) -> Tensor:
         longitude of each point.
     """
     x, y, z = coor.swapaxes(-2, -1)
-    #R = jnp.sqrt((coor[0] ** 2).sum())
-    #lat = jnp.arcsin(z / R)
-    lat = jnp.arctan2(z, jnp.sqrt(x ** 2 + y ** 2))
+    # R = jnp.sqrt((coor[0] ** 2).sum())
+    # lat = jnp.arcsin(z / R)
+    lat = jnp.arctan2(z, jnp.sqrt(x**2 + y**2))
     lon = jnp.arctan2(y, x)
     return jnp.stack((lat, lon), axis=-1)
 
@@ -83,7 +83,7 @@ def sphere_to_latlong(coor: Tensor) -> Tensor:
 def spherical_geodesic(
     X: Tensor,
     Y: Optional[Tensor] = None,
-    r: float = 1
+    r: float = 1,
 ) -> Tensor:
     r"""
     Geodesic great-circle distance between two sets of spherical coordinates
@@ -127,13 +127,13 @@ def spherical_geodesic(
     Y = Y[..., None, :, :]
     X, Y = jnp.broadcast_arrays(X, Y)
     crXY = jnp.cross(X, Y, axis=-1)
-    num = jnp.sqrt((crXY ** 2).sum(-1))
+    num = jnp.sqrt((crXY**2).sum(-1))
     denom = (X * Y).sum(-1)
     dist = jnp.arctan2(num, denom)
     dist = jnp.where(
         dist < 0,
         dist + jnp.pi,
-        dist
+        dist,
     )
     return dist * r
 
@@ -144,7 +144,7 @@ def spatial_conv(
     kernel: Callable = kernel_gaussian,
     metric: Callable = spherical_geodesic,
     max_bin: int = 10000,
-    truncate: Optional[float] = None
+    truncate: Optional[float] = None,
 ) -> Tensor:
     r"""
     Convolve data on a manifold with an isotropic kernel.
@@ -220,7 +220,7 @@ def spherical_conv(
     scale: float = 1,
     r: float = 1,
     max_bin: int = 10000,
-    truncate: Optional[float] = None
+    truncate: Optional[float] = None,
 ):
     r"""
     Convolve data on a 2-sphere with an isotropic Gaussian kernel.
@@ -267,8 +267,14 @@ def spherical_conv(
     """
     kernel = partial(kernel_gaussian, scale=scale)
     metric = partial(spherical_geodesic, r=r)
-    return spatial_conv(data=data, coor=coor, kernel=kernel,
-                        metric=metric, max_bin=max_bin, truncate=truncate)
+    return spatial_conv(
+        data=data,
+        coor=coor,
+        kernel=kernel,
+        metric=metric,
+        max_bin=max_bin,
+        truncate=truncate,
+    )
 
 
 def _euc_dist(X, Y=None):
@@ -288,7 +294,7 @@ def euclidean_conv(
     coor: Tensor,
     scale: float = 1,
     max_bin: int = 10000,
-    truncate: Optional[float] = None
+    truncate: Optional[float] = None,
 ):
     """
     Spatial convolution using the standard L2 metric and a Gaussian kernel.
@@ -296,5 +302,11 @@ def euclidean_conv(
     See :func:`spatial_conv` for implementation details.
     """
     kernel = partial(kernel_gaussian, scale=scale)
-    return spatial_conv(data=data, coor=coor, kernel=kernel,
-                        metric=_euc_dist, max_bin=max_bin, truncate=truncate)
+    return spatial_conv(
+        data=data,
+        coor=coor,
+        kernel=kernel,
+        metric=_euc_dist,
+        max_bin=max_bin,
+        truncate=truncate,
+    )

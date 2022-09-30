@@ -5,19 +5,27 @@
 Methods for interpolating, extrapolating, and imputing unseen or censored
 frames.
 """
-import jax
-import jax.numpy as jnp
+from __future__ import annotations
 from functools import partial
 from typing import Callable, Literal, Optional, Sequence, Tuple, Union
 
+import jax
+import jax.numpy as jnp
+
+from ..engine import (
+    NestedDocParse,
+    PyTree,
+    Tensor,
+    atleast_4d,
+    vmap_over_outer,
+    demote_axis,
+    promote_axis,
+)
 from .utils import conform_mask
 from .tsconv import tsconv2d
-from ..engine import (
-    NestedDocParse, atleast_4d, vmap_over_outer, PyTree, Tensor)
-from ..engine.axisutil import demote_axis, promote_axis
 
 
-#TODO: get lambdas out of cond and other lax functions. Right now we're almost
+# TODO: get lambdas out of cond and other lax functions. Right now we're almost
 #      definitely suffering catastrophic performance degradation due to the
 #      need to recompile every time a lax function with embedded lambdas is
 #      called.
@@ -25,7 +33,8 @@ from ..engine.axisutil import demote_axis, promote_axis
 #      See: https://github.com/google/jax/issues/5210#issuecomment-747079574
 
 
-class InterpolationError(Exception): pass
+class InterpolationError(Exception):
+    pass
 
 
 def document_interpolation(f: Callable) -> Callable:
@@ -190,7 +199,8 @@ def first(x: Tensor, mask: Tensor) -> Tensor:
 def first_and_last(x: Tensor, mask: Tensor) -> Tensor:
     frst = first(x, mask)
     last = jnp.flip(
-        first(jnp.flip(x, axis=-1), jnp.flip(mask, axis=-1)), axis=-1)
+        first(jnp.flip(x, axis=-1), jnp.flip(mask, axis=-1)), axis=-1
+    )
     return frst, last
 
 
@@ -200,8 +210,8 @@ def hybrid_interpolate(
     mask: Tensor,
     max_consecutive_linear: int = 3,
     oversampling_frequency: float = 8,
-    maximum_frequency: float = 1.,
-    sampling_period: float = 1.,
+    maximum_frequency: float = 1.0,
+    sampling_period: float = 1.0,
     frequency_thresh: float = 0.3,
 ) -> Tensor:
     """
@@ -222,38 +232,37 @@ def hybrid_interpolate(
     """
     data = atleast_4d(data)
     mask = atleast_4d(mask)
-    #linear_mask, spectral_mask = vmap_over_outer(
+    # linear_mask, spectral_mask = vmap_over_outer(
     linear_mask_fwd, _ = vmap_over_outer(
-        partial(_partition_mask,
-        max_consecutive=max_consecutive_linear), f_dim=1
+        partial(_partition_mask, max_consecutive=max_consecutive_linear),
+        f_dim=1,
     )((~mask,))
     linear_mask_bwd, _ = vmap_over_outer(
-        partial(_partition_mask,
-        max_consecutive=max_consecutive_linear), f_dim=1
+        partial(_partition_mask, max_consecutive=max_consecutive_linear),
+        f_dim=1,
     )((~jnp.flip(mask, axis=-1),))
     linear_mask_bwd = jnp.flip(linear_mask_bwd, axis=-1)
     linear_mask = linear_mask_fwd | linear_mask_bwd
     rec = spectral_interpolate(
-        data=data, mask=mask,
+        data=data,
+        mask=mask,
         oversampling_frequency=oversampling_frequency,
         maximum_frequency=maximum_frequency,
         frequency_thresh=frequency_thresh,
         sampling_period=sampling_period,
     )
-    return linear_interpolate(
-        data=rec, mask=~linear_mask
-    )
+    return linear_interpolate(data=rec, mask=~linear_mask)
 
 
 def _partition_mask(
     mask: Tensor,
-    max_consecutive: int
+    max_consecutive: int,
 ) -> Tuple[Tensor, Tensor]:
     n_consecutive = number_consecutive(mask)
     lt, gt = jax.lax.scan(
         partial(_partition_consecutive, max_consecutive=max_consecutive),
         init=(jnp.array(False), jnp.array(False)),
-        xs=(mask, n_consecutive)
+        xs=(mask, n_consecutive),
     )[1]
     return lt, gt
 
@@ -267,32 +276,34 @@ def _partition_mask(
 def branched_cond(
     preds: Sequence[bool],
     branches: Sequence[Tensor],
-    *operands: PyTree
+    *operands: PyTree,
 ) -> Tensor:
-    if len(preds) == 1: return branches[0](*operands)
+    if len(preds) == 1:
+        return branches[0](*operands)
     return jax.lax.cond(
         preds[0],
         branches[0],
         lambda: branched_cond(preds[1:], branches[1:], *operands),
-        *operands)
+        *operands,
+    )
 
 
 def _partition_consecutive(
     carry: Tuple[bool, bool],
     xs: Tuple[Tensor, Tensor],
-    max_consecutive: int
+    max_consecutive: int,
 ) -> Tuple[Tensor, Tensor]:
     mask, n_consecutive = xs
     lt, gt = carry
     preds = (
         jnp.logical_not(mask),
         gt | (n_consecutive > max_consecutive),
-        lt | (n_consecutive < max_consecutive)
+        lt | (n_consecutive < max_consecutive),
     )
     branches = (
         lambda: (jnp.array(False), jnp.array(False)),
         lambda: (jnp.array(False), jnp.array(True)),
-        lambda: (jnp.array(True), jnp.array(False))
+        lambda: (jnp.array(True), jnp.array(False)),
     )
     out = branched_cond(preds, branches)
     return out, out
@@ -319,28 +330,30 @@ def linear_interpolate(
     delta_zero = jnp.zeros((*data.shape[:-1], 1))
     n_frames_interpolate = jnp.flip(
         vmap_over_outer(number_consecutive, 1)((jnp.flip(~mask, axis=-1),)),
-        axis=-1)
-    init_frames = (jnp.diff(n_frames_interpolate, axis=-1) > 0)
-    deltas = vmap_over_outer(
-        delta_lookahead,
-        (3, 1, 1, 1),
-        align_outer=True,
-    )((
-        data,
-        init_frames,
-        mask,
-        n_frames_interpolate[..., 1:],
-    ))
-    #TODO: Find a better way to do this
+        axis=-1,
+    )
+    init_frames = jnp.diff(n_frames_interpolate, axis=-1) > 0
+    deltas = vmap_over_outer(delta_lookahead, (3, 1, 1, 1), align_outer=True,)(
+        (
+            data,
+            init_frames,
+            mask,
+            n_frames_interpolate[..., 1:],
+        )
+    )
+    # TODO: Find a better way to do this
     deltas = deltas.squeeze(1).squeeze(1)
     deltas = jnp.concatenate((delta_zero, deltas), axis=-1)
     return vmap_over_outer(
         _interpolate_from_deltas,
-        (1, 3, 1, 1,),
+        (
+            1,
+            3,
+            1,
+            1,
+        ),
         align_outer=True,
-    )((
-        data, mask, deltas, init
-    ))
+    )((data, mask, deltas, init))
 
 
 def _delta_lookahead_fn(
@@ -359,7 +372,7 @@ def _delta_lookahead_fn(
 def _delta_lookahead_impl(
     carry: Tuple[int, float],
     x: Tuple[Tensor, Tensor],
-    lookahead_fn: Callable
+    lookahead_fn: Callable,
 ) -> Tuple[float, int]:
     mask, frames = x
     idx, rem = carry
@@ -367,34 +380,38 @@ def _delta_lookahead_impl(
         mask,
         lambda fr, i: lookahead_fn(i, fr + 1),
         lambda _, __: jnp.zeros_like(rem),
-        frames, idx
+        frames,
+        idx,
     )
     new_step = jnp.array(total_step_size != 0)
     rem = jnp.where(
         new_step,
         total_step_size,
-        rem
+        rem,
     )
     incr = jnp.array(rem != 0)
     y = jnp.where(
         incr,
         rem / (frames + 1),
-        0.
+        0.0,
     )
     rem = rem - y
-    rem = jnp.sign(rem) * jnp.maximum(jnp.abs(rem), 0.)
-    return (idx + 1, rem), y,
+    rem = jnp.sign(rem) * jnp.maximum(jnp.abs(rem), 0.0)
+    return (
+        (idx + 1, rem),
+        y,
+    )
 
 
 def delta_lookahead(
     data: Tensor,
     diff_mask: Tensor,
     data_mask: Tensor,
-    frames: Tensor
+    frames: Tensor,
 ) -> Tensor:
     f = partial(
         _delta_lookahead_impl,
-        lookahead_fn=partial(_delta_lookahead_fn, data=data, mask=data_mask)
+        lookahead_fn=partial(_delta_lookahead_fn, data=data, mask=data_mask),
     )
     rem = jnp.zeros_like(data[..., 0])
     _, diffs = jax.lax.scan(f, (0, rem), (diff_mask, frames))
@@ -408,7 +425,8 @@ def _interpolate_from_deltas_impl(carry: Tensor, x: Tensor) -> Tensor:
         mask,
         lambda data, _: data,
         lambda _, delta: carry + delta,
-        data, delta
+        data,
+        delta,
     )
     return val, val
 
@@ -424,7 +442,7 @@ def _interpolate_from_deltas(
     return jax.lax.scan(
         _interpolate_from_deltas_impl,
         initial_value.squeeze(),
-        (data.transpose(perm), mask, deltas.transpose(perm))
+        (data.transpose(perm), mask, deltas.transpose(perm)),
     )[1]
 
 
@@ -433,10 +451,10 @@ def weighted_interpolate(
     data: Tensor,
     mask: Tensor,
     start_stage: int = 1,
-    max_stage: Union[int, Literal['auto']] = 'auto',
+    max_stage: Union[int, Literal["auto"]] = "auto",
     stages: Optional[Sequence[int]] = None,
-    map_to_kernel: Optional[Callable] = None
-):
+    map_to_kernel: Optional[Callable] = None,
+) -> Tensor:
     """
     Interpolate unseen time frames as a weighted average of neighbours.
     \
@@ -451,42 +469,42 @@ def weighted_interpolate(
     """
     data = atleast_4d(data)
     mask = atleast_4d(mask)
-    #orig_data = data.copy()
+    # orig_data = data.copy()
     if stages is None:
         stages = all_stages(start_stage, max_stage, mask)
     max_stage = stages[-1]
     if map_to_kernel is None:
         map_to_kernel = partial(centred_square_kernel, max_stage=max_stage)
-        #map_to_kernel = lambda s: jnp.ones(2 * s + 1)
+        # map_to_kernel = lambda s: jnp.ones(2 * s + 1)
     kernels = jnp.stack(make_kernels(stages, map_to_kernel))
     f = lambda x, k: _weighted_interpolate_stage(
         data=x[0],
         mask=x[1],
         kernel=k,
-        #orig_data=orig_data,
+        # orig_data=orig_data,
     )
     (data, mask), _ = jax.lax.scan(
         f=f,
         init=(data, mask),
         xs=kernels,
     )
-    #data = jnp.where(mask, data, float('nan'))
+    # data = jnp.where(mask, data, float('nan'))
     return data
 
 
 def make_kernels(
     stages: Sequence[int],
-    map_to_kernel: Callable
+    map_to_kernel: Callable,
 ) -> Sequence[Tensor]:
     return [map_to_kernel(stage) for stage in stages]
 
 
 def all_stages(
     start_stage: int = 1,
-    max_stage: Union[int, Literal['auto']] = 'auto',
-    mask: Optional[Tensor] = None
+    max_stage: Union[int, Literal["auto"]] = "auto",
+    mask: Optional[Tensor] = None,
 ) -> Sequence[int]:
-    if max_stage == 'auto':
+    if max_stage == "auto":
         max_stage = vmap_over_outer(max_number_consecutive, 1)((~mask,)).max()
     return range(start_stage, max_stage + 1)
 
@@ -495,26 +513,22 @@ def _weighted_interpolate_stage(
     data: Tensor,
     mask: Tensor,
     kernel: Tensor,
-    #orig_data: Tensor,
-):
-    stage_rec_data = reconstruct_weighted(
-        data,
-        mask,
-        kernel
-    )
+    # orig_data: Tensor,
+) -> Tuple[Tensor, None]:
+    stage_rec_data = reconstruct_weighted(data, mask, kernel)
     return _get_data_for_weighted_recon(data, stage_rec_data, mask), None
 
 
 def centred_square_kernel(stage: int, max_stage: int) -> Tensor:
     kernel = jnp.zeros(2 * max_stage + 1)
     midpt = max_stage
-    return kernel.at[(midpt - stage):(midpt + stage + 1)].set(1)
+    return kernel.at[(midpt - stage) : (midpt + stage + 1)].set(1)
 
 
 def _get_data_for_weighted_recon(
     orig_data: Tensor,
     rec_data: Tensor,
-    mask: Tensor
+    mask: Tensor,
 ) -> Tuple[Tensor, Tensor]:
     data = jnp.where(mask, orig_data, rec_data)
     mask = ~jnp.isnan(rec_data.sum((-2, -3), keepdims=True))
@@ -525,11 +539,11 @@ def _get_data_for_weighted_recon(
 def reconstruct_weighted(
     data: Tensor,
     mask: Tensor,
-    kernel: Tensor
+    kernel: Tensor,
 ) -> Tensor:
     val = tsconv2d(jnp.where(mask, data, 0), kernel)
-    wt = tsconv2d(jnp.where(mask, 1., 0.), kernel)
-    return val / wt # (wt + jnp.finfo(wt.dtype).eps)
+    wt = tsconv2d(jnp.where(mask, 1.0, 0.0), kernel)
+    return val / wt  # (wt + jnp.finfo(wt.dtype).eps)
 
 
 @document_interpolation
@@ -539,8 +553,8 @@ def spectral_interpolate(
     oversampling_frequency: float = 8,
     maximum_frequency: float = 1,
     sampling_period: float = 1,
-    frequency_thresh: float = 0
-):
+    frequency_thresh: float = 0,
+) -> Tensor:
     """
     Spectral interpolation based on basis function projection.
     \
@@ -559,14 +573,17 @@ def spectral_interpolate(
         n_samples=data.shape[-1],
         sampling_period=sampling_period,
         oversampling_frequency=oversampling_frequency,
-        maximum_frequency=maximum_frequency
+        maximum_frequency=maximum_frequency,
     )
-    recon = vmap_over_outer(partial(
-        _spectral_interpolate_single,
-        all_samples=all_samples,
-        angular_frequencies=angular_frequencies,
-        thresh=frequency_thresh,
-    ), 3)((data, tmask))
+    recon = vmap_over_outer(
+        partial(
+            _spectral_interpolate_single,
+            all_samples=all_samples,
+            angular_frequencies=angular_frequencies,
+            thresh=frequency_thresh,
+        ),
+        3,
+    )((data, tmask))
     msk = conform_mask(data, tmask.squeeze(), axis=-1, batch=True)
     return jnp.where(msk, data, recon)
 
@@ -579,14 +596,16 @@ def _spectral_interpolate_single(
     thresh: float = 0,
 ) -> Tensor:
     msk = msk.squeeze()
+
     def fn() -> Tensor:
         return _spectral_interpolate_single_impl(
-            tsr,
-            msk,
-            all_samples,
-            angular_frequencies,
-            thresh
+            tsr=tsr,
+            msk=msk,
+            all_samples=all_samples,
+            angular_frequencies=angular_frequencies,
+            thresh=thresh,
         )
+
     degenerate_mask = jnp.logical_or(msk.all(), (~msk).all())
     return jax.lax.cond(degenerate_mask, lambda: tsr, fn)
 
@@ -596,12 +615,12 @@ def _spectral_interpolate_single_impl(
     msk: Tensor,
     all_samples: Tensor,
     angular_frequencies: Tensor,
-    thresh: float = 0
+    thresh: float = 0,
 ) -> Tensor:
     sin_basis, cos_basis = _apply_periodogram(
         tmask=msk,
         all_samples=all_samples,
-        angular_frequencies=angular_frequencies
+        angular_frequencies=angular_frequencies,
     )
     return _interpolate_spectral(
         data=tsr,
@@ -610,7 +629,7 @@ def _spectral_interpolate_single_impl(
         cosine_basis=cos_basis,
         angular_frequencies=angular_frequencies,
         all_samples=all_samples,
-        thresh=thresh
+        thresh=thresh,
     )
 
 
@@ -619,7 +638,7 @@ def _apply_periodogram(
     all_samples: Tensor,
     angular_frequencies: Tensor,
 ) -> Tuple[Tensor, Tensor]:
-    seen_samples = jnp.where(tmask, all_samples, float('nan'))
+    seen_samples = jnp.where(tmask, all_samples, float("nan"))
     arg = jnp.outer(angular_frequencies, seen_samples)
     return jnp.sin(arg), jnp.cos(arg)
 
@@ -631,15 +650,19 @@ def _periodogram_cfg(
     maximum_frequency: float = 1,
 ) -> Tuple[Tensor, Tensor]:
     timespan = sampling_period * (n_samples + 1) - 1
-    all_samples = jnp.arange(start=sampling_period,
-                             step=sampling_period,
-                             stop=timespan + 1)
+    all_samples = jnp.arange(
+        start=sampling_period, step=sampling_period, stop=timespan + 1
+    )
     freqstep = 1 / (timespan * oversampling_frequency)
 
-    angular_frequencies = 2 * jnp.pi * jnp.arange(
-        start=freqstep,
-        step=freqstep,
-        stop=(maximum_frequency * n_samples / (2 * timespan) + freqstep)
+    angular_frequencies = (
+        2
+        * jnp.pi
+        * jnp.arange(
+            start=freqstep,
+            step=freqstep,
+            stop=(maximum_frequency * n_samples / (2 * timespan) + freqstep),
+        )
     )
     return angular_frequencies, all_samples
 
@@ -647,7 +670,7 @@ def _periodogram_cfg(
 def _fit_spectrum(
     basis: Tensor,
     data: Tensor,
-    thresh: float = 0
+    thresh: float = 0,
 ) -> Tensor:
     """
     Compute the transform from seen data for sin and cos terms.
@@ -662,11 +685,11 @@ def _fit_spectrum(
     # Putting it back, however, results in a much poorer fit. Here we're
     # instead going with projecting the seen time series onto each of the sin
     # and cos terms to get our spectra.
-    denom = jnp.sqrt((basis ** 2).sum(-1, keepdims=True))
-    spectrum = (num / denom)
+    denom = jnp.sqrt((basis**2).sum(-1, keepdims=True))
+    spectrum = num / denom
     if thresh > 0:
         absval = jnp.abs(spectrum)
-        mask = ((absval / absval.max()) <= thresh)
+        mask = (absval / absval.max()) <= thresh
         return jnp.where(mask, 0, spectrum)
     return spectrum
 
@@ -675,7 +698,7 @@ def _reconstruct_from_spectrum(
     spectrum: Tensor,
     fn: Callable,
     angular_frequencies: Tensor,
-    all_samples: Tensor
+    all_samples: Tensor,
 ) -> Tensor:
     """
     Interpolate over unseen epochs; reconstruct the time series.
@@ -691,7 +714,7 @@ def _interpolate_spectral(
     cosine_basis: Tensor,
     angular_frequencies: Tensor,
     all_samples: Tensor,
-    thresh: float = 0
+    thresh: float = 0,
 ) -> Tensor:
     """
     Temporally interpolate over unseen (masked) values in a dataset using an
@@ -732,7 +755,7 @@ def _interpolate_spectral(
     reconstruct = partial(
         _reconstruct_from_spectrum,
         angular_frequencies=angular_frequencies,
-        all_samples=all_samples
+        all_samples=all_samples,
     )
 
     data = jnp.where(tmask, data, 0)
@@ -749,9 +772,12 @@ def _interpolate_spectral(
     # Normalise the reconstructed spectrum by projecting the seen time points
     # onto the real data. This will give us a beta value that we can use to
     # normalise the reconstructed time series.
+    # TODO: See whether the smoothness of the reconstruction can be improved
+    #       by fitting to only boundary seen points.
     recon_seen = jnp.where(tmask, recon, 0)
     seen_data = jnp.where(tmask, data, 0)
-    norm_fac = jnp.sum(recon_seen * seen_data, axis=-1, keepdims=True) / \
-        jnp.sum(seen_data ** 2, axis=-1, keepdims=True)
+    norm_fac = jnp.sum(
+        recon_seen * seen_data, axis=-1, keepdims=True
+    ) / jnp.sum(seen_data**2, axis=-1, keepdims=True)
 
     return recon / (norm_fac + jnp.finfo(data.dtype).eps)

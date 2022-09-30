@@ -4,18 +4,21 @@
 """
 Functions supporting convolution of time series and other data.
 """
+from __future__ import annotations
+from typing import Callable, List, Literal, Optional, Sequence, Tuple, Union
+
 import jax
 import jax.numpy as jnp
-from typing import Callable, List, Literal, Optional, Sequence, Tuple, Union
 from equinox.nn.conv import _ntuple
+
 from ..engine import NestedDocParse, Tensor, atleast_4d
 
 
 torch_dims = {
-    0: ('NC', 'OI', 'NC'),
-    1: ('NCH', 'OIH', 'NCH'),
-    2: ('NCHW', 'OIHW', 'NCHW'),
-    3: ('NCHWD', 'OIHWD', 'NCHWD'),
+    0: ("NC", "OI", "NC"),
+    1: ("NCH", "OIH", "NCH"),
+    2: ("NCHW", "OIHW", "NCHW"),
+    3: ("NCHWD", "OIHWD", "NCHWD"),
 }
 
 
@@ -87,7 +90,7 @@ def conv(
     bias: Tensor = None,
     stride: Union[int, Sequence[int]] = 1,
     padding: Union[int, Sequence[Tuple[int, int]]] = 0,
-    dilation: Union[int, Sequence[int]] = 1
+    dilation: Union[int, Sequence[int]] = 1,
 ) -> Tensor:
     """
     ``torch``-like API for convolution.
@@ -95,7 +98,7 @@ def conv(
     https://stackoverflow.com/questions/69571976/ ...
     ... how-to-use-grad-convolution-in-google-jax
     """
-    #TODO: Compare against
+    # TODO: Compare against
     # https://github.com/patrick-kidger/equinox/blob/main/equinox/nn/conv.py#L104
     # and reconcile. Pretty sure dilation is not handled correctly here.
     n = len(input.shape) - 2
@@ -117,7 +120,8 @@ def conv(
         feature_group_count=1,
         batch_group_count=1,
         precision=None,
-        preferred_element_type=None)
+        preferred_element_type=None,
+    )
     if bias is not None:
         return out + bias
     return out
@@ -128,10 +132,14 @@ def tsconv2d(
     X: Tensor,
     weight: Tensor,
     bias: Optional[Tensor] = None,
-    padding: Optional[Union[Literal['initial', 'final'],
-                      Sequence[Tuple[int, int]]]] = None,
+    padding: Optional[
+        Union[
+            Literal["initial", "final"],
+            Sequence[Tuple[int, int]],
+        ]
+    ] = None,
     conv_fn: Optional[Callable] = None,
-    **params
+    **params,
 ) -> Tensor:
     """
     Convolve time series data.
@@ -155,7 +163,7 @@ def tsconv2d(
         weight=weight,
         bias=bias,
         padding=padding,
-        **params
+        **params,
     )
 
 
@@ -168,7 +176,7 @@ def basisconv2d(
     bias: Optional[Tensor] = None,
     padding: Optional[Tuple[int, int]] = None,
     conv_fn: Optional[Callable] = None,
-    **params
+    **params,
 ) -> Tensor:
     """
     Perform convolution using basis function channel mapping.
@@ -190,7 +198,7 @@ def basisconv2d(
     X = basischan(
         X,
         basis_functions=basis_functions,
-        include_const=include_const
+        include_const=include_const,
     )
     return tsconv2d(
         X=X,
@@ -198,7 +206,7 @@ def basisconv2d(
         bias=bias,
         padding=padding,
         conv_fn=conv_fn,
-        **params
+        **params,
     )
 
 
@@ -208,10 +216,14 @@ def polyconv2d(
     weight: Tensor,
     include_const: bool = False,
     bias: Optional[Tensor] = None,
-    padding: Optional[Union[Literal['initial', 'final'],
-                      Sequence[Tuple[int, int]]]] = None,
+    padding: Optional[
+        Union[
+            Literal["initial", "final"],
+            Sequence[Tuple[int, int]],
+        ]
+    ] = None,
     conv_fn: Optional[Callable] = None,
-    **params
+    **params,
 ) -> Tensor:
     """
     Perform convolution using a polynomial channel basis.
@@ -241,7 +253,7 @@ def polyconv2d(
         bias=bias,
         padding=padding,
         conv_fn=conv_fn,
-        **params
+        **params,
     )
 
 
@@ -254,26 +266,26 @@ def _configure_weight_for_ts_conv(weight: Tensor) -> Tensor:
 
 
 def _configure_padding_for_ts_conv(
-    padding: Union[None, Literal['initial', 'final'],
-                   Sequence[Tuple[int, int]]],
+    padding: Union[
+        None,
+        Literal["initial", "final"],
+        Sequence[Tuple[int, int]],
+    ],
     weight: Tensor,
 ) -> Sequence[Tuple[int, int]]:
     size = weight.shape[-1]
-    if padding == 'final':
+    if padding == "final":
         padding = ((0, 0), (0, size - 1))
-    elif padding == 'initial':
+    elif padding == "initial":
         padding = ((0, 0), (size - 1, 0))
-    padding = padding or (
-        (0, 0),
-        (size // 2, size // 2)
-    )
+    padding = padding or ((0, 0), (size // 2, size // 2))
     return padding
 
 
 def basischan(
     X: Tensor,
     basis_functions: List[Callable],
-    include_const: bool = False
+    include_const: bool = False,
 ) -> Tensor:
     r"""
     Create a channel basis for the data.
@@ -312,7 +324,11 @@ def basischan(
     return jnp.concatenate(stack, 1)
 
 
-def polychan(X, degree=2, include_const=False):
+def polychan(
+    X: Tensor,
+    degree: int = 2,
+    include_const: bool = False,
+) -> Tensor:
     r"""
     Create a polynomial channel basis for the data.
 

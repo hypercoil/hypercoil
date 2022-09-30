@@ -4,10 +4,13 @@
 """
 Windowing functions.
 """
+from __future__ import annotations
+from typing import Callable, Generator, Sequence
+
 import jax
 import jax.numpy as jnp
 import distrax
-from typing import Callable, Generator, Sequence
+
 from ..engine import Tensor
 
 
@@ -53,7 +56,7 @@ def _select_fn_allow_overlap(
     input_size: int,
     window_size: int,
     num_windows: int,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     return jax.random.choice(
         key,
@@ -67,12 +70,12 @@ def _select_fn_no_overlap(
     input_size: int,
     window_size: int,
     num_windows: int,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     unused_size = input_size - window_size * num_windows
     intervals = distrax.Multinomial(
         total_count=unused_size,
-        probs=jnp.ones(num_windows + 1) / (num_windows + 1)
+        probs=jnp.ones(num_windows + 1) / (num_windows + 1),
     ).sample(seed=key)
     start = jnp.arange(num_windows + 1) * window_size + jnp.cumsum(intervals)
     return start[:-1]
@@ -118,7 +121,7 @@ def _sample_window_impl(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     tensor = jnp.asarray(tensor)
     if windowing_axis < 0:
@@ -134,16 +137,20 @@ def _sample_window_impl(
         key=key,
     )
     slices = [0] * tensor.ndim
-    sizes = tuple(s if i != windowing_axis else window_size
-                  for i, s in enumerate(tensor.shape))
-    windows = tuple(slice_fn(
-        tensor=tensor,
-        start=start,
-        slices=slices,
-        sizes=sizes,
-        windowing_axis=windowing_axis,
-        multiplying_axis=multiplying_axis,
-    ))
+    sizes = tuple(
+        s if i != windowing_axis else window_size
+        for i, s in enumerate(tensor.shape)
+    )
+    windows = tuple(
+        slice_fn(
+            tensor=tensor,
+            start=start,
+            slices=slices,
+            sizes=sizes,
+            windowing_axis=windowing_axis,
+            multiplying_axis=multiplying_axis,
+        )
+    )
     return jnp.concatenate(windows, axis=multiplying_axis)
 
 
@@ -155,7 +162,7 @@ def sample_nonoverlapping_windows_existing_ax(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     return _sample_window_impl(
         tensor,
@@ -177,7 +184,7 @@ def sample_nonoverlapping_windows_new_ax(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     return _sample_window_impl(
         tensor,
@@ -199,7 +206,7 @@ def sample_overlapping_windows_existing_ax(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     return _sample_window_impl(
         tensor,
@@ -221,7 +228,7 @@ def sample_overlapping_windows_new_ax(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     return _sample_window_impl(
         tensor,

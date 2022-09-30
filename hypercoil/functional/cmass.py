@@ -12,16 +12,19 @@ to different locations and accepts a second argument that indicates explicitly
 the coordinates of each location
 (:func:`cmass_coor`, :func:`diffuse`, :func:`cmass_reference_displacement`).
 """
-import jax.numpy as jnp
+from __future__ import annotations
 from typing import Any, Optional, Sequence
-from .sphere import spherical_geodesic
+
+import jax.numpy as jnp
+
 from ..engine import Tensor
+from .sphere import spherical_geodesic
 
 
 def cmass(
     X: Tensor,
     axes: Optional[Sequence[int]] = None,
-    na_rm: bool = False
+    na_rm: bool = False,
 ) -> Tensor:
     r"""
     Differentiably compute a weight's centre of mass. This can be used to
@@ -71,7 +74,7 @@ def cmass(
     out = jnp.zeros(out_dim)
     for i, ax in enumerate(axes):
         coor = jnp.arange(1, X.shape[ax] + 1)
-        #TODO
+        # TODO
         # This is going to lead to trouble with jit since the shape of the
         # coordinate tensor is set according to the shape of the input tensor.
         # Add a test case for this and fix it.
@@ -89,7 +92,7 @@ def cmass_reference_displacement_grid(
     weight: Tensor,
     refs: Tensor,
     axes: Optional[Sequence[int]] = None,
-    na_rm: bool = False
+    na_rm: bool = False,
 ) -> Tensor:
     """
     Displacement of centres of mass from reference points -- grid version.
@@ -104,7 +107,7 @@ def cmass_reference_displacement(
     weight: Tensor,
     refs: Tensor,
     coor: Tensor,
-    radius: Optional[float] = None
+    radius: Optional[float] = None,
 ) -> Tensor:
     """
     Displacement of centres of mass from reference points -- explicit
@@ -119,7 +122,7 @@ def cmass_reference_displacement(
 def cmass_coor(
     X: Tensor,
     coor: Tensor,
-    radius: Optional[float] = None
+    radius: Optional[float] = None,
 ) -> Tensor:
     r"""
     Differentiably compute a weight's centre of mass.
@@ -162,7 +165,7 @@ def diffuse(
     coor: Tensor,
     norm: Any = 2,
     floor: float = 0,
-    radius: Optional[float] = None
+    radius: Optional[float] = None,
 ) -> Tensor:
     r"""
     Compute a compactness score for a weight.
@@ -205,9 +208,7 @@ def diffuse(
         dist = jnp.linalg.norm(dist, ord=2, axis=-3)
     else:
         dist = spherical_geodesic(
-            coor.swapaxes(-1, -2),
-            cm.swapaxes(-1, -2),
-            r=radius
+            coor.swapaxes(-1, -2), cm.swapaxes(-1, -2), r=radius
         ).swapaxes(-1, -2)
     dist = jnp.maximum(dist - floor, 0)
     return (X * dist).mean(-1)

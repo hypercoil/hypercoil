@@ -20,25 +20,31 @@ the following properties:
 - The data tensor has shape
   (``batch_size``, ``*channel_dims``, ``n_rows``, ``k``).
 """
+from __future__ import annotations
+from functools import partial
+from itertools import cycle
+from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-from functools import partial
-from itertools import cycle
-#from jax.tree_util import tree_map
 from jax.experimental.sparse import BCOO, sparsify
-from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
 
 from ..engine import (
-    Tensor, standard_axis_number, unfold_axes, vmap_over_outer,
-    fold_and_promote, demote_and_unfold
+    Tensor,
+    standard_axis_number,
+    unfold_axes,
+    vmap_over_outer,
+    fold_and_promote,
+    demote_and_unfold,
 )
 
 
 TopKTensor = BCOO
 
 
-def _ix(x, i): return x[i]
+def _ix(x, i):
+    return x[i]
 
 
 def random_sparse(
@@ -51,26 +57,30 @@ def random_sparse(
     Generate a batch of random sparse matrices in the top-k format.
     """
     ikey, dkey = jax.random.split(key)
-    if k is None: k = max(shape[-1] // 100, 1)
+    if k is None:
+        k = max(shape[-1] // 100, 1)
     if len(shape) > 2:
         batch_size, *channel_dims, n_rows, n_cols = shape
         idx_unsqueeze = tuple([None] * (1 + len(channel_dims)) + [...])
         data = jax.random.normal(dkey, (batch_size, *channel_dims, n_rows, k))
     else:
         n_rows, n_cols = shape
-        idx_unsqueeze = (...)
+        idx_unsqueeze = ...
         data = jax.random.normal(dkey, (n_rows, k))
     ikeys = jax.random.split(ikey, n_rows)
-    indices = jnp.stack([
-        jax.random.choice(i, a=n_cols, shape=(k, 1), replace=False)
-        for i in ikeys
-    ], axis=0)
+    indices = jnp.stack(
+        [
+            jax.random.choice(i, a=n_cols, shape=(k, 1), replace=False)
+            for i in ikeys
+        ],
+        axis=0,
+    )
     return BCOO((data, indices[idx_unsqueeze]), shape=shape).sum_duplicates()
 
 
 def sparse_astype(
     tensor: Tensor,
-    dtype: Any
+    dtype: Any,
 ) -> Tensor:
     """
     Set the data type of a sparse matrix.
@@ -81,8 +91,7 @@ def sparse_astype(
     if tensor.dtype == dtype:
         return tensor
     return BCOO(
-        (tensor.data.astype(dtype), tensor.indices),
-        shape=tensor.shape
+        (tensor.data.astype(dtype), tensor.indices), shape=tensor.shape
     )
 
 
@@ -95,12 +104,11 @@ def topk_to_bcoo(
     """
     indices = jnp.tile(
         jnp.arange(tensor.indices.shape[-3])[..., None],
-        (1, tensor.indices.shape[-2])
+        (1, tensor.indices.shape[-2]),
     )
     indices = jnp.concatenate(
-        jnp.broadcast_arrays(
-            indices[..., None],
-            tensor.indices), -1)
+        jnp.broadcast_arrays(indices[..., None], tensor.indices), -1
+    )
     indices = unfold_axes(indices, (-3, -2))
     data = unfold_axes(tensor.data, (-2, -1))
     return BCOO((data, indices), shape=tensor.shape)
@@ -109,7 +117,7 @@ def topk_to_bcoo(
 def spdiagmm(
     lhs: Union[Tensor, TopKTensor],
     rhs: Union[Tensor, TopKTensor],
-    lhs_diag: bool = False
+    lhs_diag: bool = False,
 ) -> TopKTensor:
     """
     Matrix multiplication of a top-k format sparse matrix with a diagonal
@@ -137,7 +145,7 @@ def spspmm(
     lhs: TopKTensor,
     rhs: TopKTensor,
     indices: Optional[Tensor] = None,
-    n_blocks: int = 1
+    n_blocks: int = 1,
 ):
     """
     Sparse-sparse matrix multiplication of top-k format sparse matrices.
@@ -183,7 +191,7 @@ def spspmm(
             lhs=lhs,
             rhs=rhs,
             indices=indices,
-            n_blocks=n_blocks
+            n_blocks=n_blocks,
         )
 
 
@@ -205,7 +213,7 @@ def _spspmm_broadcast(
 
 def spspmm_full(
     lhs: TopKTensor,
-    rhs: TopKTensor
+    rhs: TopKTensor,
 ) -> Tensor:
     """
     Matrix multiplication of a top-k format sparse matrix with another sparse
@@ -228,7 +236,7 @@ def spspmm_full(
 
 def dspdmm(
     input: TopKTensor,
-    diag: Tensor
+    diag: Tensor,
 ) -> TopKTensor:
     """
     Left and right matrix multiplication of a top-k format sparse matrix with
@@ -244,9 +252,9 @@ def dspdmm(
 def select_indices(
     tensor: Tensor,
     threshold: float = 0.0,
-    threshold_type: Literal['abs>', 'abs<' '>', '<'] = 'abs>',
+    threshold_type: Literal["abs>", "abs<" ">", "<"] = "abs>",
     top_k: bool = True,
-    top_k_reduction: Optional[Literal['mean']] = 'mean',
+    top_k_reduction: Optional[Literal["mean"]] = "mean",
     fix_indices_over_channel_dims: bool = True,
 ) -> Tensor:
     """
@@ -294,43 +302,48 @@ def select_indices(
         data = tensor.any(axis=fixed_axes)
         return jnp.stack(jnp.where(tensor), axis=-1)
     elif not top_k:
-        if threshold_type == 'abs>':
+        if threshold_type == "abs>":
             tensor = jnp.abs(tensor) > threshold
-        elif threshold_type == 'abs<':
+        elif threshold_type == "abs<":
             tensor = jnp.abs(tensor) < threshold
-        elif threshold_type == '>':
+        elif threshold_type == ">":
             tensor = tensor > threshold
-        elif threshold_type == '<':
+        elif threshold_type == "<":
             tensor = tensor < threshold
         tensor = tensor.any(axis=fixed_axes)
         return jnp.stack(jnp.where(tensor), axis=-1)
     else:
-        if top_k_reduction == 'mean':
+        if top_k_reduction == "mean":
             tensor = tensor.mean(axis=fixed_axes)
         if not isinstance(threshold, int):
             raise ValueError(
-                'If topk is True, then the threshold value must be an integer.'
+                "If topk is True, then the threshold value must be an integer."
             )
-        if threshold_type == 'abs>':
+        if threshold_type == "abs>":
             descending = True
             tensor = jnp.abs(tensor)
-        elif threshold_type == 'abs<':
+        elif threshold_type == "abs<":
             descending = False
             tensor = jnp.abs(tensor)
-        elif threshold_type == '>':
+        elif threshold_type == ">":
             descending = True
-        elif threshold_type == '<':
+        elif threshold_type == "<":
             descending = False
-        return topk(tensor, k=threshold, axis=-1, descending=descending)[..., None]
+        return topk(
+            tensor,
+            k=threshold,
+            axis=-1,
+            descending=descending,
+        )[..., None]
 
 
 def trace_spspmm(
     lhs: TopKTensor,
     rhs: TopKTensor,
     threshold: float = 0.0,
-    threshold_type: Literal['abs>', 'abs<' '>', '<'] = 'abs>',
+    threshold_type: Literal["abs>", "abs<" ">", "<"] = "abs>",
     top_k: bool = True,
-    top_k_reduction: Optional[Literal['mean']] = 'mean',
+    top_k_reduction: Optional[Literal["mean"]] = "mean",
     fix_indices_over_channel_dims: bool = True,
 ) -> Tensor:
     """
@@ -440,10 +453,7 @@ def block_serialise(
     def _f_serialised(*pparams, **params):
         pparams = list(pparams)
         for i, (pparam, ax) in enumerate(zip(pparams, cycle(in_axes))):
-            pparams[i] = fold_and_promote(
-                pparam,
-                axis=ax,
-                n_folds=n_blocks)
+            pparams[i] = fold_and_promote(pparam, axis=ax, n_folds=n_blocks)
         carry, out = jax.lax.scan(
             partial(_f_scan_compat, **params),
             carry_init,
@@ -498,8 +508,12 @@ def block_serialise(
 #         axidx, carry, update)
 
 
-def _shape_block(shape, n_blocks, axis=-2):
-    return shape[:axis] + (shape[axis] // n_blocks,) + shape[axis + 1:]
+def _shape_block(
+    shape: Tuple[int, ...],
+    n_blocks: int,
+    axis: int = -2,
+) -> Tuple[int, ...]:
+    return shape[:axis] + (shape[axis] // n_blocks,) + shape[axis + 1 :]
 
 
 def sp_block_serialise(
@@ -517,6 +531,7 @@ def sp_block_serialise(
     Function block serialisation transformation with a convenience wrapper for
     handling top-k format sparse data.
     """
+
     def _cfg_return():
         oax = 0
         retnum = 0
@@ -531,10 +546,10 @@ def sp_block_serialise(
                 retnum += 2
 
     if sp_retshapes == () and sp_retnums != ():
-        raise ValueError('Must specify shapes of any sparse outputs')
+        raise ValueError("Must specify shapes of any sparse outputs")
     retnums, out_axes = zip(*_cfg_return())
     retnums, out_axes = tuple(retnums), tuple(out_axes)
-    #print(retnums, out_axes)
+    # print(retnums, out_axes)
 
     def _prepare_transformation(pparams):
         j = 0
@@ -554,10 +569,10 @@ def sp_block_serialise(
         s = 0
         for i, retval in enumerate(retvals):
             if i in sp_retnums:
-                #print(s, shapes[s])
+                # print(s, shapes[s])
                 indices = retvals[i + 1]
-                #yield ((retval, indices), shapes[s])
-                #yield _mk_bcoo(retvals, indices, shapes[s])
+                # yield ((retval, indices), shapes[s])
+                # yield _mk_bcoo(retvals, indices, shapes[s])
                 yield BCOO((retval, indices), shape=shapes[s])
                 s += 1
             elif not (i - 1) in sp_retnums:
@@ -568,7 +583,7 @@ def sp_block_serialise(
         for i, a in enumerate(addresses):
             cur, shape = a
             if cur:
-                #yield _mk_bcoo(pparams[i], pparams[i + 1], shape=shape)
+                # yield _mk_bcoo(pparams[i], pparams[i + 1], shape=shape)
                 yield BCOO((pparams[i], pparams[i + 1]), shape=shape)
             elif not prev:
                 yield pparams[i]
@@ -605,12 +620,14 @@ def sp_block_serialise(
     def _f_serialised(*pparams, **params):
         inputs = _prepare_transformation(pparams)
         pparams, argnums, in_axes, data_addresses = zip(*inputs)
-        #zero_shapes = tuple(_init_shapes(data_addresses))
-        #print(zero_shapes)
+        # zero_shapes = tuple(_init_shapes(data_addresses))
+        # print(zero_shapes)
         serialised = block_serialise(
             partial(_f_unpack, addresses=data_addresses),
-            n_blocks=n_blocks, retnums=retnums,
-            in_axes=in_axes, out_axes=out_axes,
+            n_blocks=n_blocks,
+            retnums=retnums,
+            in_axes=in_axes,
+            out_axes=out_axes,
             # carrier_fn=partial(
             #     _shape_carrier,
             #     axes=(-2,) * len(sp_retnums),
@@ -619,18 +636,20 @@ def sp_block_serialise(
             # return_carry=True,
             postprocess_fn=_unpack_topk_postprocess,
         )
-        #shapes, retvals = serialised(*pparams, **params)
+        # shapes, retvals = serialised(*pparams, **params)
         retvals = serialised(*pparams, **params)
-        #print('shapes ', shapes)
+        # print('shapes ', shapes)
         if not isinstance(retvals, tuple):
             retvals = (retvals,)
-        #return shapes, retvals
+        # return shapes, retvals
         out = tuple(_finalise_transformation(sp_retshapes, retvals))
         if len(out) == 1:
             return out[0]
         return tuple(out)
 
     return _f_serialised
+
+
 # ----------------------------------------------------------------------------
 
 
@@ -639,26 +658,27 @@ def _serialised_spspmm(
     rhs: TopKTensor,
     indices: Tensor,
     n_blocks: int = 1,
-):
+) -> TopKTensor:
     if lhs.shape[-2] % n_blocks != 0:
         raise ValueError(
-            'The number of blocks must divide the number of rows in the '
-            'left-hand side matrix.'
+            "The number of blocks must divide the number of rows in the "
+            "left-hand side matrix."
         )
     lhs_data = fold_and_promote(lhs.data, axis=-2, n_folds=n_blocks)
     lhs_indices = fold_and_promote(lhs.indices, axis=-3, n_folds=n_blocks)
     out_indices = fold_and_promote(indices, axis=-3, n_folds=n_blocks)
-    lhs_shape = (
-        lhs.shape[:-2] + (lhs.shape[-2] // n_blocks, ) + lhs.shape[-1:])
+    lhs_shape = lhs.shape[:-2] + (lhs.shape[-2] // n_blocks,) + lhs.shape[-1:]
 
     _, out_data = jax.lax.scan(
         partial(_serialised_spspmm_impl, rhs=rhs, lhs_shape=lhs_shape),
         None,
-        (lhs_data, lhs_indices, out_indices))
+        (lhs_data, lhs_indices, out_indices),
+    )
     out_data = demote_and_unfold(out_data, -2, (-3, -2))
     out_shape = lhs.shape[:-2] + (lhs.shape[-2], rhs.shape[-2])
     out_idx_idx = tuple(
-        [None] * (out_data.ndim - indices.ndim + 1) + [Ellipsis])
+        [None] * (out_data.ndim - indices.ndim + 1) + [Ellipsis]
+    )
     return BCOO((out_data, indices[out_idx_idx]), shape=out_shape)
 
 
@@ -666,12 +686,10 @@ def _serialised_spspmm_impl(
     _: None,
     data: Tuple[Tensor, Tensor, Tensor],
     rhs: TopKTensor,
-    lhs_shape: Tuple[int, ...]
-):
+    lhs_shape: Tuple[int, ...],
+) -> Tuple[None, Tensor]:
     lhs_data, lhs_indices, out_indices = data
-    out = spspmm_full(
-        BCOO((lhs_data, lhs_indices), shape=(lhs_shape)), rhs
-    )
+    out = spspmm_full(BCOO((lhs_data, lhs_indices), shape=(lhs_shape)), rhs)
     sampling_fn = vmap_over_outer(_ix, 1)
     return None, sampling_fn((out, out_indices.squeeze(-1)))
 
@@ -681,7 +699,7 @@ def topkx(
     *,
     retnums: Sequence[int] = (0,),
     auto_index: bool = False,
-    threshold_type: Literal['abs>', 'abs<' '>', '<'] = 'abs>',
+    threshold_type: Literal["abs>", "abs<" ">", "<"] = "abs>",
     fix_indices_over_channel_dims: bool = True,
 ) -> TopKTensor:
     """
@@ -738,6 +756,7 @@ def topkx(
     """
     sampling_fn = vmap_over_outer(_ix, 1)
     if auto_index:
+
         def _f_and_sample(k, *pparams, **params):
             f_out = f(*pparams, **params)
             if not isinstance(f_out, tuple):
@@ -753,15 +772,18 @@ def topkx(
                 )
                 data = sampling_fn((f_out[idx], indices.squeeze(-1)))
                 idx_idx = tuple(
-                    [None] * (data.ndim - indices.ndim + 1) + [Ellipsis])
+                    [None] * (data.ndim - indices.ndim + 1) + [Ellipsis]
+                )
                 out_transformed[idx] = BCOO(
                     (data, indices[idx_idx]),
-                    shape=f_out[idx].shape
+                    shape=f_out[idx].shape,
                 )
             if len(out_transformed) == 1:
                 return out_transformed[0]
             return tuple(out_transformed)
+
     else:
+
         def _f_and_sample(indices, *params, **pparams):
             f_out = f(*params, **pparams)
             if not isinstance(f_out, tuple):
@@ -770,14 +792,15 @@ def topkx(
             for idx in retnums:
                 data = sampling_fn((f_out[idx], indices.squeeze(-1)))
                 idx_idx = tuple(
-                    [None] * (data.ndim - indices.ndim + 1) + [Ellipsis])
+                    [None] * (data.ndim - indices.ndim + 1) + [Ellipsis]
+                )
                 out_transformed[idx] = BCOO(
-                    (data, indices[idx_idx]),
-                    shape=f_out[idx].shape
+                    (data, indices[idx_idx]), shape=f_out[idx].shape
                 )
             if len(out_transformed) == 1:
                 return out_transformed[0]
             return tuple(out_transformed)
+
     return _f_and_sample
 
 
@@ -810,7 +833,7 @@ def as_topk(
     """
     Convert a tensor to a top-k sparse matrix format.
     """
-    #TODO: allow user to specify axis (?)
+    # TODO: allow user to specify axis (?)
     indices = topk(tensor, k, axis=-1, descending=descending)
     data_fn = vmap_over_outer(_ix, 1)
     data = data_fn((tensor, indices))
@@ -838,7 +861,7 @@ def full_as_topk(
 def _spsp_pairdiff_impl(
     lhs_data: Tensor,
     lhs_indices: Tensor,
-    rhs: TopKTensor
+    rhs: TopKTensor,
 ) -> Tuple[Tensor, Tensor]:
     lhs_data = jnp.broadcast_to(lhs_data, rhs.data.shape)
     lhs_indices = jnp.broadcast_to(lhs_indices, rhs.indices.shape)
@@ -858,12 +881,11 @@ def spsp_pairdiff(
     lhs_indices = fold_and_promote(lhs.indices, -3, lhs.indices.shape[-3])
     data, indices = jax.vmap(
         partial(_spsp_pairdiff_impl, rhs=rhs),
-        in_axes=(0, 0)
+        in_axes=(0, 0),
     )(lhs_data, lhs_indices)
     data = demote_and_unfold(data, -3, (-3,))
     indices = demote_and_unfold(indices, -4, (-4,))
-    shape = lhs.shape[:-2] + (
-        lhs.shape[-2], rhs.shape[-2], lhs.shape[-1])
+    shape = lhs.shape[:-2] + (lhs.shape[-2], rhs.shape[-2], lhs.shape[-1])
     return BCOO((data, indices), shape=shape)
 
 
@@ -885,7 +907,7 @@ def splr_hadamard(
 def spsp_innerpaired(
     lhs: TopKTensor,
     rhs: Optional[TopKTensor] = None,
-    #theta: Optional[Tensor] = None,
+    # theta: Optional[Tensor] = None,
 ) -> Tensor:
     r"""
     Positive definite nondegenerate symmetric bilinear forms with sparse
@@ -924,7 +946,7 @@ def spsp_innerpaired(
 
 def spsymv(
     lhs: TopKTensor,
-    rhs: Tensor
+    rhs: Tensor,
 ) -> Tensor:
     """
     Matrix-vector product between a top-k formatted sparse tensor and a
@@ -942,18 +964,19 @@ def spsymv(
     return (left + right) / 2
 
 
-def topk_diagzero(
-    input: TopKTensor
-) -> TopKTensor:
+def topk_diagzero(input: TopKTensor) -> TopKTensor:
     r"""
     Zero out the diagonal of a top-k sparse matrix.
     """
     diag_indices = jnp.arange(input.shape[-2])
-    xdim = [d for d in range(input.indices.ndim)
-            if d != input.indices.ndim - 3]
+    xdim = [
+        d for d in range(input.indices.ndim) if d != input.indices.ndim - 3
+    ]
     diag_indices = jnp.expand_dims(diag_indices, xdim)
     diag_indices = sparsify(jnp.broadcast_arrays)(
-        diag_indices, input.indices)[0]
+        diag_indices,
+        input.indices,
+    )[0]
     mask = diag_indices == input.indices
     new_data = jnp.where(mask.squeeze(-1), 0, input.data)
     return BCOO((new_data, input.indices), shape=input.shape)
@@ -993,7 +1016,8 @@ def _diag_indices(W: Tensor) -> Tensor:
     diag_indices = jnp.expand_dims(diag_indices, xdim)
     bcdim = [
         d if i >= W.indices.ndim - 2 else w
-        for i, (w, d) in enumerate(zip(W.indices.shape, diag_indices.shape))]
+        for i, (w, d) in enumerate(zip(W.indices.shape, diag_indices.shape))
+    ]
     idx_dummy = jnp.empty(bcdim, dtype=jnp.bool_)
     return jnp.broadcast_arrays(diag_indices, idx_dummy)[0]
 
@@ -1031,7 +1055,7 @@ def to_batch_batchfinal(matrices: Sequence[Tensor]) -> Tensor:
         start = end
     return BCOO(
         (data, indices),
-        shape=(*matrices[0].shape, batch_size)
+        shape=(*matrices[0].shape, batch_size),
     ).sum_duplicates()
 
 
@@ -1061,26 +1085,28 @@ def spspmm_batchfinal(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
     out_shape = (
         lhs.shape[outer_dims[0]],
         rhs.shape[outer_dims[1]],
-        *dense_dim_out
+        *dense_dim_out,
     )
 
-    out_nse = lhs.nse * rhs.nse # memory use scales as product of NSEs
+    out_nse = lhs.nse * rhs.nse  # memory use scales as product of NSEs
     lhs_data = lhs.data[None, ...]
     rhs_data = rhs.data[:, None, ...]
 
     lhs_contract_dim, rhs_contract_dim = inner_dims
     lhs_contract_idx = lhs.indices[:, lhs_contract_dim][None, :]
     rhs_contract_idx = rhs.indices[:, rhs_contract_dim][:, None]
-    out_nonzero = (lhs_contract_idx == rhs_contract_idx)
+    out_nonzero = lhs_contract_idx == rhs_contract_idx
     extra_idx = [None] * len(dense_dim_out)
     out_nonzero = out_nonzero[tuple([...] + extra_idx)]
-    out_data = jnp.where(out_nonzero, lhs_data * rhs_data, 0.)
+    out_data = jnp.where(out_nonzero, lhs_data * rhs_data, 0.0)
 
-    lhs_indices = jnp.ones_like(lhs.indices).at[:, -2].set(
-        lhs.indices[:, outer_dims[0]])
-    rhs_indices = jnp.ones_like(rhs.indices).at[:, -1].set(
-        rhs.indices[:, outer_dims[1]])
-    out_indices = (lhs_indices[None, ...] * rhs_indices[:, None, ...])
+    lhs_indices = (
+        jnp.ones_like(lhs.indices).at[:, -2].set(lhs.indices[:, outer_dims[0]])
+    )
+    rhs_indices = (
+        jnp.ones_like(rhs.indices).at[:, -1].set(rhs.indices[:, outer_dims[1]])
+    )
+    out_indices = lhs_indices[None, ...] * rhs_indices[:, None, ...]
 
     out_indices = out_indices.reshape(out_nse, -1)
     out_data = out_data.reshape(out_nse, *dense_dim_out)
@@ -1093,7 +1119,8 @@ def embed_params_in_diagonal(params):
     indices = jnp.stack((indices, indices)).T[None, ...]
     idx_idx = tuple([None] * (params.ndim - 2) + [Ellipsis])
     return BCOO(
-        (params, indices[idx_idx]), shape=(*params.shape[:-1], dim, dim)
+        (params, indices[idx_idx]),
+        shape=(*params.shape[:-1], dim, dim),
     )
 
 
@@ -1121,17 +1148,16 @@ def embed_params_in_sparse(params):
     indices = indices.T[None, ...]
     idx_idx = tuple([None] * (params.ndim - 3) + [Ellipsis])
     return BCOO(
-        (values, indices[idx_idx]),
-        shape=(*params.shape[:-2], dim, dim)
+        (values, indices[idx_idx]), shape=(*params.shape[:-2], dim, dim)
     )
 
 
 def _promote_nnz_dim(values):
     return jnp.transpose(values, list(range(values.ndim))[::-1])
     # slightly faster but not as easy to implement
-    #return jnp.transpose(values, (*list(range(values.ndim))[1:], 0))
+    # return jnp.transpose(values, (*list(range(values.ndim))[1:], 0))
 
 
 def _demote_nnz_dim(values):
     return _promote_nnz_dim(values)
-    #return jnp.transpose(values, (-1, *list(range(values.dim()))[:-1]))
+    # return jnp.transpose(values, (-1, *list(range(values.dim()))[:-1]))

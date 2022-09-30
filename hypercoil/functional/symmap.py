@@ -5,19 +5,22 @@
 Differentiable computation of matrix logarithm, exponential, and square root.
 For use with symmetric (typically positive semidefinite) matrices.
 """
+from __future__ import annotations
+from typing import Callable, Literal, Optional
+
 import jax
 import jax.numpy as jnp
-from typing import Callable, Literal, Optional
-from . import symmetric, recondition_eigenspaces
+
 from ..engine import NestedDocParse, Tensor
+from . import symmetric, recondition_eigenspaces
 
 
-#TODO: Look here more closely:
+# TODO: Look here more closely:
 # https://github.com/pytorch/pytorch/issues/25481
 # regarding limitations and more efficient implementations
 
 
-#TODO: Let's think about overhauling SPD operations using
+# TODO: Let's think about overhauling SPD operations using
 # https://geoopt.readthedocs.io/en/latest/index.html
 # We could also ideally replace the domain mapper system with
 # manifold-aware optimisers.
@@ -79,9 +82,9 @@ def symmap(
     spd: bool = True,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
     fill_nans: bool = True,
-    truncate_eigenvalues: bool = False
+    truncate_eigenvalues: bool = False,
 ) -> Tensor:
     r"""
     Apply a specified matrix-valued transformation to a batch of symmetric
@@ -118,10 +121,10 @@ def symmap(
     """
     if psi > 0:
         if psi > 1:
-            raise ValueError('Nonconvex combination. Select psi in [0, 1].')
-        if recondition == 'convexcombination':
+            raise ValueError("Nonconvex combination. Select psi in [0, 1].")
+        if recondition == "convexcombination":
             input = (1 - psi) * input + psi * jnp.eye(input.shape[-1])
-        elif recondition == 'eigenspaces':
+        elif recondition == "eigenspaces":
             input = recondition_eigenspaces(input, psi=psi, xi=psi, key=key)
     if not spd:
         return jax.scipy.linalg.funm(input, map)
@@ -131,8 +134,8 @@ def symmap(
         # Based on xmodar's implementation here:
         # https://github.com/pytorch/pytorch/issues/25481
         mask = (
-            L > L.max(-1, keepdims=True) *
-            L.shape[-1] * jnp.finfo(L.dtype).eps)
+            L > L.max(-1, keepdims=True) * L.shape[-1] * jnp.finfo(L.dtype).eps
+        )
         L = jnp.where(mask, L, 0)
     Lmap = map(L)
     if fill_nans:
@@ -145,7 +148,7 @@ def symlog(
     input: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -233,7 +236,7 @@ def symsqrt(
     input: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
+    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
