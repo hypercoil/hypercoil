@@ -5,17 +5,28 @@
 Tools for initialising parameters to emulate or replicate the transfer
 function of a filter in the frequency domain.
 """
-import jax
-import jax.numpy as jnp
-import equinox as eqx
+from __future__ import annotations
 from dataclasses import field
 from functools import partial
 from typing import (
-    Callable, Dict, Literal, Optional, Sequence, Tuple, Type, Union)
-from .base import Initialiser, MappedInitialiser, retrieve_address
-from .mapparam import MappedParameter
+    Callable,
+    Dict,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+)
+
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+
 from ..engine import PyTree, Tensor
 from ..functional.utils import complex_recompose
+from .base import Initialiser, MappedInitialiser, retrieve_address
+from .mapparam import MappedParameter
 
 
 def document_frequency_spectrum(func):
@@ -87,7 +98,7 @@ def document_frequency_spectrum(func):
         rp_param_spec=rp_param_spec,
         rs_param_spec=rs_param_spec,
         norm_param_spec=norm_param_spec,
-        randn_param_spec=randn_param_spec
+        randn_param_spec=randn_param_spec,
     )
     return func
 
@@ -97,10 +108,10 @@ def filter_spectrum(
     N: Sequence[int],
     Wn: Sequence[Union[float, Tuple[float, float]]],
     worN: int,
-    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    btype: Literal["lowpass", "highpass", "bandpass"] = "bandpass",
     fs: Optional[float] = None,
     filter_params: Optional[dict] = None,
-    spectrum_params: Optional[dict] = None
+    spectrum_params: Optional[dict] = None,
 ) -> Tensor:
     """
     Transfer function for an IIR filter, obtained via import from scipy.
@@ -128,9 +139,10 @@ def filter_spectrum(
         The specified filter's transfer function.
     """
     from scipy.signal import freqz
+
     N = jnp.array(N).astype(int)
     Wn = jnp.array(Wn).astype(float)
-    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+    if btype in ("bandpass", "bandstop") and Wn.ndim < 2:
         Wn = Wn.reshape(1, 2)
     vals = [
         filter(N=n, Wn=wn, btype=btype, fs=fs, **filter_params)
@@ -150,9 +162,9 @@ def butterworth_spectrum(
     N: Sequence[int],
     Wn: Sequence[Union[float, Tuple[float, float]]],
     worN: int,
-    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    btype: Literal["lowpass", "highpass", "bandpass"] = "bandpass",
     fs: Optional[float] = None,
-    **params
+    **params,
 ) -> Tensor:
     """
     Butterworth filter's transfer function obtained via import from scipy.
@@ -169,13 +181,18 @@ def butterworth_spectrum(
         The specified Butterworth transfer function.
     """
     from scipy.signal import butter
+
     filter_params, spectrum_params = {}, {}
     return filter_spectrum(
         filter=butter,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
+        N=N,
+        Wn=Wn,
+        worN=worN,
+        btype=btype,
+        fs=fs,
         filter_params=filter_params,
-        spectrum_params=spectrum_params)
+        spectrum_params=spectrum_params,
+    )
 
 
 @document_frequency_spectrum
@@ -184,10 +201,11 @@ def chebyshev1_spectrum(
     N: Sequence[int],
     Wn: Sequence[Union[float, Tuple[float, float]]],
     worN: int,
-    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    btype: Literal["lowpass", "highpass", "bandpass"] = "bandpass",
     fs: Optional[float] = None,
     rp: float,
-    **params):
+    **params,
+):
     """
     Chebyshev I filter's transfer function obtained via import from scipy.
     \
@@ -204,16 +222,21 @@ def chebyshev1_spectrum(
         The specified Chebyshev I transfer function.
     """
     from scipy.signal import cheby1
+
     filter_params = {
-        'rp': rp
+        "rp": rp,
     }
     spectrum_params = {}
     return filter_spectrum(
         filter=cheby1,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
+        N=N,
+        Wn=Wn,
+        worN=worN,
+        btype=btype,
+        fs=fs,
         filter_params=filter_params,
-        spectrum_params=spectrum_params)
+        spectrum_params=spectrum_params,
+    )
 
 
 @document_frequency_spectrum
@@ -222,10 +245,10 @@ def chebyshev2_spectrum(
     N: Sequence[int],
     Wn: Sequence[Union[float, Tuple[float, float]]],
     worN: int,
-    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    btype: Literal["lowpass", "highpass", "bandpass"] = "bandpass",
     fs: Optional[float] = None,
     rs: float,
-    **params
+    **params,
 ) -> Tensor:
     """
     Chebyshev II filter's transfer function obtained via import from scipy.
@@ -243,16 +266,21 @@ def chebyshev2_spectrum(
         The specified Chebyshev II transfer function.
     """
     from scipy.signal import cheby2
+
     filter_params = {
-        'rs': rs
+        "rs": rs,
     }
     spectrum_params = {}
     return filter_spectrum(
         filter=cheby2,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
+        N=N,
+        Wn=Wn,
+        worN=worN,
+        btype=btype,
+        fs=fs,
         filter_params=filter_params,
-        spectrum_params=spectrum_params)
+        spectrum_params=spectrum_params,
+    )
 
 
 @document_frequency_spectrum
@@ -261,11 +289,11 @@ def elliptic_spectrum(
     N: Sequence[int],
     Wn: Sequence[Union[float, Tuple[float, float]]],
     worN: int,
-    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    btype: Literal["lowpass", "highpass", "bandpass"] = "bandpass",
     fs: Optional[float] = None,
     rp: float,
     rs: float,
-    **params
+    **params,
 ) -> Tensor:
     """
     Elliptic filter's transfer function obtained via import from scipy.
@@ -284,17 +312,22 @@ def elliptic_spectrum(
         The specified elliptic transfer function.
     """
     from scipy.signal import ellip
+
     filter_params = {
-        'rp': rp,
-        'rs': rs
+        "rp": rp,
+        "rs": rs,
     }
     spectrum_params = {}
     return filter_spectrum(
         filter=ellip,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
+        N=N,
+        Wn=Wn,
+        worN=worN,
+        btype=btype,
+        fs=fs,
         filter_params=filter_params,
-        spectrum_params=spectrum_params)
+        spectrum_params=spectrum_params,
+    )
 
 
 @document_frequency_spectrum
@@ -303,10 +336,10 @@ def bessel_spectrum(
     N: Sequence[int],
     Wn: Sequence[Union[float, Tuple[float, float]]],
     worN: int,
-    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    btype: Literal["lowpass", "highpass", "bandpass"] = "bandpass",
     fs: Optional[float] = None,
-    norm: Literal['mag', 'phase', 'delay', 'amplitude'] = 'phase',
-    **params
+    norm: Literal["mag", "phase", "delay", "amplitude"] = "phase",
+    **params,
 ) -> Tensor:
     """
     Bessel-Thompson filter's transfer function obtained via import from scipy.
@@ -324,17 +357,23 @@ def bessel_spectrum(
         The specified elliptic transfer function.
     """
     from scipy.signal import bessel
-    if norm == 'amplitude': norm = 'mag'
+
+    if norm == "amplitude":
+        norm = "mag"
     filter_params = {
-        'norm': norm
+        "norm": norm,
     }
     spectrum_params = {}
     return filter_spectrum(
         filter=bessel,
-        N=N, Wn=Wn, worN=worN,
-        btype=btype, fs=fs,
+        N=N,
+        Wn=Wn,
+        worN=worN,
+        btype=btype,
+        fs=fs,
         filter_params=filter_params,
-        spectrum_params=spectrum_params)
+        spectrum_params=spectrum_params,
+    )
 
 
 @document_frequency_spectrum
@@ -342,9 +381,9 @@ def ideal_spectrum(
     *,
     Wn: Sequence[Union[float, Tuple[float, float]]],
     worN: int,
-    btype: Literal['lowpass', 'highpass', 'bandpass'] = 'bandpass',
+    btype: Literal["lowpass", "highpass", "bandpass"] = "bandpass",
     fs: Optional[float] = None,
-    **params
+    **params,
 ) -> Tensor:
     """
     Ideal filter transfer function.
@@ -361,20 +400,20 @@ def ideal_spectrum(
         The specified ideal transfer function.
     """
     Wn = jnp.array(Wn)
-    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+    if btype in ("bandpass", "bandstop") and Wn.ndim < 2:
         Wn = Wn.reshape(1, 2)
     if fs is not None:
         Wn = 2 * Wn / fs
     frequencies = jnp.linspace(0, 1, worN)
-    if btype == 'lowpass':
+    if btype == "lowpass":
         response = frequencies <= Wn[..., None]
-    elif btype == 'highpass':
+    elif btype == "highpass":
         response = frequencies >= Wn[..., None]
-    elif btype == 'bandpass':
+    elif btype == "bandpass":
         response_hp = frequencies >= Wn[:, 0][..., None]
         response_lp = frequencies <= Wn[:, 1][..., None]
         response = response_hp * response_lp
-    elif btype == 'bandstop':
+    elif btype == "bandstop":
         response_hp = frequencies <= Wn[:, 0][..., None]
         response_lp = frequencies >= Wn[:, 1][..., None]
         response = response_hp + response_lp
@@ -385,11 +424,11 @@ def ideal_spectrum(
 def randn_spectrum(
     *,
     worN: int,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
     n_filters: int = 1,
     ampl_loc: float = 0.5,
     ampl_scale: float = 0.2,
-    phase_loc: float = 0.,
+    phase_loc: float = 0.0,
     phase_scale: float = 0.2,
     **params,
 ) -> Tensor:
@@ -409,10 +448,14 @@ def randn_spectrum(
     out : Tensor
         The specified random transfer function.
     """
-    ampl = jax.random.normal(
-        key=key, shape=(n_filters, worN)) * ampl_scale + ampl_loc
-    phase = jax.random.normal(
-        key=key, shape=(n_filters, worN)) * phase_scale + phase_loc
+    ampl = (
+        ampl_scale * jax.random.normal(key=key, shape=(n_filters, worN))
+        + ampl_loc
+    )
+    phase = (
+        phase_scale * jax.random.normal(key=key, shape=(n_filters, worN))
+        + phase_loc
+    )
     return complex_recompose(ampl, phase)
 
 
@@ -421,33 +464,35 @@ class _FreqFilterSpecDefaults(eqx.Module):
     Dataclass default fields for the ``FreqFilterSpec`` class.
     """
 
-    Wn: Optional[Union[
-        Tuple[float, ...], Tuple[Tuple[float, float], ...]
-    ]] = None
+    Wn: Optional[
+        Union[Tuple[float, ...], Tuple[Tuple[float, float], ...]]
+    ] = None
     N: Tuple[int] = (1,)
     ftype: Literal[
-        'ideal', 'butter', 'cheby1', 'cheby2',
-        'ellip', 'bessel', 'randn'] = 'ideal'
-    btype: Literal['lowpass', 'highpass', 'bandpass', 'bandstop'] = 'lowpass'
+        "ideal", "butter", "cheby1", "cheby2", "ellip", "bessel", "randn"
+    ] = "ideal"
+    btype: Literal["lowpass", "highpass", "bandpass", "bandstop"] = "lowpass"
     fs: Optional[float] = None
     rp: float = 0.1
     rs: float = 0.1
-    norm: Literal['phase', 'amplitude', 'delay'] = 'phase'
+    norm: Literal["phase", "amplitude", "delay"] = "phase"
     ampl_loc: float = 0.5
     ampl_scale: float = 0.1
-    phase_loc: float = 0.
+    phase_loc: float = 0.0
     phase_scale: float = 0.02
     clamps: Optional[Sequence[Dict[float, float]]] = None
-    bound: float = 3.
-    lookup: Dict[str, Callable] = field(default_factory = lambda: {
-        'ideal': ideal_spectrum,
-        'butter': butterworth_spectrum,
-        'cheby1': chebyshev1_spectrum,
-        'cheby2': chebyshev2_spectrum,
-        'ellip': elliptic_spectrum,
-        'bessel': bessel_spectrum,
-        'randn': randn_spectrum,
-    })
+    bound: float = 3.0
+    lookup: Dict[str, Callable] = field(
+        default_factory=lambda: {
+            "ideal": ideal_spectrum,
+            "butter": butterworth_spectrum,
+            "cheby1": chebyshev1_spectrum,
+            "cheby2": chebyshev2_spectrum,
+            "ellip": elliptic_spectrum,
+            "bessel": bessel_spectrum,
+            "randn": randn_spectrum,
+        }
+    )
 
 
 @document_frequency_spectrum
@@ -487,36 +532,42 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
         to 0.5 to 1 (full pass). Note that the clamp must be applied using the
         ``get_clamps`` method.
     """
+
     n_filters: int
 
     def __init__(
         self,
         *,
-        Wn: Optional[Union[
-            float, Tuple[float, float],
-            Tuple[float, ...], Tuple[Tuple[float, float], ...]
-        ]] = None,
+        Wn: Optional[
+            Union[
+                float,
+                Tuple[float, float],
+                Tuple[float, ...],
+                Tuple[Tuple[float, float], ...],
+            ]
+        ] = None,
         N: Union[int, Tuple[int, ...]] = 1,
         ftype: Literal[
-            'ideal', 'butter', 'cheby1', 'cheby2',
-            'ellip', 'bessel', 'randn'] = 'ideal',
+            "ideal", "butter", "cheby1", "cheby2", "ellip", "bessel", "randn"
+        ] = "ideal",
         btype: Literal[
-            'lowpass', 'highpass', 'bandpass', 'bandstop'] = 'bandpass',
+            "lowpass", "highpass", "bandpass", "bandstop"
+        ] = "bandpass",
         fs: Optional[float] = None,
         rp: float = 0.1,
         rs: float = 0.1,
-        norm: Literal['phase', 'amplitude', 'delay'] = 'phase',
+        norm: Literal["phase", "amplitude", "delay"] = "phase",
         ampl_loc: float = 0.5,
         ampl_scale: float = 0.1,
-        phase_loc: float = 0.,
+        phase_loc: float = 0.0,
         phase_scale: float = 0.02,
         clamps: Optional[Sequence[Dict[float, float]]] = None,
-        bound: float = 3.,
+        bound: float = 3.0,
     ):
         if isinstance(N, int):
             N = (N,)
         if Wn is not None:
-            if btype == 'bandpass' or btype == 'bandstop':
+            if btype == "bandpass" or btype == "bandstop":
                 if isinstance(Wn[0], float):
                     Wn = (Wn,)
             else:
@@ -533,10 +584,20 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
                 clamps = clamps * len(N)
         self.n_filters = len(Wn)
         super().__init__(
-            Wn=Wn, N=N, ftype=ftype, btype=btype, fs=fs, rp=rp, rs=rs,
-            norm=norm, ampl_loc=ampl_loc, ampl_scale=ampl_scale,
-            phase_loc=phase_loc, phase_scale=phase_scale, clamps=clamps,
-            bound=bound
+            Wn=Wn,
+            N=N,
+            ftype=ftype,
+            btype=btype,
+            fs=fs,
+            rp=rp,
+            rs=rs,
+            norm=norm,
+            ampl_loc=ampl_loc,
+            ampl_scale=ampl_scale,
+            phase_loc=phase_loc,
+            phase_scale=phase_scale,
+            clamps=clamps,
+            bound=bound,
         )
 
     def get_clamps(
@@ -576,7 +637,7 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
         points, values = zip(*clamp_data)
         return (
             jnp.concatenate(points, axis=0),
-            jnp.concatenate(values, axis=0)
+            jnp.concatenate(values, axis=0),
         )
 
     def _clamp_filter(
@@ -585,27 +646,29 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
         frequencies: jnp.ndarray,
         worN: int,
     ):
-        fs = self.fs or 1.
+        fs = self.fs or 1.0
         clamp_points = jnp.array(list(clamps.keys())) / fs
         clamp_values = jnp.array(list(clamps.values()))
         dist = jnp.abs(clamp_points[:, None] - frequencies[None, :])
         mask = jax.nn.one_hot(dist.argmin(-1), num_classes=worN)
         clamp_points = mask.sum(0, keepdims=True).astype(bool)
+        # TODO: Is there a reason for this bizarre syntax?
         try:
             assert clamp_points.sum() == len(clamp_values)
         except AssertionError as e:
-            e.args += ('Unable to separately resolve clamped frequencies',)
-            e.args += ('Increase either the spacing or the number of bins',)
+            e.args += ("Unable to separately resolve clamped frequencies",)
+            e.args += ("Increase either the spacing or the number of bins",)
             raise
-        clamp_values = jnp.where(
-            mask, clamp_values[:, None], 0.).sum(0, keepdims=True)
+        clamp_values = jnp.where(mask, clamp_values[:, None], 0.0).sum(
+            0, keepdims=True
+        )
         return clamp_points, clamp_values
 
     def initialise_spectrum(
         self,
         *,
         worN: int,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ) -> Tensor:
         """
         Initialises a frequency spectrum or transfer function approximation
@@ -635,7 +698,7 @@ def freqfilter_init(
     *,
     shape: Tuple[int, ...],
     filter_specs: Sequence[FreqFilterSpec],
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     """
     Filter transfer function initialisation.
@@ -666,8 +729,7 @@ def freqfilter_init(
     """
     worN = shape[-1]
     spectra = [
-        fspec.initialise_spectrum(worN=worN, key=key)
-        for fspec in filter_specs
+        fspec.initialise_spectrum(worN=worN, key=key) for fspec in filter_specs
     ]
     spectra = jnp.concatenate(spectra, axis=-2)
     shape = list(shape)
@@ -679,7 +741,7 @@ def clamp_init(
     *,
     shape: Tuple[int, ...],
     filter_specs: Sequence[FreqFilterSpec],
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Filter clamp initialisation.
@@ -712,9 +774,7 @@ def clamp_init(
         A tensor of shape ``shape`` that contains the clamping values.
     """
     worN = shape[-1]
-    clamps = [
-        fspec.get_clamps(worN=worN) for fspec in filter_specs
-    ]
+    clamps = [fspec.get_clamps(worN=worN) for fspec in filter_specs]
     points, values = zip(*clamps)
     return jnp.concatenate(points, axis=0), jnp.concatenate(values, axis=0)
 
@@ -762,20 +822,23 @@ class FreqFilterInitialiser(MappedInitialiser):
             else:
                 shape = parameter.shape
                 init_fn = freqfilter_init
-            params_init += (self._init(
-                shape=shape, key=key, init_fn=init_fn, **params,
-            ),)
+            params_init += (
+                self._init(
+                    shape=shape,
+                    key=key,
+                    init_fn=init_fn,
+                    **params,
+                ),
+            )
         return params_init
 
     def _init(
         self,
         shape=Tuple[int, ...],
-        key='jax.random.PRNGKey',
+        key="jax.random.PRNGKey",
         init_fn: Callable[..., Tensor] = freqfilter_init,
     ):
-        return init_fn(
-            shape=shape, filter_specs=self.filter_specs, key=key
-        )
+        return init_fn(shape=shape, filter_specs=self.filter_specs, key=key)
 
     @staticmethod
     def _init_impl(
@@ -784,20 +847,20 @@ class FreqFilterInitialiser(MappedInitialiser):
         where: Union[str, Callable],
         clamp_name: str,
         key: Optional[jax.random.PRNGKey],
-        **params
+        **params,
     ) -> PyTree:
         model = eqx.tree_at(
             partial(retrieve_address, where=where),
             model,
-            replace=init(
-                model=model, where=where, key=key)
+            replace=init(model=model, where=where, key=key),
         )
         if clamp_name is not None:
             model = eqx.tree_at(
                 partial(retrieve_address, where=clamp_name),
                 model,
                 replace=init(
-                    model=model, where=clamp_name, key=key, clamp=True)
+                    model=model, where=clamp_name, key=key, clamp=True
+                ),
             )
         if init.mapper is None:
             return model
@@ -810,9 +873,9 @@ class FreqFilterInitialiser(MappedInitialiser):
         *,
         mapper: Optional[Type[MappedParameter]] = None,
         filter_specs: Sequence[FreqFilterSpec],
-        where: str = 'weight',
+        where: str = "weight",
         clamp_name: Optional[str] = None,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
         **params,
     ):
         init = cls(
@@ -820,21 +883,10 @@ class FreqFilterInitialiser(MappedInitialiser):
             filter_specs=filter_specs,
         )
         return cls._init_impl(
-            init=init, model=model,
+            init=init,
+            model=model,
             where=where,
             clamp_name=clamp_name,
-            key=key, **params,
+            key=key,
+            **params,
         )
-
-
-class _FreqFilterSpec(object):
-    def __init__(self, Wn=None, N=1, ftype='butter', btype='bandpass', fs=None,
-                 rp=0.1, rs=20, norm='phase', ampl_loc=0.5, ampl_scale=0.1,
-                 phase_loc=0, phase_scale=0.02, clamps=None, bound=3):
-        raise NotImplementedError()
-
-def freqfilter_init_(tensor, filter_specs, domain=None):
-    raise NotImplementedError()
-
-def clamp_init_(points_tensor, values_tensor, filter_specs):
-    raise NotImplementedError()

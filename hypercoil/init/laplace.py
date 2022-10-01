@@ -4,13 +4,24 @@
 """
 Initialise parameters to match a double exponential function.
 """
+from __future__ import annotations
+from functools import reduce
+from typing import (
+    Callable,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+)
+
 import jax
 import jax.numpy as jnp
-from functools import reduce
-from typing import Callable, Literal, Optional, Tuple, Type, Sequence, Union
+
+from ..engine import PyTree, Tensor
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
-from ..engine import Tensor, PyTree
 
 
 def laplace_init(
@@ -18,20 +29,24 @@ def laplace_init(
     shape: Tuple[int, ...],
     loc: Optional[Sequence[int]] = None,
     width: Optional[Sequence[float]] = 1,
-    normalise: Optional[Literal['max', 'sum']] = None,
+    normalise: Optional[Literal["max", "sum"]] = None,
     var: float = 0.02,
     excl_axis: Optional[Sequence[int]] = None,
     key: jax.random.PRNGKey,
 ) -> Tensor:
-    if loc is None: loc = [(x - 1) / 2 for x in shape]
-    if width is None: width = [1. for _ in range(len(shape))]
+    if loc is None:
+        loc = [(x - 1) / 2 for x in shape]
+    if width is None:
+        width = [1.0 for _ in range(len(shape))]
     ndim = len(loc)
-    if excl_axis is None: excl_axis  = ()
+    if excl_axis is None:
+        excl_axis = ()
 
     axes = []
     for ax, l, w in zip(shape[-ndim:], loc, width[-ndim:]):
         new_ax = jnp.arange(
-            -l, -l + ax,
+            -l,
+            -l + ax,
         )
         new_ax = jnp.exp(-jnp.abs(new_ax) / w)
         axes += [new_ax]
@@ -43,9 +58,9 @@ def laplace_init(
             val = [ax.reshape(ax_shape)] + val
         ax_shape += [1]
     val = reduce(jnp.multiply, val)
-    if normalise == 'max':
+    if normalise == "max":
         val /= val.max()
-    elif normalise == 'sum':
+    elif normalise == "sum":
         val /= val.sum()
     val = jnp.broadcast_to(val, shape)
     if var != 0:
@@ -55,17 +70,17 @@ def laplace_init(
 
 class LaplaceInitialiser(MappedInitialiser):
 
-    loc : Optional[Sequence[int]]
-    width : Optional[Sequence[float]]
-    normalise : Optional[Literal['max', 'sum']]
-    var : float
-    excl_axis : Optional[Sequence[int]]
+    loc: Optional[Sequence[int]]
+    width: Optional[Sequence[float]]
+    normalise: Optional[Literal["max", "sum"]]
+    var: float
+    excl_axis: Optional[Sequence[int]]
 
     def __init__(
         self,
         loc: Optional[Sequence[int]] = None,
         width: Optional[Sequence[float]] = None,
-        normalise: Optional[Literal['max', 'sum']] = None,
+        normalise: Optional[Literal["max", "sum"]] = None,
         var: float = 0.02,
         excl_axis: Optional[Sequence[int]] = None,
         mapper: Optional[Type[MappedParameter]] = None,
@@ -83,9 +98,14 @@ class LaplaceInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
     ) -> Tensor:
         return laplace_init(
-            shape=shape, loc=self.loc, width=self.width,
-            normalise=self.normalise, var=self.var, excl_axis=self.excl_axis,
-            key=key)
+            shape=shape,
+            loc=self.loc,
+            width=self.width,
+            normalise=self.normalise,
+            var=self.var,
+            excl_axis=self.excl_axis,
+            key=key,
+        )
 
     @classmethod
     def init(
@@ -95,7 +115,7 @@ class LaplaceInitialiser(MappedInitialiser):
         mapper: Optional[Type[MappedParameter]] = None,
         loc: Optional[Sequence[int]] = None,
         width: Optional[Sequence[float]] = None,
-        normalise: Optional[Literal['max', 'sum']] = None,
+        normalise: Optional[Literal["max", "sum"]] = None,
         var: float = 0.02,
         excl_axis: Optional[Sequence[int]] = None,
         where: Union[str, Callable] = "weight",
@@ -103,16 +123,31 @@ class LaplaceInitialiser(MappedInitialiser):
         **params,
     ) -> PyTree:
         init = cls(
-            loc=loc, width=width, normalise=normalise,
-            var=var, excl_axis=excl_axis, mapper=mapper,
+            loc=loc,
+            width=width,
+            normalise=normalise,
+            var=var,
+            excl_axis=excl_axis,
+            mapper=mapper,
         )
         return super()._init_impl(
-            init=init, model=model, where=where, key=key, **params,
+            init=init,
+            model=model,
+            where=where,
+            key=key,
+            **params,
         )
 
 
-def laplace_init_(tensor, loc=None, width=None, norm=None,
-                  var=0.02, excl_axis=None, domain=None):
+def laplace_init_(
+    tensor,
+    loc=None,
+    width=None,
+    norm=None,
+    var=0.02,
+    excl_axis=None,
+    domain=None,
+):
     """
     Laplace initialisation.
 
@@ -173,6 +208,14 @@ class LaplaceInit:
 
     See :func:`laplace_init_` for argument details.
     """
-    def __init__(self, loc=None, width=None, norm=None,
-                 var=0.02, excl_axis=None, domain=None):
+
+    def __init__(
+        self,
+        loc=None,
+        width=None,
+        norm=None,
+        var=0.02,
+        excl_axis=None,
+        domain=None,
+    ):
         raise NotImplementedError
