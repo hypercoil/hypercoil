@@ -13,16 +13,16 @@ import jax.numpy as jnp
 from jax.experimental.sparse import BCOO
 
 from ..engine import NestedDocParse, Tensor
-from .cov import pairedcov, pairedcorr
+from .cov import pairedcorr, pairedcov
 from .sparse import (
     TopKTensor,
-    spsp_pairdiff,
-    spsp_innerpaired,
-    spspmm,
     spdiagmm,
+    spsp_innerpaired,
+    spsp_pairdiff,
+    spspmm,
     topkx,
 )
-from .utils import is_sparse, _conform_vector_weight
+from .utils import _conform_vector_weight, is_sparse
 
 
 def _default_gamma(X: Tensor, *, gamma: Optional[float]) -> float:

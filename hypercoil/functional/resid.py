@@ -12,8 +12,8 @@ import jax.numpy as jnp
 from ..engine import (
     NestedDocParse,
     Tensor,
-    vmap_over_outer,
     broadcast_ignoring,
+    vmap_over_outer,
 )
 
 

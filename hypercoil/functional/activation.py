@@ -10,7 +10,7 @@ from typing import Callable, Literal, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 
-from ..engine import NestedDocParse, vmap_over_outer, Tensor
+from ..engine import NestedDocParse, Tensor, vmap_over_outer
 from .utils import complex_decompose, complex_recompose
 
 

@@ -15,8 +15,8 @@ from typing import Callable, Literal, Optional
 import jax
 
 from ..engine import Tensor
-from .matrix import delete_diagonal, expand_outer, sym2vec
 from .crosssim import crosshair_similarity
+from .matrix import delete_diagonal, expand_outer, sym2vec
 
 
 # TODO: marking this as an experimental function (or add some tests)

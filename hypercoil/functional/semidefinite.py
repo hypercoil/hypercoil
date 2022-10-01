@@ -14,15 +14,15 @@ from typing import Callable, Literal, Optional, Sequence, Union
 
 import jax.numpy as jnp
 
-from ..engine import NestedDocParse, Tensor
 from hypercoil.functional.matrix import spd
 from hypercoil.functional.symmap import (
-    symmap,
-    symlog,
-    symexp,
-    symsqrt,
     document_symmetric_map,
+    symexp,
+    symlog,
+    symmap,
+    symsqrt,
 )
+from ..engine import NestedDocParse, Tensor
 
 
 def document_semidefinite_projection(f: Callable) -> Callable:

@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 
 from ..engine import NestedDocParse, Tensor
-from . import symmetric, recondition_eigenspaces
+from . import recondition_eigenspaces, symmetric
 
 
 # TODO: Look here more closely:
