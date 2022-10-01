@@ -4,12 +4,15 @@
 """
 Modules that map voxelwise signals to labelwise signals.
 """
+from __future__ import annotations
+from collections import OrderedDict
+from typing import Callable, Dict, Literal, Optional, Tuple, Type
+
 import jax
 import jax.numpy as jnp
 import distrax
 import equinox as eqx
-from collections import OrderedDict
-from typing import Callable, Dict, Literal, Optional, Tuple, Type
+
 from ..engine import NestedDocParse, PyTree, Tensor
 from ..engine.paramutil import _to_jax_array
 from ..functional.linear import compartmentalised_linear
@@ -110,8 +113,9 @@ class AtlasLinear(eqx.Module):
     limits: Dict[str, Tuple[int, int]]
     decoder: Optional[Dict[str, Tensor]]
     normalisation: (
-        Optional[Literal['mean', 'absmean', 'zscore', 'psc']]) = None
-    forward_mode: Literal['map', 'project'] = 'map'
+        Optional[Literal["mean", "absmean", "zscore", "psc"]]
+    ) = None
+    forward_mode: Literal["map", "project"] = "map"
     concatenate: bool = True
 
     def __init__(
@@ -121,29 +125,34 @@ class AtlasLinear(eqx.Module):
         limits: Dict[str, Tuple[int, int]] = None,
         decoder: Optional[Dict[str, Tensor]] = None,
         normalisation: (
-            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
-        ) = 'mean',
-        forward_mode: Literal['map', 'project'] = 'map',
+            Optional[Literal["mean", "absmean", "zscore", "psc"]]
+        ) = "mean",
+        forward_mode: Literal["map", "project"] = "map",
         concatenate: bool = True,
         *,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ):
         compartments = set(n_locations.keys())
         if compartments != set(n_labels.keys()):
             raise ValueError(
-                'n_locations and n_labels must have the same keys')
+                "n_locations and n_labels must have the same keys"
+            )
         keys = jax.random.split(key, len(compartments))
 
         self.weight = {
             c: (
                 distrax.Dirichlet(
-                    concentration=(50 * jnp.ones(n_labels[c]))
-                ).sample(
+                    concentration=(50 * jnp.ones(n_labels[c])),
+                )
+                .sample(
                     seed=k,
-                    sample_shape=n_locations[c]
-                ).swapaxes(-2, -1)
-            if n_labels[c] > 1 else jnp.ones((1, n_locations[c]))
-            ) for c, k in zip(compartments, keys)
+                    sample_shape=n_locations[c],
+                )
+                .swapaxes(-2, -1)
+                if n_labels[c] > 1
+                else jnp.ones((1, n_locations[c]))
+            )
+            for c, k in zip(compartments, keys)
         }
 
         if limits is None:
@@ -172,20 +181,20 @@ class AtlasLinear(eqx.Module):
         cls,
         atlas: BaseAtlas,
         normalisation: (
-            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
-        ) = 'mean',
-        forward_mode: Literal['map', 'project'] = 'map',
+            Optional[Literal["mean", "absmean", "zscore", "psc"]]
+        ) = "mean",
+        forward_mode: Literal["map", "project"] = "map",
         concatenate: bool = True,
         *,
         mapper: Optional[Type[MappedParameter]] = None,
         normalise: bool = False,
         max_bin: int = 10000,
-        spherical_scale : float = 1.,
+        spherical_scale: float = 1.0,
         truncate: Optional[float] = None,
         kernel_sigma: Optional[float] = None,
         noise_sigma: Optional[float] = None,
         param_name: str = "weight",
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
         **params,
     ) -> PyTree:
         """
@@ -204,17 +213,20 @@ class AtlasLinear(eqx.Module):
         """
         m_key, i_key = jax.random.split(key, 2)
         n_locations = {c: o.size for c, o in atlas.compartments.items()}
-        n_labels = {c: atlas.maps[c].shape[-2]
-                    if atlas.maps[c].shape != (0,) else 0
-                    for c in atlas.compartments}
-        limits = {c: (o.slice_index, o.slice_size)
-                  for c, o in atlas.compartments.items()}
+        n_labels = {
+            c: atlas.maps[c].shape[-2] if atlas.maps[c].shape != (0,) else 0
+            for c in atlas.compartments
+        }
+        limits = {
+            c: (o.slice_index, o.slice_size)
+            for c, o in atlas.compartments.items()
+        }
         model = cls(
             n_locations=n_locations,
             n_labels=n_labels,
             limits=limits,
-            decoder=atlas.decoder, #TODO: we're maintaining a reference to
-                                   #      the atlas here. Is this a problem?
+            decoder=atlas.decoder,  # TODO: we're maintaining a reference to
+            #      the atlas here. Is this a problem?
             normalisation=normalisation,
             forward_mode=forward_mode,
             concatenate=concatenate,
@@ -240,20 +252,22 @@ class AtlasLinear(eqx.Module):
         self,
         input: Tensor,
         normalisation: (
-            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
+            Optional[Literal["mean", "absmean", "zscore", "psc"]]
         ) = None,
-        forward_mode: Optional[Literal['map', 'project']] = None,
+        forward_mode: Optional[Literal["map", "project"]] = None,
         concatenate: Optional[bool] = None,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
-        if normalisation is None: normalisation = self.normalisation
-        if forward_mode is None: forward_mode = self.forward_mode
-        if concatenate is None: concatenate = self.concatenate
-        weight = OrderedDict((
-            (k, _to_jax_array(v))
-            for k, v in self.weight.items()
-        ))
+        if normalisation is None:
+            normalisation = self.normalisation
+        if forward_mode is None:
+            forward_mode = self.forward_mode
+        if concatenate is None:
+            concatenate = self.concatenate
+        weight = OrderedDict(
+            ((k, _to_jax_array(v)) for k, v in self.weight.items())
+        )
         return compartmentalised_linear(
             input=input,
             weight=weight,
@@ -265,7 +279,7 @@ class AtlasLinear(eqx.Module):
         )
 
 
-#TODO: experimental "accumuline" functionality. We can revisit this after we
+# TODO: experimental "accumuline" functionality. We can revisit this after we
 #      figure out a decent way to do it in JAX, where accumulating operands
 #      over multiple forward passes is made significantly more difficult by
 #      the fact that we can't easily maintain state between calls.

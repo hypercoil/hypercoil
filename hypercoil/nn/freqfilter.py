@@ -4,13 +4,16 @@
 """
 Modules supporting filtering/convolution as a product in the frequency domain.
 """
+from __future__ import annotations
+from typing import Callable, List, Optional, Tuple
+
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from typing import Callable, List, Optional, Tuple
+
 from ..engine import Tensor
 from ..engine.paramutil import _to_jax_array
-from ..functional import product_filtfilt, complex_recompose
+from ..functional import complex_recompose, product_filtfilt
 from ..init.freqfilter import FreqFilterInitialiser, FreqFilterSpec
 
 
@@ -107,18 +110,19 @@ class FrequencyDomainFilter(eqx.Module):
         time_dim: Optional[int] = None,
         filter: Callable = product_filtfilt,
         *,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ):
         self.dim = self._set_dimension(freq_dim, time_dim)
         self.num_channels = num_channels
         self.filter = filter
 
         akey, pkey = jax.random.split(key, 2)
-        amplitude = 0.01 * jax.random.normal(
-            akey, (num_channels, self.dim)) + 0.5
+        amplitude = (
+            0.01 * jax.random.normal(akey, (num_channels, self.dim)) + 0.5
+        )
         # phase = 0.01 * jax.random.normal(
         #     pkey, (num_channels, self.dim)) + 0.5
-        self.weight = amplitude # complex_recompose(amplitude, phase)
+        self.weight = amplitude  # complex_recompose(amplitude, phase)
 
         if clamp_points is not None and clamp_values is not None:
             self.clamp = (clamp_points, clamp_values)
@@ -133,8 +137,8 @@ class FrequencyDomainFilter(eqx.Module):
         time_dim: Optional[int] = None,
         filter: Callable = product_filtfilt,
         *,
-        key: 'jax.random.PRNGKey',
-    ) -> 'FrequencyDomainFilter':
+        key: "jax.random.PRNGKey",
+    ) -> "FrequencyDomainFilter":
 
         num_channels = sum([len(s.Wn) for s in filter_specs])
         clamp = any([s.clamps is not None for s in filter_specs])
@@ -143,11 +147,11 @@ class FrequencyDomainFilter(eqx.Module):
             clamp_points, clamp_values = (
                 jnp.empty(
                     (num_channels, freq_dim),
-                    dtype=jnp.complex64
+                    dtype=jnp.complex64,
                 ),
                 jnp.empty(
                     (num_channels, freq_dim),
-                    dtype=jnp.complex64
+                    dtype=jnp.complex64,
                 ),
             )
         else:
@@ -168,23 +172,25 @@ class FrequencyDomainFilter(eqx.Module):
         model = FreqFilterInitialiser.init(
             model,
             filter_specs=filter_specs,
-            key=wkey
+            key=wkey,
         )
         if clamp:
             model = FreqFilterInitialiser.init(
                 model,
                 filter_specs=filter_specs,
-                clamp_name='clamp',
-                key=jax.random.PRNGKey(0)
+                clamp_name="clamp",
+                key=jax.random.PRNGKey(0),
             )
         return model
 
     @staticmethod
-    def _set_dimension(freq_dim, time_dim):
+    def _set_dimension(freq_dim: int, time_dim: int) -> int:
         if freq_dim is None:
             if time_dim is None:
-                raise ValueError('You must specify the dimension in either '
-                                 'the frequency or time domain')
+                raise ValueError(
+                    "You must specify the dimension in either "
+                    "the frequency or time domain"
+                )
             else:
                 dim = time_dim // 2 + 1
         else:
@@ -192,7 +198,7 @@ class FrequencyDomainFilter(eqx.Module):
         return dim
 
     @property
-    def clamped_weight(self):
+    def clamped_weight(self) -> Tensor:
         weight = _to_jax_array(self.weight)
         if self.clamp is not None:
             clamp_points, clamp_values = self.clamp
@@ -203,7 +209,7 @@ class FrequencyDomainFilter(eqx.Module):
         self,
         input: Tensor,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         """
         Transform the input into the frequency domain, filter it, and

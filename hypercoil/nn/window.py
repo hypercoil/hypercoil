@@ -6,9 +6,11 @@ Window amplification
 ~~~~~~~~~~~~~~~~~~~~
 Rebatching or channel amplification through data windowing.
 """
+from __future__ import annotations
+from typing import Callable, Optional, Sequence, Union
+
 import jax
 import equinox as eqx
-from typing import Callable, Optional, Sequence, Union
 
 from ..engine.paramutil import Tensor
 from ..functional.window import sample_windows
@@ -30,7 +32,7 @@ class WindowAmplifier(eqx.Module):
         augmentation_axis: int = 0,
         windowing_axis: int = -1,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         self.window_fn = sample_windows(
             allow_overlap=allow_overlap,
@@ -46,7 +48,7 @@ class WindowAmplifier(eqx.Module):
         data: Union[Tensor, Sequence[Tensor]],
         split_key: bool = False,
         *,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ):
         ## TODO: enable automask to exclude nan frames
         single_input = not isinstance(data, Sequence)
@@ -56,14 +58,17 @@ class WindowAmplifier(eqx.Module):
             keys = jax.random.split(key, len(data))
         else:
             keys = (key,) * len(data)
-        out = tuple(self.window_fn(
-            data,
-            window_size=self.window_size,
-            num_windows=self.augmentation_factor,
-            windowing_axis=self.windowing_axis,
-            multiplying_axis=self.augmentation_axis,
-            key=key,
-        ) for key, data in zip(keys, data))
+        out = tuple(
+            self.window_fn(
+                data,
+                window_size=self.window_size,
+                num_windows=self.augmentation_factor,
+                windowing_axis=self.windowing_axis,
+                multiplying_axis=self.augmentation_axis,
+                key=key,
+            )
+            for key, data in zip(keys, data)
+        )
         if single_input:
             out = out[0]
         return out

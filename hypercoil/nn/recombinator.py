@@ -5,10 +5,13 @@
 Linear recombinator layer for feature-map learning networks.
 A 1x1 conv layer by another name.
 """
+from __future__ import annotations
+from typing import Optional
+
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from typing import Optional
+
 from ..engine import Tensor
 from ..engine.paramutil import _to_jax_array
 from ..functional.matrix import expand_outer
@@ -57,7 +60,7 @@ class Recombinator(eqx.Module):
         bias: bool = True,
         positive_only: bool = False,
         *,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ):
         key_w, key_b = jax.random.split(key)
 
@@ -91,7 +94,7 @@ class Recombinator(eqx.Module):
         input: Tensor,
         query: Tensor = None,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         weight = _to_jax_array(self.weight)
         if self.bias is not None:
@@ -102,11 +105,11 @@ class Recombinator(eqx.Module):
             input=input,
             mixture=weight,
             bias=bias,
-            query=query
+            query=query,
         )
 
 
-#TODO: Vanished until/unless we revisit sylo networks
+# TODO: Vanished until/unless we revisit sylo networks
 # class QueryEncoder(nn.Module):
 #     """
 #     Query encoder for recombinators.

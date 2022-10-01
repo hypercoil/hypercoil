@@ -4,10 +4,13 @@
 """
 Modules supporting covariance estimation.
 """
+from __future__ import annotations
+from typing import Callable, Literal, Optional
+
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from typing import Callable, Literal, Optional
+
 from ..engine import NestedDocParse, Tensor
 from ..engine.paramutil import _to_jax_array
 from ..functional import expand_outer, toeplitz
@@ -16,16 +19,16 @@ from ..functional import expand_outer, toeplitz
 def cfg_banded_parameter(
     max_lag: Optional[int] = 0,
     min_lag: Optional[int] = 0,
-    mode: Literal['weight', 'mask'] = 'weight',
+    mode: Literal["weight", "mask"] = "weight",
     out_channels: int = 1,
 ):
     mode_fn = {
-        'weight': lambda x: jnp.exp(-jnp.arange(x)),
-        'mask': lambda x: jnp.ones((x,), dtype=jnp.bool_),
+        "weight": lambda x: jnp.exp(-jnp.arange(x)),
+        "mask": lambda x: jnp.ones((x,), dtype=jnp.bool_),
     }
     mode_null = {
-        'weight': 0.,
-        'mask': False,
+        "weight": 0.0,
+        "mask": False,
     }
     mode_fn = mode_fn[mode]
     null = mode_null[mode]
@@ -45,12 +48,8 @@ def cfg_banded_parameter(
         param_col = mode_fn(-min_lag + 1)
         param_col = param_col.at[:-max_lag].set(null)
         param_row = param_col[0]
-    param_row = jnp.tile(
-        param_row[None, ...], (out_channels, 1)
-    )
-    param_col = jnp.tile(
-        param_col[None, ...], (out_channels, 1)
-    )
+    param_row = jnp.tile(param_row[None, ...], (out_channels, 1))
+    param_col = jnp.tile(param_col[None, ...], (out_channels, 1))
     return param_row, param_col
 
 
@@ -226,6 +225,7 @@ class BaseCovariance(eqx.Module):
 
     Consult specific implementations for comprehensive documentation.
     """
+
     estimator: Callable
     dim: int
     min_lag: int = 0
@@ -234,7 +234,7 @@ class BaseCovariance(eqx.Module):
     rowvar: bool = True
     biased: bool = False
     ddof: Optional[int] = None
-    l2: float = 0.
+    l2: float = 0.0
 
     @staticmethod
     def process_parameters(
@@ -246,7 +246,7 @@ class BaseCovariance(eqx.Module):
         if mask is not None:
             mask = _to_jax_array(mask)
             if weight is None:
-                weight = jnp.eye(mask.shape[-1]) # equivalent to unweighted
+                weight = jnp.eye(mask.shape[-1])  # equivalent to unweighted
             if mask.ndim > 1 and mask.shape[-2] == 1:
                 mask = mask.swapaxes(-2, -1)
             weight = weight * expand_outer(mask)
@@ -263,13 +263,14 @@ class UnaryCovMixin:
     returns the output of the specified covariance estimator, applied to the
     input tensor.
     """
+
     def __call__(
         self,
         input: Tensor,
         weight: Optional[Tensor] = None,
         mask: Optional[Tensor] = None,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         if input.ndim > 2 and self.out_channels > 1 and input.shape[-3] > 1:
             input = input[..., None, :, :]
@@ -280,7 +281,7 @@ class UnaryCovMixin:
             bias=self.biased,
             ddof=self.ddof,
             weight=weight,
-            l2=self.l2
+            l2=self.l2,
         )
 
 
@@ -294,6 +295,7 @@ class BinaryCovMixin:
     returns the output of the specified covariance estimator, applied to the
     input tensor pair.
     """
+
     def __call__(
         self,
         x: Tensor,
@@ -301,7 +303,7 @@ class BinaryCovMixin:
         weight: Optional[Tensor] = None,
         mask: Optional[Tensor] = None,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         if self.out_channels > 1:
             if x.ndim > 2 and x.shape[-3] > 1:
@@ -310,12 +312,13 @@ class BinaryCovMixin:
                 y = y[..., None, :, :]
         weight = self.process_parameters(weight=weight, mask=mask)
         return self.estimator(
-            x, y,
+            x,
+            y,
             rowvar=self.rowvar,
             bias=self.biased,
             ddof=self.ddof,
             weight=weight,
-            l2=self.l2
+            l2=self.l2,
         )
 
 
@@ -324,12 +327,13 @@ class ParameterisedUnaryCovMixin(UnaryCovMixin):
     Like :class:`UnaryCovMixin`, but with weight and mask parameters that are
     attributes of the module.
     """
+
     def __call__(
         self,
         input: Tensor,
         mask: Optional[Tensor] = None,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         if self.mask is not None and mask is not None:
             mask = self.mask & mask
@@ -348,13 +352,14 @@ class ParameterisedBinaryCovMixin(BinaryCovMixin):
     Like :class:`BinaryCovMixin`, but with weight and mask parameters that are
     attributes of the module.
     """
+
     def __call__(
         self,
         x: Tensor,
         y: Tensor,
         mask: Optional[Tensor] = None,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         if self.mask is not None and mask is not None:
             mask = self.mask & mask
@@ -379,6 +384,7 @@ class BaseWeightedCovariance(BaseCovariance):
 
     Consult specific implementations for comprehensive documentation.
     """
+
     weight: Tensor
     mask: Optional[Tensor] = None
 
@@ -394,7 +400,7 @@ class BaseWeightedCovariance(BaseCovariance):
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         super().__init__(
             dim=dim,
@@ -408,28 +414,30 @@ class BaseWeightedCovariance(BaseCovariance):
             l2=l2,
         )
         mask = None
-        if min_lag is None: min_lag = -(dim - 1)
-        if max_lag is None: max_lag = dim - 1
+        if min_lag is None:
+            min_lag = -(dim - 1)
+        if max_lag is None:
+            max_lag = dim - 1
         if max_lag == 0 and min_lag == 0:
             weight = jnp.ones((out_channels, 1, dim))
         else:
             vals_r, vals_c = cfg_banded_parameter(
                 max_lag=max_lag,
                 min_lag=min_lag,
-                mode='weight',
+                mode="weight",
                 out_channels=out_channels,
             )
             weight = toeplitz(
                 c=vals_c,
                 r=vals_r,
                 shape=(dim, dim),
-                fill_value=0.,
+                fill_value=0.0,
             )
             if max_lag is not None or min_lag is not None:
                 mask_vals_r, mask_vals_c = cfg_banded_parameter(
                     max_lag=max_lag,
                     min_lag=min_lag,
-                    mode='mask',
+                    mode="mask",
                     out_channels=out_channels,
                 )
                 mask = toeplitz(
@@ -447,11 +455,12 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
     Base class for covariance estimators with a single learnable weight for
     each time lag.
     """
+
     weight_col: Tensor
     weight_row: Tensor
     mask: Optional[Tensor] = None
 
-    #TODO: Replace this entire thing with a convolution-based implementation.
+    # TODO: Replace this entire thing with a convolution-based implementation.
     # That should make it much, much faster but will require a separate
     # forward pass...
     def __init__(
@@ -464,9 +473,9 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
         rowvar: bool = True,
         biased: bool = False,
         ddof: Optional[int] = None,
-        l2: float = 0.,
+        l2: float = 0.0,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         super().__init__(
             dim=dim,
@@ -480,13 +489,15 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
             l2=l2,
         )
         mask = None
-        if min_lag is None: min_lag = -(dim - 1)
-        if max_lag is None: max_lag = dim - 1
+        if min_lag is None:
+            min_lag = -(dim - 1)
+        if max_lag is None:
+            max_lag = dim - 1
         if max_lag is not None or min_lag is not None:
             mask_row, mask_col = cfg_banded_parameter(
                 max_lag=max_lag,
                 min_lag=min_lag,
-                mode='mask',
+                mode="mask",
                 out_channels=out_channels,
             )
             mask = toeplitz(
@@ -498,7 +509,7 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
         weight_row, weight_col = cfg_banded_parameter(
             max_lag=max_lag,
             min_lag=min_lag,
-            mode='weight',
+            mode="weight",
             out_channels=out_channels,
         )
         self.weight_col = weight_col
@@ -511,12 +522,12 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
             c=_to_jax_array(self.weight_col),
             r=_to_jax_array(self.weight_row),
             shape=(self.dim, self.dim),
-            fill_value=0.,
+            fill_value=0.0,
         )
 
 
-#TODO: I don't like these __init__ methods -- feels very much like an anti-
-# pattern. But I can't think of a better way to do it right now.
+# TODO: I don't like these __init__ methods -- feels very much like an anti-
+#       pattern. But I can't think of a better way to do it right now.
 
 
 @document_cov_nn
@@ -540,6 +551,7 @@ class UnaryCovariance(
     ----------\
     {weighted_attr_spec}
     """
+
     def __init__(
         self,
         estimator: Callable,
@@ -552,7 +564,7 @@ class UnaryCovariance(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -590,6 +602,7 @@ class UnaryCovarianceTW(
     {toeplitz_attr_spec}\
     {weighted_attr_spec}
     """
+
     def __init__(
         self,
         estimator: Callable,
@@ -602,7 +615,7 @@ class UnaryCovarianceTW(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -633,6 +646,7 @@ class UnaryCovarianceUW(
     {unary_estimator_spec}\
     {param_spec}
     """
+
     def __init__(
         self,
         estimator: Callable,
@@ -645,7 +659,7 @@ class UnaryCovarianceUW(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -681,6 +695,7 @@ class BinaryCovariance(
     ----------\
     {weighted_attr_spec}
     """
+
     def __init__(
         self,
         estimator: Callable,
@@ -693,7 +708,7 @@ class BinaryCovariance(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -731,6 +746,7 @@ class BinaryCovarianceTW(
     {toeplitz_attr_spec}\
     {weighted_attr_spec}
     """
+
     def __init__(
         self,
         estimator: Callable,
@@ -743,7 +759,7 @@ class BinaryCovarianceTW(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -775,6 +791,7 @@ class BinaryCovarianceUW(
     {binary_estimator_spec}\
     {param_spec}
     """
+
     def __init__(
         self,
         estimator: Callable,
@@ -787,7 +804,7 @@ class BinaryCovarianceUW(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         super().__init__(
             estimator=estimator,
