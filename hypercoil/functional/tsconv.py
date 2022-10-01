@@ -5,7 +5,15 @@
 Functions supporting convolution of time series and other data.
 """
 from __future__ import annotations
-from typing import Callable, List, Literal, Optional, Sequence, Tuple, Union
+from typing import (
+    Callable,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp

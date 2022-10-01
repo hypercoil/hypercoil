@@ -23,20 +23,28 @@ the following properties:
 from __future__ import annotations
 from functools import partial
 from itertools import cycle
-from typing import Any, Callable, Literal, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from jax.experimental.sparse import BCOO, sparsify
+import numpy as np
 
 from ..engine import (
     Tensor,
+    demote_and_unfold,
+    fold_and_promote,
     standard_axis_number,
     unfold_axes,
     vmap_over_outer,
-    fold_and_promote,
-    demote_and_unfold,
 )
 
 

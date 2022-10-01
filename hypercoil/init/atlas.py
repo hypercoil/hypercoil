@@ -72,45 +72,56 @@ parcels. See
 :doc:`the linear atlas module <hypercoil.nn.atlas>`
 for more details.
 """
+from __future__ import annotations
+from abc import abstractmethod
+from collections import OrderedDict
+from functools import partial
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+)
+
 import jax
 import jax.numpy as jnp
 import distrax
 import equinox as eqx
 import templateflow.api as tflow
-from abc import abstractmethod
-from collections import OrderedDict
-from functools import partial
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Type, Union
 
+from ..engine import PyTree, Tensor
+from ..engine.noise import ScalarIIDAddStochasticTransform
+from ..formula.nnops import retrieve_address
 from .atlasmixins import (
     Reference,
-    _VolumeObjectReferenceMixin,
-    _SurfaceObjectReferenceMixin,
-    _VolumeSingleReferenceMixin,
-    _SurfaceSingleReferenceMixin,
-    _VolumeMultiReferenceMixin,
-    _PhantomReferenceMixin,
     _CIfTIReferenceMixin,
-    _LogicMaskMixin,
-    _CortexSubcortexCIfTIMaskMixin,
-    _FromNullMaskMixin,
-    _SingleCompartmentMixin,
-    _MultiCompartmentMixin,
-    _CortexSubcortexCIfTICompartmentMixin,
-    _DiscreteLabelMixin,
     _ContinuousLabelMixin,
+    _CortexSubcortexCIfTICompartmentMixin,
+    _CortexSubcortexCIfTIMaskMixin,
     _DirichletLabelMixin,
-    _VolumetricMeshMixin,
-    _VertexCIfTIMeshMixin,
-    _SpatialConvMixin,
+    _DiscreteLabelMixin,
+    _FromNullMaskMixin,
     _is_path,
+    _LogicMaskMixin,
+    _MultiCompartmentMixin,
+    _PhantomReferenceMixin,
+    _SingleCompartmentMixin,
+    _SpatialConvMixin,
+    _SurfaceObjectReferenceMixin,
+    _SurfaceSingleReferenceMixin,
+    _VertexCIfTIMeshMixin,
+    _VolumeMultiReferenceMixin,
+    _VolumeObjectReferenceMixin,
+    _VolumeSingleReferenceMixin,
+    _VolumetricMeshMixin,
 )
 from .base import MappedInitialiser
 from .dirichlet import DirichletInitialiser
 from .mapparam import MappedParameter, ProbabilitySimplexParameter
-from ..engine import PyTree, Tensor
-from ..engine.noise import ScalarIIDAddStochasticTransform
-from ..formula.nnops import retrieve_address
 
 
 class BaseAtlas(eqx.Module):
@@ -194,15 +205,15 @@ class BaseAtlas(eqx.Module):
         this is purged when construction is complete.
     """
 
-    name : str
-    ref_pointer : Any
-    ref : Tensor
-    mask : Tensor
-    compartments : Dict[str, Tensor]
-    decoder : Dict[str, Tensor]
-    maps : Dict[str, Tensor]
-    coors : Dict[str, Tensor]
-    topology : Dict[str, str]
+    name: str
+    ref_pointer: Any
+    ref: Tensor
+    mask: Tensor
+    compartments: Dict[str, Tensor]
+    decoder: Dict[str, Tensor]
+    maps: Dict[str, Tensor]
+    coors: Dict[str, Tensor]
+    topology: Dict[str, str]
 
     def __init__(
         self,
@@ -210,16 +221,17 @@ class BaseAtlas(eqx.Module):
         mask_source: Any,
         clear_cache: bool = True,
         name: Optional[str] = None,
-        **kwargs
+        **params,
     ):
-        if name is None: name = ''
+        if name is None:
+            name = ""
         self.name = name
         self.ref_pointer = ref_pointer
         self.ref = self._load_reference(ref_pointer)
 
         self.mask = self._create_mask(mask_source)
         self.ref = Reference.cache_modelobj(ref=self.ref, mask=self.mask)
-        names_dict = self._compartment_names_dict(**kwargs)
+        names_dict = self._compartment_names_dict(**params)
         self.compartments = self._create_compartments(names_dict)
 
         self.decoder = self._configure_decoders()
@@ -233,33 +245,33 @@ class BaseAtlas(eqx.Module):
         self,
         ref_pointer: Any,
     ) -> Tensor:
-        pass
+        ...
 
     @abstractmethod
     def _create_mask(
         self,
         mask_source: Any,
     ) -> None:
-        pass
+        ...
 
     @abstractmethod
-    def _compartment_names_dict(**kwargs) -> Dict[str, str]:
-        pass
+    def _compartment_names_dict(**params) -> Dict[str, str]:
+        ...
 
     @abstractmethod
     def _create_compartments(
         self,
         names_dict: Dict[str, str],
-        ref: Optional[Tensor] = None
+        ref: Optional[Tensor] = None,
     ) -> None:
-        pass
+        ...
 
     @abstractmethod
     def _configure_decoders(
         self,
-        null_label: Optional[Any] = None
+        null_label: Optional[Any] = None,
     ) -> None:
-        pass
+        ...
 
     @abstractmethod
     def _populate_map_from_ref(
@@ -267,17 +279,17 @@ class BaseAtlas(eqx.Module):
         map: Tensor,
         labels: Tensor,
         mask: Tensor,
-        compartment: Optional[str] = None
+        compartment: Optional[str] = None,
     ) -> Tensor:
-        pass
+        ...
 
     @abstractmethod
     def _init_coors(
         self,
         source: Optional[Any] = None,
-        names_dict: Optional[Dict[str, str]] = None
+        names_dict: Optional[Dict[str, str]] = None,
     ) -> None:
-        pass
+        ...
 
     def __call__(
         self,
@@ -287,7 +299,7 @@ class BaseAtlas(eqx.Module):
         noise: Optional[Callable] = None,
         max_bin: int = 10000,
         spherical_scale: float = 1,
-        truncate: Optional[float] = None
+        truncate: Optional[float] = None,
     ) -> Dict[str, Tensor]:
         """
         Compute transformed maps for selected atlas subcompartments.
@@ -337,7 +349,7 @@ class BaseAtlas(eqx.Module):
         """
         ret = OrderedDict()
         if compartments is False:
-            compartments = ['_all']
+            compartments = ["_all"]
         elif isinstance(compartments, str):
             compartments = [compartments]
         elif compartments is True:
@@ -347,8 +359,12 @@ class BaseAtlas(eqx.Module):
             if sigma is not None:
                 sigma = self._configure_sigma(sigma)
                 c_map = self._convolve(
-                    map=c_map, compartment=c, sigma=sigma, max_bin=max_bin,
-                    spherical_scale=spherical_scale, truncate=truncate
+                    map=c_map,
+                    compartment=c,
+                    sigma=sigma,
+                    max_bin=max_bin,
+                    spherical_scale=spherical_scale,
+                    truncate=truncate,
                 )
             if noise is not None:
                 c_map = noise(c_map)
@@ -366,9 +382,12 @@ class BaseAtlas(eqx.Module):
                 self.maps[c] = jnp.array([])
                 continue
             dim_in = compartment.size
-            map = jnp.empty((dim_out, dim_in)) # TODO: this smells like torch...
+            map = jnp.empty(
+                (dim_out, dim_in)
+            )  # TODO: this smells like torch...
             self.maps[c] = jnp.array(
-                self._populate_map_from_ref(map, labels, c))
+                self._populate_map_from_ref(map, labels, c)
+            )
 
 
 class DirichletInitBaseAtlas(
@@ -402,20 +421,20 @@ class DirichletInitBaseAtlas(
         used for parcel assignment initialisation in each compartment.
     """
 
-    compartment_labels : Dict[str, int]
-    init : Dict[str, Callable]
+    compartment_labels: Dict[str, int]
+    init: Dict[str, Callable]
 
     def __init__(
         self,
         mask_source: Any,
         compartment_labels: Dict[str, int],
-        conc: Optional[float] = 100.,
+        conc: Optional[float] = 100.0,
         template_image: Optional[str] = None,
         init: Optional[Dict[str, Callable]] = None,
         name: Optional[str] = None,
         *,
-        key: 'jax.random.PRNGKey',
-        **kwargs
+        key: "jax.random.PRNGKey",
+        **params,
     ):
         if template_image is None:
             template_image = mask_source
@@ -424,45 +443,51 @@ class DirichletInitBaseAtlas(
                 if not _is_path(template_image):
                     template_image = template_image[0]
         if isinstance(compartment_labels, int):
-            compartment_labels = {'all', compartment_labels}
+            compartment_labels = {"all", compartment_labels}
         self.compartment_labels = compartment_labels
         keys = jax.random.split(key, len(compartment_labels))
         if init is None:
             default_init = True
-            init = OrderedDict((
-                c, partial(DirichletInitialiser.init,
-                    concentration=(conc,),
-                    num_classes=i,
-                    axis=-2,
-                    mapper=None,
-                    where=None,
-                    key=k,
-                ))
+            init = OrderedDict(
+                (
+                    c,
+                    partial(
+                        DirichletInitialiser.init,
+                        concentration=(conc,),
+                        num_classes=i,
+                        axis=-2,
+                        mapper=None,
+                        where=None,
+                        key=k,
+                    ),
+                )
                 for k, (c, i) in zip(keys, compartment_labels.items())
             )
         global_key = jax.random.split(key, 1)[0]
         self.init = init
         self._global_compartment_init(key=global_key)
-        super().__init__(ref_pointer=template_image,
-                         mask_source=mask_source,
-                         name=name,
-                         **kwargs)
+        super().__init__(
+            ref_pointer=template_image,
+            mask_source=mask_source,
+            name=name,
+            **params,
+        )
         if default_init:
             for k, v in self.init.items():
                 v.domain = partial(ProbabilitySimplexParameter, axis=-2)
 
-    def _global_compartment_init(self, *, key: 'jax.random.PRNGKey') -> None:
-        if self.init.get('_all'):
+    def _global_compartment_init(self, *, key: "jax.random.PRNGKey") -> None:
+        if self.init.get("_all"):
             return
-        if self.init.get('all'):
-            self.init['_all'] = self.init['all']
+        if self.init.get("all"):
+            self.init["_all"] = self.init["all"]
             return
         concentrations = ()
         for initialiser in self.init.values():
-            conc = initialiser.keywords['concentration']
-            num_classes = initialiser.keywords['num_classes']
+            conc = initialiser.keywords["concentration"]
+            num_classes = initialiser.keywords["num_classes"]
             concentrations = concentrations + conc * num_classes
-        self.init['_all'] = partial(
+        self.init["_all"] = partial(
             DirichletInitialiser.init,
             concentration=concentrations,
             num_classes=len(concentrations),
@@ -524,16 +549,19 @@ class DiscreteVolumetricAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
+
     def __init__(
         self,
         ref_pointer: str,
         clear_cache: bool = True,
         name: Optional[str] = None,
     ):
-        super().__init__(ref_pointer=ref_pointer,
-                         mask_source=0,
-                         clear_cache=clear_cache,
-                         name=name)
+        super().__init__(
+            ref_pointer=ref_pointer,
+            mask_source=0,
+            clear_cache=clear_cache,
+            name=name,
+        )
 
 
 class MultiVolumetricAtlas(
@@ -590,16 +618,19 @@ class MultiVolumetricAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
+
     def __init__(
         self,
         ref_pointer: str,
         clear_cache: bool = True,
         name: Optional[str] = None,
     ):
-        super().__init__(ref_pointer=ref_pointer,
-                         mask_source=0,
-                         clear_cache=clear_cache,
-                         name=name)
+        super().__init__(
+            ref_pointer=ref_pointer,
+            mask_source=0,
+            clear_cache=clear_cache,
+            name=name,
+        )
 
 
 class MultifileVolumetricAtlas(
@@ -656,15 +687,19 @@ class MultifileVolumetricAtlas(
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
+
     def __init__(
         self,
         ref_pointer: Sequence[str],
         clear_cache: bool = True,
-        name: Optional[str] = None,):
-        super().__init__(ref_pointer=ref_pointer,
-                         mask_source=0,
-                         clear_cache=clear_cache,
-                         name=name,)
+        name: Optional[str] = None,
+    ):
+        super().__init__(
+            ref_pointer=ref_pointer,
+            mask_source=0,
+            clear_cache=clear_cache,
+            name=name,
+        )
 
 
 class CortexSubcortexCIfTIAtlas(
@@ -742,7 +777,7 @@ class CortexSubcortexCIfTIAtlas(
         this is purged when construction is complete.
     """
 
-    surf : Dict[str, str]
+    surf: Dict[str, str]
 
     def __init__(
         self,
@@ -751,8 +786,8 @@ class CortexSubcortexCIfTIAtlas(
         mask_R: Optional[str] = None,
         surf_L: Optional[str] = None,
         surf_R: Optional[str] = None,
-        cortex_L: str = 'CIFTI_STRUCTURE_CORTEX_LEFT',
-        cortex_R: str = 'CIFTI_STRUCTURE_CORTEX_RIGHT',
+        cortex_L: str = "CIFTI_STRUCTURE_CORTEX_LEFT",
+        cortex_R: str = "CIFTI_STRUCTURE_CORTEX_RIGHT",
         clear_cache: bool = True,
         name: Optional[str] = None,
     ):
@@ -760,14 +795,16 @@ class CortexSubcortexCIfTIAtlas(
             mask_L=mask_L,
             mask_R=mask_R,
             surf_L=surf_L,
-            surf_R=surf_R
+            surf_R=surf_R,
         )
-        super().__init__(ref_pointer=ref_pointer,
-                         mask_source=mask_source,
-                         clear_cache=clear_cache,
-                         name=name,
-                         cortex_L=cortex_L,
-                         cortex_R=cortex_R)
+        super().__init__(
+            ref_pointer=ref_pointer,
+            mask_source=mask_source,
+            clear_cache=clear_cache,
+            name=name,
+            cortex_L=cortex_L,
+            cortex_R=cortex_R,
+        )
 
 
 class DirichletInitVolumetricAtlas(
@@ -829,24 +866,28 @@ class DirichletInitVolumetricAtlas(
         Nothing here. The field exists for consistency with other atlas
         classes.
     """
+
     def __init__(
         self,
         mask_source: Union[str, Callable],
         n_labels: Dict[str, int],
-        conc: Optional[float] = 100.,
+        conc: Optional[float] = 100.0,
         name: Optional[str] = None,
         init: Optional[Dict[str, DirichletInitialiser]] = None,
         *,
-        key: 'jax.random.PRNGKey',
-        **kwargs
+        key: "jax.random.PRNGKey",
+        **params,
     ):
-        if init is not None: init = {'all': init}
-        super().__init__(mask_source=mask_source,
-                         compartment_labels={'all': n_labels},
-                         conc=conc,
-                         init=init,
-                         name=name,
-                         key=key)
+        if init is not None:
+            init = {"all": init}
+        super().__init__(
+            mask_source=mask_source,
+            compartment_labels={"all": n_labels},
+            conc=conc,
+            init=init,
+            name=name,
+            key=key,
+        )
 
 
 class DirichletInitSurfaceAtlas(
@@ -933,38 +974,41 @@ class DirichletInitSurfaceAtlas(
         this is purged when construction is complete.
     """
 
-    surf : Dict[str, str]
+    surf: Dict[str, str]
 
     def __init__(
         self,
         cifti_template: str,
         compartment_labels: Dict[str, int],
-        conc: Optional[float] = 100.,
+        conc: Optional[float] = 100.0,
         init: Optional[Dict[str, DirichletInitialiser]] = None,
         name: Optional[str] = None,
         mask_L: Optional[str] = None,
         mask_R: Optional[str] = None,
         surf_L: Optional[str] = None,
         surf_R: Optional[str] = None,
-        cortex_L: str = 'CIFTI_STRUCTURE_CORTEX_LEFT',
-        cortex_R: str = 'CIFTI_STRUCTURE_CORTEX_RIGHT',
+        cortex_L: str = "CIFTI_STRUCTURE_CORTEX_LEFT",
+        cortex_R: str = "CIFTI_STRUCTURE_CORTEX_RIGHT",
         *,
-        key: 'jax.random.PRNGKey',):
+        key: "jax.random.PRNGKey",
+    ):
         self.surf, mask_source = _cifti_atlas_common_args(
             mask_L=mask_L,
             mask_R=mask_R,
             surf_L=surf_L,
-            surf_R=surf_R
+            surf_R=surf_R,
         )
-        super().__init__(template_image=cifti_template,
-                         mask_source=mask_source,
-                         compartment_labels=compartment_labels,
-                         conc=conc,
-                         init=init,
-                         name=name,
-                         cortex_L=cortex_L,
-                         cortex_R=cortex_R,
-                         key=key)
+        super().__init__(
+            template_image=cifti_template,
+            mask_source=mask_source,
+            compartment_labels=compartment_labels,
+            conc=conc,
+            init=init,
+            name=name,
+            cortex_L=cortex_L,
+            cortex_R=cortex_R,
+            key=key,
+        )
 
 
 class _MemeAtlas(
@@ -979,31 +1023,43 @@ class _MemeAtlas(
     """
     For testing purposes only.
     """
+
     def __init__(self):
         ref_pointer = tflow.get(
-            template='MNI152NLin2009cAsym',
+            template="MNI152NLin2009cAsym",
             resolution=2,
-            desc='100Parcels17Networks'
+            desc="100Parcels17Networks",
         )
         eye = tflow.get(
-            template='MNI152NLin2009cAsym',
-            resolution=2, desc='eye', suffix='mask')
+            template="MNI152NLin2009cAsym",
+            resolution=2,
+            desc="eye",
+            suffix="mask",
+        )
         face = tflow.get(
-            template='MNI152NLin2009cAsym',
-            resolution=2, desc='face', suffix='mask')
+            template="MNI152NLin2009cAsym",
+            resolution=2,
+            desc="face",
+            suffix="mask",
+        )
         brain = tflow.get(
-            template='MNI152NLin2009cAsym',
-            resolution=2, desc='brain', suffix='mask')
-        mask_formula = '((IMGa -bin) -or (IMGb -bin)) -and (IMGc -neg)'
+            template="MNI152NLin2009cAsym",
+            resolution=2,
+            desc="brain",
+            suffix="mask",
+        )
+        mask_formula = "((IMGa -bin) -or (IMGb -bin)) -and (IMGc -neg)"
         mask_source = (eye, face, brain)
         compartments_dict = {
-            'eye': eye,
-            'face': face
+            "eye": eye,
+            "face": face,
         }
-        super().__init__(ref_pointer=ref_pointer,
-                         mask_source=(mask_formula, mask_source),
-                         name='Meme',
-                         **compartments_dict)
+        super().__init__(
+            ref_pointer=ref_pointer,
+            mask_source=(mask_formula, mask_source),
+            name="Meme",
+            **compartments_dict,
+        )
 
 
 def atlas_init(
@@ -1013,11 +1069,11 @@ def atlas_init(
     compartments: Union[bool, Tuple[str]] = True,
     normalise: bool = False,
     max_bin: int = 10000,
-    spherical_scale : float = 1.,
-    truncate : Optional[float] = None,
-    kernel_sigma : Optional[float] = None,
-    noise_sigma : Optional[float] = None,
-    key: 'jax.random.PRNGKey',
+    spherical_scale: float = 1.0,
+    truncate: Optional[float] = None,
+    kernel_sigma: Optional[float] = None,
+    noise_sigma: Optional[float] = None,
+    key: "jax.random.PRNGKey",
 ):
     r"""
     Voxel-to-label mapping initialisation.
@@ -1043,17 +1099,19 @@ def atlas_init(
         deviation is added to the label.
     """
     if noise_sigma is not None:
-        distr = distrax.Normal(0., noise_sigma)
+        distr = distrax.Normal(0.0, noise_sigma)
         noise = ScalarIIDAddStochasticTransform(distr, key=key)
     else:
         noise = None
-    return atlas(compartments=compartments,
-                 normalise=normalise,
-                 sigma=kernel_sigma,
-                 noise=noise,
-                 max_bin=max_bin,
-                 spherical_scale=spherical_scale,
-                 truncate=truncate)
+    return atlas(
+        compartments=compartments,
+        normalise=normalise,
+        sigma=kernel_sigma,
+        noise=noise,
+        max_bin=max_bin,
+        spherical_scale=spherical_scale,
+        truncate=truncate,
+    )
 
 
 class AtlasInitialiser(MappedInitialiser):
@@ -1090,7 +1148,7 @@ class AtlasInitialiser(MappedInitialiser):
     atlas: BaseAtlas
     normalise: bool = False
     max_bin: int = 10000
-    spherical_scale : float = 1.
+    spherical_scale: float = 1.0
     truncate: Optional[float] = None
     kernel_sigma: Optional[float] = None
     noise_sigma: Optional[float] = None
@@ -1100,7 +1158,7 @@ class AtlasInitialiser(MappedInitialiser):
         atlas: BaseAtlas,
         normalise: bool = False,
         max_bin: int = 10000,
-        spherical_scale : float = 1.,
+        spherical_scale: float = 1.0,
         truncate: Optional[float] = None,
         kernel_sigma: Optional[float] = None,
         noise_sigma: Optional[float] = None,
@@ -1115,7 +1173,7 @@ class AtlasInitialiser(MappedInitialiser):
         self.noise_sigma = noise_sigma
         if mapper is None:
             try:
-                mapper = atlas.init['_all'].mapper
+                mapper = atlas.init["_all"].mapper
             except (AttributeError, KeyError):
                 pass
         super().__init__(mapper=mapper)
@@ -1133,11 +1191,14 @@ class AtlasInitialiser(MappedInitialiser):
             keys = jax.random.split(key, len(parameters))
         else:
             keys = (None,) * len(parameters)
-        return tuple(self._init(
-            shape=None,
-            key=key,
-            **params,
-        ) for key, parameter in zip(keys, parameters))
+        return tuple(
+            self._init(
+                shape=None,
+                key=key,
+                **params,
+            )
+            for key, parameter in zip(keys, parameters)
+        )
 
     def _init(
         self,
@@ -1166,7 +1227,7 @@ class AtlasInitialiser(MappedInitialiser):
         atlas: BaseAtlas,
         normalise: bool = False,
         max_bin: int = 10000,
-        spherical_scale : float = 1.,
+        spherical_scale: float = 1.0,
         truncate: Optional[float] = None,
         kernel_sigma: Optional[float] = None,
         noise_sigma: Optional[float] = None,
@@ -1184,54 +1245,50 @@ class AtlasInitialiser(MappedInitialiser):
             kernel_sigma=kernel_sigma,
             noise_sigma=noise_sigma,
         )
-        #TODO: We're going to need our own version of _init_impl here to
+        # TODO: We're going to need our own version of _init_impl here to
         #      handle the separation of compartments into a tensor dict.
         return super()._init_impl(
-            init=init, model=model, where=where, key=key, **params,
+            init=init,
+            model=model,
+            where=where,
+            key=key,
+            **params,
         )
 
 
 def _cifti_atlas_common_args(
-    mask_L=None, mask_R=None, surf_L=None, surf_R=None
+    mask_L=None,
+    mask_R=None,
+    surf_L=None,
+    surf_R=None,
 ):
     default_mask_query_args = {
-        'template' : 'fsLR',
-        'density' : '32k',
-        'desc' : 'nomedialwall',
-        'suffix' : 'dparc'
+        "template": "fsLR",
+        "density": "32k",
+        "desc": "nomedialwall",
+        "suffix": "dparc",
     }
     default_surf_query_args = {
-        'template' : 'fsLR',
-        'density' : '32k',
-        'suffix' : 'sphere',
-        'space' : None
+        "template": "fsLR",
+        "density": "32k",
+        "suffix": "sphere",
+        "space": None,
     }
     if mask_L is None:
-        mask_L = tflow.get(hemi='L', **default_mask_query_args)
+        mask_L = tflow.get(hemi="L", **default_mask_query_args)
     if mask_R is None:
-        mask_R = tflow.get(hemi='R', **default_mask_query_args)
+        mask_R = tflow.get(hemi="R", **default_mask_query_args)
     if surf_L is None:
-        surf_L = tflow.get(hemi='L', **default_surf_query_args)
+        surf_L = tflow.get(hemi="L", **default_surf_query_args)
     if surf_R is None:
-        surf_R = tflow.get(hemi='R', **default_surf_query_args)
+        surf_R = tflow.get(hemi="R", **default_surf_query_args)
     surf = {
-        'cortex_L' : surf_L,
-        'cortex_R' : surf_R
+        "cortex_L": surf_L,
+        "cortex_R": surf_R,
     }
     mask_source = {
-        'cortex_L' : mask_L,
-        'cortex_R' : mask_R,
-        'subcortex' : None
+        "cortex_L": mask_L,
+        "cortex_R": mask_R,
+        "subcortex": None,
     }
     return surf, mask_source
-
-
-class AtlasInit:
-    def __init__(self, *pparams, **params):
-        raise NotImplementedError()
-
-def atlas_init_(tensor, compartment, atlas, normalise=False,
-                max_bin=10000, spherical_scale=1, truncate=None,
-                kernel_sigma=None, noise_sigma=None):
-    raise NotImplementedError(
-        'In-place initialisation is deprecated. Use `atlas_init` instead.')

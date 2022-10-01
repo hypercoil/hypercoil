@@ -1,3 +1,19 @@
 [tool.black]
 line-length = 79
-target-version = ['py310']
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 70
+py_version = 310
+multi_line_output = 3
+known_jax = ["jax"]
+known_ecosystem = ["equinox", "distrax", "optax"]
+known_hypercoil = ["hypercoil"]
+sections = ["FUTURE", "STDLIB", "JAX", "ECOSYSTEM", "THIRDPARTY", "HYPERCOIL", "FIRSTPARTY", "LOCALFOLDER"]
+no_lines_before = ["STDLIB", "ECOSYSTEM", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+skip = ["__init__.py"]
+skip_glob = ["*/__init__.py", "**/test/**", "**/docs/**"]
+include_trailing_comma = true
+combine_as_imports = true
+lines_after_imports = 2

@@ -7,7 +7,14 @@ Compartmentalised linear map: abstraction for atlas-based dimension reduction.
 from __future__ import annotations
 from collections import OrderedDict
 from functools import reduce
-from typing import Callable, Literal, Mapping, Optional, Sequence, Tuple
+from typing import (
+    Callable,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 import jax
 import jax.numpy as jnp

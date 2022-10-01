@@ -10,12 +10,17 @@ from typing import Any, Callable, Literal, Optional, Union
 
 import jax
 import jax.numpy as jnp
-from jax.nn import relu
 from jax.experimental.sparse import BCOO
+from jax.nn import relu
 
 from ..engine import NestedDocParse, Tensor, vmap_over_outer
-from .sparse import TopKTensor, dspdmm, topk_diagaugment, topk_diagzero
 from .matrix import delete_diagonal, fill_diagonal
+from .sparse import (
+    TopKTensor,
+    dspdmm,
+    topk_diagaugment,
+    topk_diagzero,
+)
 from .utils import is_sparse
 
 

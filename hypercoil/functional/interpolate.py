@@ -17,12 +17,12 @@ from ..engine import (
     PyTree,
     Tensor,
     atleast_4d,
-    vmap_over_outer,
     demote_axis,
     promote_axis,
+    vmap_over_outer,
 )
-from .utils import conform_mask
 from .tsconv import tsconv2d
+from .utils import conform_mask
 
 
 # TODO: get lambdas out of cond and other lax functions. Right now we're almost
