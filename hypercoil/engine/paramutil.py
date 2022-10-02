@@ -4,13 +4,15 @@
 """
 Miscellaneous utility functions for neural network parameters.
 """
-import jax.numpy as jnp
-import numpy as np
-import distrax
+from __future__ import annotations
 from typing import Any, Union
 
+import jax.numpy as jnp
+import distrax
+import numpy as np
 
-#TODO: replace with jaxtyping at some point
+
+# TODO: replace with jaxtyping at some point
 Tensor = Union[jnp.DeviceArray, np.ndarray]
 PyTree = Any
 Distribution = distrax.Distribution

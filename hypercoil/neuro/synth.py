@@ -4,8 +4,11 @@
 """
 Synthesise data matching spectral and covariance properties of a reference.
 """
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
+
 from ..engine import Tensor
 
 
@@ -211,14 +214,14 @@ def match_cov_and_spectrum(
     matched = match_spectra(
         signal=jnp.fft.rfft(signal),
         reference=spectrum,
-        frequencies=True
+        frequencies=True,
     )
     matched = matched - matched.mean(-1, keepdims=True)
     matched = matched / matched.std(-1, keepdims=True)
     return match_covariance(
         signal=matched,
         reference=cov,
-        cov=True
+        cov=True,
     )
 
 
@@ -226,7 +229,7 @@ def synthesise_matched(
     reference: Tensor,
     use_mean: bool = False,
     *,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     """
     Create a synthetic signal matched in spectrum and covariance to a
@@ -265,7 +268,7 @@ def synthesise_matched(
     return match_reference(
         signal=synth,
         reference=reference,
-        use_mean=use_mean
+        use_mean=use_mean,
     )
 
 
@@ -273,7 +276,7 @@ def synthesise_from_cov_and_spectrum(
     spectrum: Tensor,
     cov: Tensor,
     *,
-    key: 'jax.random.PRNGKey',
+    key: "jax.random.PRNGKey",
 ) -> Tensor:
     """
     Create a synthetic signal matched in spectrum and covariance to
@@ -315,5 +318,5 @@ def synthesise_from_cov_and_spectrum(
     return match_cov_and_spectrum(
         signal=synth,
         spectrum=spectrum,
-        cov=cov
+        cov=cov,
     )

@@ -1,7 +1,7 @@
 [tool.black]
 line-length = 79
 target-version = ["py310"]
-exclude = '.*test_.*|__init__.py'
+exclude = '.*test_.*|__init__.py|__about__.py|.*/downstream/.*|.*/examples/.*'
 
 [tool.isort]
 profile = "black"
@@ -14,7 +14,7 @@ known_hypercoil = ["hypercoil"]
 sections = ["FUTURE", "STDLIB", "JAX", "ECOSYSTEM", "THIRDPARTY", "HYPERCOIL", "FIRSTPARTY", "LOCALFOLDER"]
 no_lines_before = ["STDLIB", "ECOSYSTEM", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 skip = ["__init__.py"]
-skip_glob = ["*/__init__.py", "**/test/**", "**/docs/**"]
+skip_glob = ["*/__init__.py", "**/test/**", "**/docs/**", "**/downstream/**", "**/examples/**"]
 include_trailing_comma = true
 combine_as_imports = true
 lines_after_imports = 2
