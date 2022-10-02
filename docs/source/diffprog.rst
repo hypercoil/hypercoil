@@ -1,4 +1,4 @@
 Framework
 =========
 
-Please see our `preprint <https://arxiv.org/abs/2206.00649>`_ for details.
+This content has been temporarily redacted.

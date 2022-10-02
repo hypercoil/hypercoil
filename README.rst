@@ -22,7 +22,7 @@ A differentiable program for mapping brain function
   :alt: License
 
 .. image:: https://img.shields.io/badge/cite-preprint-red?logo=arxiv
-  :target: https://arxiv.org/abs/2206.00649
+  :target: https://hypercoil.github.io/portal.html
   :alt: Preprint
 
 .. image:: https://raw.githubusercontent.com/hypercoil/hypercoil/xrecore/docs/source/_static/logo.png
