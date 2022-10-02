@@ -12,7 +12,7 @@ WORKDIR /home/hypercoil
 ENV HOME="/home/hypercoil"
 
 # install software
-RUN python -m pip install https://github.com/rciric/hypercoil/archive/main.zip
+RUN python -m pip install https://github.com/hypercoil/hypercoil/archive/main.zip
 
 # testing and visualisation dependencies
 RUN python -m pip install \

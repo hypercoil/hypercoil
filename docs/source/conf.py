@@ -93,7 +93,7 @@ def linkcode_resolve(domain, info):
     9535c2137bdcdc0d34cf8367d2bb16c91a6fc083/docs/conf.py#L102-L134
     """
     import importlib, inspect
-    code_url = ("https://github.com/rciric/hypercoil/tree/main/")
+    code_url = ("https://github.com/hypercoil/hypercoil/tree/main/")
     """
     if domain != 'py':
         return None
