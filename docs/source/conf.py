@@ -12,13 +12,14 @@
 #
 import os
 import sys
+from pkg_resources import resource_filename as pkgrf
 sys.path.insert(0, os.path.abspath('../hypercoil/'))
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'hypercoil'
-copyright = '2021, the development team'
+copyright = '2022-, the development team'
 author = 'the development team'
 
 # The full version, including alpha/beta/rc tags
@@ -66,6 +67,11 @@ html_theme = 'pydata_sphinx_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+autodoc_type_aliases = {
+    'Tensor': 'Tensor',
+    'PyTree': 'PyTree',
+}
+
 
 # -- Extension configuration -------------------------------------------------
 
@@ -74,7 +80,10 @@ numpydoc_show_inherited_class_members = False
 
 html_logo = "_static/logo.png"
 html_theme_options = {
-    "show_prev_next": False
+    "show_prev_next": False,
+}
+html_context = {
+   "default_mode": "dark",
 }
 
 def linkcode_resolve(domain, info):
@@ -84,7 +93,7 @@ def linkcode_resolve(domain, info):
     9535c2137bdcdc0d34cf8367d2bb16c91a6fc083/docs/conf.py#L102-L134
     """
     import importlib, inspect
-    code_url = ("https://github.com/rciric/hypercoil/tree/main/")
+    code_url = ("https://github.com/hypercoil/hypercoil/tree/main/")
     """
     if domain != 'py':
         return None
@@ -93,6 +102,7 @@ def linkcode_resolve(domain, info):
     filename = info['module'].replace('.', '/')
     return (f"{url}/{filename}.py")
     """
+    #root = 'hypercoil'
     mod = importlib.import_module(info["module"])
     if "." in info["fullname"]:
         objname, attrname = info["fullname"].split(".")
@@ -112,7 +122,12 @@ def linkcode_resolve(domain, info):
     except TypeError:
         # e.g. object is a typing.Union
         return None
-    file = os.path.relpath(file, os.path.abspath(".."))
+    # file = os.path.relpath(file, os.path.abspath(".."))
+    # Not exactly the most robust way to do this, but the old way (above) was
+    # broken: pointed to
+    # opt/hostedtoolcache/Python/3.10.4/x64/lib/python3.10/site-packages/
+    root = os.path.abspath(pkgrf('hypercoil', '../'))
+    file = os.path.relpath(file, root)
     start, end = lines[1] - 1, lines[1] + len(lines[0]) - 1
 
     return f"{code_url}/{file}#L{start}-L{end}"

@@ -4,15 +4,18 @@
 """
 Modules for performing interpolation.
 """
+from __future__ import annotations
+from typing import Optional
+
 import jax
 import equinox as eqx
-from typing import Optional
+
 from ..engine import Tensor
 from ..functional.interpolate import (
-    spectral_interpolate,
-    linear_interpolate,
-    hybrid_interpolate,
     document_interpolation,
+    hybrid_interpolate,
+    linear_interpolate,
+    spectral_interpolate,
 )
 
 
@@ -28,6 +31,7 @@ class SpectralInterpolate(eqx.Module):
     ----------\
     {interpolate_spectral_spec}
     """
+
     oversampling_frequency: float = 8
     maximum_frequency: float = 1
     sampling_period: float = 1
@@ -38,7 +42,7 @@ class SpectralInterpolate(eqx.Module):
         input: Tensor,
         mask: Tensor,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         return spectral_interpolate(
             data=input,
@@ -46,7 +50,7 @@ class SpectralInterpolate(eqx.Module):
             oversampling_frequency=self.oversampling_frequency,
             maximum_frequency=self.maximum_frequency,
             sampling_period=self.sampling_period,
-            frequency_thresh=self.frequency_thresh
+            frequency_thresh=self.frequency_thresh,
         )
 
 
@@ -55,12 +59,13 @@ class LinearInterpolate(eqx.Module):
     :doc:`Linear interpolation <hypercoil.functional.interpolate.linear_interpolate>`
     module.
     """
+
     def __call__(
         self,
         input: Tensor,
         mask: Tensor,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         return linear_interpolate(
             data=input,
@@ -80,6 +85,7 @@ class HybridInterpolate(eqx.Module):
     ----------\
     {interpolate_hybrid_spec}
     """
+
     max_consecutive_linear: int = 3
     oversampling_frequency: float = 8
     maximum_frequency: float = 1
@@ -91,7 +97,7 @@ class HybridInterpolate(eqx.Module):
         input: Tensor,
         mask: Tensor,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         return hybrid_interpolate(
             data=input,
@@ -100,5 +106,5 @@ class HybridInterpolate(eqx.Module):
             oversampling_frequency=self.oversampling_frequency,
             maximum_frequency=self.maximum_frequency,
             sampling_period=self.sampling_period,
-            frequency_thresh=self.frequency_thresh
+            frequency_thresh=self.frequency_thresh,
         )

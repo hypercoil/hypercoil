@@ -10,23 +10,23 @@ Constants for import.
 
 def template_dict():
     return {
-        'fsLR': fsLR(),
+        "fsLR": fsLR(),
     }
 
 
 class fsLR:
     TFLOW_MASK_QUERY = {
-        'template': 'fsLR',
-        'density': '32k',
-        'desc': 'nomedialwall'
+        "template": "fsLR",
+        "density": "32k",
+        "desc": "nomedialwall",
     }
     TFLOW_COOR_QUERY = {
-        'template': 'fsLR',
-        'space': None,
-        'density': '32k',
-        'suffix': 'sphere'
+        "template": "fsLR",
+        "space": None,
+        "density": "32k",
+        "suffix": "sphere",
     }
     TFLOW_COMPARTMENTS = {
-        'L': {'hemi': 'L'},
-        'R': {'hemi': 'R'}
+        "L": {"hemi": "L"},
+        "R": {"hemi": "R"},
     }

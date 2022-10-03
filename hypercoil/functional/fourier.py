@@ -4,12 +4,15 @@
 """
 Signal transformations in the frequency domain.
 """
+from __future__ import annotations
 import math
-import jax.numpy as jnp
 from typing import Callable, Optional, Sequence, Tuple
+
+import jax.numpy as jnp
+
+from ..engine import NestedDocParse, Tensor, orient_and_conform
 from .cov import corr
 from .utils import complex_decompose
-from ..engine import NestedDocParse, Tensor, orient_and_conform
 
 
 def document_frequency_filter(f: Callable) -> Callable:
@@ -86,7 +89,7 @@ def document_analytic_signal(f: Callable) -> Callable:
         analytic_signal_sampling_freq=analytic_signal_sampling_freq,
         analytic_signal_period=analytic_signal_period,
         analytic_signal_return_spec=analytic_signal_return_spec,
-        analytic_signal_see_also=analytic_signal_see_also
+        analytic_signal_see_also=analytic_signal_see_also,
     )
     f.__doc__ = f.__doc__.format_map(fmt)
     return f
@@ -96,7 +99,7 @@ def document_analytic_signal(f: Callable) -> Callable:
 def product_filter(
     X: Tensor,
     weight: Tensor,
-    **params
+    **params,
 ) -> Tensor:
     """
     Convolve a multivariate signal via multiplication in the frequency domain.
@@ -122,7 +125,7 @@ def product_filter(
 def product_filtfilt(
     X: Tensor,
     weight: Tensor,
-    **params
+    **params,
 ) -> Tensor:
     """
     Perform zero-phase digital filtering of a signal via multiplication in the
@@ -145,7 +148,7 @@ def product_filtfilt(
     {freqfilter_return_spec}
     """
     X_filt = product_filter(X, weight, **params)
-    out = product_filter(jnp.flip(X_filt,-1), weight, **params)
+    out = product_filter(jnp.flip(X_filt, -1), weight, **params)
     return jnp.flip(out, -1)
 
 
@@ -153,7 +156,7 @@ def unwrap(
     phase: Tensor,
     axis: int = -1,
     discont: Optional[float] = None,
-    period: float = (2 * math.pi)
+    period: float = (2 * math.pi),
 ) -> Tensor:
     r"""
     Unwrap tensor values, replacing large deltas with their complement.
@@ -209,17 +212,12 @@ def unwrap(
     interval_high = half_period
     interval_low = -interval_high
     ddmod = (dd - interval_low) % period + interval_low
-    ddmod = jnp.where(
-        (ddmod == interval_low) & (dd > 0),
-        interval_high,
-        ddmod
-    )
+    ddmod = jnp.where((ddmod == interval_low) & (dd > 0), interval_high, ddmod)
     phase_correct = ddmod - dd
-    phase_correct = jnp.where(
-        jnp.abs(dd) < discont, 0.0, phase_correct
-    )
+    phase_correct = jnp.where(jnp.abs(dd) < discont, 0.0, phase_correct)
     unwrapped_phase = phase.at[slice1].set(
-        phase[slice1] + jnp.cumsum(phase_correct, axis=axis))
+        phase[slice1] + jnp.cumsum(phase_correct, axis=axis)
+    )
     return unwrapped_phase
 
 
@@ -227,7 +225,7 @@ def unwrap(
 def analytic_signal(
     X: Tensor,
     axis: int = -1,
-    n: Optional[int] = None
+    n: Optional[int] = None,
 ) -> Tensor:
     """
     Compute the analytic signal.
@@ -247,21 +245,20 @@ def analytic_signal(
     {analytic_signal_see_also}
     """
     if jnp.iscomplexobj(X):
-        raise ValueError(
-            'Input for analytic signal must be strictly real')
+        raise ValueError("Input for analytic signal must be strictly real")
 
     Xf = jnp.fft.fft(X, n=n, axis=axis)
     n = n or X.shape[axis]
     h = jnp.zeros(n)
 
-    #TODO: don't like this assignment implementation or the conditionals
+    # TODO: don't like this assignment implementation or the conditionals
     if n % 2 == 0:
         h = h.at[0].set(1)
         h = h.at[n // 2].set(1)
-        h = h.at[1:(n // 2)].set(2)
+        h = h.at[1 : (n // 2)].set(2)
     else:
         h = h.at[0].set(1)
-        h = h.at[1:((n + 1) // 2)].set(2)
+        h = h.at[1 : ((n + 1) // 2)].set(2)
 
     if Xf.ndim >= 1:
         h = orient_and_conform(h, axis=axis, reference=Xf)
@@ -272,7 +269,7 @@ def analytic_signal(
 def hilbert_transform(
     X: Tensor,
     axis: int = -1,
-    n: Optional[int] = None
+    n: Optional[int] = None,
 ) -> Tensor:
     """
     Hilbert transform of an input signal.
@@ -292,7 +289,7 @@ def hilbert_transform(
 def envelope(
     X: Tensor,
     axis: int = -1,
-    n: Optional[int] = None
+    n: Optional[int] = None,
 ) -> Tensor:
     """
     Envelope of a signal, computed via the analytic signal.
@@ -317,14 +314,17 @@ def instantaneous_phase(
     X: Tensor,
     axis: int = -1,
     n: Optional[int] = None,
-    period: float = (2 * math.pi)
+    period: float = (2 * math.pi),
 ) -> Tensor:
     """
     Instantaneous phase of a signal, computed via the analytic signal.
 
     .. note::
         If you require the envelope or instantaneous frequency in addition to
-        the instantaneous phase, :func:`env_inst` will be more efficient.\
+        the instantaneous phase, :func:`env_inst` will be more efficient.
+
+    Parameters
+    ----------\
     {analytic_signal_base_spec}\
     {analytic_signal_period}\
     \
@@ -335,7 +335,7 @@ def instantaneous_phase(
     return jnp.unwrap(
         jnp.angle(analytic_signal(X=X, axis=axis, n=n)),
         axis=axis,
-        period=period
+        period=period,
     )
 
 
@@ -343,9 +343,9 @@ def instantaneous_phase(
 def instantaneous_frequency(
     X: Tensor,
     axis: int = -1,
-    n : Optional[int] = None,
+    n: Optional[int] = None,
     fs: float = 1,
-    period: float = (2 * math.pi)
+    period: float = (2 * math.pi),
 ) -> Tensor:
     """
     Instantaneous frequency of a signal, computed via the analytic signal.
@@ -374,7 +374,7 @@ def env_inst(
     axis: int = -1,
     n: Optional[int] = None,
     fs: float = 1,
-    period: float = (2 * math.pi)
+    period: float = (2 * math.pi),
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Compute the analytic signal, and then decompose it into the envelope and
@@ -397,13 +397,13 @@ def env_inst(
     return env, inst_freq, inst_phase
 
 
-#TODO: marking this as an experimental function
+# TODO: marking this as an experimental function
 def ampl_phase_corr(
     X: Tensor,
     weight: Tensor = None,
     corr_axes: Sequence[int] = (0,),
     cov: Callable = corr,
-    **params
+    **params,
 ) -> Tensor:
     """
     Covariance among frequency bins, amplitude and phase. To run it across the

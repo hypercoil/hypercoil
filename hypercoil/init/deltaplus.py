@@ -4,12 +4,15 @@
 """
 Initialise parameters as a set of delta functions, plus Gaussian noise.
 """
+from __future__ import annotations
+from typing import Callable, Optional, Tuple, Type, Union
+
 import jax
 import jax.numpy as jnp
-from typing import Callable, Optional, Tuple, Type, Union
+
+from ..engine import PyTree, Tensor
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
-from ..engine import PyTree, Tensor
 
 
 def deltaplus_init(
@@ -76,7 +79,7 @@ class DeltaPlusInitialiser(MappedInitialiser):
         loc: Optional[Tuple[int, ...]] = None,
         scale: float = 1,
         var: Tensor = 0.2,
-        mapper: Optional[Type[MappedParameter]] = None
+        mapper: Optional[Type[MappedParameter]] = None,
     ):
         self.loc = loc
         self.scale = scale
@@ -111,13 +114,9 @@ class DeltaPlusInitialiser(MappedInitialiser):
     ) -> PyTree:
         init = cls(mapper=mapper, loc=loc, scale=scale, var=var)
         return super()._init_impl(
-            init=init, model=model, where=where, key=key, **params,
+            init=init,
+            model=model,
+            where=where,
+            key=key,
+            **params,
         )
-
-
-class DeltaPlusInit:
-    def __init__(self):
-        raise NotImplementedError
-
-def deltaplus_init_():
-    raise NotImplementedError

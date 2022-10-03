@@ -13,15 +13,18 @@ machine learning applications. DAFx2020, Vienna, Austria, September 2020-21.
 .. warning::
     A stable backward pass is not yet implemented.
 """
+from __future__ import annotations
+from typing import Optional, Tuple
+
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from typing import Optional, Tuple
+
 from ..engine import Tensor
 from ..init.iirfilter import IIRFilterSpec
 
 
-#TODO: mark all code as experimental until the IIR filter module is properly
+# TODO: mark all code as experimental until the IIR filter module is properly
 #      differentiable and the zero-phase filtering is implemented.
 class DTDFCell(eqx.Module):
     N: int
@@ -31,12 +34,12 @@ class DTDFCell(eqx.Module):
 
     def __init__(
         self,
-        init_spec: IIRFilterSpec
+        init_spec: IIRFilterSpec,
     ):
 
         self.N = init_spec.N
         self.multiplier = 1
-        if init_spec.btype in ('bandpass', 'bandstop'):
+        if init_spec.btype in ("bandpass", "bandstop"):
             self.multiplier = 2
 
         coefs = jnp.array(init_spec.coefs)
@@ -58,7 +61,7 @@ class DTDFCell(eqx.Module):
 class Spec(object):
     def __init__(self, N):
         self.N = N
-        self.btype = 'lowpass'
+        self.btype = "lowpass"
 
 
 class DTDF(eqx.Module):
@@ -77,12 +80,12 @@ class DTDF(eqx.Module):
         initial_states: Optional[Tensor] = None,
         feature_ax: bool = False,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         if not feature_ax:
             input = input[..., None]
         else:
-            raise NotImplementedError('No support for final feature axis yet')
+            raise NotImplementedError("No support for final feature axis yet")
         batch_size = input.shape[0]
         sequence_length = input.shape[-2]
 
@@ -95,7 +98,7 @@ class DTDF(eqx.Module):
         for s_idx in range(sequence_length):
             out, states = self.cell(
                 input[..., s_idx, :],
-                states
+                states,
             )
             out_sequence = out_sequence.at[..., s_idx].set(out)
 
@@ -116,13 +119,13 @@ class IIRFiltFilt(IIRFilter):
         initial_states: Optional[Tensor] = None,
         feature_ax: bool = False,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
-        raise NotImplementedError('Zero-phase filter not yet implemented')
+        raise NotImplementedError("Zero-phase filter not yet implemented")
         out = super()(
             input=input,
             initial_states=initial_states,
-            feature_ax=feature_ax
+            feature_ax=feature_ax,
         )
         if not feature_ax:
             out = jnp.flip(out, -1)
@@ -131,7 +134,7 @@ class IIRFiltFilt(IIRFilter):
         out = super()(
             input=out,
             initial_states=initial_states,
-            feature_ax=feature_ax
+            feature_ax=feature_ax,
         )
         if not feature_ax:
             return jnp.flip(out, -1)

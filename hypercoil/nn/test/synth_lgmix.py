@@ -10,7 +10,8 @@ Synthesise a dataset by combining 'local' sources with a linear  mixture of
 import numpy as np
 from scipy.fft import rfft, irfft
 from scipy.stats import poisson
-#from scipy.special import softmax
+
+# from scipy.special import softmax
 
 
 def synthesise(n=1000, d=7, p=100, n_sub=1, seed=0):
@@ -29,7 +30,8 @@ def slow_signals(d, n, n_sub=1, lp_bin=20):
     sources_fft[:, :, lp_bin:] = 0
     sources_filt = irfft(sources_fft, n=n)
     return (
-        (sources_filt.T - sources_filt.T.mean(0)) / sources_filt.T.std(0)).T
+        (sources_filt.T - sources_filt.T.mean(0)) / sources_filt.T.std(0)
+    ).T
 
 
 def mix_card_probs_pn(d):
@@ -52,7 +54,7 @@ def create_mixture(d, p, mix_probs=None):
     weights = np.random.randn(p, d + 1)
     weights[:, -1] *= 0.25
     state = mask * weights
-    #state = softmax(state ** 2, axis=-1) * mask
+    # state = softmax(state ** 2, axis=-1) * mask
     return state / np.abs(state).sum(-1, keepdims=True)
 
 

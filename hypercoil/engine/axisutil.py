@@ -4,12 +4,23 @@
 """
 Miscellaneous utility functions for tensor axis manipulation.
 """
+from __future__ import annotations
+from functools import partial, reduce
+from typing import (
+    Any,
+    Callable,
+    Generator,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
+
 import jax
 import jax.numpy as jnp
-from functools import partial, reduce
-from typing import Any, Callable, Generator, Optional, Sequence, Tuple, Union
 from jax import vmap
 from jax.tree_util import tree_map, tree_reduce
+
 from .paramutil import PyTree, Tensor
 
 
@@ -36,13 +47,13 @@ def _compose(
 def _seq_pad(
     x: Tuple[Any, ...],
     n: int,
-    pad: str = 'last',
+    pad: str = "last",
     pad_value: Any = None,
 ) -> Tuple[Any, ...]:
     padding = [pad_value for _ in range(n + 1 - len(x))]
-    if pad == 'last':
+    if pad == "last":
         return tuple((*x, *padding))
-    elif pad == 'first':
+    elif pad == "first":
         return tuple((*padding, *x))
     raise ValueError(f"Invalid padding: {pad}")
 
@@ -77,10 +88,12 @@ def broadcast_ignoring(
     This can be useful, for instance, when concatenating tensors along
     the ignored axis.
     """
+
     def _form_reduced_shape(axes, shape, ndim):
         axes = tuple(standard_axis_number(a, ndim) for a in axes)
-        shape_reduced = tuple(1 if i in axes else shape[i]
-                              for i in range(ndim))
+        shape_reduced = tuple(
+            1 if i in axes else shape[i] for i in range(ndim)
+        )
         return shape_reduced, axes
 
     def _form_final_shape(axes_out, axes_in, shape_in, common_shape):
@@ -96,28 +109,33 @@ def broadcast_ignoring(
                     yield shape_in[ax]
                 j += 1
 
-    if isinstance(axis, int): axis = (axis,)
+    if isinstance(axis, int):
+        axis = (axis,)
     shape_x, shape_y = x.shape, y.shape
     shape_x_reduced, axes_x = _form_reduced_shape(axis, shape_x, x.ndim)
     shape_y_reduced, axes_y = _form_reduced_shape(axis, shape_y, y.ndim)
     common_shape = jnp.broadcast_shapes(shape_x_reduced, shape_y_reduced)
     axes_out = tuple(standard_axis_number(a, len(common_shape)) for a in axis)
-    shape_y = tuple(_form_final_shape(
-        axes_out=axes_out,
-        axes_in=axes_y,
-        shape_in=shape_y,
-        common_shape=common_shape)
+    shape_y = tuple(
+        _form_final_shape(
+            axes_out=axes_out,
+            axes_in=axes_y,
+            shape_in=shape_y,
+            common_shape=common_shape,
+        )
     )
-    shape_x = tuple(_form_final_shape(
-        axes_out=axes_out,
-        axes_in=axes_x,
-        shape_in=shape_x,
-        common_shape=common_shape)
+    shape_x = tuple(
+        _form_final_shape(
+            axes_out=axes_out,
+            axes_in=axes_x,
+            shape_in=shape_x,
+            common_shape=common_shape,
+        )
     )
     return jnp.broadcast_to(x, shape_x), jnp.broadcast_to(y, shape_y)
 
 
-#TODO: use chex to evaluate how often this has to compile when using
+# TODO: use chex to evaluate how often this has to compile when using
 #      jit + vmap_over_outer
 def apply_vmap_over_outer(
     x: PyTree,
@@ -140,16 +158,18 @@ def apply_vmap_over_outer(
     else:
         if isinstance(structuring_arg, int):
             output_structure = range(
-                0, x[structuring_arg].ndim - f_dim[structuring_arg])
+                0, x[structuring_arg].ndim - f_dim[structuring_arg]
+            )
             criterion = align_outer[structuring_arg]
         else:
             output_structure = range(
-                0, structuring_arg(x).ndim - structuring_arg(f_dim))
+                0, structuring_arg(x).ndim - structuring_arg(f_dim)
+            )
             criterion = structuring_arg(align_outer)
         if criterion:
-            output_structure = _seq_pad(output_structure, ndmax, 'last')
+            output_structure = _seq_pad(output_structure, ndmax, "last")
         else:
-            output_structure = _seq_pad(output_structure, ndmax, 'first')
+            output_structure = _seq_pad(output_structure, ndmax, "first")
     # print(ndim, tuple(range(ndmax + 1)))
     # print([(
     #    tree_map(
@@ -161,17 +181,20 @@ def apply_vmap_over_outer(
     # ])
     return reduce(
         _compose,
-        #lambda x, g: g(x),
-        [partial(
-            vmap,
-            in_axes=tree_map(
-                partial(_dim_or_none, i=i, ndmax=ndmax),
-                ndim,
-                align_outer
-            ),
-            out_axes=o
-        ) for i, o in zip(range(0, ndmax + 1), output_structure)],
-        f
+        # lambda x, g: g(x),
+        [
+            partial(
+                vmap,
+                in_axes=tree_map(
+                    partial(_dim_or_none, i=i, ndmax=ndmax),
+                    ndim,
+                    align_outer,
+                ),
+                out_axes=o,
+            )
+            for i, o in zip(range(0, ndmax + 1), output_structure)
+        ],
+        f,
     )(*x)
 
 
@@ -200,7 +223,8 @@ def axis_complement(
     """
     Return the complement of the axis or axes for a tensor of dimension ndim.
     """
-    if isinstance(axis, int): axis = (axis,)
+    if isinstance(axis, int):
+        axis = (axis,)
     ax = [True for _ in range(ndim)]
     for a in axis:
         ax[a] = False
@@ -235,7 +259,8 @@ def promote_axis(
     """
     Promote an axis or axes to the outermost dimension.
     """
-    if isinstance(axis, int): axis = (axis,)
+    if isinstance(axis, int):
+        axis = (axis,)
     axis = [standard_axis_number(ax, ndim) for ax in axis]
     return (*axis, *axis_complement(ndim, axis))
 
@@ -258,12 +283,13 @@ def demote_axis(
     ndim: int,
     axis: Union[int, Tuple[int, ...]],
 ) -> Tuple[int, ...]:
-    if isinstance(axis, int): axis = (axis,)
+    if isinstance(axis, int):
+        axis = (axis,)
     axis = [standard_axis_number(ax, ndim) for ax in axis]
     return tuple(_demote_axis(ndim=ndim, axis=axis))
 
 
-@partial(jax.jit, static_argnames=('axis', 'n_folds'))
+@partial(jax.jit, static_argnames=("axis", "n_folds"))
 def fold_axis(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     """
     Fold the specified axis into the specified number of folds.
@@ -271,16 +297,19 @@ def fold_axis(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     axis = standard_axis_number(axis, tensor.ndim)
     shape = tensor.shape
     current = shape[axis]
+    # fmt: off
     new_shape = (
         shape[:axis] +
         (current // n_folds, n_folds) +
         shape[axis + 1:]
     )
+    # fmt: on
     return tensor.reshape(new_shape)
 
 
 # Apparently lambdas will give us trouble with the compiler.
 # So we have this trash instead.
+# fmt: off
 def _prod(x, y): return x * y
 def _sum(x, y): return x + y
 def _left(x, y): return x
@@ -294,9 +323,10 @@ def _reduce_cond(acc, x, f, identity):
     nxt = jax.lax.cond(pred, _noop, identity, data)
     acc = f(acc, nxt)
     return acc, None
+# fmt: on
 
 
-@partial(jax.jit, static_argnames=('axes',))
+@partial(jax.jit, static_argnames=("axes",))
 def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
     """
     Unfold the specified consecutive axes into a single new axis.
@@ -309,15 +339,17 @@ def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
     axes = [standard_axis_number(ax, tensor.ndim) for ax in axes]
     current = [shape[ax] for ax in axes]
     prod = reduce(_prod, current)
+    # fmt: off
     new_shape = (
         tensor.shape[:axes[0]] +
         (prod,) +
         tensor.shape[axes[-1] + 1:]
     )
+    # fmt: on
     return tensor.reshape(new_shape)
 
 
-@partial(jax.jit, static_argnames=('axis', 'n_folds'))
+@partial(jax.jit, static_argnames=("axis", "n_folds"))
 def fold_and_promote(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     """
     Fold the specified axis into the specified number of folds, and promote
@@ -327,11 +359,11 @@ def fold_and_promote(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     return jnp.transpose(folded, promote_axis(folded.ndim, axis))
 
 
-@partial(jax.jit, static_argnames=('target_address', 'axes'))
+@partial(jax.jit, static_argnames=("target_address", "axes"))
 def demote_and_unfold(
     tensor: Tensor,
     target_address: int,
-    axes: Union[int, Tuple[int, ...]]
+    axes: Union[int, Tuple[int, ...]],
 ):
     demoted = jnp.transpose(tensor, demote_axis(tensor.ndim, target_address))
     return unfold_axes(demoted, axes)
@@ -350,7 +382,7 @@ def orient_and_conform(
     input: Tensor,
     axis: Union[int, Sequence[int]],
     reference: Optional[Tensor] = None,
-    dim: Optional[int] = None
+    dim: Optional[int] = None,
 ) -> Tensor:
     """
     Orient an input tensor along a set of axes, and conform its overall
@@ -387,17 +419,19 @@ def orient_and_conform(
     if isinstance(axis, int):
         axis = (axis,)
     if dim is None and reference is None:
-        raise ValueError('Must specify either `reference` or `dim`')
+        raise ValueError("Must specify either `reference` or `dim`")
     elif dim is None:
         dim = reference.ndim
     # can't rely on this when we compile with jit
-    assert len(axis) == input.ndim, (
-        'Output orientation axis required for each input dimension')
+    assert (
+        len(axis) == input.ndim
+    ), "Output orientation axis required for each input dimension"
     shape = [1] * dim
     asgn = [0] * dim
     for size, ax in zip(input.shape, axis):
         shape[ax] = size
-        assert sum(asgn[ax:]) == 0, (
-            'All axes must be in order. Transpose the input if necessary.')
+        assert (
+            sum(asgn[ax:]) == 0
+        ), "All axes must be in order. Transpose the input if necessary."
         asgn[ax] = 1
     return input.reshape(*shape)

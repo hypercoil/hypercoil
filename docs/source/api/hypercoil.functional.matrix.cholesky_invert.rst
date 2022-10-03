@@ -1,6 +1,6 @@
-``invert_spd``
-==============
+``cholesky_invert``
+===================
 
 .. currentmodule:: hypercoil.functional.matrix
 
-.. autofunction:: invert_spd
+.. autofunction:: cholesky_invert

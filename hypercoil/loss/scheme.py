@@ -5,18 +5,20 @@
 Module for additively applying a set of several losses or
 regularisations to a set of inputs.
 """
+from __future__ import annotations
+from collections import namedtuple
+from typing import Any, Callable, Tuple
+
 import jax
 import equinox as eqx
-from collections import namedtuple
-from functools import partial
-from typing import Any, Callable, Tuple
+
 from ..engine.argument import (
     ModelArgument as LossArgument,
     UnpackingModelArgument as UnpackingLossArgument,
 )
 
 
-LossReturn = namedtuple('LossReturn', ('value', 'nu'))
+LossReturn = namedtuple("LossReturn", ("value", "nu"))
 
 
 def unpack_or_noop(*pparams) -> Any:
@@ -33,14 +35,14 @@ def apply_and_evaluate(
     loss: Callable,
     applied: Any,
     *,
-    key: 'jax.random.PRNGKey'
+    key: "jax.random.PRNGKey",
 ) -> Any:
     if isinstance(applied, UnpackingLossArgument):
         return loss(**applied, key=key)
     return loss(applied, key=key)
 
 
-#TODO: add examples of how to use this.
+# TODO: add examples of how to use this.
 class LossApply(eqx.Module):
     """
     Callable loss function wrapper that composes the loss with a selector or
@@ -58,6 +60,7 @@ class LossApply(eqx.Module):
         case is filtering the inputs to a ``LossScheme`` and forwarding only
         the ones relevant to the loss function at hand.
     """
+
     loss: Callable
     apply: Callable = unpack_or_noop
     name: str
@@ -82,8 +85,8 @@ class LossApply(eqx.Module):
     def __call__(
         self,
         *pparams,
-        key: 'jax.random.PRNGKey',
-        **params
+        key: "jax.random.PRNGKey",
+        **params,
     ) -> float:
         """
         Evaluate the loss applied to the output of the ``apply`` operation.
@@ -95,7 +98,7 @@ class LossApply(eqx.Module):
 class LossScheme(eqx.Module):
     loss: Tuple[Callable]
     apply: Callable = unpack_or_noop
-    name = 'LossScheme'
+    name = "LossScheme"
 
     def __add__(self, other):
         return LossScheme(loss=(self.loss + other.loss))
@@ -108,17 +111,21 @@ class LossScheme(eqx.Module):
 
     def __repr__(self) -> str:
         import jax._src.pretty_printer as pp
-        from equinox.pretty_print import _nest, _comma_sep
+        from equinox.pretty_print import _comma_sep, _nest
+
         indent = 2
-        #TODO: Right now, we're just hacking equinox's pretty printer here...
+        # TODO: Right now, we're just hacking equinox's pretty printer here...
         #      This is equinox's pretty printer for lists.
         return pp.group(
             pp.concat(
                 [
                     pp.text("LossScheme("),
                     _nest(
-                        indent, pp.join(_comma_sep,
-                        [pp._TextDoc(repr(loss)) for loss in self.loss])
+                        indent,
+                        pp.join(
+                            _comma_sep,
+                            [pp._TextDoc(repr(loss)) for loss in self.loss],
+                        ),
                     ),
                     pp.brk(""),
                     pp.text(")"),
@@ -126,9 +133,9 @@ class LossScheme(eqx.Module):
             )
         ).format()
 
-    #TODO: Check if the multiplier for each loss is 0, and if so, don't
+    # TODO: Check if the multiplier for each loss is 0, and if so, don't
     #      evaluate it.
-    def __call__(self, *pparams, key='jax.random.PRNGKey', **params):
+    def __call__(self, *pparams, key="jax.random.PRNGKey", **params):
         total_loss = 0
         all_items = {}
         applied = self.apply(*pparams, **params)
@@ -137,8 +144,10 @@ class LossScheme(eqx.Module):
             if isinstance(f, LossScheme):
                 acc, items = apply_and_evaluate(f, applied, key=k)
             elif isinstance(f, LossApply) and isinstance(f.loss, LossScheme):
-                def f_(*pparams, key: 'jax.random.PRNGKey', **params):
+
+                def f_(*pparams, key: "jax.random.PRNGKey", **params):
                     return f.loss(f.apply(*pparams, **params), key=key)
+
                 acc, items = apply_and_evaluate(f_, applied, key=k)
             else:
                 acc = apply_and_evaluate(f, applied, key=k)

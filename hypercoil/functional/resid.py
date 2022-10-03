@@ -4,10 +4,16 @@
 """
 Residualise tensor block via least squares.
 """
-import jax.numpy as jnp
+from __future__ import annotations
 from typing import Callable
+
+import jax.numpy as jnp
+
 from ..engine import (
-    NestedDocParse, Tensor, vmap_over_outer, broadcast_ignoring
+    NestedDocParse,
+    Tensor,
+    broadcast_ignoring,
+    vmap_over_outer,
 )
 
 

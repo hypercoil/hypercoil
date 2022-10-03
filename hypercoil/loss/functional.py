@@ -8,16 +8,25 @@ A loss function is the composition of a score function and a scalarisation
 map (which might itself be the composition of different tensor rank reduction
 maps.)
 """
-import jax
-import jax.numpy as jnp
+from __future__ import annotations
 from functools import partial, reduce
 from typing import Callable, Literal, Optional, Sequence, Tuple, Union
+
+import jax
+import jax.numpy as jnp
 from distrax._src.utils.math import mul_exp
 
 from ..engine import NestedDocParse, Tensor, vmap_over_outer
 from ..functional import (
-    coaffiliation, corr_kernel, cmass_coor, graph_laplacian, linear_distance,
-    modularity_matrix, pairedcorr, precision, recondition_eigenspaces,
+    cmass_coor,
+    coaffiliation,
+    corr_kernel,
+    graph_laplacian,
+    linear_distance,
+    modularity_matrix,
+    pairedcorr,
+    precision,
+    recondition_eigenspaces,
     sym2vec,
 )
 from ..functional.cmass import cmass_reference_displacement, diffuse
@@ -29,7 +38,7 @@ from ..functional.cmass import cmass_reference_displacement, diffuse
 def identity(
     X: Tensor,
     *,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Identity function.
@@ -41,21 +50,21 @@ def zero(
     X: Tensor,
     *,
     broadcast: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Zero function.
     """
     if broadcast:
         return jnp.zeros_like(X)
-    return 0.
+    return 0.0
 
 
 def difference(
     X: Tensor,
     Y: Tensor,
     *,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Difference score function.
@@ -120,7 +129,7 @@ def constraint_violation(
     *,
     constraints: Sequence[Callable[[Tensor], Tensor]],
     broadcast_against_input: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Constraint violation score function.
@@ -149,7 +158,7 @@ def constraint_violation(
 def unilateral_loss(
     X: Tensor,
     *,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Unilateral loss function.
@@ -164,7 +173,7 @@ def hinge_loss(
     Y_hat: Tensor,
     Y: Tensor,
     *,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Hinge loss function.
@@ -213,10 +222,10 @@ def smoothness(
     X: Tensor,
     *,
     n: int = 1,
-    #pad_value: Optional[Union[float, Literal['initial']]] = None,
+    # pad_value: Optional[Union[float, Literal['initial']]] = None,
     pad_value: Optional[float] = None,
     axis: int = -1,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Smoothness score function.
@@ -260,7 +269,7 @@ def _bimodal_symmetric_impl(
     *,
     mean: float,
     step: float,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Bimodal symmetric score function. This parameterisation is used internally
@@ -274,7 +283,7 @@ def bimodal_symmetric(
     X: Tensor,
     *,
     modes: Tuple[int, int] = (0, 1),
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Bimodal symmetric score function.
@@ -397,9 +406,9 @@ def det_gram(
     theta: Optional[Tensor] = None,
     *,
     op: Optional[Callable] = corr_kernel,
-    psi: Optional[float] = 0.,
-    xi: Optional[float] = 0.,
-    key: Optional['jax.random.PRNGKey'] = None,
+    psi: Optional[float] = 0.0,
+    xi: Optional[float] = 0.0,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Gramian determinant score function.
@@ -428,9 +437,9 @@ def log_det_gram(
     theta: Optional[Tensor] = None,
     *,
     op: Optional[Callable] = corr_kernel,
-    psi: Optional[float] = 0.,
-    xi: Optional[float] = 0.,
-    key: Optional['jax.random.PRNGKey'] = None,
+    psi: Optional[float] = 0.0,
+    xi: Optional[float] = 0.0,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Gramian log-determinant score function.
@@ -592,7 +601,7 @@ def entropy(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Entropy of a categorical distribution or set of categorical distributions.
@@ -619,11 +628,11 @@ def entropy(
 def entropy_logit(
     X: Tensor,
     *,
-    temperature: float = 1.,
+    temperature: float = 1.0,
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Project logits in the input matrix onto the probability simplex, and then
@@ -652,7 +661,7 @@ def kl_divergence(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Kullback-Leibler divergence between two categorical distributions.
@@ -684,7 +693,7 @@ def kl_divergence_logit(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Kullback-Leibler divergence between two categorical distributions.
@@ -715,7 +724,7 @@ def js_divergence(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Jensen-Shannon divergence between two categorical distributions.
@@ -731,8 +740,9 @@ def js_divergence(
     {js_return_spec}
     """
     M = 0.5 * (P + Q)
-    js_div = (kl_divergence(P, M, reduce=False) +
-              kl_divergence(Q, M, reduce=False)) / 2
+    js_div = (
+        kl_divergence(P, M, reduce=False) + kl_divergence(Q, M, reduce=False)
+    ) / 2
     if not reduce:
         return js_div
     return js_div.sum(axis=axis, keepdims=keepdims)
@@ -746,7 +756,7 @@ def js_divergence_logit(
     axis: Union[int, Sequence[int]] = -1,
     keepdims: bool = True,
     reduce: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Jensen-Shannon divergence between two categorical distributions.
@@ -808,7 +818,7 @@ def _bregman_divergence_impl(
     Y: Tensor,
     *,
     f: Callable,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Bregman divergence score function for a single pair of distributions or
@@ -825,7 +835,7 @@ def bregman_divergence(
     *,
     f: Callable,
     f_dim: int,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Bregman divergence score function.
@@ -848,7 +858,7 @@ def bregman_divergence_logit(
     *,
     f: Callable,
     f_dim: int,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Bregman divergence score function for logits.
@@ -957,7 +967,7 @@ def equilibrium(
     *,
     level_axis: Union[int, Sequence[int]] = -1,
     instance_axes: Union[int, Sequence[int]] = (-1, -2),
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Compute the parcel equilibrium.
@@ -984,7 +994,7 @@ def equilibrium_logit(
     level_axis: Union[int, Sequence[int]] = -1,
     prob_axis: Union[int, Sequence[int]] = -2,
     instance_axes: Union[int, Sequence[int]] = (-1, -2),
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Project logits in the input matrix onto the probability simplex, and then
@@ -1123,13 +1133,14 @@ def document_second_moment(func: Callable) -> Callable:
     func.__doc__ = func.__doc__.format_map(fmt)
     return func
 
+
 def _second_moment_impl(
     X: Tensor,
     weight: Tensor,
     mu: Tensor,
     *,
     skip_normalise: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Core computation for second-moment loss.
@@ -1151,7 +1162,7 @@ def second_moment(
     *,
     standardise: bool = False,
     skip_normalise: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Compute the second moment of a dataset.
@@ -1164,9 +1175,10 @@ def second_moment(
     """
     if standardise:
         X = (X - X.mean(-1, keepdims=True)) / X.std(-1, keepdims=True)
-    mu = (weight @ X / weight.sum(-1, keepdims=True))
+    mu = weight @ X / weight.sum(-1, keepdims=True)
     return _second_moment_impl(
-        X, weight, mu, skip_normalise=skip_normalise, key=key)
+        X, weight, mu, skip_normalise=skip_normalise, key=key
+    )
 
 
 @document_second_moment
@@ -1178,7 +1190,7 @@ def second_moment_centred(
     standardise_data: bool = False,
     standardise_mu: bool = False,
     skip_normalise: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Compute the second moment of a dataset about a specified mean.
@@ -1194,7 +1206,8 @@ def second_moment_centred(
     if standardise_mu:
         mu = (mu - mu.mean(-1)) / mu.std(-1)
     return _second_moment_impl(
-        X, weight, mu, skip_normalise=skip_normalise, key=key)
+        X, weight, mu, skip_normalise=skip_normalise, key=key
+    )
 
 
 # Batch correlation ----------------------------------------------------------
@@ -1226,7 +1239,7 @@ def document_batch_correlation(func):
 
     fmt = NestedDocParse(
         batch_correlation_spec=batch_correlation_spec,
-        return_spec=return_spec
+        return_spec=return_spec,
     )
     func.__doc__ = func.__doc__.format_map(fmt)
     return func
@@ -1267,6 +1280,7 @@ def auto_tol(
         Tolerance for batch-dimension correlations.
     """
     from scipy.stats import t
+
     tsq = t.ppf(q=(1 - significance / tails), df=(batch_size - 2)) ** 2
     return jnp.sqrt(tsq / (batch_size - 2 + tsq))
 
@@ -1276,10 +1290,10 @@ def batch_corr(
     X: Tensor,
     N: Tensor,
     *,
-    tol: Union[float, Literal['auto']] = 0,
+    tol: Union[float, Literal["auto"]] = 0,
     tol_sig: float = 0.1,
     abs: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Correlation over the batch dimension.
@@ -1298,9 +1312,9 @@ def batch_corr(
     batch_size = X.shape[0]
     batchcorr = pairedcorr(
         X.swapaxes(0, -1).reshape(-1, batch_size),
-        jnp.atleast_2d(N)
+        jnp.atleast_2d(N),
     )
-    if tol == 'auto':
+    if tol == "auto":
         tol = auto_tol(batch_size, significance=tol_sig)
 
     batchcorr_thr = jnp.maximum(jnp.abs(batchcorr) - tol, 0)
@@ -1315,10 +1329,10 @@ def qcfc(
     fc: Tensor,
     qc: Tensor,
     *,
-    tol: Union[float, Literal['auto']] = 0,
+    tol: Union[float, Literal["auto"]] = 0,
     tol_sig: float = 0.1,
     abs: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Alias for :func:`batch_corr`. Quality control-functional connectivity
@@ -1486,8 +1500,8 @@ def reference_tether(
     ref: Tensor,
     coor: Tensor,
     *,
-    radius: Optional[float] = 100.,
-    key: Optional['jax.random.PRNGKey'] = None,
+    radius: Optional[float] = 100.0,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Distance of centres of mass from tethered reference points.
@@ -1525,8 +1539,8 @@ def interhemispheric_tether(
     lh_coor: Tensor,
     rh_coor: Tensor,
     *,
-    radius: float = 100.,
-    key: Optional['jax.random.PRNGKey'] = None,
+    radius: float = 100.0,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Distance of centres of mass of left-hemisphere parcels from corresponding
@@ -1559,7 +1573,8 @@ def interhemispheric_tether(
     ipsilateral_coor = rh_coor
     contralateral_ref = cmass_coor(X=lh, coor=lh_coor, radius=radius)
     contralateral_ref = contralateral_ref.at[0, :].set(
-        -contralateral_ref[0, :])
+        -contralateral_ref[0, :]
+    )
     return cmass_reference_displacement(
         weight=ipsilateral_weight,
         refs=contralateral_ref,
@@ -1573,10 +1588,10 @@ def compactness(
     X: Tensor,
     coor: Tensor,
     *,
-    norm: Union[int, float, Literal['inf']] = 2,
-    floor: float = 0.,
-    radius: Optional[float] = 100.,
-    key: Optional['jax.random.PRNGKey'] = None,
+    norm: Union[int, float, Literal["inf"]] = 2,
+    floor: float = 0.0,
+    radius: Optional[float] = 100.0,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Distance of masses in each object from the centre of mass of that object.
@@ -1607,7 +1622,7 @@ def dispersion(
     X: Tensor,
     *,
     metric: Callable = linear_distance,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Dispersion of the centres of mass of objects in a tensor block.
@@ -1663,9 +1678,9 @@ def document_mv_kurtosis(func):
 def multivariate_kurtosis(
     ts: Tensor,
     *,
-    l2: float = 0.,
+    l2: float = 0.0,
     dimensional_scaling: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Tensor:
     """
     Multivariate kurtosis of a time series.
@@ -1692,7 +1707,7 @@ def multivariate_kurtosis(
     prec = precision(ts, l2=l2)[..., None, :, :]
     ts = ts.swapaxes(-1, -2)[..., None, :]
     maha = (ts @ prec @ ts.swapaxes(-1, -2)).squeeze()
-    return -(maha ** 2).mean(-1) / denom
+    return -(maha**2).mean(-1) / denom
 
 
 # Connectopies ---------------------------------------------------------------
@@ -1900,7 +1915,7 @@ def connectopy(
     dissimilarity: Optional[Callable] = None,
     affinity: Optional[Callable] = None,
     progressive_theta: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Generalised connectopic functional, for computing different kinds of
@@ -1934,9 +1949,9 @@ def modularity(
     D: Optional[Tensor] = None,
     theta: Optional[Tensor] = None,
     *,
-    gamma: float = 1.,
+    gamma: float = 1.0,
     exclude_diag: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Modularity functional.
@@ -1950,19 +1965,20 @@ def modularity(
     \
     {return_spec}
     """
+
     def dissimilarity(Q, theta):
         return coaffiliation(
             Q,
             L=theta,
             normalise_coaffiliation=True,
-            exclude_diag=exclude_diag
+            exclude_diag=exclude_diag,
         )
 
     def affinity(A, omega):
         return modularity_matrix(
             A,
             gamma=omega,
-            normalise_modularity=True
+            normalise_modularity=True,
         )
 
     return connectopy(
@@ -1984,7 +2000,7 @@ def eigenmaps(
     theta: Optional[Tensor] = None,
     *,
     normalise: bool = True,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ):
     """
     Laplacian eigenmaps functional.
@@ -2006,6 +2022,7 @@ def eigenmaps(
     \
     {return_spec}
     """
+
     def dissimilarity(Q, theta):
         return linear_distance(Q, theta=theta)
 

@@ -5,24 +5,26 @@
 Initialise and compute means and mean blocks in the positive semidefinite
 cone.
 """
+from __future__ import annotations
+from typing import Callable, Optional, Sequence, Tuple, Type, Union
+
 import jax
 import jax.numpy as jnp
 import distrax
 import equinox as eqx
-from typing import Callable, Optional, Sequence, Tuple, Type, Union
 
 from hypercoil.engine.docutil import NestedDocParse
+from ..engine import PyTree, Tensor
+from ..engine.noise import MatrixExponential, Symmetric
+from ..functional.semidefinite import (
+    document_semidefinite_mean,
+    mean_euc_spd,
+    mean_geom_spd,
+    mean_harm_spd,
+    mean_logeuc_spd,
+)
 from .base import MappedInitialiser
 from .mapparam import MappedParameter
-from ..engine import PyTree, Tensor
-from ..engine.noise import (
-    Symmetric, MatrixExponential
-)
-from ..functional.semidefinite import (
-    mean_euc_spd, mean_harm_spd,
-    mean_logeuc_spd, mean_geom_spd,
-    document_semidefinite_mean,
-)
 
 
 def document_semidefinite_block_mean(f: Callable) -> Callable:
@@ -44,7 +46,7 @@ def document_semidefinite_block_mean(f: Callable) -> Callable:
 
     fmt = NestedDocParse(
         semidefinite_block_mean_dim=semidefinite_block_mean_dim,
-        semidefinite_block_mean_spec=semidefinite_block_mean_spec
+        semidefinite_block_mean_spec=semidefinite_block_mean_spec,
     )
     f.__doc__ = f.__doc__.format_map(fmt)
     return f
@@ -52,16 +54,14 @@ def document_semidefinite_block_mean(f: Callable) -> Callable:
 
 @document_semidefinite_block_mean
 def mean_block_spd(
-    mean_specs: list[Callable],
-    data: Tensor
+    mean_specs: Sequence[Callable],
+    data: Tensor,
 ) -> Tensor:
     """
     Apply each mean from a list of specifications to all matrices in a block.
 
-    Dimension
-    ---------
-    - data : :math:`(N, *, D, D)`
-        {semidefinite_block_mean_dim}
+    :Dimension: **data :** :math:`(N, *, D, D)`
+                    {semidefinite_block_mean_dim}
 
     Parameters
     ----------\
@@ -72,18 +72,16 @@ def mean_block_spd(
 
 @document_semidefinite_block_mean
 def mean_apply_block(
-    mean_specs: list[Callable],
-    data: Tensor
+    mean_specs: Sequence[Callable],
+    data: Tensor,
 ) -> Tensor:
     """
     Apply each mean from a list of specifications to a different slice or
     block of a dataset.
 
-    Dimension
-    ---------
-    - data : :math:`(K, N, *, D, D)`
-        K denotes the number of mean specs provided. \
-        {semidefinite_block_mean_dim}
+    :Dimension: **data :** :math:`(K, N, *, D, D)`
+                    K denotes the number of mean specs provided. \
+                    {semidefinite_block_mean_dim}
 
     Parameters
     ----------\
@@ -95,9 +93,9 @@ def mean_apply_block(
 def tangency_init(
     init_data: Tensor,
     *,
-    mean_specs: list[Callable],
-    std: float = 0.,
-    key: Optional[jax.random.PRNGKey] = None
+    mean_specs: Sequence[Callable],
+    std: float = 0.0,
+    key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
     Initialise points of tangency for projection between the positive
@@ -134,7 +132,7 @@ def tangency_init(
         src = MatrixExponential(
             Symmetric(
                 src_distribution=distrax.Normal(0, 0.01),
-                multiplicity=init_data.shape[-1]
+                multiplicity=init_data.shape[-1],
             )
         )
         noise = src.sample(sample_shape=means.shape[:-2], seed=key)
@@ -151,16 +149,16 @@ class TangencyInitialiser(MappedInitialiser):
     See :func:`tangency_init` for argument details.
     """
 
-    init_data : Tensor
-    mean_specs : Sequence[Callable]
-    std : float
+    init_data: Tensor
+    mean_specs: Sequence[Callable]
+    std: float
 
     def __init__(
         self,
         init_data: Tensor,
         mean_specs: Sequence[Callable],
-        std: float = 0.,
-        mapper: Optional[Type[MappedParameter]] = None
+        std: float = 0.0,
+        mapper: Optional[Type[MappedParameter]] = None,
     ):
         self.init_data = init_data
         self.mean_specs = mean_specs
@@ -171,13 +169,13 @@ class TangencyInitialiser(MappedInitialiser):
         self,
         *,
         shape: Optional[Tuple[int, ...]] = None,
-        key: jax.random.PRNGKey
+        key: jax.random.PRNGKey,
     ) -> Tensor:
         return tangency_init(
             init_data=self.init_data,
             mean_specs=self.mean_specs,
             std=self.std,
-            key=key
+            key=key,
         )
 
     @classmethod
@@ -188,7 +186,7 @@ class TangencyInitialiser(MappedInitialiser):
         mapper: Optional[Type[MappedParameter]] = None,
         init_data: Tensor,
         mean_specs: Sequence[Callable],
-        std: float = 0.,
+        std: float = 0.0,
         where: Union[str, Callable] = "weight",
         key: Optional[jax.random.PRNGKey] = None,
         **params,
@@ -197,16 +195,18 @@ class TangencyInitialiser(MappedInitialiser):
             mapper=mapper,
             init_data=init_data,
             mean_specs=mean_specs,
-            std=std
+            std=std,
         )
         return super()._init_impl(
-            init=init, model=model, where=where, key=key, **params)
+            init=init, model=model, where=where, key=key, **params
+        )
 
 
 class _SemidefiniteMean(eqx.Module):
     """
     Base class for modules that compute semidefinite means.
     """
+
     axis: Union[int, Sequence[int]] = (0,)
 
 
@@ -221,7 +221,8 @@ class SPDEuclideanMean(_SemidefiniteMean):
     ----------\
     {semidefinite_mean_axis_spec}
     """
-    def __call__(self, input):
+
+    def __call__(self, input: Tensor) -> Tensor:
         return mean_euc_spd(input, axis=self.axis)
 
 
@@ -236,7 +237,8 @@ class SPDHarmonicMean(_SemidefiniteMean):
     ----------\
     {semidefinite_mean_axis_spec}
     """
-    def __call__(self, input):
+
+    def __call__(self, input: Tensor) -> Tensor:
         return mean_harm_spd(input, axis=self.axis)
 
 
@@ -252,11 +254,16 @@ class SPDLogEuclideanMean(_SemidefiniteMean):
     {semidefinite_mean_axis_spec}\
     {semidefinite_psi_spec}
     """
-    psi: float = 0.
 
-    def __call__(self, input):
-        return mean_logeuc_spd(input, axis=self.axis, psi=self.psi,
-                               recondition='convexcombination')
+    psi: float = 0.0
+
+    def __call__(self, input: Tensor) -> Tensor:
+        return mean_logeuc_spd(
+            input,
+            axis=self.axis,
+            psi=self.psi,
+            recondition="convexcombination",
+        )
 
 
 @document_semidefinite_mean
@@ -272,15 +279,15 @@ class SPDGeometricMean(_SemidefiniteMean):
     {semidefinite_mean_psi_spec}\
     {semidefinite_mean_maxiter_spec}
     """
-    psi: float = 0.
+    psi: float = 0.0
     eps: float = 1e-5
     max_iter: int = 10
 
-    def __call__(self, input):
+    def __call__(self, input: Tensor) -> Tensor:
         return mean_geom_spd(
             input,
             axis=self.axis,
             psi=self.psi,
             max_iter=self.max_iter,
-            recondition='convexcombination'
+            recondition="convexcombination",
         )

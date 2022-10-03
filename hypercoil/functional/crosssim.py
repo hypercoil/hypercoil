@@ -6,16 +6,18 @@ Crosshair-kernel similarity
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Localised similarity functions over a crosshair kernel.
 """
+from __future__ import annotations
 from typing import Callable
+
+from ..engine import NestedDocParse, Tensor
 from .crosshair import (
     crosshair_dot,
     crosshair_norm_l1,
-    crosshair_norm_l2
+    crosshair_norm_l2,
 )
-from ..engine import NestedDocParse, Tensor
 
 
-#TODO: There are no tests run for correctness of any of these functions.
+# TODO: There are no tests run for correctness of any of these functions.
 
 
 def document_crosssim(f: Callable) -> Callable:
@@ -59,7 +61,7 @@ def document_crosssim(f: Callable) -> Callable:
         crosssim_dim_spec=crosssim_dim_spec,
         crosssim_rank_warning=crosssim_rank_warning,
         crosssim_param_spec=crosssim_param_spec,
-        crosssim_return_spec=crosssim_return_spec
+        crosssim_return_spec=crosssim_return_spec,
     )
     f.__doc__ = f.__doc__.format_map(fmt)
     return f

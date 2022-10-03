@@ -4,16 +4,24 @@
 """
 Measures on graphs and networks.
 """
+from __future__ import annotations
+from functools import partial, singledispatch
+from typing import Any, Callable, Literal, Optional, Union
+
 import jax
 import jax.numpy as jnp
-from functools import partial, singledispatch
-from jax.nn import relu
 from jax.experimental.sparse import BCOO
-from typing import Any, Callable, Literal, Optional, Union
-from .sparse import TopKTensor, dspdmm, topk_diagaugment, topk_diagzero
-from .matrix import delete_diagonal, fill_diagonal
-from .utils import is_sparse
+from jax.nn import relu
+
 from ..engine import NestedDocParse, Tensor, vmap_over_outer
+from .matrix import delete_diagonal, fill_diagonal
+from .sparse import (
+    TopKTensor,
+    dspdmm,
+    topk_diagaugment,
+    topk_diagzero,
+)
+from .utils import is_sparse
 
 
 def document_modularity(f: Callable) -> Callable:
@@ -175,9 +183,9 @@ def modularity_matrix(
     gamma: float = 1,
     null: Callable = girvan_newman_null,
     normalise_modularity: bool = False,
-    sign: Optional[Literal['+', '-']] = '+',
-    **params
-):
+    sign: Optional[Literal["+", "-"]] = "+",
+    **params,
+) -> Tensor:
     """
     Modularity matrices for a tensor block.
     \
@@ -201,9 +209,9 @@ def modularity_matrix(
     --------
     relaxed_modularity: Compute the modularity given a community structure.
     """
-    if sign == '+':
+    if sign == "+":
         A = relu(A)
-    elif sign == '-':
+    elif sign == "-":
         A = -relu(-A)
     mod = A - gamma * null(A, **params)
     if normalise_modularity:
@@ -218,7 +226,7 @@ def coaffiliation(
     C_o: Optional[Tensor] = None,
     L: Optional[Tensor] = None,
     exclude_diag: bool = True,
-    normalise_coaffiliation: bool = False
+    normalise_coaffiliation: bool = False,
 ) -> Tensor:
     """
     Coaffiliation of vertices under a community structure.
@@ -238,7 +246,8 @@ def coaffiliation(
         Coaffiliation matrix for each input community structure.
     """
     C_i = C
-    if C_o is None: C_o = C_i
+    if C_o is None:
+        C_o = C_i
     if normalise_coaffiliation:
         norm_fac_i = jnp.maximum(1, C_i.max((-1, -2)))
         norm_fac_o = jnp.maximum(1, C_o.max((-1, -2)))
@@ -265,8 +274,8 @@ def relaxed_modularity(
     normalise_modularity: bool = True,
     normalise_coaffiliation: bool = True,
     directed: bool = False,
-    sign: Optional[Literal['+', '-']] ='+',
-    **params
+    sign: Optional[Literal["+", "-"]] = "+",
+    **params,
 ) -> Tensor:
     """
     A relaxation of the modularity of a network given a community partition.
@@ -298,14 +307,14 @@ def relaxed_modularity(
         null=null,
         normalise_modularity=normalise_modularity,
         sign=sign,
-        **params
+        **params,
     )
     C = coaffiliation(
         C,
         C_o=C_o,
         L=L,
         exclude_diag=exclude_diag,
-        normalise_coaffiliation=normalise_coaffiliation
+        normalise_coaffiliation=normalise_coaffiliation,
     )
     Q = (B * C).sum((-2, -1))
     if not directed:
@@ -399,7 +408,7 @@ def _(
     W: TopKTensor,
     normalise: bool = True,
     topk: bool = True,
-):
+) -> TopKTensor:
     if not topk:
         return _sparse_laplacian(W=W, normalise=normalise)
     W = topk_diagzero(W)
@@ -412,8 +421,7 @@ def _(
 
 
 def _sparse_delete_selfloops(
-    edge_index: Tensor,
-    edge_weight: Tensor
+    edge_index: Tensor, edge_weight: Tensor
 ) -> Tensor:
     mask = edge_index[..., 0] == edge_index[..., 1]
     return edge_index, edge_weight.at[mask].set(0)
@@ -423,15 +431,15 @@ def _sparse_append_selfloops(
     edge_index: Tensor,
     edge_weight: Tensor,
     fill_value: Union[float, Tensor],
-    num_nodes: int
+    num_nodes: int,
 ) -> Tensor:
     loop_index = jnp.arange(0, num_nodes, dtype=jnp.int32)
     loop_index = jnp.tile(loop_index[..., None], (1, 2))
     edge_index = jnp.concatenate([edge_index, loop_index], axis=-2)
     if isinstance(fill_value, float) or isinstance(fill_value, int):
-        edge_weight = jnp.concatenate([
-            edge_weight, fill_value * jnp.ones((num_nodes,))
-        ], axis=-1)
+        edge_weight = jnp.concatenate(
+            [edge_weight, fill_value * jnp.ones((num_nodes,))], axis=-1
+        )
     else:
         edge_weight = jnp.concatenate([edge_weight, fill_value], axis=-1)
     return edge_index, edge_weight
@@ -445,32 +453,30 @@ def _sparse_laplacian(W: Any, normalise: bool = True) -> Any:
     dnums = jax.lax.ScatterDimensionNumbers(
         update_window_dims=(),
         inserted_window_dims=(0,),
-        scatter_dims_to_operand_dims=(0,)
+        scatter_dims_to_operand_dims=(0,),
     )
     deg = jax.lax.scatter_add(
-        jnp.zeros(num_nodes),
-        row[..., None],
-        edge_weight,
-        dnums
+        jnp.zeros(num_nodes), row[..., None], edge_weight, dnums
     )
     if normalise:
         deg_inv_sqrt = jnp.power(deg, -0.5)
         deg_inv_sqrt = jnp.where(
             jnp.logical_or(jnp.isnan(deg_inv_sqrt), jnp.isinf(deg_inv_sqrt)),
             0,
-            deg_inv_sqrt)
+            deg_inv_sqrt,
+        )
         edge_weight = deg_inv_sqrt[row] * edge_weight * deg_inv_sqrt[col]
         edge_index, edge_weight = _sparse_append_selfloops(
             edge_index,
             edge_weight=-edge_weight,
             fill_value=1,
-            num_nodes=num_nodes
+            num_nodes=num_nodes,
         )
     else:
         edge_index, edge_weight = _sparse_append_selfloops(
             edge_index,
             edge_weight=-edge_weight,
             fill_value=deg,
-            num_nodes=num_nodes
+            num_nodes=num_nodes,
         )
     return BCOO((edge_weight, edge_index), shape=W.shape)

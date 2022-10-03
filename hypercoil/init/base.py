@@ -4,17 +4,18 @@
 """
 Base initialisers for module parameters.
 """
+from __future__ import annotations
+from abc import abstractmethod
 from functools import partial
+from typing import Callable, Optional, Tuple, Type, Union
+
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from abc import abstractmethod
-from typing import Callable, Optional, Tuple, Type, Union
-from .mapparam import MappedParameter
-from ..engine.paramutil import (
-    Distribution, PyTree, Tensor
-)
+
+from ..engine.paramutil import Distribution, PyTree, Tensor
 from ..formula.nnops import retrieve_address
+from .mapparam import MappedParameter
 
 
 def from_distr_init(
@@ -44,7 +45,7 @@ def constant_init(
     *,
     shape: Tuple[int],
     value: float = 0,
-    key: Optional[jax.random.PRNGKey] = None
+    key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
     Initialise a tensor to a constant value throughout. (The specified value
@@ -59,7 +60,7 @@ def identity_init(
     shape: Tuple[int],
     scale: float = 1,
     shift: float = 0,
-    key: Optional[jax.random.PRNGKey] = None
+    key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
     Initialise a tensor such that each of its slices is an identity matrix.
@@ -97,18 +98,21 @@ class Initialiser(eqx.Module):
             keys = jax.random.split(key, len(parameters))
         else:
             keys = (None,) * len(parameters)
-        return tuple(self._init(
-            shape=parameter.shape,
-            key=key,
-            **params,
-        ) for key, parameter in zip(keys, parameters))
+        return tuple(
+            self._init(
+                shape=parameter.shape,
+                key=key,
+                **params,
+            )
+            for key, parameter in zip(keys, parameters)
+        )
 
     @abstractmethod
     def _init(
         self,
         shape: Tuple[int, ...],
         key: jax.random.PRNGKey,
-        **params
+        **params,
     ) -> Tensor:
         raise NotImplementedError
 
@@ -122,12 +126,11 @@ class Initialiser(eqx.Module):
         **params,
     ) -> PyTree:
         init = cls()
-        init = init(
-            model=model, where=where, key=key, **params)
+        init = init(model=model, where=where, key=key, **params)
         return eqx.tree_at(
             partial(retrieve_address, where=where),
             model,
-            replace=init
+            replace=init,
         )
 
 
@@ -167,14 +170,13 @@ class MappedInitialiser(Initialiser):
 
     def __init__(
         self,
-        mapper: Optional[Type[MappedParameter]] = None
+        mapper: Optional[Type[MappedParameter]] = None,
     ):
         self.mapper = mapper
 
     @abstractmethod
-    def _init(self, shape: Tuple[int, ...],
-              key: jax.random.PRNGKey) -> Tensor:
-        raise NotImplementedError
+    def _init(self, shape: Tuple[int, ...], key: jax.random.PRNGKey) -> Tensor:
+        ...
 
     @staticmethod
     def _init_impl(
@@ -182,19 +184,18 @@ class MappedInitialiser(Initialiser):
         model: PyTree,
         where: Union[str, Callable],
         key: Optional[jax.random.PRNGKey],
-        **params
+        **params,
     ) -> PyTree:
         model = eqx.tree_at(
             partial(retrieve_address, where=where),
             model,
-            replace=init(
-                model=model, where=where, key=key)
+            replace=init(model=model, where=where, key=key),
         )
         if init.mapper is None:
             return model
         return init.mapper.map(model=model, where=where, **params)
 
-    #TODO: This will be problematic if the mapper and the initialiser both
+    # TODO: This will be problematic if the mapper and the initialiser both
     #      use the same parameter name. In this case the initialiser will
     #      consume the parameter and it will fail to reach the mapper.
     #
@@ -250,12 +251,12 @@ class DistributionInitialiser(MappedInitialiser):
     details.
     """
 
-    distribution : Distribution
+    distribution: Distribution
 
     def __init__(
         self,
         distribution: Distribution,
-        mapper: Optional[Type[MappedParameter]] = None
+        mapper: Optional[Type[MappedParameter]] = None,
     ):
         self.distribution = distribution
         super().__init__(mapper=mapper)
@@ -266,7 +267,10 @@ class DistributionInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
     ) -> Tensor:
         return from_distr_init(
-            shape=shape, distr=self.distribution, key=key)
+            shape=shape,
+            distr=self.distribution,
+            key=key,
+        )
 
     @classmethod
     def init(
@@ -281,7 +285,11 @@ class DistributionInitialiser(MappedInitialiser):
     ) -> PyTree:
         init = cls(mapper=mapper, distribution=distribution)
         return super()._init_impl(
-            init=init, model=model, where=where, key=key, **params,
+            init=init,
+            model=model,
+            where=where,
+            key=key,
+            **params,
         )
 
 
@@ -293,12 +301,12 @@ class ConstantInitialiser(MappedInitialiser):
     details.
     """
 
-    value : float
+    value: float
 
     def __init__(
         self,
         value: float,
-        mapper: Optional[Type[MappedParameter]] = None
+        mapper: Optional[Type[MappedParameter]] = None,
     ):
         self.value = value
         super().__init__(mapper=mapper)
@@ -323,7 +331,11 @@ class ConstantInitialiser(MappedInitialiser):
     ) -> PyTree:
         init = cls(mapper=mapper, value=value)
         return super()._init_impl(
-            init=init, model=model, where=where, key=key, **params,
+            init=init,
+            model=model,
+            where=where,
+            key=key,
+            **params,
         )
 
 
@@ -336,14 +348,14 @@ class IdentityInitialiser(MappedInitialiser):
     details.
     """
 
-    scale : float
-    shift : float
+    scale: float
+    shift: float
 
     def __init__(
         self,
         scale: float = 1,
         shift: float = 0,
-        mapper: Optional[Type[MappedParameter]] = None
+        mapper: Optional[Type[MappedParameter]] = None,
     ):
         self.scale = scale
         self.shift = shift
@@ -355,7 +367,8 @@ class IdentityInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
     ) -> Tensor:
         return identity_init(
-            shape=shape, scale=self.scale, shift=self.shift, key=key)
+            shape=shape, scale=self.scale, shift=self.shift, key=key
+        )
 
     @classmethod
     def init(
@@ -371,5 +384,9 @@ class IdentityInitialiser(MappedInitialiser):
     ) -> PyTree:
         init = cls(mapper=mapper, scale=scale, shift=shift)
         return super()._init_impl(
-            init=init, model=model, where=where, key=key, **params,
+            init=init,
+            model=model,
+            where=where,
+            key=key,
+            **params,
         )

@@ -5,21 +5,25 @@
 Parameter mappers / mapped parameters for ``equinox`` modules.
 Similar to PyTorch's ``torch.nn.utils.parametrize``.
 """
-import jax
-import jax.numpy as jnp
-import equinox as eqx
+from __future__ import annotations
 from abc import abstractmethod
 from functools import partial
 from typing import Any, Callable, Literal, Optional, Tuple, Union
+
+import jax
+import jax.numpy as jnp
+import equinox as eqx
+
 from ..engine.paramutil import (
-    PyTree, Tensor, _to_jax_array, where_weight
+    PyTree,
+    Tensor,
+    _to_jax_array,
+    where_weight,
 )
 from ..formula.nnops import retrieve_address
 from ..functional.activation import isochor
 from ..functional.matrix import spd
-from ..functional.utils import (
-    complex_decompose, complex_recompose
-)
+from ..functional.utils import complex_decompose, complex_recompose
 
 
 class MappedParameter(eqx.Module):
@@ -58,11 +62,11 @@ class MappedParameter(eqx.Module):
 
     @abstractmethod
     def preimage_map(self, param: Tensor) -> Tensor:
-        raise NotImplementedError()
+        ...
 
     @abstractmethod
     def image_map(self, param: Tensor) -> Tensor:
-        raise NotImplementedError()
+        ...
 
     def __jax_array__(self):
         return self.image_map(_to_jax_array(self.original))
@@ -73,7 +77,7 @@ class MappedParameter(eqx.Module):
         model: PyTree,
         *pparams,
         where: Union[str, Callable] = "weight",
-        **params
+        **params,
     ):
         """
         Create an updated version of a model that contains the mapped
@@ -93,19 +97,22 @@ class MappedParameter(eqx.Module):
         model : PyTree
             The updated model containing the mapped parameter.
         """
-        #TODO: We're inefficiently making a lot of repeated calls to
-        #      ``retrieve_address`` here. We might be able to do this more
-        #      efficiently, but this is low-priority as each call usually has
-        #      very little overhead.
+        # TODO: We're inefficiently making a lot of repeated calls to
+        #       ``retrieve_address`` here. We might be able to do this more
+        #       efficiently, but this is low-priority as each call usually has
+        #       very little overhead.
         parameters = retrieve_address(model, where)
         mapped = ()
         for i, _ in enumerate(parameters):
             where_i = lambda model: retrieve_address(model, where)[i]
-            mapped += (cls(
-                model=model,
-                *pparams,
-                where=where_i,
-                **params),)
+            mapped += (
+                cls(
+                    model=model,
+                    *pparams,
+                    where=where_i,
+                    **params,
+                ),
+            )
         return eqx.tree_at(
             lambda m: retrieve_address(m, where),
             model,
@@ -119,6 +126,7 @@ class OutOfDomainHandler(eqx.Module):
     within a domain and applying a transformation to those values that are
     outside the domain.
     """
+
     def test(self, x: Tensor, bound: Tuple[float, float]) -> Tensor:
         """
         Evaluate whether each entry in a tensor falls within bounds.
@@ -138,7 +146,7 @@ class OutOfDomainHandler(eqx.Module):
         """
         return jnp.logical_and(
             x <= bound[-1],
-            x >= bound[0]
+            x >= bound[0],
         )
 
 
@@ -146,6 +154,7 @@ class Clip(OutOfDomainHandler):
     """
     Handle out-of-domain values by clipping them to the closest allowed point.
     """
+
     def apply(self, x: Tensor, bound: Tuple[float, float]) -> Tensor:
         """
         Clip values in the specified tensor to the specified bounds.
@@ -186,11 +195,12 @@ class Renormalise(OutOfDomainHandler):
     [max(``obs_min``, ``lbound``), min(``obs_max``, ``ubound``)] while
     preserving relative distances between observations.
     """
+
     def apply(
         self,
         x: Tensor,
         bound: Tuple[float, float],
-        axis: Optional[Tuple[int, ...]] = None
+        axis: Optional[Tuple[int, ...]] = None,
     ) -> Tensor:
         """
         Re-scale all values in the specified tensor to fall in the specified
@@ -223,6 +233,7 @@ class ForcePositiveDefinite(OutOfDomainHandler):
     Handle non-positive definite slices of a parameter tensor by forcing them
     to be positive definite.
     """
+
     def apply(
         self,
         x: Tensor,
@@ -295,11 +306,11 @@ class DomainMappedParameter(MappedParameter):
         where: Callable = where_weight,
         image_bound: Any = None,
         preimage_bound: Any = None,
-        handler: Callable = None
+        handler: Callable = None,
     ):
         self.handler = handler or Clip()
-        self.image_bound = image_bound or (-float('inf'), float('inf'))
-        self.preimage_bound = preimage_bound or (-float('inf'), float('inf'))
+        self.image_bound = image_bound or (-float("inf"), float("inf"))
+        self.preimage_bound = preimage_bound or (-float("inf"), float("inf"))
         super(DomainMappedParameter, self).__init__(model=model, where=where)
 
     def preimage_map(self, param: Tensor) -> Tensor:
@@ -372,8 +383,8 @@ class AffineDomainMappedParameter(DomainMappedParameter):
     """
 
     original: Tensor
-    loc: Tensor = 0.
-    scale: Tensor = 1.
+    loc: Tensor = 0.0
+    scale: Tensor = 1.0
     image_bound: Any = None
     preimage_bound: Any = None
     handler: Any = None
@@ -382,12 +393,12 @@ class AffineDomainMappedParameter(DomainMappedParameter):
         self,
         model: PyTree,
         *,
-        loc: Tensor = 0.,
-        scale: Tensor = 1.,
+        loc: Tensor = 0.0,
+        scale: Tensor = 1.0,
         where: Callable = where_weight,
         image_bound: Any = None,
         preimage_bound: Any = None,
-        handler: Callable = None
+        handler: Callable = None,
     ):
         self.loc = loc
         self.scale = scale
@@ -396,7 +407,7 @@ class AffineDomainMappedParameter(DomainMappedParameter):
             where=where,
             image_bound=image_bound,
             preimage_bound=preimage_bound,
-            handler=handler
+            handler=handler,
         )
 
     def preimage_map(self, param: Tensor) -> Tensor:
@@ -424,6 +435,7 @@ class PhaseAmplitudeMixin:
     mapping is applied specifically to the amplitude of a complex-valued
     parameter. The phase is left unchanged.
     """
+
     def preimage_map(self, param: Tensor) -> Tensor:
         """
         Map the amplitude of a complex-valued tensor to its preimage under the
@@ -489,14 +501,15 @@ class TanhMappedParameter(AffineDomainMappedParameter):
     scale : float (default 1)
         Maximum/minimum value attained by the hyperbolic tangent map.
     """
+
     def __init__(
         self,
         model: PyTree,
         *,
         where: Callable = where_weight,
-        preimage_bound: Tuple[float, float] = (-3., 3.),
+        preimage_bound: Tuple[float, float] = (-3.0, 3.0),
         handler: Callable = None,
-        scale: float = 1.,
+        scale: float = 1.0,
     ):
         super().__init__(
             model,
@@ -571,6 +584,7 @@ class MappedLogits(AffineDomainMappedParameter):
     scale : float (default 1)
         Size of the interval mapped onto by the logistic map.
     """
+
     def __init__(
         self,
         model: PyTree,
@@ -579,9 +593,10 @@ class MappedLogits(AffineDomainMappedParameter):
         preimage_bound: Tuple[float, float] = (-4.5, 4.5),
         handler: Callable = None,
         loc: Optional[float] = None,
-        scale: float = 1.,
+        scale: float = 1.0,
     ):
-        if loc is None: loc = (scale / 2)
+        if loc is None:
+            loc = scale / 2
         shift = loc - scale / 2
         super().__init__(
             model,
@@ -651,35 +666,44 @@ class NormSphereParameter(AffineDomainMappedParameter):
         *,
         where: Callable = where_weight,
         handler: Callable = None,
-        loc: float = 0.,
-        scale: float = 1.,
-        norm: float = 2.,
+        loc: float = 0.0,
+        scale: float = 1.0,
+        norm: float = 2.0,
         axis: Union[int, Tuple[int, ...]] = -1,
     ):
         self.order = norm
         self.axis = axis
         if isinstance(norm, jnp.ndarray):
+
             def ellipse_norm(x, **params):
                 x = x.swapaxes(-1, axis)
                 norms = x[..., None, :] @ norm @ x[..., None]
                 return jnp.sqrt(norms).squeeze(-1).swapaxes(-1, axis)
+
             f = ellipse_norm
         else:
             f = jnp.linalg.norm
+
         def normalise(x):
-            n = f(
-                x,
-                ord=norm,
-                axis=axis,
-                keepdims=True
-            ) + jnp.finfo(x.dtype).eps
+            n = (
+                f(
+                    x,
+                    ord=norm,
+                    axis=axis,
+                    keepdims=True,
+                )
+                + jnp.finfo(x.dtype).eps
+            )
             return x / n
 
         self.normalise_fn = normalise
 
         super().__init__(
-            model, where=where,
-            handler=handler, loc=loc, scale=scale
+            model,
+            where=where,
+            handler=handler,
+            loc=loc,
+            scale=scale,
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:
@@ -696,7 +720,7 @@ def paramlog(x: Tensor, temperature: float, smoothing: float) -> Tensor:
 def paramsoftmax(
     x: Tensor,
     temperature: float,
-    axis: Union[int, Tuple[int, ...]]
+    axis: Union[int, Tuple[int, ...]],
 ) -> Tensor:
     return jax.nn.softmax(x / temperature, axis)
 
@@ -737,7 +761,7 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
     _image_map_impl: Callable
     _preimage_map_impl: Callable
     axis: Union[int, Tuple[int, ...]] = -1
-    temperature: float = 1.
+    temperature: float = 1.0
 
     def __init__(
         self,
@@ -748,19 +772,22 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
         axis: int = -1,
         minimum: float = 1e-3,
         smoothing: float = 0,
-        temperature: Union[float, Literal['auto']] = 1.,
+        temperature: Union[float, Literal["auto"]] = 1.0,
     ):
-        if temperature == 'auto':
+        if temperature == "auto":
             temperature = jnp.sqrt(where(model).shape[axis])
         self._image_map_impl = partial(
-            paramsoftmax, temperature=temperature, axis=axis)
+            paramsoftmax, temperature=temperature, axis=axis
+        )
         self._preimage_map_impl = partial(
-            paramlog, temperature=temperature, smoothing=smoothing)
+            paramlog, temperature=temperature, smoothing=smoothing
+        )
         self.temperature = temperature
         super().__init__(
-            model, where=where,
-            image_bound=(minimum, float('inf')), # 1 - minimum),
-            handler=handler
+            model,
+            where=where,
+            image_bound=(minimum, float("inf")),
+            handler=handler,
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:
@@ -772,7 +799,7 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
 
 class AmplitudeProbabilitySimplexParameter(
     PhaseAmplitudeMixin,
-    ProbabilitySimplexParameter
+    ProbabilitySimplexParameter,
 ):
     """
     Complex-valued parameter whose amplitudes are projected onto the
@@ -823,6 +850,7 @@ class OrthogonalParameter(MappedParameter):
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
     """
+
     def __init__(
         self,
         model: PyTree,
@@ -877,7 +905,7 @@ class IsochoricParameter(DomainMappedParameter):
         other processing.
     """
 
-    volume: float = 1.
+    volume: float = 1.0
     max_condition: Optional[float] = None
     softmax_temp: Optional[float] = None
 
@@ -886,7 +914,7 @@ class IsochoricParameter(DomainMappedParameter):
         model: PyTree,
         *,
         where: Callable = where_weight,
-        volume: float = 1.,
+        volume: float = 1.0,
         max_condition: Optional[float] = None,
         softmax_temp: Optional[float] = None,
         spd_threshold: float = 1e-3,
@@ -895,10 +923,11 @@ class IsochoricParameter(DomainMappedParameter):
         self.max_condition = max_condition
         self.softmax_temp = softmax_temp
         super().__init__(
-            model, where=where,
+            model,
+            where=where,
             handler=ForcePositiveDefinite(),
-            preimage_bound=(spd_threshold, float('inf')),
-            image_bound=(spd_threshold, float('inf')),
+            preimage_bound=(spd_threshold, float("inf")),
+            image_bound=(spd_threshold, float("inf")),
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:

@@ -8,5 +8,5 @@
 .. autofunction:: reference_tether
 
 ``ReferenceTetherLoss``
---------------------
+-----------------------
 .. autoclass:: ReferenceTetherLoss

@@ -1,6 +1,6 @@
 ``wmean``
 =========
 
-.. currentmodule:: hypercoil.functional.utils
+.. currentmodule:: hypercoil.loss.scalarise
 
 .. autofunction:: wmean

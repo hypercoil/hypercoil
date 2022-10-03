@@ -11,5 +11,5 @@ __copyright__ = (
 __credits__ = (
     'the developers'
 )
-__url__ = 'https://github.com/rciric/hypercoil'
-__version__ = '0.1.z-prealpha'
+__url__ = 'https://github.com/hypercoil/hypercoil'
+__version__ = '0.1.0a0.dev0+prealpha'

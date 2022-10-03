@@ -8,16 +8,19 @@ A loss function is the composition of a score function and a scalarisation
 (which might itself be the composition of different tensor rank reduction
 maps.)
 """
+from __future__ import annotations
+from typing import Any, Callable, Literal, Optional, Sequence, Union
+
 import jax
 import jax.numpy as jnp
-from typing import Any, Callable, Literal, Optional, Sequence, Union
-from .functional import identity
+
 from ..engine import (
     NestedDocParse,
     Tensor,
     promote_axis,
     standard_axis_number,
 )
+from .functional import identity
 
 
 def document_scalarisation_map(func: Callable) -> Callable:
@@ -129,7 +132,7 @@ def sum_scalarise(
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by summing
@@ -142,12 +145,14 @@ def sum_scalarise(
     \
     {return_spec}
     """
-    if inner is None: inner = identity
+    if inner is None:
+        inner = identity
 
     def scalarisation(f: Callable[..., Tensor] = identity):
         def reduced_f(*pparams, **params):
             X = inner(f)(*pparams, **params)
             return jnp.sum(X, axis=axis, keepdims=keepdims)
+
         return reduced_f
 
     return scalarisation
@@ -159,7 +164,7 @@ def mean_scalarise(
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -172,12 +177,14 @@ def mean_scalarise(
     \
     {return_spec}
     """
-    if inner is None: inner = identity
+    if inner is None:
+        inner = identity
 
     def scalarisation(f: Callable[..., Tensor] = identity):
         def reduced_f(*pparams, **params):
             X = inner(f)(*pparams, **params)
             return jnp.mean(X, axis=axis, keepdims=keepdims)
+
         return reduced_f
 
     return scalarisation
@@ -189,7 +196,7 @@ def meansq_scalarise(
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -202,23 +209,26 @@ def meansq_scalarise(
     \
     {return_spec}
     """
-    if inner is None: inner = identity
+    if inner is None:
+        inner = identity
 
     def scalarisation(f: Callable[..., Tensor] = identity):
         def reduced_f(*pparams, **params):
             X = inner(f)(*pparams, **params)
-            return jnp.mean(X ** 2, axis=axis, keepdims=keepdims)
+            return jnp.mean(X**2, axis=axis, keepdims=keepdims)
+
         return reduced_f
 
     return scalarisation
 
 
+@document_scalarisation_map
 def max_scalarise(
     *,
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -234,12 +244,14 @@ def max_scalarise(
     \
     {return_spec}
     """
-    if inner is None: inner = identity
+    if inner is None:
+        inner = identity
 
     def scalarisation(f: Callable[..., Tensor] = identity):
         def reduced_f(*pparams, **params):
             X = inner(f)(*pparams, **params)
             return jnp.max(X, axis=axis, keepdims=keepdims)
+
         return reduced_f
 
     return scalarisation
@@ -253,7 +265,7 @@ def norm_scalarise(
     axis: Union[int, Sequence[int]] = -1,
     inner: Optional[Callable] = None,
     keepdims: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Callable[..., float]:
     """
     Compute a specified norm along an axis or set of axes, and then map the
@@ -274,7 +286,8 @@ def norm_scalarise(
     \
     {return_spec}
     """
-    if inner is None: inner = identity
+    if inner is None:
+        inner = identity
 
     def scalarisation(f: Callable[..., Tensor] = identity):
         def reduced_f(*pparams, **params):
@@ -290,12 +303,15 @@ def norm_scalarise(
                     axes = tuple(standard_axis_number(ax, ndim) for ax in axes)
                     Xperm = X.transpose(promote_axis(ndim, axes))
                     Xperm = Xperm.reshape(-1, *Xperm.shape[ndim_norm:])
-                    norm = jnp.linalg.norm(Xperm, ord=p, axis=0, keepdims=keepdims)
+                    norm = jnp.linalg.norm(
+                        Xperm, ord=p, axis=0, keepdims=keepdims
+                    )
                     return norm
                 norm = jnp.linalg.norm(X, ord=p, axis=axes, keepdims=keepdims)
                 return norm
             norm = jnp.linalg.norm(X, ord=p, axis=axis, keepdims=keepdims)
             return norm
+
         return reduced_f
 
     return scalarisation
@@ -308,7 +324,7 @@ def vnorm_scalarise(
     axis: Union[int, Sequence[int]] = -1,
     inner: Optional[Callable] = None,
     keepdims: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Callable[..., float]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -375,20 +391,24 @@ def wmean(
         axis = tuple(range(input.ndim))
     elif isinstance(axis, int):
         axis = (axis,)
-    assert weight.ndim == len(axis), (
-        'Weight must have as many dimensions as are being reduced')
+    assert weight.ndim == len(
+        axis
+    ), "Weight must have as many dimensions as are being reduced"
     retain = [(i not in axis) for i in range(input.ndim)]
     for i, d in enumerate(retain):
-        if d: weight = jnp.expand_dims(weight, i)
-    wtd = (weight * input)
-    return wtd.sum(axis, keepdims=keepdims) / weight.sum(axis, keepdims=keepdims)
+        if d:
+            weight = jnp.expand_dims(weight, i)
+    wtd = weight * input
+    num = wtd.sum(axis, keepdims=keepdims)
+    denom = weight.sum(axis, keepdims=keepdims)
+    return num / denom
 
 
 def selfwmean(
     input: Tensor,
     axis: Optional[Union[Sequence[int], int]] = None,
     keepdims: bool = False,
-    gradpath: Optional[Literal['weight', 'input']] = 'input',
+    gradpath: Optional[Literal["weight", "input"]] = "input",
     softmax_axis: Optional[Union[Sequence[int], int, bool]] = False,
     softmax_invert: bool = False,
 ) -> Tensor:
@@ -406,9 +426,9 @@ def selfwmean(
         weight = jax.nn.softmax(input, axis=softmax_axis)
     # I don't think this actually does what we want it to, but this function
     # is actually unsupported, so we won't worry about it yet.
-    if gradpath == 'input':
+    if gradpath == "input":
         weight = jax.lax.stop_gradient(weight)
-    elif gradpath == 'weight':
+    elif gradpath == "weight":
         input = jax.lax.stop_gradient(input)
     return wmean(
         input=input,
@@ -424,7 +444,7 @@ def wmean_scalarise(
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -448,7 +468,8 @@ def wmean_scalarise(
     \
     {return_spec}
     """
-    if inner is None: inner = identity
+    if inner is None:
+        inner = identity
 
     def scalarisation(f: Callable[..., Tensor] = identity):
         def reduced_f(*pparams, scalarisation_weight, **params):
@@ -457,8 +478,9 @@ def wmean_scalarise(
                 X,
                 scalarisation_weight,
                 axis=axis,
-                keepdims=keepdims
+                keepdims=keepdims,
             )
+
         return reduced_f
 
     return scalarisation
@@ -469,11 +491,11 @@ def selfwmean_scalarise(
     *,
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
-    gradpath: Optional[Literal['weight', 'input']] = 'input',
+    gradpath: Optional[Literal["weight", "input"]] = "input",
     softmax_axis: Optional[Union[Sequence[int], int, bool]] = False,
     softmax_invert: bool = False,
     keepdims: bool = False,
-    key: Optional['jax.random.PRNGKey'] = None,
+    key: Optional["jax.random.PRNGKey"] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -501,7 +523,8 @@ def selfwmean_scalarise(
     \
     {return_spec}
     """
-    if inner is None: inner = identity
+    if inner is None:
+        inner = identity
 
     def scalarisation(f: Callable[..., Tensor] = identity):
         def reduced_f(*pparams, **params):
@@ -514,6 +537,7 @@ def selfwmean_scalarise(
                 softmax_invert=softmax_invert,
                 keepdims=keepdims,
             )
+
         return reduced_f
 
     return scalarisation

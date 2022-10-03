@@ -4,15 +4,18 @@
 """
 Activation function modules.
 """
+from __future__ import annotations
+from typing import Literal, Optional, Tuple, Union
+
 import jax
 import equinox as eqx
-from typing import Literal, Optional, Union, Tuple
+
 from ..engine import Tensor
 from ..functional.activation import (
     corrnorm,
-    isochor,
     document_corrnorm,
     document_isochoric,
+    isochor,
 )
 
 
@@ -24,22 +27,23 @@ class CorrelationNorm(eqx.Module):
     \
     {corrnorm_spec}
     """
+
     factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None
-    grad_path: Literal['input', 'both'] = 'both'
+    grad_path: Literal["input", "both"] = "both"
 
     def __call__(
         self,
         input: Tensor,
         factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         if factor is None:
             factor = self.factor
         return corrnorm(
             input=input,
             factor=factor,
-            gradpath=self.grad_path
+            gradpath=self.grad_path,
         )
 
 
@@ -51,7 +55,8 @@ class Isochor(eqx.Module):
     \
     {isochoric_spec}
     """
-    volume: float = 1.
+
+    volume: float = 1.0
     max_condition: Optional[float] = None
     softmax_temp: Optional[float] = None
 
@@ -59,7 +64,7 @@ class Isochor(eqx.Module):
         self,
         input: Tensor,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         return isochor(
             input=input,

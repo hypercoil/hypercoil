@@ -3,17 +3,6 @@
 
 .. automodule:: hypercoil.init.atlasmixins
 
-Abstractions
-------------
-
-.. autoclass:: Reference
-
-.. autoclass:: Mask
-
-.. autoclass:: Compartment
-
-.. autoclass:: CompartmentSet
-
 ``~ReferenceMixin``
 -------------------
 
@@ -71,3 +60,14 @@ Abstractions
 .. autoclass:: _EvenlySampledConvMixin
 
 .. autoclass:: _SpatialConvMixin
+
+Abstractions
+------------
+
+.. autoclass:: Reference
+
+.. autoclass:: Mask
+
+.. autoclass:: Compartment
+
+.. autoclass:: CompartmentSet

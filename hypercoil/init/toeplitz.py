@@ -4,12 +4,15 @@
 """
 Initialise parameters as a stack of Toeplitz-structured banded matrices.
 """
-import jax
+from __future__ import annotations
 from typing import Callable, Optional, Tuple, Type, Union
-from .base import MappedInitialiser
-from .mapparam import MappedParameter
+
+import jax
+
 from ..engine import PyTree, Tensor
 from ..functional import toeplitz
+from .base import MappedInitialiser
+from .mapparam import MappedParameter
 
 
 class ToeplitzInitialiser(MappedInitialiser):
@@ -21,13 +24,17 @@ class ToeplitzInitialiser(MappedInitialiser):
     See :func:`toeplitz` for argument details.
     """
 
-    c : Tensor
-    r : Optional[Tensor] = None
-    fill_value : float = 0.
+    c: Tensor
+    r: Optional[Tensor] = None
+    fill_value: float = 0.0
 
     def __init__(
-        self, c, r=None, fill_value=0,
-        mapper: Optional[Type[MappedParameter]] = None):
+        self,
+        c,
+        r=None,
+        fill_value=0,
+        mapper: Optional[Type[MappedParameter]] = None,
+    ):
         self.c = c
         self.r = r
         self.fill_value = fill_value
@@ -39,7 +46,8 @@ class ToeplitzInitialiser(MappedInitialiser):
         key: Optional[jax.random.PRNGKey] = None,
     ) -> Tensor:
         return toeplitz(
-            c=self.c, r=self.r, fill_value=self.fill_value, shape=shape)
+            c=self.c, r=self.r, fill_value=self.fill_value, shape=shape
+        )
 
     @classmethod
     def init(
@@ -49,11 +57,14 @@ class ToeplitzInitialiser(MappedInitialiser):
         mapper: Optional[Type[MappedParameter]] = None,
         c: Tensor,
         r: Optional[Tensor] = None,
-        fill_value: float = 0.,
+        fill_value: float = 0.0,
         where: Union[str, Callable] = "weight",
         key: Optional[jax.random.PRNGKey] = None,
     ):
         init = cls(mapper=mapper, c=c, r=r, fill_value=fill_value)
         return super()._init_impl(
-            init=init, model=model, where=where, key=key,
+            init=init,
+            model=model,
+            where=where,
+            key=key,
         )

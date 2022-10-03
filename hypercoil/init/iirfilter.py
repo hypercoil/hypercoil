@@ -4,16 +4,19 @@
 """
 Tools for initialising parameters for an IIR filter layer.
 """
+from __future__ import annotations
+from typing import Literal, Optional, Tuple, Union
+
 import jax.numpy as jnp
 import equinox as eqx
-from typing import Literal, Optional, Tuple, Union
-from scipy import signal
 from numpy.random import uniform
+from scipy import signal
+
 from ..engine import Tensor
 
 
-#TODO: mark this as experimental until the IIR filter module is properly
-#      differentiable.
+# TODO: mark this as experimental until the IIR filter module is properly
+#       differentiable.
 class IIRFilterSpec(eqx.Module):
     """
     Specification for filter coefficients for recursive IIR filter classes.
@@ -54,12 +57,17 @@ class IIRFilterSpec(eqx.Module):
     Wn: Union[float, Tuple[float, float]]
     N: int
     ftype: Literal[
-        'butter', 'cheby1', 'cheby2', 'ellip', 'bessel',] = 'butter'
-    btype: Literal['bandpass', 'bandstop', 'lowpass', 'highpass'] = 'bandpass'
+        "butter",
+        "cheby1",
+        "cheby2",
+        "ellip",
+        "bessel",
+    ] = "butter"
+    btype: Literal["bandpass", "bandstop", "lowpass", "highpass"] = "bandpass"
     fs: Optional[float] = None
     rp: float = 0.1
     rs: float = 20
-    norm: Literal['phase', 'mag', 'delay'] = 'phase'
+    norm: Literal["phase", "mag", "delay"] = "phase"
     coefs: Tensor
 
     def __init__(
@@ -67,12 +75,19 @@ class IIRFilterSpec(eqx.Module):
         Wn: Union[float, Tuple[float, float]],
         N: int,
         ftype: Literal[
-            'butter', 'cheby1', 'cheby2', 'ellip', 'bessel',] = 'butter',
-        btype: Literal['bandpass', 'bandstop', 'lowpass', 'highpass'] = 'bandpass',
+            "butter",
+            "cheby1",
+            "cheby2",
+            "ellip",
+            "bessel",
+        ] = "butter",
+        btype: Literal[
+            "bandpass", "bandstop", "lowpass", "highpass"
+        ] = "bandpass",
         fs: Optional[float] = None,
         rp: float = 0.1,
         rs: float = 20,
-        norm: Literal['phase', 'mag', 'delay'] = 'phase',
+        norm: Literal["phase", "mag", "delay"] = "phase",
     ):
         super().__init__()
         self.Wn = Wn
@@ -86,33 +101,33 @@ class IIRFilterSpec(eqx.Module):
         self.initialise_coefs()
 
     def initialise_coefs(self):
-        if self.ftype == 'butter':
+        if self.ftype == "butter":
             iirfilter = signal.butter
             filter_params = {}
-        elif self.ftype == 'cheby1':
+        elif self.ftype == "cheby1":
             iirfilter = signal.cheby1
-            filter_params = {'rp' : self.rp}
-        elif self.ftype == 'cheby2':
+            filter_params = {"rp": self.rp}
+        elif self.ftype == "cheby2":
             iirfilter = signal.cheby2
-            filter_params = {'rs' : self.rs}
-        elif self.ftype == 'ellip':
+            filter_params = {"rs": self.rs}
+        elif self.ftype == "ellip":
             iirfilter = signal.ellip
-            filter_params = {'rp' : self.rp, 'rs' : self.rs}
-        elif self.ftype == 'bessel':
+            filter_params = {"rp": self.rp, "rs": self.rs}
+        elif self.ftype == "bessel":
             iirfilter = signal.bessel
-            filter_params = {'norm' : self.norm}
-        elif self.ftype == 'kuznetsov':
+            filter_params = {"norm": self.norm}
+        elif self.ftype == "kuznetsov":
             self.coefs = kuznetsov_init(N=self.N, btype=self.btype)
             return
         else:
-            raise ValueError(f'Unrecognised filter type : {self.ftype}')
+            raise ValueError(f"Unrecognised filter type : {self.ftype}")
         self.coefs = iirfilter_coefs(
             iirfilter=iirfilter,
             N=self.N,
-            Wn = self.Wn,
+            Wn=self.Wn,
             btype=self.btype,
             fs=self.fs,
-            filter_params=filter_params
+            filter_params=filter_params,
         )
 
 
@@ -120,14 +135,14 @@ def iirfilter_coefs(
     iirfilter,
     N,
     Wn,
-    btype='bandpass',
+    btype="bandpass",
     fs=None,
-    filter_params=None
+    filter_params=None,
 ) -> Tuple[Tensor, Tensor]:
     filter_params = filter_params or {}
     N = jnp.atleast_1d(N).astype(int)
     Wn = jnp.atleast_1d(Wn).astype(float)
-    if btype in ('bandpass', 'bandstop') and Wn.ndim < 2:
+    if btype in ("bandpass", "bandstop") and Wn.ndim < 2:
         Wn = Wn.reshape(-1, 2)
     return tuple(
         iirfilter(N=n, Wn=wn, btype=btype, fs=fs, **filter_params)
@@ -135,13 +150,13 @@ def iirfilter_coefs(
     )
 
 
-#TODO: this is not correctly implemented. See
+# TODO: this is not correctly implemented. See
 # https://dafx2020.mdw.ac.at/proceedings/papers/DAFx2020_paper_52.pdf
-def kuznetsov_init(N, btype='bandpass'):
+def kuznetsov_init(N, btype="bandpass"):
     multiplier = 1
-    if btype in ('bandpass', 'bandstop'):
+    if btype in ("bandpass", "bandstop"):
         multiplier = 2
-    #val, _ = torch.sort(torch.abs(X))
+    # val, _ = torch.sort(torch.abs(X))
     b = uniform(-1, 1, N * multiplier + 1)
     a = uniform(-0.5, 0.5, N * multiplier + 1)
     a[0] = 1

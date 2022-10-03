@@ -9,11 +9,14 @@ Functional connectivity is a measure of the statistical relationship between
 derivative of the covariance between the time series, most often the Pearson
 correlation.
 """
+from __future__ import annotations
+from typing import Literal, Optional, Sequence, Tuple, Union
+
 import jax
 import jax.numpy as jnp
-from typing import Literal, Optional, Sequence, Tuple, Union
-from .utils import _conform_vector_weight
+
 from ..engine import NestedDocParse, Tensor
+from .utils import _conform_vector_weight
 
 
 def document_covariance(func):
@@ -94,6 +97,34 @@ def document_covariance(func):
                     As above
                 **Output :** :math:`(N, *, C_X, C_Y)`
                     As above"""
+
+    corr_long_description = r"""
+    The correlation is obtained via normalisation of the covariance. Given a
+    covariance matrix
+    :math:`\hat{\Sigma} \in \mathbb{R}^{n \times n}`, each
+    entry of the correlation matrix
+    :math:`R \in \mathbb{R}^{n \times n}`
+    is defined according to
+
+    :math:`R_{ij} = \frac{\hat{\Sigma}_{ij}}{\sqrt{\hat{\Sigma}_{ii}} \sqrt{\hat{\Sigma}_{jj}}}`"""
+
+    conditional_cov_long_description = r"""
+
+    The conditional covariance is the covariance of one set of variables X
+    conditioned on another set of variables Y. The conditional covariance is
+    computed from the covariance :math:`\Sigma_{{XX}}` of X ,
+    the covariance :math:`\Sigma_{{YY}}` of Y, and the
+    covariance :math:`\Sigma_{{XY}}` between X and Y.
+    It is defined as the Schur complement of :math:`\Sigma_{{YY}}`:
+
+    :math:`\Sigma_{X|Y} = \Sigma_{XX} - \Sigma_{XY} \Sigma_{YY}^{{-1}} \Sigma_{XY}^\intercal`
+
+    The conditional covariance is equivalent to the covariance of the first set
+    of variables after residualising them with respect to the second set of
+    variables (plus an intercept term). This can be interpreted as the
+    covariance of variables of interest (the first set) after controlling for
+    the effects of confounds or nuisance variables (the second set)."""
+
     fmt = NestedDocParse(
         param_spec=param_spec,
         unary_param_spec=unary_param_spec,
@@ -101,7 +132,9 @@ def document_covariance(func):
         conditional_param_spec=conditional_param_spec,
         inverting_param_spec=inverting_param_spec,
         unary_dim_spec=unary_dim_spec,
-        binary_dim_spec=binary_dim_spec
+        binary_dim_spec=binary_dim_spec,
+        corr_long_description=corr_long_description,
+        conditional_cov_long_description=conditional_cov_long_description,
     )
     func.__doc__ = func.__doc__.format_map(fmt)
     return func
@@ -114,7 +147,7 @@ def cov(
     bias: bool = False,
     ddof: Optional[int] = None,
     weight: Optional[Tensor] = None,
-    l2: float = 0
+    l2: float = 0,
 ) -> Tensor:
     """
     Empirical covariance of variables in a tensor batch.
@@ -145,7 +178,7 @@ def cov(
     X0 = X - avg
     if weight is None:
         sigma = X0 @ X0.swapaxes(-1, -2) / fact
-    elif w_type == 'vector':
+    elif w_type == "vector":
         sigma = (X0 * weight) @ X0.swapaxes(-1, -2) / fact
     else:
         sigma = X0 @ weight @ X0.swapaxes(-1, -2) / fact
@@ -157,19 +190,12 @@ def cov(
 @document_covariance
 def corr(
     X: Tensor,
-    **params
+    **params,
 ) -> Tensor:
-    r"""
+    """
     Pearson correlation of variables in a tensor batch.
-
-    The correlation is obtained via normalisation of the covariance. Given a
-    covariance matrix
-    :math:`\hat{{\Sigma}} \in \mathbb{{R}}^{{n \times n}}`, each
-    entry of the correlation matrix
-    :math:`R \in \mathbb{{R}}^{{n \times n}}`
-    is defined according to
-
-    :math:`R_{{ij}} = \frac{{\hat{{\Sigma}}_{{ij}}}}{{\sqrt{{\hat{{\Sigma}}_{{ii}}}} \sqrt{{\hat{{\Sigma}}_{{jj}}}}`
+    \
+    {corr_long_description}
 
     :Dimension: {unary_dim_spec}
 
@@ -198,7 +224,7 @@ def corr(
 def partialcov(
     X: Tensor,
     require_nonsingular: bool = True,
-    **params
+    **params,
 ) -> Tensor:
     """
     Partial covariance of variables in a tensor batch.
@@ -230,9 +256,7 @@ def partialcov(
     precision: Inverse covariance (precision) matrix
     """
     omega = precision(X, require_nonsingular=require_nonsingular, **params)
-    omega = omega * (
-        2 * jnp.eye(omega.shape[-1]) - 1
-    )
+    omega = omega * (2 * jnp.eye(omega.shape[-1]) - 1)
     return omega
 
 
@@ -240,7 +264,7 @@ def partialcov(
 def partialcorr(
     X: Tensor,
     require_nonsingular: bool = True,
-    **params
+    **params,
 ) -> Tensor:
     """
     Partial Pearson correlation of variables in a tensor batch.
@@ -255,7 +279,6 @@ def partialcorr(
     :Dimension: {unary_dim_spec}
 
     Parameters
-    ----------
     ----------\
     {unary_param_spec}\
     {inverting_param_spec}\
@@ -285,7 +308,7 @@ def pairedcov(
     bias: bool = False,
     ddof: Optional[int] = None,
     weight: Optional[Tensor] = None,
-    l2: float = 0
+    l2: float = 0,
 ) -> Tensor:
     """
     Empirical covariance between two sets of variables.
@@ -314,14 +337,16 @@ def pairedcov(
     """
     X = _prepare_input(X, rowvar)
     Y = _prepare_input(Y, rowvar)
-    weight, w_type, w_sum, (Xavg, Yavg) = _prepare_weight_and_avg((X, Y), weight)
+    weight, w_type, w_sum, (Xavg, Yavg) = _prepare_weight_and_avg(
+        (X, Y), weight
+    )
     fact = _prepare_denomfact(w_sum, w_type, ddof, bias, weight)
 
     X0 = X - Xavg
     Y0 = Y - Yavg
     if weight is None:
         sigma = X0 @ Y0.swapaxes(-1, -2) / fact
-    elif w_type == 'vector':
+    elif w_type == "vector":
         sigma = (X0 * weight) @ Y0.swapaxes(-1, -2) / fact
     else:
         sigma = X0 @ weight @ Y0.swapaxes(-1, -2) / fact
@@ -335,19 +360,12 @@ def pairedcorr(
     rowvar: bool = True,
     bias: bool = False,
     ddof: Optional[int] = None,
-    **params
+    **params,
 ) -> Tensor:
     """
     Empirical Pearson correlation between variables in two tensor batches.
-
-    The empirical paired correlation is obtained via normalisation of the
-    paired covariance. Given a paired covariance matrix
-    :math:`\hat{{\Sigma}} \in \mathbb{{R}}^{{n \\times m}}`, each
-    entry of the paired correlation matrix
-    :math:`R \in \mathbb{{R}}^{{n \\times m}}`
-    is defined according to
-
-    :math:`R_{{ij}} = \\frac{{\hat{{\Sigma}}_{{ij}}}}{{\sqrt{{\hat{{\Sigma}}_{{ii}}}} \sqrt{{\hat{{\Sigma}}_{{jj}}}}`
+    \
+    {corr_long_description}
 
     .. danger::
         The ``l2`` parameter has no effect on this function. It is included only
@@ -371,32 +389,22 @@ def pairedcorr(
     varX = X.var(-1, keepdims=True, ddof=inddof)
     varY = Y.var(-1, keepdims=True, ddof=inddof)
     fact = jax.lax.sqrt(varX @ varY.swapaxes(-2, -1))
-    return pairedcov(X, Y, rowvar=rowvar, bias=bias, ddof=ddof, **params) / fact
+    return (
+        pairedcov(X, Y, rowvar=rowvar, bias=bias, ddof=ddof, **params) / fact
+    )
 
 
+@document_covariance
 def conditionalcov(
     X: Tensor,
     Y: Tensor,
     require_nonsingular: bool = True,
-    **params
+    **params,
 ) -> Tensor:
     """
     Conditional covariance of variables in a tensor batch.
-
-    The conditional covariance is the covariance of one set of variables X
-    conditioned on another set of variables Y. The conditional covariance is
-    computed from the covariance :math:`\Sigma_{{XX}}` of X ,
-    the covariance :math:`\Sigma_{{YY}}` of Y, and the
-    covariance :math:`\Sigma_{{XY}}` between X and Y.
-    It is defined as the Schur complement of :math:`\Sigma_{{YY}}`:
-
-    :math:`\Sigma_{{X|Y}} = \Sigma_{{XX}} - \Sigma_{{XY}} \Sigma_{{YY}}^{{-1}} \Sigma_{{XY}}^\intercal`
-
-    The conditional covariance is equivalent to the covariance of the first set
-    of variables after residualising them with respect to the second set of
-    variables (plus an intercept term). This can be interpreted as the
-    covariance of variables of interest (the first set) after controlling for
-    the effects of confounds or nuisance variables (the second set).
+    \
+    {conditional_cov_long_description}
 
     :Dimension: {binary_dim_spec}
 
@@ -428,19 +436,14 @@ def conditionalcorr(
     X: Tensor,
     Y: Tensor,
     require_nonsingular: bool = True,
-    **params
+    **params,
 ) -> Tensor:
     """
     Conditional Pearson correlation of variables in a tensor batch.
-
-    The correlation is obtained via normalisation of the conditional
-    covariance. Given a conditional covariance matrix
-    :math:`\hat{{\Sigma}} \in \mathbb{{R}}^{{n \times n}}`, each
-    entry of the conditional correlation matrix
-    :math:`R \in \mathbb{{R}}^{{n \times n}}`
-    is defined according to
-
-    :math:`R_{{ij}} = \frac{{\hat{{\Sigma}}_{{ij}}}}{{\sqrt{{\hat{{\Sigma}}_{{ii}}}} \sqrt{{\hat{{\Sigma}}_{{jj}}}}`
+    \
+    {conditional_cov_long_description}
+    \
+    {corr_long_description}
 
     :Dimension: {binary_dim_spec}
 
@@ -462,7 +465,8 @@ def conditionalcorr(
     partialcorr: Condition each variable on all other variables
     """
     sigma = conditionalcov(
-        X, Y, require_nonsingular=require_nonsingular, **params)
+        X, Y, require_nonsingular=require_nonsingular, **params
+    )
     fact = corrnorm(sigma)
     return sigma / fact
 
@@ -471,7 +475,7 @@ def conditionalcorr(
 def precision(
     X: Tensor,
     require_nonsingular: bool = True,
-    **params
+    **params,
 ) -> Tensor:
     """
     Empirical precision of variables in a tensor batch.
@@ -530,7 +534,7 @@ def corrnorm(A: Tensor) -> Tensor:
     """
     d = jnp.diagonal(A, axis1=-2, axis2=-1)
     fact = -jax.lax.sqrt(d)[..., None]
-    return (fact @ fact.swapaxes(-1, -2) + jnp.finfo(fact.dtype).eps)
+    return fact @ fact.swapaxes(-1, -2) + jnp.finfo(fact.dtype).eps
 
 
 def covariance(*pparams, **params):
@@ -576,12 +580,12 @@ def _prepare_input(X: Tensor, rowvar: bool = True) -> Tensor:
 
 def _prepare_weight_and_avg(
     vars: Sequence[Tensor],
-    weight: Optional[Tensor] = None
+    weight: Optional[Tensor] = None,
 ) -> Tuple[
     Optional[Tensor],
-    Optional[Literal['vector', 'matrix']],
+    Optional[Literal["vector", "matrix"]],
     Union[float, int],
-    Sequence[Tensor]
+    Sequence[Tensor],
 ]:
     """
     Set the weights for the covariance computation based on user input and
@@ -591,21 +595,17 @@ def _prepare_weight_and_avg(
     """
     if weight is not None:
         if weight.ndim == 1 or weight.shape[-1] != weight.shape[-2]:
-            w_type = 'vector'
+            w_type = "vector"
             weight = _conform_vector_weight(weight)
             w_sum = weight.sum(-1, keepdims=True)
-            avg = [
-                (V * (weight / w_sum)).sum(-1, keepdims=True) for V in vars
-            ]
+            avg = [(V * (weight / w_sum)).sum(-1, keepdims=True) for V in vars]
         else:
-            w_type = 'matrix'
+            w_type = "matrix"
             w_sum = weight.sum((-1, -2), keepdims=True)
-            #TODO
+            # TODO
             # We'll need to ensure that this is correct
             # for the nondiagonal case. The tests still don't.
-            avg = [
-                (V @ (weight / w_sum)).sum(-1, keepdims=True) for V in vars
-            ]
+            avg = [(V @ (weight / w_sum)).sum(-1, keepdims=True) for V in vars]
     else:
         w_type = None
         w_sum = vars[0].shape[-1]
@@ -615,29 +615,36 @@ def _prepare_weight_and_avg(
 
 def _prepare_denomfact(
     w_sum: Union[float, int],
-    w_type: Optional[Literal['vector', 'matrix']] = 'matrix',
+    w_type: Optional[Literal["vector", "matrix"]] = "matrix",
     ddof: Optional[int] = None,
     bias: bool = False,
-    weight: Optional[Tensor] = None
+    weight: Optional[Tensor] = None,
 ) -> Tensor:
     """
     Determine the factor we should divide by to obtain the (un)biased
     covariance from the sum over observations.
     """
-    if ddof is None: ddof = int(not bias)
+    if ddof is None:
+        ddof = int(not bias)
     if weight is None:
         fact = w_sum - ddof
     elif ddof == 0:
         fact = w_sum
-    elif w_type == 'vector':
-        fact = w_sum - ddof * (weight ** 2).sum(-1, keepdims=True) / w_sum
+    elif w_type == "vector":
+        fact = w_sum - ddof * (weight**2).sum(-1, keepdims=True) / w_sum
     else:
-        #TODO
+        # TODO
         # I don't have the intuition here yet: should this be
         # weight * weight or weight @ weight ? Or something else?
         # This affects only the nondiagonal case.
-        fact = w_sum - ddof * (
-            #weight.sum(-1, keepdims=True) ** 2
-            weight @ weight.swapaxes(-1, -2)
-            ).sum((-1, -2), keepdims=True) / w_sum
+        fact = (
+            w_sum
+            - ddof
+            * (
+                # weight.sum(-1, keepdims=True) ** 2
+                weight
+                @ weight.swapaxes(-1, -2)
+            ).sum((-1, -2), keepdims=True)
+            / w_sum
+        )
     return fact

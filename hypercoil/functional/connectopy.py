@@ -4,13 +4,14 @@
 """
 Connectopic manifold mapping, based on ``brainspace``.
 """
+from typing import Tuple
+
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple
+from ..engine import Tensor, vmap_over_outer
 from .graph import graph_laplacian
 from .matrix import symmetric
-from ..engine import Tensor, vmap_over_outer
 
 
 def _absmax(X: Tensor) -> Tensor:
@@ -24,9 +25,7 @@ def _impose_sign_consistency(Q: Tensor) -> Tensor:
     """
     Consistent sign for eigenvectors, following ``brainspace`` convention.
     """
-    sgn = jax.lax.stop_gradient(
-        jnp.sign(vmap_over_outer(_absmax, 2)((Q,)))
-    )
+    sgn = jax.lax.stop_gradient(jnp.sign(vmap_over_outer(_absmax, 2)((Q,))))
     return Q * sgn[..., None, :]
 
 
@@ -80,13 +79,13 @@ def laplacian_eigenmaps(
     """
     W = symmetric(W)
     H = graph_laplacian(W, normalise=normalise)
-    #TODO: It would be great to derive an extremal eigenvalue solver that
+    # TODO: It would be great to derive an extremal eigenvalue solver that
     #      supports sparse matrices in the top-k format, imposing implicit
     #      symmetry. eigh is really much too inefficient for this to be
     #      currently practical.
     L, Q = jnp.linalg.eigh(H)
-    L = L[..., 1:(k + 1)]
-    Q = Q[..., 1:(k + 1)]
+    L = L[..., 1 : (k + 1)]
+    Q = Q[..., 1 : (k + 1)]
 
     if normalise:
         D = jnp.sqrt(W.sum(-1, keepdims=True))
@@ -169,19 +168,19 @@ def diffusion_mapping(
 
     if alpha > 0:
         D = W.sum(axis=-1, keepdims=True)
-        D_power = D ** -alpha
+        D_power = D**-alpha
         W = D_power * W * D_power.swapaxes(-1, -2)
 
     D = W.sum(axis=-1, keepdims=True)
-    W = W * (D ** -1)
+    W = W * (D**-1)
 
-    #TODO: It would be great to derive an extremal eigenvalue solver that
+    # TODO: It would be great to derive an extremal eigenvalue solver that
     #      supports sparse matrices in the top-k format, imposing implicit
     #      symmetry. eigh is really much too inefficient for this to be
     #      currently practical.
     L, Q = jnp.linalg.eigh(W)
-    L = jnp.flip(L[..., -(k + 1):], -1)
-    Q = jnp.flip(Q[..., -(k + 1):], -1)
+    L = jnp.flip(L[..., -(k + 1) :], -1)
+    Q = jnp.flip(Q[..., -(k + 1) :], -1)
 
     L = L / L[..., 0]
     Q = Q / Q[..., [0]]
@@ -191,7 +190,7 @@ def diffusion_mapping(
     if diffusion_time <= 0:
         L = L / (1 - L)
     else:
-        L = L ** diffusion_time
+        L = L**diffusion_time
 
     Q = Q * L[..., None, :]
     Q = _impose_sign_consistency(Q)

@@ -4,13 +4,16 @@
 """
 Sylo ("symmetric low-rank") kernel operator.
 """
+from __future__ import annotations
+from typing import Callable, Literal, Optional, Tuple, Union
+
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from typing import Callable, Literal, Optional, Tuple, Union
+
 from ..engine import Tensor
 from ..engine.paramutil import _to_jax_array
-from ..functional import sylo, expand_outer, crosshair_similarity
+from ..functional import crosshair_similarity, expand_outer, sylo
 
 
 class Sylo(eqx.Module):
@@ -111,7 +114,7 @@ class Sylo(eqx.Module):
     out_channels: int
     dim: Tuple[int]
     rank: int
-    symmetry: Optional[Literal['psd', 'cross', 'skew']] = 'psd'
+    symmetry: Optional[Literal["psd", "cross", "skew"]] = "psd"
     similarity: Callable
     remove_diagonal: bool
 
@@ -126,21 +129,24 @@ class Sylo(eqx.Module):
         dim: int,
         rank: int = 1,
         bias: bool = True,
-        symmetry: Optional[Literal['psd', 'cross', 'skew']] = 'psd',
+        symmetry: Optional[Literal["psd", "cross", "skew"]] = "psd",
         coupling: (
-            Optional[Union[Literal['+', '-', 'split'], int, float]]) = None,
+            Optional[Union[Literal["+", "-", "split"], int, float]]
+        ) = None,
         fixed_coupling: bool = False,
         similarity: Callable = crosshair_similarity,
         remove_diagonal: bool = False,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         if isinstance(dim, int):
             H, W = dim, dim
         elif symmetry and dim[0] != dim[1]:
-            raise ValueError('Symmetry constraints are invalid for nonsquare '
-                             'matrices. Set symmetry=False or use an integer '
-                             'dim')
+            raise ValueError(
+                "Symmetry constraints are invalid for nonsquare "
+                "matrices. Set symmetry=False or use an integer "
+                "dim"
+            )
         else:
             H, W = dim
 
@@ -154,8 +160,8 @@ class Sylo(eqx.Module):
 
         key_l, key_r, key_c, key_b = jax.random.split(key, 4)
         lim = in_channels * (H + W - 1)
-        if symmetry == 'psd':
-            lim = 1 / jnp.sqrt(lim * (rank + (rank ** 2) / H))
+        if symmetry == "psd":
+            lim = 1 / jnp.sqrt(lim * (rank + (rank**2) / H))
         else:
             lim = 1 / jnp.sqrt(lim * rank)
 
@@ -165,7 +171,7 @@ class Sylo(eqx.Module):
             minval=-lim,
             maxval=lim,
         )
-        if symmetry == 'psd':
+        if symmetry == "psd":
             weight_R = weight_L
         else:
             weight_R = jax.random.uniform(
@@ -177,7 +183,8 @@ class Sylo(eqx.Module):
 
         if bias:
             bias = jax.random.uniform(
-                key_b, (out_channels,), minval=-lim, maxval=lim)
+                key_b, (out_channels,), minval=-lim, maxval=lim
+            )
         else:
             bias = None
         coupling = self._cfg_coupling(coupling, fixed_coupling, key_c)
@@ -188,35 +195,31 @@ class Sylo(eqx.Module):
 
     def _cfg_coupling(
         self,
-        coupling: (
-            Optional[Union[Literal['+', '-', 'split'], int, float]]),
+        coupling: (Optional[Union[Literal["+", "-", "split"], int, float]]),
         fixed_coupling: bool,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ) -> Optional[Tensor]:
         if fixed_coupling:
             f = jnp.ones
         else:
             f = lambda x: jax.random.uniform(key=key, shape=x)
-        if coupling == 'split':
+        if coupling == "split":
             coupling = self.out_channels // 2
         elif isinstance(coupling, float):
             coupling = int(self.out_channels * coupling)
-        if coupling is None or coupling == '+':
+        if coupling is None or coupling == "+":
             parameter = None
-        elif coupling == '-':
-            parameter = -f(
-                (self.out_channels, self.in_channels, self.rank, 1))
+        elif coupling == "-":
+            parameter = -f((self.out_channels, self.in_channels, self.rank, 1))
         elif isinstance(coupling, int):
-            parameter = -f(
-                (self.out_channels, self.in_channels, self.rank, 1))
-            parameter = parameter.at[:coupling].set(
-                -1 * parameter[:coupling])
+            parameter = -f((self.out_channels, self.in_channels, self.rank, 1))
+            parameter = parameter.at[:coupling].set(-1 * parameter[:coupling])
         return parameter
 
     @property
     def templates(self) -> Tensor:
         weight_L = _to_jax_array(self.weight[0])
-        if self.symmetry == 'psd':
+        if self.symmetry == "psd":
             weight_R = weight_L
         else:
             weight_R = _to_jax_array(self.weight[1])
@@ -225,17 +228,17 @@ class Sylo(eqx.Module):
             L=weight_L,
             R=weight_R,
             C=coupling,
-            symmetry=(self.symmetry if self.symmetry != 'psd' else None),
+            symmetry=(self.symmetry if self.symmetry != "psd" else None),
         )
 
     def __call__(
         self,
         input: Tensor,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ) -> Tensor:
         weight_L = _to_jax_array(self.weight[0])
-        if self.symmetry == 'psd':
+        if self.symmetry == "psd":
             weight_R = weight_L
         else:
             weight_R = _to_jax_array(self.weight[1])
@@ -254,7 +257,7 @@ class Sylo(eqx.Module):
         return out
 
 
-#TODO: This vanishes for now. Translate to JAX when we need it.
+# TODO: This vanishes for now. Translate to JAX when we need it.
 # class SyloNetworkScaffold(nn.Module):
 #     def __init__(
 #         self,

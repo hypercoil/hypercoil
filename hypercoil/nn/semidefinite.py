@@ -5,31 +5,33 @@
 Modules that project data between the positive semidefinite cone and proper
 subspaces tangent to the cone.
 """
+from __future__ import annotations
+from typing import Callable, Literal, Optional, Sequence, Tuple
+
 import jax
 import equinox as eqx
-from typing import Callable, Literal, Optional, Sequence, Tuple
 
 from ..engine.axisutil import unfold_axes
 from ..engine.docutil import NestedDocParse
 from ..engine.paramutil import Tensor, _to_jax_array
 from ..functional.semidefinite import (
     cone_project_spd,
-    tangent_project_spd,
     document_semidefinite_mean,
+    tangent_project_spd,
 )
 from ..init.semidefinite import (
-    mean_block_spd,
     TangencyInitialiser,
     _SemidefiniteMean,
+    mean_block_spd,
 )
 
 
-#TODO: Enable either convex combinations or eigenspace reconditioning
-#      operations to ensure nonsingular and nondegenerate matrices.
-#TODO: Reconcile all of the many docstrings we have for symmetric positive
-#      definite matrices. The point of docstring transformation is to make
-#      maintenance easier, but scattering the docstrings across the codebase
-#      is not the way to do it.
+# TODO: Enable either convex combinations or eigenspace reconditioning
+#       operations to ensure nonsingular and nondegenerate matrices.
+# TODO: Reconcile all of the many docstrings we have for symmetric positive
+#       definite matrices. The point of docstring transformation is to make
+#       maintenance easier, but scattering the docstrings across the codebase
+#       is not the way to do it.
 
 
 def document_semidefinite_projection_module(f: Callable) -> Callable:
@@ -93,19 +95,20 @@ class _TangentProject(eqx.Module):
     Base class for modules that project symmetric matrix data between the
     positive semidefinite cone and proper subspaces tangent to the cone.
     """
-    dest: Literal['tangent', 'cone']
+
+    dest: Literal["tangent", "cone"]
     out_channels: int
     matrix_size: int
-    psi: float = 0.
+    psi: float = 0.0
 
     def __init__(
         self,
         out_channels: int,
         matrix_size: int,
-        dest: Literal['tangent', 'cone'] = 'tangent',
-        psi: float = 0.,
+        dest: Literal["tangent", "cone"] = "tangent",
+        psi: float = 0.0,
         *,
-        key: 'jax.random.PRNGKey' = None,
+        key: "jax.random.PRNGKey" = None,
     ):
         self.dest = dest
         self.out_channels = out_channels
@@ -116,29 +119,29 @@ class _TangentProject(eqx.Module):
         self,
         input: Tensor,
         weight: Tensor,
-        dest: Literal['tangent', 'cone'] = None,
+        dest: Literal["tangent", "cone"] = None,
         *,
-        key: Optional['jax.random.PRNGKey'] = None,
+        key: Optional["jax.random.PRNGKey"] = None,
     ):
         weight = _to_jax_array(weight)
         dest = dest or self.dest
         if self.out_channels > 1:
             input = input[..., None, :, :]
-        if dest == 'tangent':
+        if dest == "tangent":
             out = tangent_project_spd(
                 input,
                 reference=weight,
                 psi=self.psi,
-                recondition='convexcombination',
-                key=key
+                recondition="convexcombination",
+                key=key,
             )
-        elif dest == 'cone':
+        elif dest == "cone":
             out = cone_project_spd(
                 input,
                 reference=weight,
                 psi=self.psi,
-                recondition='convexcombination',
-                key=key
+                recondition="convexcombination",
+                key=key,
             )
         if self.out_channels > 1 and out.ndim > 4:
             out = unfold_axes(out, -4, -3)
@@ -180,23 +183,24 @@ class TangentProject(_TangentProject):
         Reference point of tangency for the projection between the
         semidefinite cone and a tangent subspace.
     """
+
     weight: Tensor
 
     def __init__(
         self,
         out_channels: int,
         matrix_size: int,
-        psi: float = 0.,
-        scale: float = 1.,
-        dest: Literal['tangent', 'cone'] = 'tangent',
+        psi: float = 0.0,
+        scale: float = 1.0,
+        dest: Literal["tangent", "cone"] = "tangent",
         *,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ):
         super().__init__(
             out_channels=out_channels,
             matrix_size=matrix_size,
             dest=dest,
-            psi=psi
+            psi=psi,
         )
         weight = scale * jax.random.normal(
             key, (out_channels, matrix_size, matrix_size)
@@ -209,11 +213,11 @@ class TangentProject(_TangentProject):
         cls,
         mean_specs: Sequence[_SemidefiniteMean],
         init_data: Tensor,
-        psi: float = 0.,
-        dest: Literal['tangent', 'cone'] = 'tangent',
-        std: float = 0.,
+        psi: float = 0.0,
+        dest: Literal["tangent", "cone"] = "tangent",
+        std: float = 0.0,
         *,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ):
         """
         Initialise the reference point of tangency from a data sample.
@@ -244,13 +248,15 @@ class TangentProject(_TangentProject):
     def __call__(
         self,
         input: Tensor,
-        dest: Literal['tangent', 'cone'] = None,
+        dest: Literal["tangent", "cone"] = None,
         *,
-        key: 'jax.random.PRNGKey' = None,
+        key: "jax.random.PRNGKey" = None,
     ):
         return super().__call__(input, self.weight, dest, key=key)
 
 
+@document_semidefinite_mean
+@document_semidefinite_projection_module
 class BatchTangentProject(_TangentProject):
     """
     Tangent/cone projection with a new tangency point computed for each batch.
@@ -292,6 +298,7 @@ class BatchTangentProject(_TangentProject):
         Current reference point of tangency :math:`\Omega` for the projection
         between the semidefinite cone and a tangent subspace.
     """
+
     inertia: float
     mean_specs: Sequence[_SemidefiniteMean]
     default_weight: Tensor
@@ -301,12 +308,12 @@ class BatchTangentProject(_TangentProject):
         out_channels: int,
         matrix_size: int,
         mean_specs: Sequence[_SemidefiniteMean],
-        psi: float = 0.,
-        scale: float = 1.,
-        inertia: float = 0.,
-        dest: Literal['tangent', 'cone'] = 'tangent',
+        psi: float = 0.0,
+        scale: float = 1.0,
+        inertia: float = 0.0,
+        dest: Literal["tangent", "cone"] = "tangent",
         *,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ):
         self.inertia = inertia
         self.mean_specs = mean_specs
@@ -327,12 +334,12 @@ class BatchTangentProject(_TangentProject):
         cls,
         mean_specs: Sequence[_SemidefiniteMean],
         init_data: Tensor,
-        psi: float = 0.,
-        inertia: float = 0.,
-        dest: Literal['tangent', 'cone'] = 'tangent',
-        std: float = 0.,
+        psi: float = 0.0,
+        inertia: float = 0.0,
+        dest: Literal["tangent", "cone"] = "tangent",
+        std: float = 0.0,
         *,
-        key: 'jax.random.PRNGKey',
+        key: "jax.random.PRNGKey",
     ):
         m_key, i_key = jax.random.split(key)
         out_channels = len(mean_specs)
@@ -352,16 +359,16 @@ class BatchTangentProject(_TangentProject):
             mean_specs=mean_specs,
             std=std,
             key=i_key,
-            where='default_weight',
+            where="default_weight",
         )
 
     def __call__(
         self,
         input: Tensor,
         weight: Tensor = None,
-        dest: Literal['tangent', 'cone'] = None,
+        dest: Literal["tangent", "cone"] = None,
         *,
-        key: 'jax.random.PRNGKey' = None,
+        key: "jax.random.PRNGKey" = None,
     ) -> Tuple[Tensor, Tensor]:
         """
         Project a batch of matrices into the destination manifold, updating
@@ -374,9 +381,9 @@ class BatchTangentProject(_TangentProject):
         dest = dest or self.dest
         if weight is None:
             weight = self.default_weight
-        if dest == 'tangent':
+        if dest == "tangent":
             input_weight = mean_block_spd(self.mean_specs, input)
-            #TODO: rather than a simple convex combination, use the module's
+            # TODO: rather than a simple convex combination, use the module's
             # assigned mean.
             weight = self.inertia * weight + (1 - self.inertia) * input_weight
         out = super().__call__(input, weight, dest, key=key)

@@ -1,5 +1,5 @@
 ``IdentityInitialiser``
-=====================
+=======================
 
 .. currentmodule:: hypercoil.init.base
 

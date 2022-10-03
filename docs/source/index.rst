@@ -8,20 +8,20 @@ A differentiable program for mapping brain function
 
 The ``hypercoil`` software library includes tools for writing fully differentiable programs for use in brain mapping. It is build on the `JAX <https://jax.readthedocs.io/en/latest/>`_ framework, which combines a NumPy-like API with automatic differentiation and support for GPU acceleration. At the current stage of development, most basic components of the functional connectivity software stack are available.
 
-.. image:: https://github.com/rciric/hypercoil/actions/workflows/ci.yml/badge.svg
-  :target: https://github.com/rciric/hypercoil/actions/workflows/ci.yml
+.. image:: https://github.com/hypercoil/hypercoil/actions/workflows/ci.yml/badge.svg
+  :target: https://github.com/hypercoil/hypercoil/actions/workflows/ci.yml
   :alt: Continuous Integration
 
-.. image:: https://github.com/rciric/hypercoil/actions/workflows/doc.yml/badge.svg
-  :target: https://github.com/rciric/hypercoil/actions/workflows/doc.yml
+.. image:: https://github.com/hypercoil/hypercoil/actions/workflows/doc.yml/badge.svg
+  :target: https://github.com/hypercoil/hypercoil/actions/workflows/doc.yml
   :alt: Documentation
 
-.. image:: https://codecov.io/gh/rciric/hypercoil/branch/main/graph/badge.svg?token=FVJVK6AFQG
-  :target: https://codecov.io/gh/rciric/hypercoil
+.. image:: https://codecov.io/gh/hypercoil/hypercoil/branch/main/graph/badge.svg?token=FVJVK6AFQG
+  :target: https://codecov.io/gh/hypercoil/hypercoil
   :alt: Code Coverage
 
 .. image:: https://img.shields.io/badge/GitHub-hypercoil-662299?logo=github
-  :target: https://github.com/rciric/hypercoil/
+  :target: https://github.com/hypercoil/hypercoil/
   :alt: GitHub
 
 .. image:: https://img.shields.io/badge/License-Apache_2.0-informational?logo=openaccess
@@ -29,10 +29,10 @@ The ``hypercoil`` software library includes tools for writing fully differentiab
   :alt: License
 
 .. image:: https://img.shields.io/badge/cite-preprint-red?logo=arxiv
-  :target: https://arxiv.org/abs/2206.00649
+  :target: https://hypercoil.github.io/portal.html
   :alt: Preprint
 
-.. image:: https://raw.githubusercontent.com/rciric/hypercoil/xrecore/docs/source/_static/logo.png
+.. image:: https://raw.githubusercontent.com/hypercoil/hypercoil/xrecore/docs/source/_static/logo.png
   :width: 600px
   :align: center
 

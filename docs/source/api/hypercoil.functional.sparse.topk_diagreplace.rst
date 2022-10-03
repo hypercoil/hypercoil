@@ -1,6 +1,6 @@
-``diagreplace``
-===============
+``topk_diagreplace``
+====================
 
 .. currentmodule:: hypercoil.functional.sparse
 
-.. autofunction:: diagreplace
+.. autofunction:: topk_diagreplace

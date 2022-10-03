@@ -4,19 +4,25 @@
 """
 Parameterised similarity kernels and distance metrics.
 """
-import jax
-import jax.numpy as jnp
+from __future__ import annotations
 from functools import singledispatch
 from typing import Callable, Optional, Tuple, Union
+
+import jax
+import jax.numpy as jnp
 from jax.experimental.sparse import BCOO
-from .cov import pairedcov, pairedcorr
-from .sparse import (
-    TopKTensor, spsp_pairdiff, spsp_innerpaired, spspmm, spdiagmm, topkx
-)
-from .utils import (
-    is_sparse, _conform_vector_weight
-)
+
 from ..engine import NestedDocParse, Tensor
+from .cov import pairedcorr, pairedcov
+from .sparse import (
+    TopKTensor,
+    spdiagmm,
+    spsp_innerpaired,
+    spsp_pairdiff,
+    spspmm,
+    topkx,
+)
+from .utils import _conform_vector_weight, is_sparse
 
 
 def _default_gamma(X: Tensor, *, gamma: Optional[float]) -> float:
@@ -257,7 +263,7 @@ def param_norm(
     X: Tensor,
     theta: Optional[Tensor] = None,
     *,
-    squared: bool =False
+    squared: bool = False,
 ) -> Tensor:
     """
     Parameterised norm of observation vectors in an input tensor.
@@ -269,8 +275,8 @@ def param_norm(
     if theta is None:
         norm = jnp.linalg.norm(X, 2, axis=-1, keepdims=True)
         if squared:
-            norm = norm ** 2
-        Xnorm = (X / norm)
+            norm = norm**2
+        Xnorm = X / norm
     elif theta.ndim == 1 or theta.shape[-1] != theta.shape[-2]:
         X = X[..., None, :]
         if theta.ndim > 1:
@@ -283,7 +289,7 @@ def param_norm(
         X = X[..., None, :]
         if theta.ndim > 2:
             theta = theta[..., None, :, :]
-        norm = (X @ theta @ X.swapaxes(-1, -2))
+        norm = X @ theta @ X.swapaxes(-1, -2)
         if not squared:
             norm = jnp.sqrt(norm)
         Xnorm = (X / norm).squeeze(-2)
@@ -296,7 +302,7 @@ def _(
     X: TopKTensor,
     theta: Optional[Union[Tensor, TopKTensor]] = None,
     *,
-    squared: bool = False
+    squared: bool = False,
 ) -> TopKTensor:
     lhs = X
     if theta is None:
@@ -319,7 +325,7 @@ def _(
 def linear_distance(
     X0: Tensor,
     X1: Optional[Tensor] = None,
-    theta: Optional[Tensor] = None
+    theta: Optional[Tensor] = None,
 ) -> Tensor:
     """
     Squared Euclidean (L2) distance (or Mahalanobis if theta is set).
@@ -336,9 +342,11 @@ def linear_distance(
     if X1 is None:
         X1 = X0
     D = X0[..., None, :] - X1[..., None, :, :]
-    if (theta is not None
-        ) and (theta.ndim > 1
-        ) and (theta.shape[-1] != theta.shape[-2]):
+    if (
+        (theta is not None)
+        and (theta.ndim > 1)
+        and (theta.shape[-1] != theta.shape[-2])
+    ):
         theta = theta[..., None, None, None, :]
     D = linear_kernel(D[..., None, :], theta=theta)
     return D.reshape(*D.shape[:-2])
@@ -348,7 +356,7 @@ def linear_distance(
 def _(
     X0: TopKTensor,
     X1: Optional[TopKTensor] = None,
-    theta: Optional[Union[Tensor, TopKTensor]] = None
+    theta: Optional[Union[Tensor, TopKTensor]] = None,
 ) -> TopKTensor:
     if X1 is None:
         X1 = X0
@@ -375,7 +383,7 @@ def polynomial_kernel(
     gamma: Optional[float] = None,
     order: int = 3,
     r: float = 0,
-):
+) -> Tensor:
     """
     Parameterised polynomial kernel between input tensors.
     \
@@ -405,7 +413,7 @@ def sigmoid_kernel(
     X1: Optional[Tensor] = None,
     theta: Optional[Tensor] = None,
     gamma: Optional[float] = None,
-    r: float = 0
+    r: float = 0,
 ) -> Tensor:
     """
     Parameterised sigmoid kernel between input tensors.
@@ -454,7 +462,7 @@ def gaussian_kernel(
     """
     gamma = sigma
     if gamma is not None:
-        gamma = sigma ** -2
+        gamma = sigma**-2
     return rbf_kernel(X0, X1, theta=theta, gamma=gamma)
 
 
@@ -463,7 +471,7 @@ def rbf_kernel(
     X0: Tensor,
     X1: Optional[Tensor] = None,
     theta: Optional[Tensor] = None,
-    gamma: Optional[float] = None
+    gamma: Optional[float] = None,
 ) -> Tensor:
     """
     Parameterised RBF kernel between input tensors.
@@ -490,12 +498,12 @@ def rbf_kernel(
 def cosine_kernel(
     X0: Tensor,
     X1: Optional[Tensor] = None,
-    theta: Optional[Tensor] = None
+    theta: Optional[Tensor] = None,
 ) -> Tensor:
     """
     Parameterised cosine kernel between input tensors.
     \
-    {gaussian_kernel_long_desc}
+    {cosine_kernel_long_desc}
     \
     {kernel_fmt_note}
     \
