@@ -32,6 +32,9 @@ from .axisutil import (
     demote_and_unfold,
     argsort,
     orient_and_conform,
+    promote_to_rank,
+    extend_to_size,
+    extend_to_max_size,
 )
 from .docutil import (
     NestedDocParse,

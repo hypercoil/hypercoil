@@ -11,7 +11,8 @@ from hypercoil.engine.axisutil import (
     vmap_over_outer, broadcast_ignoring, orient_and_conform,
     promote_axis, demote_axis, fold_axis, unfold_axes,
     axis_complement, standard_axis_number,
-    fold_and_promote, demote_and_unfold,
+    fold_and_promote, demote_and_unfold, promote_to_rank,
+    extend_to_size, extend_to_max_size,
 )
 
 
@@ -132,3 +133,34 @@ class TestAxisUtil:
         ref = X[None, :, None, None, None]
         assert(out.shape == ref.shape)
         assert np.all(out == ref)
+
+    def test_promote(self):
+        key = jax.random.PRNGKey(0)
+        X = jax.random.normal(key, (2, 3))
+        out = promote_to_rank(X, 3)
+        assert out.shape == (1, 2, 3)
+
+        out = promote_to_rank(X, 2)
+        assert out.shape == (2, 3)
+
+    def test_extend(self):
+        key = jax.random.PRNGKey(0)
+        X = jax.random.normal(key, (2, 3))
+        out = extend_to_size(X, (5, 5))
+        assert out.shape == (5, 5)
+        assert jnp.isnan(out).sum() == 19
+        assert out[~jnp.isnan(out)].sum() == X.sum()
+
+        out = extend_to_size(X, (2, 3))
+        assert out.shape == (2, 3)
+        assert np.all(out == X)
+
+        Xs = tuple(
+            jax.random.normal(jax.random.fold_in(key, i), (5 - i, i + 1))
+            for i in range(5)
+        )
+        out = extend_to_max_size(Xs)
+        targets = {0: 20, 1: 17, 2: 16, 3: 17, 4: 20}
+        for i, o in enumerate(out):
+            assert o.shape == (5, 5)
+            assert jnp.isnan(o).sum() == targets[i]

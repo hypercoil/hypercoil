@@ -435,3 +435,46 @@ def orient_and_conform(
         ), "All axes must be in order. Transpose the input if necessary."
         asgn[ax] = 1
     return input.reshape(*shape)
+
+
+def promote_to_rank(tensor: Tensor, rank: int) -> Tensor:
+    """
+    Promote a tensor to a rank-``rank`` tensor by prepending singleton
+    dimensions. If the tensor is already rank-``rank``, this is a no-op.
+    """
+    ndim = tensor.ndim
+    if ndim == rank:
+        return tensor
+    return tensor.reshape((1,) * (rank - ndim) + tensor.shape)
+
+
+def extend_to_size(
+    tensor: Tensor,
+    shape: Sequence[int],
+    fill: float = float("nan"),
+) -> Tensor:
+    """
+    Extend a tensor in the positive direction until its size matches the
+    specification. Any new entries created via extension are populated with
+    ``fill``.
+    """
+    tensor = promote_to_rank(tensor, len(shape))
+    out = jnp.full(shape, fill, dtype=tensor.dtype)
+    return out.at[tuple(slice(s) for s in tensor.shape)].set(tensor)
+
+
+def extend_to_max_size(
+    tensors: Sequence[Tensor],
+    fill: float = float("nan"),
+) -> Tensor:
+    """
+    Extend all tensors in a sequence until their sizes are equal to the size
+    of the largest tensor along each axis. Any new entries created via
+    extension are populated with ``fill``.
+    """
+    ndim_max = max(t.ndim for t in tensors)
+    tensors = tuple(promote_to_rank(t, ndim_max) for t in tensors)
+    shape_max = tuple(
+        max(t.shape[i] for t in tensors) for i in range(ndim_max)
+    )
+    return tuple(extend_to_size(t, shape_max, fill=fill) for t in tensors)
