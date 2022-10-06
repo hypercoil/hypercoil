@@ -249,8 +249,8 @@ def coaffiliation(
     if C_o is None:
         C_o = C_i
     if normalise_coaffiliation:
-        norm_fac_i = jnp.maximum(1, C_i.max((-1, -2)))
-        norm_fac_o = jnp.maximum(1, C_o.max((-1, -2)))
+        norm_fac_i = jnp.maximum(1, C_i.max((-1, -2), keepdims=True))
+        norm_fac_o = jnp.maximum(1, C_o.max((-1, -2), keepdims=True))
         C_i = C_i / norm_fac_i
         C_o = C_o / norm_fac_o
     if L is None:

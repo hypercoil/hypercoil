@@ -1,5 +1,5 @@
-A first (real) example
-======================
+Examples
+========
 
 This is a first example of a real application of the differentiable programming paradigm in the context of mapping the brain's functional connectivity. This example replicates the third experiment from our first preprint on this subject ("Covariance modelling"). The goal of this experiment is to create a simple, differentiable map of the dynamics of community structure in the brain's functional connectome.
 

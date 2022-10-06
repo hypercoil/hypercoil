@@ -1151,7 +1151,7 @@ def _second_moment_impl(
     else:
         normfac = weight.sum(-2)
     diff = X[..., None, :, :] - mu[..., None, :]
-    sigma = ((diff * weight) ** 2).sum(-2) / normfac
+    sigma = (weight * diff ** 2).sum(-2) / normfac
     return sigma
 
 

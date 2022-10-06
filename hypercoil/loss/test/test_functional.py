@@ -289,7 +289,7 @@ class TestLossFunction:
 
         src = jnp.zeros((n_channels,), dtype=int)
         src = src.at[(n_channels // 2):].set(1)
-        weight = jnp.eye(2)[src].swapaxes(-2, -1)
+        weight = 0.5 * jnp.eye(2)[src].swapaxes(-2, -1)
         data = jax.random.normal(key=key, shape=(n_channels, n_observations))
 
         loss = jax.jit(mean_scalarise()(second_moment),
@@ -417,8 +417,8 @@ class TestLossFunction:
         A = jax.random.normal(key_a, shape=(3, 20, 20))
 
         modularity_loss = jax.jit(mean_scalarise()(modularity))
-        out = modularity_loss(Q, A) / 2
-        ref = relaxed_modularity(A, Q).mean()
+        out = modularity_loss(Q, A, gamma=5) / 2
+        ref = relaxed_modularity(A, Q, gamma=5).mean()
         assert jnp.allclose(out, ref)
 
         jax.jit(mean_scalarise()(eigenmaps))(Q, A)
