@@ -189,8 +189,7 @@ def atlas_experiment(
         LossApply(
             SecondMomentLoss(
                 nu=secondmoment_nu,
-                name='SecondMoment',
-                skip_normalise=True),
+                name='SecondMoment'),
             apply=lambda arg: UnpackingLossArgument(
                 weight=arg.model,
                 X=arg.x
