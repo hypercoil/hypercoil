@@ -7,6 +7,7 @@ Mixins for designing atlas classes.
 from __future__ import annotations
 from collections import OrderedDict
 from functools import reduce
+from itertools import chain
 from os import PathLike
 from pathlib import Path, PosixPath
 from typing import (
@@ -116,8 +117,8 @@ def modelobj_from_dataobj(
 #       We'll see how it goes in practice.
 class Reference(eqx.Module):
     pointer: Any
-    model_axes: Union[Sequence[int], Literal["cifti"]]
-    imobj: Union["nb.Nifti1Image", "nb.Cifti2Image"]
+    model_axes: Sequence[int]
+    imobj: Union["nb.Nifti1Image", "nb.Cifti2Image", "nb.GiftiImage"]
     _imobj_from_pointer: Callable = lambda x: x
     _dataobj_from_imobj: Callable = lambda x: x.get_fdata()
     cached: bool = False
@@ -127,7 +128,7 @@ class Reference(eqx.Module):
     def __init__(
         self,
         pointer: Any,
-        model_axes: Sequence[int],
+        model_axes: Union[Sequence[int], Literal["cifti"]],
         dataobj: Optional[Tensor] = None,
         imobj_from_pointer: Optional[Callable] = None,
         dataobj_from_imobj: Optional[Callable] = None,
@@ -185,6 +186,7 @@ class Reference(eqx.Module):
             where=lambda r: (r.modelobj, r.cached),
             pytree=ref,
             replace=(modelobj, True),
+            is_leaf=lambda x: x is None,
         )
 
     @staticmethod
@@ -212,8 +214,8 @@ class Reference(eqx.Module):
         Thanks to Chris Markiewicz for tutorials that shaped this
         implementation.
         """
-        hdr = self.header
         try:
+            hdr = self.header
             return tuple(hdr.get_axis(i) for i in range(self.ndim))
         except AttributeError:
             raise CiftiError(
@@ -573,6 +575,93 @@ class _SurfaceSingleReferenceMixin:
         )
 
 
+class _GIfTIReferenceMixin:
+    """
+    Use to load a reference into an atlas class.
+
+    For use when the ``ref_pointer`` object references a dictionary of
+    paths to compartment-level surface datasets on disk.
+    """
+    def _load_reference(
+        self,
+        ref_pointer: Tuple[Tensor],
+    ) -> "Reference":
+
+        class GIfTIImobj(Mapping):
+            def __init__(self, imobj: Tuple):
+                self._imobj = imobj
+
+            def __getitem__(self, idx: int) -> Tensor:
+                return self._imobj[idx]
+
+            def __setitem__(self, idx: int, value: Tensor) -> None:
+                self._imobj[idx] = value
+
+            def __delitem__(self, idx: int) -> None:
+                del self._imobj[idx]
+
+            def __iter__(self) -> Iterator[str]:
+                return iter(self._imobj)
+
+            def __next__(self) -> str:
+                return next(self._imobj)
+
+            def __len__(self) -> int:
+                return len(self._imobj)
+
+            def __contains__(self, idx: int) -> bool:
+                try:
+                    return self._imobj[idx] is not None
+                except IndexError:
+                    return False
+
+            @property
+            def ndim(self) -> int:
+                _ndims = tuple(
+                    tuple(e.data.ndim for e in v.darrays)
+                    for v in self._imobj if v is not None
+                )
+                _ndims = tuple(chain(*_ndims))
+                return _ndims[0] if len(set(_ndims)) == 1 else None
+
+            @property
+            def _shapes(self) -> Tuple[Tuple[int, ...]]:
+                _shapes = tuple(
+                    tuple(e.data.shape for e in v.darrays)
+                    for v in self._imobj if v is not None
+                )
+                return tuple(chain(*_shapes))
+
+            @property
+            def shapes(self) -> Tuple[Tuple[int, ...]]:
+                return self._shapes
+
+            #TODO: we'll want to broadcast the shapes first and then sum the
+            #      last axis. Currently we're just summing the last axis.
+            @property
+            def shape(self) -> Tuple[int, ...]:
+                shape = self._shapes[0]
+                final = sum([s[-1] for s in self._shapes])
+                return shape[:-1] + (final,) if len(shape) > 1 else (final,)
+
+        def imobj_from_pointer(pointer):
+            return GIfTIImobj(
+                tuple(nb.load(v) if v is not None else v for v in pointer)
+            )
+
+        def dataobj_from_imobj(imobj):
+            return np.concatenate(
+                tuple(v.darrays[0].data for v in imobj if v is not None)
+            )
+
+        return Reference(
+            pointer=ref_pointer,
+            model_axes=(0,),
+            imobj_from_pointer=imobj_from_pointer,
+            dataobj_from_imobj=dataobj_from_imobj,
+        )
+
+
 class _VolumeMultiReferenceMixin:
     """
     Use to load a reference into an atlas class.
@@ -584,7 +673,7 @@ class _VolumeMultiReferenceMixin:
     def _load_reference(
         self,
         ref_pointer: Sequence[Union[str, Path]],
-    ) -> "nb.nifti1.Nifti1Image":
+    ) -> "Reference":
         # TODO: We should at least check that the affine matrices are
         #       compatible.
         ref = tuple(nb.load(path) for path in ref_pointer)
@@ -614,7 +703,7 @@ class _PhantomReferenceMixin:
     def _load_reference(
         self,
         ref_pointer: Union[str, Path],
-    ) -> "nb.nifti1.Nifti1Image":
+    ) -> "Reference":
         try:
             ref = nb.load(ref_pointer)
         except TypeError:
@@ -751,15 +840,25 @@ class _CortexSubcortexCIfTIMaskMixin:
         source: Dict[str, Union[str, Path]],
     ) -> "Mask":
         init = ()
-        for v in source.values():
-            try:
+        for k, v in source.items():
+            if v is not None:
                 init += (nb.load(v).darrays[0].data.round().astype(bool),)
-            except Exception:
-                init += (
-                    np.ones(self.ref.model_axobj.volume_mask.sum()).astype(
-                        bool
-                    ),
-                )
+            else:
+                try:
+                    init += (
+                        np.ones(self.ref.model_axobj.volume_mask.sum()).astype(
+                            bool
+                        ),
+                    )
+                except (AttributeError, CiftiError):
+                    # In practice, we enter this block when the mask source is
+                    # None (most often when we omit subcortex) and the
+                    # reference is not a CIfTI object. Currently, we assume
+                    # that the mask for this source should be omitted
+                    # altogether in this case.
+                    #TODO: Is there a default configuration for this?
+                    #init += (np.ones(self.ref.shape).astype(bool),)
+                    continue
         return Mask(jnp.asarray(np.concatenate(init)))
 
 
@@ -856,13 +955,14 @@ class _MultiCompartmentMixin:
         return CompartmentSet(compartment_dict=compartments)
 
 
-class _CortexSubcortexCIfTICompartmentMixin:
+class _CortexSubcortexSurfaceCompartmentMixin:
     """
     Use to isolate spatial subcompartments of the overall atlas such that each
     has separate label sets.
 
-    For use when creating a CIfTI-based atlas with separate subcompartments
-    for the left and right cortical hemispheres and for subcortical locations.
+    For use when creating an atlas based on cortical surface data in either
+    CIfTI or GIfTI format, with separate subcompartments for the left and
+    right cortical hemispheres and for subcortical locations.
     """
 
     def _compartment_names_dict(self, **params) -> Dict[str, str]:
@@ -888,7 +988,36 @@ class _CortexSubcortexCIfTICompartmentMixin:
             src = jnp.arange(self.mask.size)
         else:
             src = apply_mask(jnp.arange(self.mask.shape[0]))
-        model_axis = self.ref.model_axobj
+
+        compartments = self._configure_compartment_masks_surface(
+            ref=self.ref,
+            mask=self.mask,
+            compartments=compartments,
+            names_dict=names_dict,
+            src=src,
+        )
+
+        return CompartmentSet(compartment_dict=compartments)
+
+
+class _CortexSubcortexCIfTICompartmentMixin(_CortexSubcortexSurfaceCompartmentMixin):
+    """
+    Use to isolate spatial subcompartments of the overall atlas such that each
+    has separate label sets.
+
+    For use when creating a CIfTI-based atlas with separate subcompartments
+    for the left and right cortical hemispheres and for subcortical locations.
+    """
+
+    @staticmethod
+    def _configure_compartment_masks_surface(
+        ref: Reference,
+        mask: Mask,
+        compartments: Dict[str, jnp.ndarray],
+        names_dict: Dict[str, str],
+        src: jnp.ndarray,
+    ) -> Dict[str, jnp.ndarray]:
+        model_axis = ref.model_axobj
         names_dict = {v: k for k, v in names_dict.items()}
 
         for struc, slc, _ in model_axis.iter_structures():
@@ -896,7 +1025,7 @@ class _CortexSubcortexCIfTICompartmentMixin:
             if name is not None:
                 start, stop = slc.start, slc.stop
                 start = start if start is not None else 0
-                stop = stop if stop is not None else self.mask.size
+                stop = stop if stop is not None else mask.size
                 compartments[name] = jnp.logical_and(
                     src >= start,
                     src < stop,
@@ -913,7 +1042,41 @@ class _CortexSubcortexCIfTICompartmentMixin:
         except ValueError:
             pass
 
-        return CompartmentSet(compartment_dict=compartments)
+        return compartments
+
+
+class _CortexSubcortexGIfTICompartmentMixin(_CortexSubcortexSurfaceCompartmentMixin):
+    """
+    Use to isolate spatial subcompartments of the overall atlas such that each
+    has separate label sets.
+
+    For use when creating a GIfTI-based atlas with separate subcompartments
+    for the left and right cortical hemispheres and for subcortical locations.
+    """
+
+    @staticmethod
+    def _configure_compartment_masks_surface(
+        ref: Reference,
+        mask: Mask,
+        compartments: Dict[str, jnp.ndarray],
+        names_dict: Dict[str, str],
+        src: jnp.ndarray,
+    ) -> Dict[str, jnp.ndarray]:
+        shapes = ref.imobj.shapes
+        ix = 0
+        for i, name in enumerate(compartments.keys()):
+            try:
+                s = shapes[i]
+            except IndexError:
+                break
+            start, stop = ix, ix + s[-1]
+            compartments[name] = jnp.logical_and(
+                src >= start,
+                src < stop,
+            )
+            ix += s[-1]
+
+        return compartments
 
 
 class _DiscreteLabelMixin:
@@ -1143,6 +1306,50 @@ class _VertexCIfTIMeshMixin:
                 self.topology[c] = "spherical"
             else:
                 self.topology[c] = "euclidean"
+
+
+class _VertexGIfTIMeshMixin:
+    """
+    Used to establish a coordinate system over the linear map representations
+    of the atlas.
+
+    For use when the atlas reference is a set of GIfTI files that includes
+    some samples associated to cortical surface meshes. This mixin establishes
+    a spherical topology for cortical samples and a Euclidean topology for
+    subcortical samples.
+    """
+
+    def _init_coors(
+        self,
+        source: Optional[Any] = None,
+        names_dict: Optional[Any] = None,
+    ) -> None:
+        coor = np.empty((self.ref.modelobj.shape[-1], 3))
+        euc_mask = np.zeros((self.ref.modelobj.shape[-1], 3))
+        names2surf = {
+            k: (v, source[k]) for k, v in self.surf.items()
+        }
+
+        shapes = self.ref.imobj.shapes
+        ix = 0
+
+        for name, (surf, mask) in names2surf.items():
+            if surf is None:
+                continue
+            surf = nb.load(surf).darrays[0].data
+            if mask is not None:
+                mask = nb.load(mask)
+                mask = mask.darrays[0].data.astype(bool)
+                surf = surf[mask]
+            start, stop = ix, ix + surf.shape[0]
+            coor[start:stop] = surf
+        self.coors = jnp.asarray(coor)
+        self.topology = OrderedDict()
+        # TODO: Use functions instead of attributes below to interact with
+        #       compartments and masks.
+        # TODO: Add actual subcortical support for GIfTI meshes.
+        for c, compartment in self.compartments.items():
+            self.topology[c] = "spherical"
 
 
 class _EvenlySampledConvMixin:
