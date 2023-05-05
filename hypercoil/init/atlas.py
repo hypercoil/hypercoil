@@ -101,10 +101,12 @@ from .atlasmixins import (
     _CIfTIReferenceMixin,
     _ContinuousLabelMixin,
     _CortexSubcortexCIfTICompartmentMixin,
+    _CortexSubcortexGIfTICompartmentMixin,
     _CortexSubcortexCIfTIMaskMixin,
     _DirichletLabelMixin,
     _DiscreteLabelMixin,
     _FromNullMaskMixin,
+    _GIfTIReferenceMixin,
     _is_path,
     _LogicMaskMixin,
     _MultiCompartmentMixin,
@@ -114,6 +116,7 @@ from .atlasmixins import (
     _SurfaceObjectReferenceMixin,
     _SurfaceSingleReferenceMixin,
     _VertexCIfTIMeshMixin,
+    _VertexGIfTIMeshMixin,
     _VolumeMultiReferenceMixin,
     _VolumeObjectReferenceMixin,
     _VolumeSingleReferenceMixin,
@@ -702,6 +705,44 @@ class MultifileVolumetricAtlas(
         )
 
 
+class CortexSubcortexGIfTIAtlas(
+    _GIfTIReferenceMixin,
+    _CortexSubcortexCIfTIMaskMixin,
+    _CortexSubcortexGIfTICompartmentMixin,
+    _DiscreteLabelMixin,
+    _VertexGIfTIMeshMixin,
+    _SpatialConvMixin,
+    BaseAtlas,
+):
+    surf: Dict[str, str]
+
+    def __init__(
+        self,
+        data_L: str,
+        data_R: str,
+        data_subcortex: Optional[str] = None,
+        mask_L: Optional[str] = None,
+        mask_R: Optional[str] = None,
+        surf_L: Optional[str] = None,
+        surf_R: Optional[str] = None,
+        subcortex: Optional[str] = None,
+        clear_cache: bool = True,
+        name: Optional[str] = None,
+    ):
+        self.surf, mask_source = _surface_atlas_common_args(
+            mask_L=mask_L,
+            mask_R=mask_R,
+            surf_L=surf_L,
+            surf_R=surf_R,
+        )
+        super().__init__(
+            ref_pointer=(data_L, data_R, data_subcortex),
+            mask_source=mask_source,
+            clear_cache=clear_cache,
+            name=name,
+        )
+
+
 class CortexSubcortexCIfTIAtlas(
     _CIfTIReferenceMixin,
     _SurfaceSingleReferenceMixin,
@@ -791,7 +832,7 @@ class CortexSubcortexCIfTIAtlas(
         clear_cache: bool = True,
         name: Optional[str] = None,
     ):
-        self.surf, mask_source = _cifti_atlas_common_args(
+        self.surf, mask_source = _surface_atlas_common_args(
             mask_L=mask_L,
             mask_R=mask_R,
             surf_L=surf_L,
@@ -992,7 +1033,7 @@ class DirichletInitSurfaceAtlas(
         *,
         key: "jax.random.PRNGKey",
     ):
-        self.surf, mask_source = _cifti_atlas_common_args(
+        self.surf, mask_source = _surface_atlas_common_args(
             mask_L=mask_L,
             mask_R=mask_R,
             surf_L=surf_L,
@@ -1256,11 +1297,13 @@ class AtlasInitialiser(MappedInitialiser):
         )
 
 
-def _cifti_atlas_common_args(
+def _surface_atlas_common_args(
     mask_L=None,
     mask_R=None,
+    mask_sub=None,
     surf_L=None,
     surf_R=None,
+    coor_sub=None,
 ):
     default_mask_query_args = {
         "template": "fsLR",
@@ -1285,10 +1328,11 @@ def _cifti_atlas_common_args(
     surf = {
         "cortex_L": surf_L,
         "cortex_R": surf_R,
+        "subcortex": coor_sub,
     }
     mask_source = {
         "cortex_L": mask_L,
         "cortex_R": mask_R,
-        "subcortex": None,
+        "subcortex": mask_sub,
     }
     return surf, mask_source
