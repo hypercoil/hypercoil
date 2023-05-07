@@ -19,6 +19,7 @@ from matplotlib.colors import ListedColormap
 from hypercoil.engine import Tensor
 from hypercoil.init.atlasmixins import Reference
 from hypercoil.neuro.const import (
+    CIfTIStructures,
     template_dict
 )
 
@@ -256,8 +257,8 @@ class CortexTriSurface:
         null_value: Optional[float] = 0.,
     ):
         names_dict = {
-            'CIFTI_STRUCTURE_CORTEX_LEFT' : 'left',
-            'CIFTI_STRUCTURE_CORTEX_RIGHT' : 'right',
+            CIfTIStructures.LEFT : 'left',
+            CIfTIStructures.RIGHT : 'right',
         }
         slices = {}
 

@@ -30,3 +30,8 @@ class fsLR:
         "L": {"hemi": "L"},
         "R": {"hemi": "R"},
     }
+
+
+class CIfTIStructures:
+    LEFT = "CIFTI_STRUCTURE_CORTEX_LEFT"
+    RIGHT = "CIFTI_STRUCTURE_CORTEX_RIGHT"

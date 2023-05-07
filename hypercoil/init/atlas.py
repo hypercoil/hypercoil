@@ -96,6 +96,9 @@ import templateflow.api as tflow
 from ..engine import PyTree, Tensor
 from ..engine.noise import ScalarIIDAddStochasticTransform
 from ..formula.nnops import retrieve_address
+from ..neuro.const import (
+    CIfTIStructures,
+)
 from .atlasmixins import (
     Reference,
     _CIfTIReferenceMixin,
@@ -827,8 +830,8 @@ class CortexSubcortexCIfTIAtlas(
         mask_R: Optional[str] = None,
         surf_L: Optional[str] = None,
         surf_R: Optional[str] = None,
-        cortex_L: str = "CIFTI_STRUCTURE_CORTEX_LEFT",
-        cortex_R: str = "CIFTI_STRUCTURE_CORTEX_RIGHT",
+        cortex_L: str = CIfTIStructures.LEFT,
+        cortex_R: str = CIfTIStructures.RIGHT,
         clear_cache: bool = True,
         name: Optional[str] = None,
     ):
@@ -1028,8 +1031,8 @@ class DirichletInitSurfaceAtlas(
         mask_R: Optional[str] = None,
         surf_L: Optional[str] = None,
         surf_R: Optional[str] = None,
-        cortex_L: str = "CIFTI_STRUCTURE_CORTEX_LEFT",
-        cortex_R: str = "CIFTI_STRUCTURE_CORTEX_RIGHT",
+        cortex_L: str = CIfTIStructures.LEFT,
+        cortex_R: str = CIfTIStructures.RIGHT,
         *,
         key: "jax.random.PRNGKey",
     ):
