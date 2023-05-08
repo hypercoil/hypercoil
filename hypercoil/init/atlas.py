@@ -109,6 +109,7 @@ from .atlasmixins import (
     _DirichletLabelMixin,
     _DiscreteLabelMixin,
     _FromNullMaskMixin,
+    _GIfTIOutputMixin,
     _GIfTIReferenceMixin,
     _is_path,
     _LogicMaskMixin,
@@ -719,6 +720,7 @@ class CortexSubcortexGIfTIAtlas(
     _DiscreteLabelMixin,
     _VertexGIfTIMeshMixin,
     _SpatialConvMixin,
+    _GIfTIOutputMixin,
     BaseAtlas,
 ):
     surf: Dict[str, str]

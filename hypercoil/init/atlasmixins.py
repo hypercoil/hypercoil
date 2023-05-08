@@ -644,6 +644,12 @@ class _GIfTIReferenceMixin:
                 final = sum([s[-1] for s in self._shapes])
                 return shape[:-1] + (final,) if len(shape) > 1 else (final,)
 
+            @property
+            def header(self) -> Dict:
+                return tuple(
+                    i.header if i is not None else None for i in self._imobj
+                )
+
         def imobj_from_pointer(pointer):
             return GIfTIImobj(
                 tuple(nb.load(v) if v is not None else v for v in pointer)
@@ -745,6 +751,87 @@ class _PhantomDataobj(eqx.Module):
         return cls(shape=shape)
 
 
+def _dict_to_gifti_label_table(
+    dictionary: Dict[str, int]
+) -> nb.GiftiLabelTable:
+    """
+    The GiftiLabelTable is a horribly inconvenient data structure that we're
+    stuck with because it's the only way to store a label table in a GIfTI
+    file. This is in part because it's actually designed to be a colourmap,
+    but we're trying to use it as a label table.
+
+    This function converts a dictionary of labels to a
+    GiftiLabelTable so that we don't have to deal with this inconvenience
+    elsewhere.
+    """
+    labeltable = nb.gifti.GiftiLabelTable()
+    for k, v in dictionary.items():
+        v = {
+            'red': 0x100 - ((v >> 24) & 0xff),
+            'green': 0x100 - ((v >> 16) & 0xff),
+            'blue': 0x100 - ((v >> 8) & 0xff),
+            'alpha': 0x100 - (v & 0xff),
+        }
+        label = nb.gifti.GiftiLabel(key=int(k), **v)
+        label.label = str(v)
+        labeltable.labels.append(label)
+    return labeltable
+
+
+class _GIfTIOutputMixin:
+    """
+    This mixin adds the capacity to save an atlas as a GIfTI image.
+    """
+    def to_image(
+        self,
+        save: Optional[str] = None,
+        maps: Optional[Dict[str, Tensor]] = None,
+        discretise: bool = True,
+    ) -> Optional["nb.GiftiImage"]:
+        offset = 1
+        if maps is None:
+            maps = self.maps
+        images = {}
+
+        if discretise:
+            datatype = "NIFTI_TYPE_INT32"
+            intent = "NIFTI_INTENT_LABEL"
+        else:
+            datatype = "NIFTI_TYPE_FLOAT32"
+            intent = "NIFTI_INTENT_VECTOR"
+
+        for k, v in maps.items():
+            if v.size == 0:
+                continue
+            if discretise:
+                dataobj = v.argmax(0) + offset
+                labeltable = {
+                    i + 1: i + offset for i in range(v.shape[0])
+                }
+                labeltable = _dict_to_gifti_label_table(labeltable)
+                additional_args = {'labeltable': labeltable}
+            else:
+                dataobj = v
+                additional_args = {}
+            darray = nb.gifti.GiftiDataArray(
+                data=dataobj,
+                datatype=datatype,
+                intent=intent,
+            )
+            new_gifti = nb.GiftiImage(
+                darrays=(darray,),
+                **additional_args,
+            )
+            if save is not None:
+                save_path = f"{save}_{k}.gii" if len(maps) > 1 else f"{save}.gii"
+                nb.save(new_gifti, save_path)
+            else:
+                images[k] = new_gifti
+            offset += v.shape[0]
+        if save is None:
+            return images
+
+
 class _NIfTIOutputMixin:
     """
     This mixin adds the capacity to save an atlas as a NIfTI image.
@@ -754,7 +841,7 @@ class _NIfTIOutputMixin:
         save: Optional[str] = None,
         maps: Optional[Dict[str, Tensor]] = None,
         discretise: bool = True,
-    ) -> None:
+    ) -> Optional["nb.Nifti1Image"]:
         offset = 1
         if maps is None:
             maps = self.maps
@@ -800,7 +887,7 @@ class _CIfTIOutputMixin:
         self,
         save: Optional[str] = None,
         maps: Optional[Dict[str, Tensor]] = None,
-    ) -> Optional["nb.nifti1.Nifti1Image"]:
+    ) -> Optional["nb.Cifti2Image"]:
         if maps is None:
             maps = self.maps
         offset = 1

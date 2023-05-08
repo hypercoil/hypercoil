@@ -79,6 +79,9 @@ class TestAtlasInit:
                 density='32k'),
             clear_cache=False,
         )
+
+        atlas.to_image('/tmp/atlas')
+
         assert atlas.mask.size == atlas.ref.shape[-1]
         assert atlas.compartments['cortex_L'].size == 29696
         assert atlas.compartments['cortex_R'].size == 59412 - 29696
