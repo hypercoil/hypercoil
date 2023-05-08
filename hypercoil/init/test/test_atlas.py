@@ -138,8 +138,8 @@ class TestAtlasInit:
             'hypercoil',
             'results/'
         )
-        atlas.to_image(save=f'{results}/atlas_copy_vol_d.nii')
-        atlas.to_image(save=f'{results}/atlas_copy_vol_p.nii', discretise=False)
+        atlas.to_nifti(save=f'{results}/atlas_copy_vol_d.nii')
+        atlas.to_nifti(save=f'{results}/atlas_copy_vol_p.nii', discretise=False)
 
     def test_cifti_atlas(self):
         ref_pointer = pkgrf(
@@ -202,7 +202,7 @@ class TestAtlasInit:
             'hypercoil',
             'results/'
         )
-        atlas.to_image(maps=lin.weight, save=f'{results}/atlas_copy.nii')
+        atlas.to_cifti(maps=lin.weight, save=f'{results}/atlas_copy.nii')
 
         """
         Let's keep this on CUDA only. It's extremely slow.

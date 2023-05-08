@@ -58,12 +58,6 @@ class TestAtlasInit:
         ref = r._load_reference(ref_pointer)
         mask = m._create_mask(mask_source)
 
-        print(ref)
-        print(mask)
-        print(mask.size, ref.shape)
-        #f = mask.map_to_masked(model_axes=(0,))
-        #print(f(jnp.arange(mask.size)))
-
         atlas = CortexSubcortexGIfTIAtlas(
             data_L=ref_pointer[0],
             data_R=ref_pointer[1],
@@ -80,8 +74,6 @@ class TestAtlasInit:
             clear_cache=False,
         )
 
-        atlas.to_image('/tmp/atlas')
-
         assert atlas.mask.size == atlas.ref.shape[-1]
         assert atlas.compartments['cortex_L'].size == 29696
         assert atlas.compartments['cortex_R'].size == 59412 - 29696
@@ -93,6 +85,12 @@ class TestAtlasInit:
         assert atlas.maps['cortex_R'].shape == (200, 29716)
         assert atlas.maps['subcortex'].shape == (0,)
         compartment_index = atlas.compartments['cortex_L'].data
+
+        results = pkgrf(
+            'hypercoil',
+            'results/'
+        )
+        atlas.to_gifti(save=f'{results}/atlas_copy_gifti')
 
 
     def test_cifti_atlas(self):
@@ -156,5 +154,6 @@ class TestAtlasInit:
             'hypercoil',
             'results/'
         )
-        atlas.to_image(maps=lin.weight, save=f'{results}/atlas_copy2.nii')
+        atlas.to_cifti(maps=lin.weight, save=f'{results}/atlas_copy2.nii')
+        atlas.to_gifti(save=f'{results}/atlas_copy_gifti_from_cifti')
 

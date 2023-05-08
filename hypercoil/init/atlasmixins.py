@@ -782,7 +782,7 @@ class _GIfTIOutputMixin:
     """
     This mixin adds the capacity to save an atlas as a GIfTI image.
     """
-    def to_image(
+    def to_gifti(
         self,
         save: Optional[str] = None,
         maps: Optional[Dict[str, Tensor]] = None,
@@ -836,7 +836,7 @@ class _NIfTIOutputMixin:
     """
     This mixin adds the capacity to save an atlas as a NIfTI image.
     """
-    def to_image(
+    def to_nifti(
         self,
         save: Optional[str] = None,
         maps: Optional[Dict[str, Tensor]] = None,
@@ -883,7 +883,7 @@ class _CIfTIOutputMixin:
     """
     This mixin adds the capacity to save an atlas as a CIfTI image.
     """
-    def to_image(
+    def to_cifti(
         self,
         save: Optional[str] = None,
         maps: Optional[Dict[str, Tensor]] = None,

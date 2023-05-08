@@ -760,6 +760,7 @@ class CortexSubcortexCIfTIAtlas(
     _VertexCIfTIMeshMixin,
     _SpatialConvMixin,
     _CIfTIOutputMixin,
+    _GIfTIOutputMixin,
     BaseAtlas,
 ):
     """
@@ -947,6 +948,7 @@ class DirichletInitSurfaceAtlas(
     _VertexCIfTIMeshMixin,
     _SpatialConvMixin,
     _CIfTIOutputMixin,
+    _GIfTIOutputMixin,
     DirichletInitBaseAtlas,
 ):
     """
