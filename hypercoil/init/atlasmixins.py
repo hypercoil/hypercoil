@@ -745,6 +745,53 @@ class _PhantomDataobj(eqx.Module):
         return cls(shape=shape)
 
 
+class _NIfTIOutputMixin:
+    """
+    This mixin adds the capacity to save an atlas as a NIfTI image.
+    """
+    def to_image(
+        self,
+        save: Optional[str] = None,
+        maps: Optional[Dict[str, Tensor]] = None,
+        discretise: bool = True,
+    ) -> None:
+        offset = 1
+        if maps is None:
+            maps = self.maps
+        n_labels_total = sum([v.shape[0] for v in maps.values()])
+        mask = self.mask.mask_array.reshape(
+            [self.ref.shape[a] for a in self.ref.model_axes]
+        )
+
+        if discretise:
+            dataobj = np.zeros(self.ref.model_shape)
+        else:
+            dataobj = np.zeros(self.ref.model_shape + (n_labels_total,))
+
+        for k, v in maps.items():
+            if v.shape == (0,):
+                continue
+            n_labels = v.shape[0]
+            mask = self.mask.data.at[self.mask.data].set(
+                self.compartments[k].data
+            )
+            mask = mask.reshape(self.ref.model_shape)
+            if discretise:
+                data = v.argmax(0) + offset
+                dataobj[np.array(mask)] = data
+            else:
+                dataobj[np.array(mask), offset - 1 : offset + n_labels - 1] = v.T
+            offset += n_labels
+        new_nifti = nb.Nifti1Image(
+            dataobj,
+            header=self.ref.header,
+            affine=self.ref.imobj.affine,
+        )
+        if save is None:
+            return new_nifti
+        new_nifti.to_filename(save)
+
+
 class _CIfTIReferenceMixin:
     """
     Use if an atlas uses a CIfTI as its reference. This class implements the
@@ -752,7 +799,6 @@ class _CIfTIReferenceMixin:
     CIfTI model axes. Note that this is *not* a substitute for a reference
     loader mixin like ``_ObjectReferenceMixin`` or ``_SingleReferenceMixin``.
     """
-
     def to_image(
         self,
         save: Optional[str] = None,

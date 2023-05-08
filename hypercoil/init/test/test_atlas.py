@@ -134,6 +134,13 @@ class TestAtlasInit:
         assert np.all(
             atlas.coors[97 * 115 * x + 97 * y + z] / 2 == np.array([x, y, z]))
 
+        results = pkgrf(
+            'hypercoil',
+            'results/'
+        )
+        atlas.to_image(save=f'{results}/atlas_copy_vol_d.nii')
+        atlas.to_image(save=f'{results}/atlas_copy_vol_p.nii', discretise=False)
+
     def test_cifti_atlas(self):
         ref_pointer = pkgrf(
             'hypercoil',

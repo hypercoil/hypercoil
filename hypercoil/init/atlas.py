@@ -113,6 +113,7 @@ from .atlasmixins import (
     _is_path,
     _LogicMaskMixin,
     _MultiCompartmentMixin,
+    _NIfTIOutputMixin,
     _PhantomReferenceMixin,
     _SingleCompartmentMixin,
     _SpatialConvMixin,
@@ -511,6 +512,7 @@ class DiscreteVolumetricAtlas(
     _DiscreteLabelMixin,
     _VolumetricMeshMixin,
     _SpatialConvMixin,
+    _NIfTIOutputMixin,
     BaseAtlas,
 ):
     """
@@ -577,6 +579,7 @@ class MultiVolumetricAtlas(
     _ContinuousLabelMixin,
     _VolumetricMeshMixin,
     _SpatialConvMixin,
+    _NIfTIOutputMixin,
     BaseAtlas,
 ):
     """
@@ -646,6 +649,7 @@ class MultifileVolumetricAtlas(
     _ContinuousLabelMixin,
     _VolumetricMeshMixin,
     _SpatialConvMixin,
+    _NIfTIOutputMixin,
     BaseAtlas,
 ):
     """
@@ -856,6 +860,7 @@ class DirichletInitVolumetricAtlas(
     _SingleCompartmentMixin,
     _VolumetricMeshMixin,
     _SpatialConvMixin,
+    _NIfTIOutputMixin,
     DirichletInitBaseAtlas,
 ):
     """
@@ -1062,6 +1067,7 @@ class _MemeAtlas(
     _DiscreteLabelMixin,
     _VolumetricMeshMixin,
     _SpatialConvMixin,
+    _NIfTIOutputMixin,
     BaseAtlas,
 ):
     """
