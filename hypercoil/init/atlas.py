@@ -101,7 +101,7 @@ from ..neuro.const import (
 )
 from .atlasmixins import (
     Reference,
-    _CIfTIReferenceMixin,
+    _CIfTIOutputMixin,
     _ContinuousLabelMixin,
     _CortexSubcortexCIfTICompartmentMixin,
     _CortexSubcortexGIfTICompartmentMixin,
@@ -751,13 +751,13 @@ class CortexSubcortexGIfTIAtlas(
 
 
 class CortexSubcortexCIfTIAtlas(
-    _CIfTIReferenceMixin,
     _SurfaceSingleReferenceMixin,
     _CortexSubcortexCIfTIMaskMixin,
     _CortexSubcortexCIfTICompartmentMixin,
     _DiscreteLabelMixin,
     _VertexCIfTIMeshMixin,
     _SpatialConvMixin,
+    _CIfTIOutputMixin,
     BaseAtlas,
 ):
     """
@@ -940,11 +940,11 @@ class DirichletInitVolumetricAtlas(
 
 
 class DirichletInitSurfaceAtlas(
-    _CIfTIReferenceMixin,
     _CortexSubcortexCIfTIMaskMixin,
     _CortexSubcortexCIfTICompartmentMixin,
     _VertexCIfTIMeshMixin,
     _SpatialConvMixin,
+    _CIfTIOutputMixin,
     DirichletInitBaseAtlas,
 ):
     """

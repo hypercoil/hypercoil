@@ -792,12 +792,9 @@ class _NIfTIOutputMixin:
         new_nifti.to_filename(save)
 
 
-class _CIfTIReferenceMixin:
+class _CIfTIOutputMixin:
     """
-    Use if an atlas uses a CIfTI as its reference. This class implements the
-    additional methods ``axes`` and ``model_axis``, which facilitate access to
-    CIfTI model axes. Note that this is *not* a substitute for a reference
-    loader mixin like ``_ObjectReferenceMixin`` or ``_SingleReferenceMixin``.
+    This mixin adds the capacity to save an atlas as a CIfTI image.
     """
     def to_image(
         self,
