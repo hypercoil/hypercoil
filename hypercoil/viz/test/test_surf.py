@@ -5,24 +5,17 @@
 Unit tests for surfplot-based visualisations
 """
 import pytest
-# import torch
-# from templateflow import api as tflow
-# from pkg_resources import resource_filename as pkgrf
-# from hypercoil.init.atlas import CortexSubcortexCIfTIAtlas
-# from hypercoil.nn import AtlasLinear
-# from hypercoil.viz.surf import (
-#     fsLRAtlasParcels,
-#     fsLRAtlasMaps
-# )
 import pyvista as pv
-import numpy as np
-from matplotlib.colors import ListedColormap
 
 from pkg_resources import resource_filename as pkgrf
 
 from hypercoil.viz.surf import (
     CortexTriSurface,
     make_cmap,
+)
+from hypercoil.viz.surfplot import (
+    plot_surf_labels,
+    plot_to_image,
 )
 
 
@@ -63,41 +56,35 @@ class TestSurfaceVisualisations:
         (cmap_left, clim_left), (cmap_right, clim_right) = make_cmap(
             surf, 'cmap', 'parcellation')
 
-        pl = pv.Plotter()
-        surf.left.project('veryinflated')
-        pl.add_mesh(
-            surf.left,
-            opacity=1.0,
-            show_edges=False,
-            scalars='parcellation',
-            cmap=cmap_left,
-            clim=clim_left,
-            below_color='black',)
-        pl.add_mesh(
-            surf.left.contour(
-                isosurfaces=range(int(max(surf.left.point_data['parcellation'])))
-            ),
-            color="black",
-            line_width=5)
-        pl.show(cpos="yz")
+        # pl = pv.Plotter()
+        # surf.left.project('veryinflated')
+        # pl.add_mesh(
+        #     surf.left,
+        #     opacity=1.0,
+        #     show_edges=False,
+        #     scalars='parcellation',
+        #     cmap=cmap_left,
+        #     clim=clim_left,
+        #     below_color='black',
+        # )
+        # pl.add_mesh(
+        #     surf.left.contour(
+        #         isosurfaces=range(int(max(surf.left.point_data['parcellation'])))
+        #     ),
+        #     color="black",
+        #     line_width=5
+        # )
+        # pl.show(cpos="yz")
 
-        pl = pv.Plotter()
-        surf.right.project('veryinflated')
-        pl.add_mesh(
-            surf.right,
-            opacity=1.0,
-            show_edges=False,
+        pl, pr = plot_surf_labels(
+            surf,
+            projection='veryinflated',
             scalars='parcellation',
-            cmap=cmap_right,
-            clim=clim_right,
-            below_color='black',)
-        pl.add_mesh(
-            surf.right.contour(
-                isosurfaces=range(int(max(surf.right.point_data['parcellation'])))
-            ),
-            color="black",
-            line_width=5)
-        pl.show(cpos="yz")
+            boundary_color='black',
+            boundary_width=5,
+        )
+        plot_to_image(pl, basename='/tmp/left', hemi='left')
+        plot_to_image(pr, basename='/tmp/right', hemi='right')
 
     # @pytest.fixture(autouse=True)
     # def setup_class(self):
