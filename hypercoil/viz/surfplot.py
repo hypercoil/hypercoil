@@ -192,11 +192,23 @@ def format_position_as_string(
     precision: int = 2,
     delimiter: str = "x",
 ) -> str:
+    def _fmt_field(field: float) -> str:
+        return delimiter.join(
+            str(round(v, precision))
+            if v >= 0 else f"neg{abs(round(v, precision))}"
+            for v in field
+        )
+
     if isinstance(position, str):
-        return position
-    return delimiter.join(
-        str(round(v, precision)) for v in position
-    )
+        return f"view-{position}"
+    elif isinstance(position[0], float) or isinstance(position[0], int):
+        return f"vector-{_fmt_field(position)}"
+    else:
+        return (
+            f"vector-{_fmt_field(position[0])}_"
+            f"focus-{_fmt_field(position[1])}_"
+            f"viewup-{_fmt_field(position[2])}"
+        )
 
 
 def plot_to_image(
@@ -225,13 +237,6 @@ def plot_to_image(
         )
         img = p.screenshot(fname, window_size=window_size, return_img=True)
         ret.append(img)
-    # ret = tuple(p.show(
-    #     screenshot=fname,
-    #     cpos=cortex_cameras(cpos, plotter=p, hemi=hemi),
-    #     window_size=window_size,
-    #     return_img=True,
-    #     auto_close=False,
-    # ) for cpos, fname in zip(positions, screenshot))
     p.off_screen = off_screen_orig
     p.close()
     return tuple(ret)

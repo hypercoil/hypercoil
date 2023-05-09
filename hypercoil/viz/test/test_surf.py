@@ -85,6 +85,20 @@ class TestSurfaceVisualisations:
         )
         plot_to_image(pl, basename='/tmp/left', hemi='left')
         plot_to_image(pr, basename='/tmp/right', hemi='right')
+        pl, pr = plot_surf_labels(
+            surf,
+            projection='inflated',
+            scalars='parcellation',
+            boundary_color='black',
+            boundary_width=5,
+        )
+        plot_to_image(
+            pl, basename='/tmp/left', positions=((-20, 0, 0),), hemi='left')
+        plot_to_image(
+            pr, basename='/tmp/right',
+            positions=(((60, 60, 0), (0, 0, 0), (0, 0, 1)),),
+            hemi='right'
+        )
 
     # @pytest.fixture(autouse=True)
     # def setup_class(self):
