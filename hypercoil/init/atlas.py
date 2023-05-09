@@ -377,7 +377,7 @@ class BaseAtlas(eqx.Module):
             if noise is not None:
                 c_map = noise(c_map)
             if normalise:
-                c_map = c_map / c_map.sum(1, keepdim=True)
+                c_map = c_map / c_map.sum(1, keepdims=True)
             ret[c] = c_map
         return ret
 
