@@ -246,8 +246,6 @@ class CortexTriSurface:
             'right': self.masks['right'].sum().item(),
         }
 
-    #TODO: Harmonise this with _CortexSubcortexCIfTICompartmentMixin.
-    #      There is currently a lot of duplication.
     def add_cifti_dataset(
         self,
         name: str,
