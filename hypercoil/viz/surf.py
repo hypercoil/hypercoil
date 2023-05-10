@@ -20,7 +20,8 @@ from hypercoil.engine import Tensor
 from hypercoil.init.atlasmixins import Reference
 from hypercoil.neuro.const import (
     CIfTIStructures,
-    template_dict
+    template_dict,
+    neuromaps_fetch_fn,
 )
 
 
@@ -189,34 +190,65 @@ class CortexTriSurface:
         )
 
     @classmethod
+    def _from_archive(
+        cls,
+        fetch_fn: callable,
+        coor_query: dict,
+        mask_query: dict,
+        projections: Union[str, Sequence[str]],
+        load_mask: bool,
+    ):
+        if isinstance(projections, str):
+            projections = (projections,)
+        lh, rh = {}, {}
+        for projection in projections:
+            coor_query.update(suffix=projection)
+            lh_path, rh_path = (
+                fetch_fn(**coor_query, hemi="L"),
+                fetch_fn(**coor_query, hemi="R"),
+            )
+            lh[projection] = lh_path
+            rh[projection] = rh_path
+        lh_mask, rh_mask = None, None
+        if load_mask:
+            lh_mask, rh_mask = (
+                fetch_fn(**mask_query, hemi="L"),
+                fetch_fn(**mask_query, hemi="R")
+            )
+        return cls.from_gifti(lh, rh, lh_mask, rh_mask,
+                              projection=projections[0])
+
+    @classmethod
     def from_tflow(
         cls,
         template: str = 'fsLR',
         projections: Union[str, Sequence[str]] = 'veryinflated',
         load_mask: bool = False,
     ):
-        if isinstance(projections, str):
-            projections = (projections,)
         template = template_dict()[template]
-        coor_query = template.TFLOW_COOR_QUERY
-        lh, rh = {}, {}
-        for projection in projections:
-            coor_query.update(suffix=projection)
-            lh_path, rh_path = (
-                tflow.get(**coor_query, hemi='L'),
-                tflow.get(**coor_query, hemi='R')
-            )
-            lh[projection] = lh_path
-            rh[projection] = rh_path
-        lh_mask, rh_mask = None, None
-        if load_mask:
-            mask_query = template.TFLOW_MASK_QUERY
-            lh_mask, rh_mask = (
-                tflow.get(**mask_query, hemi='L'),
-                tflow.get(**mask_query, hemi='R')
-            )
-        return cls.from_gifti(lh, rh, lh_mask, rh_mask,
-                              projection=projections[0])
+        return cls._from_archive(
+            fetch_fn=tflow.get,
+            coor_query=template.TFLOW_COOR_QUERY,
+            mask_query=template.TFLOW_MASK_QUERY,
+            projections=projections,
+            load_mask=load_mask,
+        )
+
+    @classmethod
+    def from_nmaps(
+        cls,
+        template: str = 'fsaverage',
+        projections: Union[str, Sequence[str]] = 'pial',
+        load_mask: bool = False,
+    ):
+        template = template_dict()[template]
+        return cls._from_archive(
+            fetch_fn=neuromaps_fetch_fn,
+            coor_query=template.NMAPS_COOR_QUERY,
+            mask_query=template.NMAPS_MASK_QUERY,
+            projections=projections,
+            load_mask=load_mask,
+        )
 
     @property
     def n_points(self) -> Mapping[str, int]:
@@ -287,6 +319,27 @@ class CortexTriSurface:
             left_slice=slices['left'],
             right_slice=slices['right'],
             default_slices=False,
+            is_masked=is_masked,
+            apply_mask=apply_mask,
+            null_value=null_value,
+        )
+
+    def add_gifti_dataset(
+        self,
+        name: str,
+        left_gifti: Optional[Union[str, nb.gifti.gifti.GiftiImage]] = None,
+        right_gifti: Optional[Union[str, nb.gifti.gifti.GiftiImage]] = None,
+        is_masked: bool = False,
+        apply_mask: bool = True,
+        null_value: Optional[float] = 0.,
+        arr_idx: int = 0,
+    ):
+        left_data = left_gifti.darrays[arr_idx].data if left_gifti else None
+        right_data = right_gifti.darrays[arr_idx].data if right_gifti else None
+        return self.add_vertex_dataset(
+            name=name,
+            left_data=left_data,
+            right_data=right_data,
             is_masked=is_masked,
             apply_mask=apply_mask,
             null_value=null_value,
