@@ -9,12 +9,15 @@ import pyvista as pv
 
 from pkg_resources import resource_filename as pkgrf
 
+import templateflow.api as tflow
+from neuromaps.transforms import mni152_to_fsaverage
+
 from hypercoil.viz.surf import (
     CortexTriSurface,
     make_cmap,
 )
 from hypercoil.viz.surfplot import (
-    plot_surf_labels,
+    plot_surf_scalars,
     plot_to_image,
 )
 
@@ -22,6 +25,34 @@ from hypercoil.viz.surfplot import (
 class TestSurfaceVisualisations:
     @pytest.mark.ci_unsupported
     def test_surf(self):
+        surf = CortexTriSurface.from_nmaps(
+            template="fsaverage",
+            load_mask=True,
+            projections=('pial',)
+        )
+        data = mni152_to_fsaverage(tflow.get(
+            template='MNI152NLin2009cAsym',
+            suffix='probseg',
+            label="GM",
+            resolution=2
+        ))
+        surf.add_gifti_dataset(
+            name='gm_density',
+            left_gifti=data[0],
+            right_gifti=data[1],
+            is_masked=False,
+            apply_mask=True,
+            null_value=None,
+        )
+        pl, pr = plot_surf_scalars(
+            surf,
+            projection='pial',
+            scalars='gm_density',
+            clim=(0.5, 1),
+        )
+        plot_to_image(pl, basename='/tmp/left_density', hemi='left')
+        plot_to_image(pr, basename='/tmp/right_density', hemi='right')
+
         surf = CortexTriSurface.from_tflow(
             load_mask=True,
             projections=('veryinflated', 'inflated', 'sphere')
@@ -76,21 +107,25 @@ class TestSurfaceVisualisations:
         # )
         # pl.show(cpos="yz")
 
-        pl, pr = plot_surf_labels(
+        pl, pr = plot_surf_scalars(
             surf,
             projection='veryinflated',
             scalars='parcellation',
             boundary_color='black',
             boundary_width=5,
+            cmap=(cmap_left, cmap_right),
+            clim=(clim_left, clim_right),
         )
         plot_to_image(pl, basename='/tmp/left', hemi='left')
         plot_to_image(pr, basename='/tmp/right', hemi='right')
-        pl, pr = plot_surf_labels(
+        pl, pr = plot_surf_scalars(
             surf,
             projection='inflated',
             scalars='parcellation',
-            boundary_color='black',
-            boundary_width=5,
+            boundary_color='white',
+            boundary_width=2,
+            cmap=(cmap_left, cmap_right),
+            clim=(clim_left, clim_right),
         )
         plot_to_image(
             pl, basename='/tmp/left', positions=((-20, 0, 0),), hemi='left')

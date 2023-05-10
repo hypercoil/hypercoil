@@ -118,28 +118,30 @@ def cortex_cameras(
     return position
 
 
-def plot_surf_labels(
+def plot_surf_scalars(
     surf: "CortexTriSurface",
     projection: str = "veryinflated",
     scalars: str = "parcellation",
     hemi: Optional[Literal["left", "right"]] = None,
     boundary_color: str = "black",
-    boundary_width: int = 5,
+    boundary_width: int = 0,
     off_screen: bool = True,
+    cmap: Any = (None, None),
+    clim: Any = (None, None),
     theme: Optional[pv.themes.DocumentTheme] = None,
 ) -> Tuple[Optional[pv.Plotter], Optional[pv.Plotter]]:
     """
     Create plotters for the left and right hemispheres of the surface, with
-    discrete labels plotted on top of the surface.
+    specified scalar values plotted on top of the surface.
     """
-    def _plot_labels_hemi(
+    def _plot_scalars_hemi(
         hemi_id: Literal["left", "right"],
         hemi_surf: "ProjectedPolyData",
         hemi_cmap: Any,
         hemi_clim: Tuple[float, float],
     ) -> Optional[pv.Plotter]:
         """
-        Helper function to plot labels for a single hemisphere.
+        Helper function to plot scalars for a single hemisphere.
         """
         if hemi_id not in hemi:
             p = None
@@ -168,14 +170,21 @@ def plot_surf_labels(
         return p
 
     hemi = (hemi,) if hemi is not None else ("left", "right")
-    (cmap_left, clim_left), (cmap_right, clim_right) = make_cmap(
-        surf, 'cmap', scalars)
+    if len(cmap) == 2:
+        cmap_left, cmap_right = cmap
+    else:
+        cmap_left = cmap_right = cmap
+    if len(clim) == 2 and isinstance(clim[0], (tuple, list)):
+        clim_left, clim_right = clim
+    else:
+        clim_left = clim_right = clim
+
     if theme is None:
         theme = cortex_theme()
 
-    pl = _plot_labels_hemi(
+    pl = _plot_scalars_hemi(
         "left", surf.left, cmap_left, clim_left)
-    pr = _plot_labels_hemi(
+    pr = _plot_scalars_hemi(
         "right", surf.right, cmap_right, clim_right)
     return pl, pr
 
