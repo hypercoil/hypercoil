@@ -5,7 +5,6 @@
 Unit tests for surfplot-based visualisations
 """
 import pytest
-import pyvista as pv
 
 from pkg_resources import resource_filename as pkgrf
 
@@ -48,7 +47,6 @@ class TestSurfaceVisualisations:
             surf,
             projection='pial',
             scalars='gm_density',
-            clim=(0.5, 1),
         )
         plot_to_image(pl, basename='/tmp/left_density', hemi='left')
         plot_to_image(pr, basename='/tmp/right_density', hemi='right')

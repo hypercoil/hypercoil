@@ -83,7 +83,7 @@ def plot_embedded_graph(
     projection: Optional[str] = "pial",
     surf_opacity: float = 0.1,
     hemisphere_slack: float = 1.1,
-    off_screen: bool = False,
+    off_screen: bool = True,
     theme: Optional[pv.themes.DocumentTheme] = None,
 ):
     def get_node_color(color):
@@ -212,5 +212,4 @@ def plot_embedded_graph(
             color=get_edge_color(col),
             opacity=1.0,
         )
-    p.show()
-    assert 0
+    return p

@@ -66,6 +66,11 @@ def cortex_view_dict() -> Dict[str, Tuple[Sequence[float], Sequence[float]]]:
             "medial": ((-1, 0, 0), (0, 0, 1)),
             **common,
         },
+        "both": {
+            "left": ((-1, 0, 0), (0, 0, 1)),
+            "right": ((1, 0, 0), (0, 0, 1)),
+            **common,
+        }
     }
 
 
@@ -228,7 +233,10 @@ def plot_to_image(
             for cpos in positions
         ]
     ret = []
-    p.remove_scalar_bar()
+    try:
+        p.remove_scalar_bar()
+    except IndexError:
+        pass
     for cpos, fname in zip(positions, screenshot):
         p.camera.zoom("tight")
         p.show(
