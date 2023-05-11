@@ -16,6 +16,7 @@ from .surf import (
     CortexTriSurface,
     ProjectedPolyData,
     make_cmap,
+    cortex_theme,
 )
 
 
@@ -40,16 +41,6 @@ def half_width(
         (p.bounds[3] - p.bounds[2]) / 2 * slack,
         (p.bounds[5] - p.bounds[4]) / 2 * slack,
     )
-
-
-def cortex_theme() -> Any:
-    """
-    Return a theme for the pyvista plotter for use with the cortex surface
-    plotter.
-    """
-    cortex_theme = pv.themes.DocumentTheme()
-    cortex_theme.transparent_background = True
-    return cortex_theme
 
 
 def cortex_view_dict() -> Dict[str, Tuple[Sequence[float], Sequence[float]]]:

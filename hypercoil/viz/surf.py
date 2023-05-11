@@ -65,7 +65,7 @@ class ProjectedPolyData(pv.PolyData):
     def __init__(
         self,
         *pparams,
-        projection: str,
+        projection: str = None,
         **params
     ):
         super().__init__(*pparams, **params)
@@ -444,6 +444,17 @@ class CortexTriSurface:
             self.right.point_data[sink] = scattered_right
         return (scattered_left, scattered_right)
 
+    def parcel_centres_of_mass(
+        self,
+        parcellation: str,
+        projection: str,
+    ):
+        projection_name = f"_projection_{projection}"
+        return self.parcellate_vertex_dataset(
+            projection_name,
+            parcellation=parcellation
+        )
+
     @staticmethod
     def _hemisphere_darray_impl(data, mask, projection):
         surf = pv.make_tri_mesh(*data[projection])
@@ -569,7 +580,7 @@ def _cmap_impl_hemisphere(
     return cmap, clim
 
 
-def make_cmap(surf, cmap, parcellation, null_value=0):
+def make_cmap(surf, cmap, parcellation, null_value=0, separate=True):
     colours = surf.parcellate_vertex_dataset(cmap, parcellation)
     colours = np.minimum(colours, 1)
     colours = np.maximum(colours, 0)
@@ -588,5 +599,22 @@ def make_cmap(surf, cmap, parcellation, null_value=0):
         colours,
         null_value
     )
+    if separate:
+        return (cmap_left, clim_left), (cmap_right, clim_right)
+    else:
+        #TODO: Rewrite this to skip the unnecessary intermediate blocks above.
+        cmin = min(clim_left[0], clim_right[0])
+        cmax = max(clim_left[1], clim_right[1])
+        cmap = ListedColormap(colours[:, :3])
+        clim = (cmin, cmax)
+        return cmap, clim
 
-    return (cmap_left, clim_left), (cmap_right, clim_right)
+
+def cortex_theme() -> Any:
+    """
+    Return a theme for the pyvista plotter for use with the cortex surface
+    plotter.
+    """
+    cortex_theme = pv.themes.DocumentTheme()
+    cortex_theme.transparent_background = True
+    return cortex_theme
