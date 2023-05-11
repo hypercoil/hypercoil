@@ -85,7 +85,7 @@ def plot_embedded_graph(
     hemisphere_slack: float = 1.1,
     off_screen: bool = True,
     theme: Optional[pv.themes.DocumentTheme] = None,
-):
+) -> pv.Plotter:
     def get_node_color(color):
         # print(color)
         # print(isinstance(color, float))
