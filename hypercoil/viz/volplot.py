@@ -6,36 +6,34 @@ Brain volume plotting
 ~~~~~~~~~~~~~~~~~~~~~
 Brain volume plotting utilities.
 """
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import pyvista as pv
 import numpy as np
 import nibabel as nb
 
-from .surf import CortexTriSurface
+from .surf import CortexTriSurface, cortex_theme
 
 
 def plot_embedded_volume(
+    *,
     surf: "CortexTriSurface",
-    nii: nb.Nifti1Image,
-    threshold: float = 0.0,
+    coor: np.ndarray,
+    val: np.ndarray,
+    voxdim: Sequence,
     projection: Optional[str] = "pial",
-    off_screen: bool = False,
+    off_screen: bool = True,
     surf_opacity: float = 0.3,
     theme: Optional[Any] = None,
     point_size: Optional[float] = None,
     cmap: Optional[str] = None,
     clim: Optional[tuple] = None,
 ):
-    vol = nii.get_fdata()
-    loc = np.where(vol > threshold)
-    val = vol[loc]
-    coor = np.stack(loc)
-    coor = (nii.affine @ np.concatenate(
-        (coor, np.ones((1, coor.shape[-1])))
-    ))[:3]
-    voxdim = nii.header.get_zooms()
-    point_size = point_size or voxdim[0] / 2
+    #TODO: cortex_theme doesn't work here for some reason. If the background
+    #      is transparent, all of the points are also made transparent. So
+    #      we're sticking with a white background for now.
+    theme = theme or pv.themes.DocumentTheme() #cortex_theme()
+    point_size = point_size or min(voxdim[:3])
     p = pv.Plotter(off_screen=off_screen, theme=theme)
 
     surf.left.project(projection)
@@ -64,5 +62,4 @@ def plot_embedded_volume(
         cmap=cmap,
         clim=clim,
     )
-    p.show()
-
+    return p

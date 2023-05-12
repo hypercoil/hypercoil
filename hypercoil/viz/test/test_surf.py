@@ -44,7 +44,7 @@ class TestSurfaceVisualisations:
             null_value=None,
         )
         pl, pr = plot_surf_scalars(
-            surf,
+            surf=surf,
             projection='pial',
             scalars='gm_density',
         )
@@ -126,10 +126,10 @@ class TestSurfaceVisualisations:
             clim=(clim_left, clim_right),
         )
         plot_to_image(
-            pl, basename='/tmp/left', positions=((-20, 0, 0),), hemi='left')
+            pl, basename='/tmp/left', views=((-20, 0, 0),), hemi='left')
         plot_to_image(
             pr, basename='/tmp/right',
-            positions=(((60, 60, 0), (0, 0, 0), (0, 0, 1)),),
+            views=(((60, 60, 0), (0, 0, 0), (0, 0, 1)),),
             hemi='right'
         )
 

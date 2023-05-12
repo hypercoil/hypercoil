@@ -75,7 +75,7 @@ class TestNetworkVisualisations:
         cmap, clim = make_cmap(
             surf, 'cmap', 'parcellation', separate=False)
         p = plot_embedded_graph(
-            surf,
+            surf=surf,
             edge_values=edge_values,
             node_values=node_values,
             node_lh=node_lh,
@@ -86,4 +86,7 @@ class TestNetworkVisualisations:
             node_cmap=cmap,
         )
         plot_to_image(
-            p, basename='/tmp/net', positions=("dorsal", "left"), hemi='both')
+            p, basename='/tmp/net',
+            views=("dorsal", "left", "posterior"),
+            hemi='both'
+        )
