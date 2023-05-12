@@ -115,6 +115,7 @@ def cortex_cameras(
 
 
 def plot_surf_scalars(
+    *,
     surf: "CortexTriSurface",
     projection: str = "veryinflated",
     scalars: str = "parcellation",
@@ -218,26 +219,26 @@ def format_position_as_string(
 
 def plot_to_image(
     p: pv.Plotter,
-    positions: Sequence = ("medial", "lateral", "dorsal", "ventral", "anterior", "posterior"),
+    views: Sequence = ("medial", "lateral", "dorsal", "ventral", "anterior", "posterior"),
     window_size: Tuple[int, int] = (1920, 1080),
     basename: Optional[str] = None,
-    hemi: Optional[Literal["left", "right"]] = None,
+    hemi: Optional[Literal["left", "right", "both"]] = None,
 ) -> Tuple[np.ndarray]:
     off_screen_orig = p.off_screen
     p.off_screen = True
     if basename is None:
-        screenshot = [True] * len(positions)
+        screenshot = [True] * len(views)
     else:
         screenshot = [
             f"{basename}_{format_position_as_string(cpos)}.png"
-            for cpos in positions
+            for cpos in views
         ]
     ret = []
     try:
         p.remove_scalar_bar()
     except IndexError:
         pass
-    for cpos, fname in zip(positions, screenshot):
+    for cpos, fname in zip(views, screenshot):
         p.camera.zoom("tight")
         p.show(
             cpos=cortex_cameras(cpos, plotter=p, hemi=hemi),

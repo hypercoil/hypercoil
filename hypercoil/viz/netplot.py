@@ -64,6 +64,7 @@ def filter_adjacency_data(
 
 
 def plot_embedded_graph(
+    *,
     surf: "CortexTriSurface",
     edge_values: pd.DataFrame,
     node_lh: np.ndarray,
