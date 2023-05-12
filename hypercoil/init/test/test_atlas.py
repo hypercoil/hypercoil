@@ -51,7 +51,9 @@ class TestAtlasInit:
             np.histogram(atlas.ref.dataobj, bins=100, range=(1, 100))[0])
         x, y, z = 84, 62, 13
         assert np.all(
-            atlas.coors[97 * 115 * x + 97 * y + z] / 2 == np.array([x, y, z]))
+            atlas.coors[97 * 115 * x + 97 * y + z] ==
+            (atlas.ref.affine @ np.array([x, y, z, 1]))[:3]
+        )
 
         img = nb.load(ref_pointer)
         aff = img.affine
@@ -92,7 +94,9 @@ class TestAtlasInit:
              for i in range(64)])
         x, y, z = 84, 62, 13
         assert np.all(
-            atlas.coors[123 * 104 * x + 104 * y + z] / 2 == np.array([x, y, z]))
+            atlas.coors[123 * 104 * x + 104 * y + z] ==
+            (atlas.ref.affine @ np.array([x, y, z, 1]))[:3]
+        )
 
         img = nb.load(ref_pointer)
         aff = img.affine
@@ -133,7 +137,9 @@ class TestAtlasInit:
             atlas.ref.dataobj.reshape(-1, 3).sum(0))
         x, y, z = 84, 62, 13
         assert np.all(
-            atlas.coors[97 * 115 * x + 97 * y + z] / 2 == np.array([x, y, z]))
+            atlas.coors[97 * 115 * x + 97 * y + z] ==
+            (atlas.ref.affine @ np.array([x, y, z, 1]))[:3]
+        )
 
         results = pkgrf(
             'hypercoil',
@@ -295,7 +301,9 @@ class TestAtlasInit:
         assert np.all(atlas.maps['eye'].sum(-1) == np.array([1, 5, 1]))
         x, y, z = 84, 62, 13
         assert np.all(
-            atlas.coors[97 * 115 * x + 97 * y + z] / 2 == np.array([x, y, z]))
+            atlas.coors[97 * 115 * x + 97 * y + z] ==
+            (atlas.ref.affine @ np.array([x, y, z, 1]))[:3]
+        )
 
     def test_volumetric_dirichlet_atlas(self):
         gm = tflow.get(
@@ -335,7 +343,9 @@ class TestAtlasInit:
             atlas.maps['all'].sum(-2), 1)
         x, y, z = 84, 62, 13
         assert np.all(
-            atlas.coors[97 * 115 * x + 97 * y + z] / 2 == np.array([x, y, z]))
+            atlas.coors[97 * 115 * x + 97 * y + z] ==
+            (atlas.ref.affine @ np.array([x, y, z, 1]))[:3]
+        )
 
         lin = AtlasLinear.from_atlas(atlas=atlas, key=jax.random.PRNGKey(0))
         mask = atlas.mask.map_to_masked(model_axes=(-2,), model_axis_out=-2)
