@@ -1366,39 +1366,13 @@ class _VolumetricMeshMixin:
         source: Optional[Any] = None,
         names_dict: Optional[Any] = None,
     ) -> None:
-        axes = None
         shape = self.ref.model_shape
-        scale = self.ref.model_zooms
         coors = np.where(np.ones(shape, dtype=bool))
         coors = np.stack(coors, axis=0)
         coors = (self.ref.affine @ np.concatenate(
             (coors, np.ones((1, coors.shape[-1])))
         ))[:3]
         self.coors = jnp.asarray(coors.T)
-        self.topology = OrderedDict(
-            (c, "euclidean") for c in self.compartments.keys()
-        )
-        return
-        for i, ax in enumerate(shape[::-1]):
-            extra_dims = [...] + [None] * i
-            ax = np.arange(ax) # * scale[i]  [extra_dims]
-            if axes is not None:
-                out_shape_new = (1, *ax.shape, *axes.shape[1:])
-                out_shape_old = (i, *ax.shape, *axes.shape[1:])
-                axes = np.concatenate(
-                    (
-                        np.broadcast_to(ax[tuple(extra_dims)], out_shape_new),
-                        np.broadcast_to(
-                            np.expand_dims(axes, 1), out_shape_old
-                        ),
-                    ),
-                    axis=0,
-                )
-            else:
-                axes = np.expand_dims(ax, 0)
-        self.coors = jnp.asarray(
-            axes.reshape(i + 1, -1).T,
-        )
         self.topology = OrderedDict(
             (c, "euclidean") for c in self.compartments.keys()
         )
