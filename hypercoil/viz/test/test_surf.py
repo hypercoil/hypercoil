@@ -15,10 +15,8 @@ from hypercoil.viz.surf import (
     CortexTriSurface,
     make_cmap,
 )
-from hypercoil.viz.surfplot import (
-    plot_surf_scalars,
-    plot_to_image,
-)
+from hypercoil.viz.surfplot import plot_surf_scalars
+from hypercoil.viz.utils import plot_to_image
 
 
 class TestSurfaceVisualisations:
@@ -106,7 +104,7 @@ class TestSurfaceVisualisations:
         # pl.show(cpos="yz")
 
         pl, pr = plot_surf_scalars(
-            surf,
+            surf=surf,
             projection='veryinflated',
             scalars='parcellation',
             boundary_color='black',
@@ -117,7 +115,7 @@ class TestSurfaceVisualisations:
         plot_to_image(pl, basename='/tmp/left', hemi='left')
         plot_to_image(pr, basename='/tmp/right', hemi='right')
         pl, pr = plot_surf_scalars(
-            surf,
+            surf=surf,
             projection='inflated',
             scalars='parcellation',
             boundary_color='white',

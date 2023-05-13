@@ -14,13 +14,11 @@ from hypercoil.viz.surf import (
     CortexTriSurface,
     make_cmap,
 )
-from hypercoil.viz.surfplot import (
-    plot_to_image,
-)
 from hypercoil.viz.netplot import (
     plot_embedded_graph,
     filter_adjacency_data,
 )
+from hypercoil.viz.utils import plot_to_image
 
 
 class TestNetworkVisualisations:

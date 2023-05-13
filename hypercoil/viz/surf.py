@@ -608,13 +608,3 @@ def make_cmap(surf, cmap, parcellation, null_value=0, separate=True):
         cmap = ListedColormap(colours[:, :3])
         clim = (cmin, cmax)
         return cmap, clim
-
-
-def cortex_theme() -> Any:
-    """
-    Return a theme for the pyvista plotter for use with the cortex surface
-    plotter.
-    """
-    cortex_theme = pv.themes.DocumentTheme()
-    cortex_theme.transparent_background = True
-    return cortex_theme

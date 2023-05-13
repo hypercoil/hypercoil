@@ -10,9 +10,9 @@ from typing import Any, Optional, Sequence
 
 import pyvista as pv
 import numpy as np
-import nibabel as nb
 
-from .surf import CortexTriSurface, cortex_theme
+from .surf import CortexTriSurface
+from .utils import cortex_theme
 
 
 def plot_embedded_volume(

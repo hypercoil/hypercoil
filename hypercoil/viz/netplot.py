@@ -6,21 +6,15 @@ Brain network plotting
 ~~~~~~~~~~~~~~~~~~~~~~
 Brain network plotting utilities.
 """
-from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import pyvista as pv
 import pandas as pd
-from pyvista.plotting.helpers import view_vectors
 from matplotlib.cm import get_cmap
 
-from ..functional.matrix import sym2vec
-from .surf import (
-    CortexTriSurface,
-    ProjectedPolyData,
-    make_cmap,
-    cortex_theme,
-)
+from .surf import CortexTriSurface
+from .utils import cortex_theme
 
 
 def filter_adjacency_data(

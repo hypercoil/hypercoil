@@ -13,24 +13,27 @@ from hypercoil.init.atlas import MultifileVolumetricAtlas
 from hypercoil.viz.surf import (
     CortexTriSurface,
 )
-from hypercoil.viz.surfplot import (
-    plot_to_image, plot_to_display,
+from hypercoil.viz.utils import (
+    plot_to_image,
+    plot_to_display,
 )
 from hypercoil.viz.volplot import (
     plot_embedded_volume,
 )
-from hypercoil.viz.utils import (
-    vol_from_nifti,
-    vol_from_atlas,
+from hypercoil.viz.flows import (
     apply_along_axis,
     source_chain,
     sink_chain,
     transform_chain,
+    split_chain,
+    map_over_sequence,
+)
+from hypercoil.viz.transforms import (
+    vol_from_nifti,
+    vol_from_atlas,
     row_major_grid,
     col_major_grid,
     save_fig,
-    split_chain,
-    map_over_sequence,
 )
 
 
@@ -53,7 +56,11 @@ class TestVolumeVisualisations:
         )
         #plot_to_display(p)
         plot_to_image(
-            p, basename='/tmp/vol', views=("dorsal", "left", "anterior"), hemi='both')
+            p,
+            basename='/tmp/vol',
+            views=("dorsal", "left", "anterior"),
+            hemi='both'
+        )
 
         atlas = MultifileVolumetricAtlas(
             ref_pointer=[tflow.get(
@@ -75,8 +82,12 @@ class TestVolumeVisualisations:
             ),
             map_over_sequence(
                 xfm=save_fig(),
-                mapping={"filename": ("/tmp/probseg_row.png", "/tmp/probseg_col.png")},
-                output_name="fig",
+                mapping={
+                    "filename": (
+                        "/tmp/probseg_row.png",
+                        "/tmp/probseg_col.png",
+                    )
+                },
             ),
         )
         f = transform_chain(plot_embedded_volume, src_chain, snk_chain)
@@ -87,4 +98,3 @@ class TestVolumeVisualisations:
             views=("dorsal", "left", "anterior"),
             hemi="both",
         )
-        assert 0
