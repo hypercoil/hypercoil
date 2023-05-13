@@ -17,37 +17,48 @@ from hypercoil.viz.surf import (
 )
 from hypercoil.viz.surfplot import plot_surf_scalars
 from hypercoil.viz.utils import plot_to_image
+from hypercoil.viz.flows import (
+    source_chain,
+    sink_chain,
+    transform_chain,
+    map_over_sequence,
+)
+from hypercoil.viz.transforms import (
+    surf_from_archive,
+    resample_to_surface,
+    plot_and_save,
+)
 
 
 class TestSurfaceVisualisations:
     @pytest.mark.ci_unsupported
     def test_surf(self):
-        surf = CortexTriSurface.from_nmaps(
+        src_chain = source_chain(
+            surf_from_archive(),
+            resample_to_surface('gm_density', template='fsaverage'),
+        )
+        snk_chain = sink_chain(
+            map_over_sequence(
+                xfm=plot_and_save(),
+                mapping={
+                    "basename": ('/tmp/left_density', '/tmp/right_density'),
+                    "hemi": ('left', 'right'),
+                }
+            )
+        )
+        f = transform_chain(plot_surf_scalars, src_chain, snk_chain)
+        f(
             template="fsaverage",
             load_mask=True,
-            projections=('pial',)
-        )
-        data = mni152_to_fsaverage(tflow.get(
-            template='MNI152NLin2009cAsym',
-            suffix='probseg',
-            label="GM",
-            resolution=2
-        ))
-        surf.add_gifti_dataset(
-            name='gm_density',
-            left_gifti=data[0],
-            right_gifti=data[1],
-            is_masked=False,
-            apply_mask=True,
-            null_value=None,
-        )
-        pl, pr = plot_surf_scalars(
-            surf=surf,
+            nii=tflow.get(
+                template='MNI152NLin2009cAsym',
+                suffix='probseg',
+                label="GM",
+                resolution=2
+            ),
             projection='pial',
             scalars='gm_density',
         )
-        plot_to_image(pl, basename='/tmp/left_density', hemi='left')
-        plot_to_image(pr, basename='/tmp/right_density', hemi='right')
 
         surf = CortexTriSurface.from_tflow(
             load_mask=True,

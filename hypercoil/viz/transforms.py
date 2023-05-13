@@ -13,12 +13,96 @@ from math import ceil
 from typing import Literal, Mapping, Optional, Sequence, Tuple, Union
 import numpy as np
 import nibabel as nb
+from neuromaps.transforms import mni152_to_fsaverage, mni152_to_fslr
 import matplotlib.pyplot as plt
 import pyvista as pv
 
 from hypercoil.init.atlas import BaseAtlas
-from .utils import plot_to_image
 from .flows import direct_transform
+from .surf import CortexTriSurface
+from .utils import plot_to_image
+
+
+def surf_from_archive(
+    allowed: Sequence[str] = ("templateflow", "neuromaps")
+) -> callable:
+    archives = {
+        "templateflow": CortexTriSurface.from_tflow,
+        "neuromaps": CortexTriSurface.from_nmaps
+    }
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(
+            template: str,
+            load_mask: bool,
+            projections: Sequence[str],
+        ):
+            for a in allowed:
+                constructor = archives[a]
+                try:
+                    surf = constructor(
+                        template=template,
+                        load_mask=load_mask,
+                        projections=projections,
+                    )
+                except Exception:
+                    continue
+            return {"surf": surf}
+
+        def f_transformed(
+            *,
+            template: str = "fsLR",
+            load_mask: bool = True,
+            **params: Mapping,
+        ):
+            try:
+                projections = (params["projection"],)
+            except KeyError:
+                projections = ("veryinflated",)
+            return xfm(f, transformer_f, unpack_dict=True)(**params)(
+                template=template,
+                load_mask=load_mask,
+                projections=projections,
+            )
+
+        return f_transformed
+    return transform
+
+
+def resample_to_surface(
+    scalar_name: str,
+    template: str = "fsLR",
+) -> callable:
+    templates = {
+        "fsLR": mni152_to_fslr,
+        "fsaverage": mni152_to_fsaverage,
+    }
+    f_resample = templates[template]
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(nii: nb.Nifti1Image, surf: CortexTriSurface):
+            data = f_resample(nii)
+            surf.add_gifti_dataset(
+                name=scalar_name,
+                left_gifti=data[0],
+                right_gifti=data[1],
+                is_masked=False,
+                apply_mask=True,
+                null_value=None,
+            )
+            return {"surf": surf}
+
+        def f_transformed(
+            *,
+            nii: nb.Nifti1Image,
+            surf: CortexTriSurface,
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f, unpack_dict=True)(**params)(
+                nii=nii,
+                surf=surf,
+            )
+
+        return f_transformed
+    return transform
 
 
 #TODO: replace threshold arg with the option to provide one of our hypermaths
@@ -193,6 +277,47 @@ def col_major_grid(
         tight_layout=tight_layout,
         order="col-major",
     )
+
+
+def plot_and_save():
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(
+            pl: pv.Plotter,
+            basename: str,
+            views: Sequence,
+            window_size: Tuple[int, int],
+            hemi: Optional[Literal["left", "right", "both"]],
+            **params,
+        ):
+            imgs = plot_to_image(
+                pl,
+                basename=basename,
+                views=views,
+                window_size=window_size,
+                hemi=hemi,
+            )
+            return imgs
+
+        def f_transformed(
+            *,
+            basename: str = None,
+            views: Sequence = (
+                "medial", "lateral", "dorsal",
+                "ventral", "anterior", "posterior",
+            ),
+            window_size: Tuple[int, int] = (1300, 1000),
+            hemi: Optional[Literal["left", "right", "both"]] = None,
+            **params,
+        ):
+            return xfm(transformer_f, f)(
+                basename=basename,
+                views=views,
+                window_size=window_size,
+                hemi=hemi,
+            )(**params)
+
+        return f_transformed
+    return transform
 
 
 def save_fig():
