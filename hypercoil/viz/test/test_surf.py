@@ -22,11 +22,14 @@ from hypercoil.viz.flows import (
     sink_chain,
     transform_chain,
     map_over_sequence,
+    split_chain,
 )
 from hypercoil.viz.transforms import (
     surf_from_archive,
     resample_to_surface,
     plot_and_save,
+    scalars_from_cifti,
+    parcellate_colormap,
 )
 
 
@@ -60,86 +63,42 @@ class TestSurfaceVisualisations:
             scalars='gm_density',
         )
 
-        surf = CortexTriSurface.from_tflow(
+        src_chain = source_chain(
+            surf_from_archive(),
+            scalars_from_cifti('parcellation'),
+            parcellate_colormap('network', 'parcellation')
+        )
+        snk_chain = sink_chain(
+            split_chain(
+                map_over_sequence(
+                    xfm=plot_and_save(),
+                    mapping={
+                        "basename": ('/tmp/left', '/tmp/right'),
+                        "hemi": ('left', 'right'),
+                    }
+                ),
+                map_over_sequence(
+                    xfm=plot_and_save(),
+                    mapping={
+                        "basename": ('/tmp/left', '/tmp/right'),
+                        "hemi": ('left', 'right'),
+                        "views": (((-20, 0, 0),), (((60, 60, 0), (0, 0, 0), (0, 0, 1)),))
+                    }
+                ),
+            )
+        )
+        f = transform_chain(plot_surf_scalars, src_chain, snk_chain)
+        f(
+            template="fsLR",
             load_mask=True,
-            projections=('veryinflated', 'inflated', 'sphere')
-        )
-        parcellation = '/Users/rastkociric/Downloads/desc-schaefer_res-0400_atlas.nii'
-        parcellation = '/Users/rastkociric/Downloads/glasser.nii'
-        parcellation = '/Users/rastkociric/Downloads/gordon.nii'
-        parcellation = pkgrf(
-            'hypercoil',
-            'viz/resources/nullexample.nii'
-        )
-        surf.add_cifti_dataset(
-            name='parcellation',
-            cifti=parcellation,
-            is_masked=True,
-            apply_mask=False,
-            null_value=None,
-        )
-
-        cmap = pkgrf(
-            'hypercoil',
-            'viz/resources/cmap_network.nii'
-        )
-        surf.add_cifti_dataset(
-            name='cmap',
-            cifti=cmap,
-            is_masked=True,
-            apply_mask=False,
-            null_value=0.
-        )
-
-        (cmap_left, clim_left), (cmap_right, clim_right) = make_cmap(
-            surf, 'cmap', 'parcellation')
-
-        # pl = pv.Plotter()
-        # surf.left.project('veryinflated')
-        # pl.add_mesh(
-        #     surf.left,
-        #     opacity=1.0,
-        #     show_edges=False,
-        #     scalars='parcellation',
-        #     cmap=cmap_left,
-        #     clim=clim_left,
-        #     below_color='black',
-        # )
-        # pl.add_mesh(
-        #     surf.left.contour(
-        #         isosurfaces=range(int(max(surf.left.point_data['parcellation'])))
-        #     ),
-        #     color="black",
-        #     line_width=5
-        # )
-        # pl.show(cpos="yz")
-
-        pl, pr = plot_surf_scalars(
-            surf=surf,
+            cifti=pkgrf(
+                'hypercoil',
+                'viz/resources/nullexample.nii'
+            ),
             projection='veryinflated',
             scalars='parcellation',
             boundary_color='black',
             boundary_width=5,
-            cmap=(cmap_left, cmap_right),
-            clim=(clim_left, clim_right),
-        )
-        plot_to_image(pl, basename='/tmp/left', hemi='left')
-        plot_to_image(pr, basename='/tmp/right', hemi='right')
-        pl, pr = plot_surf_scalars(
-            surf=surf,
-            projection='inflated',
-            scalars='parcellation',
-            boundary_color='white',
-            boundary_width=2,
-            cmap=(cmap_left, cmap_right),
-            clim=(clim_left, clim_right),
-        )
-        plot_to_image(
-            pl, basename='/tmp/left', views=((-20, 0, 0),), hemi='left')
-        plot_to_image(
-            pr, basename='/tmp/right',
-            views=(((60, 60, 0), (0, 0, 0), (0, 0, 1)),),
-            hemi='right'
         )
 
     # @pytest.fixture(autouse=True)

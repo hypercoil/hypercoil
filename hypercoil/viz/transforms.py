@@ -10,6 +10,7 @@ visualisation functions.
 """
 from itertools import chain
 from math import ceil
+from pkg_resources import resource_filename as pkgrf
 from typing import Literal, Mapping, Optional, Sequence, Tuple, Union
 import numpy as np
 import nibabel as nb
@@ -19,7 +20,7 @@ import pyvista as pv
 
 from hypercoil.init.atlas import BaseAtlas
 from .flows import direct_transform
-from .surf import CortexTriSurface
+from .surf import CortexTriSurface, make_cmap
 from .utils import plot_to_image
 
 
@@ -68,6 +69,36 @@ def surf_from_archive(
     return transform
 
 
+def scalars_from_cifti(
+    scalar_name: str,
+    is_masked: bool = True,
+    apply_mask: bool = False,
+    null_value: Optional[float] = None,
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(surf: CortexTriSurface, cifti: nb.Cifti2Image):
+            surf.add_cifti_dataset(
+                name=scalar_name,
+                cifti=cifti,
+                is_masked=is_masked,
+                apply_mask=apply_mask,
+                null_value=null_value,
+            )
+            return {"surf": surf}
+
+        def f_transformed(
+            *,
+            surf: CortexTriSurface,
+            cifti: nb.Cifti2Image,
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f, unpack_dict=True)(
+                **params)(cifti=cifti, surf=surf)
+
+        return f_transformed
+    return transform
+
+
 def resample_to_surface(
     scalar_name: str,
     template: str = "fsLR",
@@ -105,6 +136,48 @@ def resample_to_surface(
     return transform
 
 
+def parcellate_colormap(
+    cmap_name: str,
+    parcellation_name: str,
+) -> callable:
+    cmaps = {
+        "network": "viz/resources/cmap_network.nii",
+        "modal": "viz/resources/cmap_modal.nii",
+    }
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(surf: CortexTriSurface):
+            cmap = pkgrf(
+                'hypercoil',
+                cmaps[cmap_name]
+            )
+            surf.add_cifti_dataset(
+                name=f'cmap_{cmap_name}',
+                cifti=cmap,
+                is_masked=True,
+                apply_mask=False,
+                null_value=0.
+            )
+
+            (cmap_left, clim_left), (cmap_right, clim_right) = make_cmap(
+                surf, f'cmap_{cmap_name}', parcellation_name)
+
+            return{
+                'surf': surf,
+                'cmap': (cmap_left, cmap_right),
+                'clim': (clim_left, clim_right),
+            }
+
+        def f_transformed(
+            *,
+            surf: CortexTriSurface,
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f, unpack_dict=True)(**params)(surf=surf)
+
+        return f_transformed
+    return transform
+
+
 #TODO: replace threshold arg with the option to provide one of our hypermaths
 #      expressions.
 def vol_from_nifti(
@@ -114,7 +187,7 @@ def vol_from_nifti(
     return_voxdim: bool = True,
 ) -> callable:
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
-        def transformer_f(nii: nb.Nifti1Image):
+        def transformer_f(nii: nb.Nifti1Image) -> Mapping:
             vol = nii.get_fdata()
             loc = np.where(vol > threshold)
             ret = {}
