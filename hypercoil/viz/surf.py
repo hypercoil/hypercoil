@@ -17,6 +17,10 @@ from dataclasses import dataclass
 from typing import Any, Literal, Mapping, Optional, Sequence, Tuple, Union
 from matplotlib.colors import ListedColormap
 from hypercoil.engine import Tensor
+from hypercoil.functional.sphere import (
+    _euc_dist,
+    spherical_geodesic,
+)
 from hypercoil.init.atlasmixins import Reference
 from hypercoil.neuro.const import (
     CIfTIStructures,
@@ -563,6 +567,51 @@ class CortexTriSurface:
             parcellation=parcellation,
         )
         return parcellation @ data[:parcellation.shape[-1]]
+
+    def poles(self, hemisphere: str) -> Tensor:
+        if hemisphere == "left":
+            pole_names = (
+                "lateral", "posterior", "ventral",
+                "medial", "anterior", "dorsal"
+            )
+        elif hemisphere == "right":
+            pole_names = (
+                "medial", "posterior", "ventral",
+                "lateral", "anterior", "dorsal"
+            )
+        coors = self.__getattribute__(hemisphere).points
+        pole_index = np.concatenate((
+            coors.argmin(axis=0),
+            coors.argmax(axis=0)
+        ))
+        poles = coors[pole_index]
+        return dict(zip(pole_names, poles))
+
+    def closest_poles(
+        self,
+        hemisphere: str,
+        coors: Tensor,
+        metric: str = "euclidean",
+        n_poles: int = 1,
+    ) -> Tensor:
+        poles = self.poles(hemisphere)
+        poles_coors = np.array(list(poles.values()))
+        if metric == "euclidean":
+            dists = _euc_dist(coors, poles_coors)
+        elif metric == "spherical":
+            proj = self.projection
+            self.__getattribute__(hemisphere).project("sphere")
+            dists = spherical_geodesic(coors, poles_coors)
+            self.__getattribute__(hemisphere).project(proj)
+        #TODO: add case for the geodesic on the manifold as implemented in
+        #      PyVista/VTK.
+        else:
+            raise ValueError(
+                f"Metric must currently be either euclidean or spherical, "
+                f"but {metric} was given.")
+        pole_index = np.argsort(dists, axis=1)[:, :n_poles]
+        pole_names = np.array(list(poles.keys()))
+        return pole_names[pole_index]
 
 
 def _cmap_impl_hemisphere(
