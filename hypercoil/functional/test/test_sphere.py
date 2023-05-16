@@ -7,8 +7,8 @@ Unit tests for spatial convolution on certain manifold-y things.
 import pytest
 import numpy as np
 import jax.numpy as jnp
-from distrax import Normal
 from functools import partial
+from numpyro.distributions import Normal
 from scipy.ndimage import gaussian_filter1d
 from sklearn.metrics.pairwise import haversine_distances
 from hypercoil.functional.sphere import *

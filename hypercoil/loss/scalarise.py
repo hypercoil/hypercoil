@@ -364,7 +364,7 @@ def wmean(
     Rank-reducing function for scalarisation maps: weighted mean.
 
     >>> wmean(jnp.array([1, 2, 3]), jnp.array([1, 0, 1]))
-    DeviceArray(2., dtype=float32)
+    Array(2., dtype=float32)
 
     >>> wmean(
     ...     jnp.array([[1, 2, 3],
@@ -373,7 +373,7 @@ def wmean(
     ...     jnp.array([1, 0, 1]),
     ...     axis=0
     ... )
-    DeviceArray([1., 2., 3.], dtype=float32)
+    Array([1., 2., 3.], dtype=float32)
 
     >>> wmean(
     ...     jnp.array([[1, 2, 3],
@@ -383,7 +383,7 @@ def wmean(
     ...     axis=1,
     ...     keepdims=True
     ... )
-    DeviceArray([[2.],
+    Array([[2.],
                  [2.],
                  [2.]], dtype=float32)
     """

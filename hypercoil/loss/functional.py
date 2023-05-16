@@ -14,7 +14,6 @@ from typing import Callable, Literal, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-from distrax._src.utils.math import mul_exp
 
 from ..engine import NestedDocParse, Tensor, vmap_over_outer
 from ..functional import (
@@ -653,6 +652,15 @@ def entropy_logit(
     return entropy(probs, axis=axis, keepdims=keepdims, reduce=reduce)
 
 
+def _mul_exp(x: Tensor, logp: Tensor) -> Tensor:
+    """
+    Shamelessly pilfered from ``distrax``.
+    """
+    p = jnp.exp(logp)
+    x = jnp.where(p == 0, 0.0, x)
+    return x * p
+
+
 @document_entropy
 def kl_divergence(
     P: Tensor,
@@ -679,7 +687,7 @@ def kl_divergence(
     eps = jnp.finfo(P.dtype).eps
     P = jnp.log(P + eps)
     Q = jnp.log(Q + eps)
-    kl_div = mul_exp(P - Q, P)
+    kl_div = _mul_exp(P - Q, P)
     if not reduce:
         return kl_div
     return kl_div.sum(axis=axis, keepdims=keepdims)
@@ -710,7 +718,7 @@ def kl_divergence_logit(
     """
     P = jax.nn.log_softmax(P, axis=axis)
     Q = jax.nn.log_softmax(Q, axis=axis)
-    kl_div = mul_exp(P - Q, P)
+    kl_div = _mul_exp(P - Q, P)
     if not reduce:
         return kl_div
     return kl_div.sum(axis=axis, keepdims=keepdims)

@@ -313,7 +313,7 @@ def corrnorm(
     \
     {corrnorm_spec}
     """
-    if isinstance(factor, jnp.DeviceArray):
+    if isinstance(factor, jax.Array):
         return input / factor
     elif factor is not None:
         factor = jnp.outer(factor[0], factor[1]) + jnp.finfo(input.dtype).eps

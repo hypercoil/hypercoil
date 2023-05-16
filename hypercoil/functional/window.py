@@ -9,7 +9,7 @@ from typing import Callable, Generator, Sequence
 
 import jax
 import jax.numpy as jnp
-import distrax
+from numpyro.distributions import Multinomial
 
 from ..engine import Tensor
 
@@ -73,10 +73,10 @@ def _select_fn_no_overlap(
     key: "jax.random.PRNGKey",
 ) -> Tensor:
     unused_size = input_size - window_size * num_windows
-    intervals = distrax.Multinomial(
+    intervals = Multinomial(
         total_count=unused_size,
         probs=jnp.ones(num_windows + 1) / (num_windows + 1),
-    ).sample(seed=key)
+    ).sample(key=key)
     start = jnp.arange(num_windows + 1) * window_size + jnp.cumsum(intervals)
     return start[:-1]
 

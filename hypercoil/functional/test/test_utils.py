@@ -11,7 +11,7 @@ from hypercoil.functional.utils import (
     apply_mask, conform_mask, mask_tensor,
 )
 #TODO: Move these tests!
-from distrax import MultivariateNormalFullCovariance
+from numpyro.distributions import MultivariateNormal
 from hypercoil.engine import (
     sample_multivariate,
 )
@@ -73,7 +73,7 @@ class TestUtils:
         mu = np.array([100, 0, -100])
         sigma = np.random.randn(3, 3)
         sigma = sigma @ sigma.T
-        distr = MultivariateNormalFullCovariance(mu, sigma)
+        distr = MultivariateNormal(mu, sigma)
         out = sample_multivariate(
             distr=distr,
             shape=(2, 3, 100),
@@ -84,7 +84,7 @@ class TestUtils:
         assert np.all(np.abs(out.mean((0, -1)) - mu) < 0.5)
 
         mu = np.array([100, 100, 100])
-        distr = MultivariateNormalFullCovariance(mu, sigma)
+        distr = MultivariateNormal(mu, sigma)
         out = sample_multivariate(
             distr=distr,
             shape=(2, 3, 100),

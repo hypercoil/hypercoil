@@ -7,15 +7,15 @@ Miscellaneous utility functions for neural network parameters.
 from __future__ import annotations
 from typing import Any, Union
 
-import jax.numpy as jnp
-import distrax
+import jax
+from numpyro.distributions import Distribution as Distr
 import numpy as np
 
 
 # TODO: replace with jaxtyping at some point
-Tensor = Union[jnp.DeviceArray, np.ndarray]
+Tensor = Union[jax.Array, np.ndarray]
 PyTree = Any
-Distribution = distrax.Distribution
+Distribution = Distr
 
 
 # From ``equinox``:

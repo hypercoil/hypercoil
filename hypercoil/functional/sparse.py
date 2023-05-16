@@ -494,7 +494,7 @@ def block_serialise(
 
 # So it turns out that carrying the shape of the output is not possible with
 # JIT compilation. Shapes must be static, but accumulating the shape of the
-# output through a lax scan wraps it into a DeviceArray. So keeping it static
+# output through a lax scan wraps it into an Array. So keeping it static
 # is not possible. This means that we must require the caller to pass the
 # shape of the output.
 # def _shape_carrier(carry, _, retvals, retnums=(0,), axes=(-1,)):
