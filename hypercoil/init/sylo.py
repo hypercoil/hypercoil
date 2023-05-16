@@ -10,7 +10,7 @@ from typing import Callable, Literal, Optional, Tuple, Type, Union
 
 import jax
 import jax.numpy as jnp
-import distrax
+from numpyro.distributions import Normal, Uniform
 
 from ..engine import PyTree, Tensor
 from .base import MappedInitialiser, retrieve_address
@@ -77,18 +77,18 @@ def sylo_init(
     # Right now it's outside since we'd rather the std explode than vanish...
     std = gain / math.sqrt(math.sqrt(fan_crosshair * fan_expansion))
     if init_distr == "normal":
-        distr = distrax.Normal(loc=0, scale=std)
+        distr = Normal(loc=0, scale=std)
     elif init_distr == "uniform":
         bound = math.sqrt(3.0) * std
-        distr = distrax.Uniform(low=-bound, high=bound)
+        distr = Uniform(low=-bound, high=bound)
 
     if psd:
-        return distr.sample(seed=key, sample_shape=shape)
+        return distr.sample(key=key, sample_shape=shape)
     else:
         key_L, key_R = jax.random.split(key)
         return (
-            distr.sample(seed=key_L, sample_shape=shape),
-            distr.sample(seed=key_R, sample_shape=shape_R),
+            distr.sample(key=key_L, sample_shape=shape),
+            distr.sample(key=key_R, sample_shape=shape_R),
         )
 
 
@@ -159,7 +159,7 @@ class SyloInitialiser(MappedInitialiser):
         parameters = retrieve_address(model, where=where)
         keys = jax.random.split(key, len(parameters))
         for key, parameter in zip(keys, parameters):
-            if not isinstance(parameter, jnp.DeviceArray) and not hasattr(
+            if not isinstance(parameter, jax.Array) and not hasattr(
                 parameter, "__jax_array__"
             ):
                 shape = (parameter[0].shape, parameter[1].shape)

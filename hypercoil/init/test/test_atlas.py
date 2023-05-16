@@ -6,7 +6,7 @@ Unit tests for atlas map initialisation
 """
 import jax
 import jax.numpy as jnp
-import distrax
+from numpyro.distributions import Bernoulli
 import equinox as eqx
 import numpy as np
 import nibabel as nb
@@ -365,7 +365,7 @@ class TestAtlasInit:
         lin = StochasticParameter.wrap(
             lin,
             transform=ScalarIIDMulStochasticTransform(
-                distribution=distrax.Bernoulli(probs=0.2),
+                distribution=Bernoulli(probs=0.2),
                 key=jax.random.PRNGKey(0),
             ),
             where='weight$all',
@@ -373,7 +373,7 @@ class TestAtlasInit:
         #TODO: use a noise source applied voxel-wise instead of entry-wise
         empirical = 1 - (lin.weight['all'].__jax_array__() == 0).mean()
         assert jnp.abs(
-            empirical - lin.weight['all'].transform.distribution.mean()
+            empirical - lin.weight['all'].transform.distribution.mean
         ) < 0.05
 
     def test_surface_dirichlet_atlas(self):

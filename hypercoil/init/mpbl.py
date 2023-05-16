@@ -10,7 +10,7 @@ from typing import Any, Callable, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 from jax.nn import softmax
-import distrax
+from numpyro.distributions import Categorical
 
 from ..engine import Tensor
 from ..functional import delete_diagonal, pairedcorr, sym2vec, vec2sym
@@ -109,7 +109,7 @@ def _select_edge(
         potentials[asgt, :][:, candidates].reshape(jnp.sum(asgt), -1), 0
     )
     probs = softmax(u_sum / temperature, axis=0)
-    select = distrax.Categorical(probs=probs).sample(seed=key, sample_shape=())
+    select = Categorical(probs=probs).sample(key=key, sample_shape=())
     return candidates_ids[candidates][select]
 
 
@@ -318,7 +318,7 @@ def maximum_potential_bipartite_lattice(
     else:
         symmetric = True
         n_in, _ = potentials.shape
-        potentials_orig = potentials.clone()
+        potentials_orig = potentials.copy()
         n_edges_allowed = order * jnp.lcm(n_in, n_out)
         n_edges_out = n_edges_allowed // n_out
         n_edges_in = n_edges_allowed // n_in

@@ -9,7 +9,8 @@ from __future__ import annotations
 from typing import Callable, Optional, Sequence, Tuple, Type, Union
 
 import jax
-from distrax import Dirichlet, Distribution
+import jax.numpy as jnp
+from numpyro.distributions import Dirichlet, Distribution
 
 from ..engine import PyTree, Tensor
 from ..engine.noise import sample_multivariate
@@ -74,6 +75,7 @@ class DirichletInitialiser(MappedInitialiser):
             concentration = concentration * num_classes
         else:
             concentration = concentration
+        concentration = jnp.asarray(concentration)
         self.distr = Dirichlet(concentration=concentration)
         self.axis = axis
         super().__init__(mapper=mapper)

@@ -27,7 +27,7 @@ def from_distr_init(
     """
     Sample a tensor from a specified distribution.
 
-    Thin wrapper around ``distrax``.
+    Thin wrapper around ``numpyro``.
 
     Parameters
     ----------
@@ -35,10 +35,10 @@ def from_distr_init(
         Shape of the tensor to populate or initialise from the specified
         distribution.
     distr : Distribution
-        Distrax distribution object from which to sample values used to
+        Numpyro distribution object from which to sample values used to
         populate the tensor.
     """
-    return distr.sample(seed=key, sample_shape=shape)
+    return distr.sample(key=key, sample_shape=shape)
 
 
 def constant_init(

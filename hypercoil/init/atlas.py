@@ -89,8 +89,8 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
-import distrax
 import equinox as eqx
+from numpyro.distributions import Normal
 import templateflow.api as tflow
 
 from ..engine import PyTree, Tensor
@@ -1153,7 +1153,7 @@ def atlas_init(
         deviation is added to the label.
     """
     if noise_sigma is not None:
-        distr = distrax.Normal(0.0, noise_sigma)
+        distr = Normal(0.0, noise_sigma)
         noise = ScalarIIDAddStochasticTransform(distr, key=key)
     else:
         noise = None

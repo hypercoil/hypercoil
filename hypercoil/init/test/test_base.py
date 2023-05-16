@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 import numpy as np
-from distrax import Normal
+from numpyro.distributions import Normal
 from hypercoil.functional.utils import Tensor
 from hypercoil.init.base import (
     DistributionInitialiser, ConstantInitialiser, IdentityInitialiser
@@ -145,7 +145,7 @@ class TestBaseInit:
         model = SyloModulePSD(key=jax.random.PRNGKey(0), in_channels=2,
                                 out_channels=3, dim=10, rank=3)
         model = SyloInitialiser.init(model, key=key, psd=True)
-        assert isinstance(model.weight, jnp.DeviceArray)
+        assert isinstance(model.weight, jax.Array)
         assert model.weight.shape == (3, 2, 10, 3)
         assert np.all(model.weight != 0)
 

@@ -10,8 +10,8 @@ from typing import Callable, Optional, Sequence, Tuple, Type, Union
 
 import jax
 import jax.numpy as jnp
-import distrax
 import equinox as eqx
+from numpyro.distributions import Normal
 
 from hypercoil.engine.docutil import NestedDocParse
 from ..engine import PyTree, Tensor
@@ -131,11 +131,11 @@ def tangency_init(
     if std > 0:
         src = MatrixExponential(
             Symmetric(
-                src_distribution=distrax.Normal(0, 0.01),
+                src_distribution=Normal(0, 0.01),
                 multiplicity=init_data.shape[-1],
             )
         )
-        noise = src.sample(sample_shape=means.shape[:-2], seed=key)
+        noise = src.sample(sample_shape=means.shape[:-2], key=key)
         factor = std / noise.std()
         means = means + factor * noise
     return means

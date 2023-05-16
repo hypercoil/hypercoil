@@ -7,8 +7,8 @@ Unit tests for covariance modules
 import pytest
 import numpy as np
 import jax
-import distrax
 import equinox as eqx
+from numpyro.distributions import Normal, Bernoulli
 from hypercoil.engine.noise import (
     StochasticParameter,
     Diagonal, Symmetric, MatrixExponential,
@@ -43,7 +43,7 @@ class TestCovNN:
         self.X = jax.random.uniform(key=xkey, shape=(4, 13, self.n))
         self.Y = jax.random.uniform(key=ykey, shape=(4, 7, self.n))
 
-        inner_distr = distrax.Normal(3, 1)
+        inner_distr = Normal(3, 1)
         distr = Diagonal(
             src_distribution=inner_distr,
             multiplicity=self.n,
@@ -56,7 +56,7 @@ class TestCovNN:
             key=srckey
         )
 
-        inner_distr = distrax.Bernoulli(probs=0.3)
+        inner_distr = Bernoulli(probs=0.3)
         self.bds = ScalarIIDMulStochasticTransform(
             distribution=inner_distr, key=srckey)
         distr = Diagonal(

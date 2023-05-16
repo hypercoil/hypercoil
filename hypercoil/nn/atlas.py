@@ -10,8 +10,8 @@ from typing import Callable, Dict, Literal, Optional, Tuple, Type
 
 import jax
 import jax.numpy as jnp
-import distrax
 import equinox as eqx
+from numpyro.distributions import Dirichlet
 
 from ..engine import NestedDocParse, PyTree, Tensor
 from ..engine.paramutil import _to_jax_array
@@ -141,7 +141,7 @@ class AtlasLinear(eqx.Module):
 
         self.weight = {
             c: (
-                distrax.Dirichlet(
+                Dirichlet(
                     concentration=(50 * jnp.ones(n_labels[c])),
                 )
                 .sample(
@@ -193,7 +193,7 @@ class AtlasLinear(eqx.Module):
         truncate: Optional[float] = None,
         kernel_sigma: Optional[float] = None,
         noise_sigma: Optional[float] = None,
-        param_name: str = "weight",
+        where: str = "weight",
         key: "jax.random.PRNGKey",
         **params,
     ) -> PyTree:
@@ -242,7 +242,7 @@ class AtlasLinear(eqx.Module):
             truncate=truncate,
             kernel_sigma=kernel_sigma,
             noise_sigma=noise_sigma,
-            param_name=param_name,
+            where=where,
             key=i_key,
             **params,
         )
