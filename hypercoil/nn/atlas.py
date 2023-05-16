@@ -145,8 +145,8 @@ class AtlasLinear(eqx.Module):
                     concentration=(50 * jnp.ones(n_labels[c])),
                 )
                 .sample(
-                    seed=k,
-                    sample_shape=n_locations[c],
+                    key=k,
+                    sample_shape=(n_locations[c],),
                 )
                 .swapaxes(-2, -1)
                 if n_labels[c] > 1

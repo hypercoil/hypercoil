@@ -9,8 +9,8 @@ Simple experiments using covariance modules. Basically, state detection.
 """
 import jax
 import jax.numpy as jnp
-import distrax
 import equinox as eqx
+from numpyro.distributions import Uniform
 import optax
 from functools import partial
 from typing import Callable, Mapping, Optional, Tuple
@@ -92,7 +92,7 @@ def state_detection_experiment(
         key=key_m,
     )
     model = DistributionInitialiser.init(
-        model, distribution=distrax.Uniform(0.45, 0.55), key=key_m,
+        model, distribution=Uniform(0.45, 0.55), key=key_m,
     )
     opt = optax.adam(learning_rate=lr)
     opt_state = opt.init(eqx.filter(model, eqx.is_inexact_array))
@@ -197,7 +197,7 @@ def unsupervised_state_detection_experiment(
         )
         model = DistributionInitialiser.init(
             model,
-            distribution=distrax.Uniform(0.45, 0.55),
+            distribution=Uniform(0.45, 0.55),
             key=key_m,
         )
         model = ProbabilitySimplexParameter.map(model, axis=0)
@@ -359,8 +359,8 @@ def unsupervised_state_detection_experiment(
 
         key_mi, key_mg = jax.random.split(key_m, 2)
         individual_model = jnp.log(
-            distrax.Uniform(0.45, 0.55).sample(
-                seed=key_mi,
+            Uniform(0.45, 0.55).sample(
+                key=key_mi,
                 sample_shape=(subject_dim, n_states, 1, time_dim)
             )
         )

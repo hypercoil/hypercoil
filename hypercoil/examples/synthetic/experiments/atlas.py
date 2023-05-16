@@ -10,8 +10,8 @@ Simple experiments on parcellated ground truth datasets.
 import jax
 import jax.numpy as jnp
 import optax
-import distrax
 import equinox as eqx
+from numpyro.distributions import Uniform
 from typing import Optional, Union
 from matplotlib.pyplot import close
 from hypercoil.engine.paramutil import _to_jax_array
@@ -161,7 +161,7 @@ def atlas_experiment(
     else:
         model = DistributionInitialiser.init(
             model,
-            distribution=distrax.Uniform(0, 1),
+            distribution=Uniform(0, 1),
             where='weight$all',
             key=key_m)
         X = ts

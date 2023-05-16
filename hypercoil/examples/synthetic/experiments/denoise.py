@@ -10,7 +10,7 @@ Simple experiments in artefact removal.
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-import distrax
+from numpyro.distributions import Uniform
 import optax
 import matplotlib.pyplot as plt
 from typing import Callable, Literal, Optional, Tuple
@@ -126,7 +126,7 @@ def model_selection_experiment(
             ),
             EliminationSelector(num_columns=artefact_dim, key=key_me)
         ))
-        init_distr = distrax.Uniform(0.9, 1.1)
+        init_distr = Uniform(0.9, 1.1)
         #TODO: we actually want off-diagonals here. But we don't use combelim,
         #      so whatever
         init_distr = Diagonal(init_distr, artefact_dim)

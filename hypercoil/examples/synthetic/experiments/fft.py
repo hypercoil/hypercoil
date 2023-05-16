@@ -10,7 +10,7 @@ Simple experiments using the frequency product module.
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-import distrax
+from numpyro.distributions import Bernoulli, Normal
 import optax
 from functools import partial
 from typing import Callable, List, Optional
@@ -109,7 +109,7 @@ def frequency_band_identification_experiment(
 
     survival_prob=0.2
     dropout = ScalarIIDMulStochasticTransform(
-        distribution=distrax.Bernoulli(probs=survival_prob),
+        distribution=Bernoulli(probs=survival_prob),
         inference=False,
         key=key_n
     )
@@ -129,7 +129,7 @@ def frequency_band_identification_experiment(
         # for FrequencyDomainFilter. There's a good chance it's not always a
         # good idea, but it's a decent starting point.
         fftfilter = DistributionInitialiser.init(
-            fftfilter, distribution=distrax.Normal(0.5, 0.01), key=key_m,
+            fftfilter, distribution=Normal(0.5, 0.01), key=key_m,
         )
     else:
         target = [FreqFilterSpec(
@@ -141,7 +141,7 @@ def frequency_band_identification_experiment(
             key=key_m
         )
         fftfilter = DistributionInitialiser.init(
-            fftfilter, distribution=distrax.Normal(0.5, 0.01), key=key_m,
+            fftfilter, distribution=Normal(0.5, 0.01), key=key_m,
         )
         fftfilter = ProbabilitySimplexParameter.map(
             fftfilter, axis=0, where='weight')
