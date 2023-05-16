@@ -6,9 +6,9 @@ Unit tests for noise sources
 """
 import jax
 import jax.numpy as jnp
-import distrax
 import equinox as eqx
 import numpy as np
+from numpyro import distributions as distrx
 from hypercoil.engine.noise import (
     StochasticSource, refresh, StochasticParameter,
     ScalarIIDAddStochasticTransform,
@@ -38,7 +38,7 @@ class TestNoise:
 
     def test_scalar_iid_noise(self):
         key = jax.random.PRNGKey(9832)
-        distr = distrax.Normal(0, 1)
+        distr = distrx.Normal(0, 1)
 
         src = ScalarIIDAddStochasticTransform(
             distribution=distr,
@@ -65,7 +65,7 @@ class TestNoise:
 
     def test_scalar_iid_dropout(self):
         key = jax.random.PRNGKey(9832)
-        distr = distrax.Bernoulli(probs=0.5)
+        distr = distrx.Bernoulli(probs=0.5)
 
         src = ScalarIIDMulStochasticTransform(
             distribution=distr,
@@ -84,7 +84,7 @@ class TestNoise:
         mu = jax.random.normal(key=mkey, shape=(5,))
         sigma = jax.random.normal(key=skey, shape=(5, 5))
         sigma = sigma @ sigma.T
-        distr = distrax.MultivariateNormalFullCovariance(
+        distr = distrx.MultivariateNormal(
             loc=mu,
             covariance_matrix=sigma
         )
@@ -105,8 +105,8 @@ class TestNoise:
 
     def test_tensor_iid_dropout(self):
         key = jax.random.PRNGKey(9832)
-        alpha = [1] * 5
-        distr = distrax.Dirichlet(alpha)
+        alpha = jnp.asarray([1] * 5)
+        distr = distrx.Dirichlet(alpha)
 
         # No idea why you would ever do this, but here we go
         src = TensorIIDMulStochasticTransform(
@@ -146,33 +146,34 @@ class TestNoise:
 
     def test_lowrank_distr(self):
         key = jax.random.PRNGKey(9832)
-        inner_distr = distrax.Normal(3, 1)
+        inner_distr = distrx.Normal(3, 1)
         distr = OuterProduct(
             src_distribution=inner_distr,
             rank=2,
             multiplicity=10,
         )
 
-        out, lp = distr.sample_and_log_prob(
-            seed=key,
+        out = distr.sample(
+            key=key,
             sample_shape=(3, 5)
         )
+        lp = distr.log_prob(out)
         assert out.shape == (3, 5, 10, 10)
         assert np.isnan(lp).all()
 
         std = OuterProduct.rescale_std_for_normal(
             std=3, rank=2, matrix_dim=100
         )
-        inner_distr = distrax.Normal(0, std)
+        inner_distr = distrx.Normal(0, std)
         distr = OuterProduct(
             src_distribution=inner_distr,
             rank=2,
             multiplicity=100,
         )
-        out = distr.sample(seed=key, sample_shape=(10, 100))
+        out = distr.sample(key=key, sample_shape=(10, 100))
         assert np.abs(out.std(axis=(-2, -1)).mean() - 3) < 0.05
 
-        inner_distr = distrax.Bernoulli(probs=0.3)
+        inner_distr = distrx.Bernoulli(probs=0.3)
         distr = OuterProduct(
             src_distribution=inner_distr,
             multiplicity=100,
@@ -188,21 +189,22 @@ class TestNoise:
 
     def test_diagonal_distr(self):
         key = jax.random.PRNGKey(9832)
-        inner_distr = distrax.Normal(3, 1)
+        inner_distr = distrx.Normal(3, 1)
         distr = Diagonal(
             src_distribution=inner_distr,
             multiplicity=10,
         )
 
-        out, lp = distr.sample_and_log_prob(
-            seed=key,
+        out = distr.sample(
+            key=key,
             sample_shape=(3, 5)
         )
+        lp = distr.log_prob(out)
         assert out.shape == (3, 5, 10, 10)
         assert lp.shape == (3, 5, 10, 10)
         assert ((out == 0) == (lp == 0)).all()
 
-        inner_distr = distrax.Bernoulli(probs=0.3)
+        inner_distr = distrx.Bernoulli(probs=0.3)
         distr = Diagonal(
             src_distribution=inner_distr,
             multiplicity=100,
@@ -218,34 +220,37 @@ class TestNoise:
 
     def test_symmetric_distr(self):
         key = jax.random.PRNGKey(9832)
-        inner_distr = distrax.Normal(3, 1)
+        inner_distr = distrx.Normal(3, 1)
         distr = Symmetric(
             src_distribution=inner_distr,
             multiplicity=10
         )
-        out, lp = distr.sample_and_log_prob(
-            seed=key,
+        out = distr.sample(
+            key=key,
             sample_shape=(5,)
         )
+        lp = distr.log_prob(out)
         assert out.shape == (5, 10, 10)
         assert np.allclose(out, out.swapaxes(-2, -1))
         assert (np.isnan(lp)).all()
 
-        inner_distr = distrax.MultivariateNormalDiag(
+        inner_distr = distrx.MultivariateNormal(
             loc=jnp.arange(10),
+            covariance_matrix=jnp.eye(10)
         )
         distr = Symmetric(
             src_distribution=inner_distr,
             multiplicity=10
         )
-        out, lp = distr.sample_and_log_prob(
-            seed=key,
+        out = distr.sample(
+            key=key,
             sample_shape=(5,)
         )
+        lp = distr.log_prob(out)
         assert np.allclose(out, out.swapaxes(-2, -1))
 
         # Three diagonals
-        inner_inner_distr = distrax.Normal(0, 1)
+        inner_inner_distr = distrx.Normal(0, 1)
         inner_distr = Diagonal(
             src_distribution=inner_inner_distr,
             multiplicity=5
@@ -254,10 +259,11 @@ class TestNoise:
             src_distribution=inner_distr,
             multiplicity=2
         )
-        out, lp = distr.sample_and_log_prob(
-            seed=key,
+        out = distr.sample(
+            key=key,
             sample_shape=(5,)
         )
+        lp = distr.log_prob(out)
         assert np.allclose(out, out.swapaxes(-2, -1))
         sparsity = (
             np.diagflat(np.ones(5), k=5) +
@@ -269,7 +275,7 @@ class TestNoise:
 
     def test_expm_distr(self):
         key = jax.random.PRNGKey(9832)
-        inner_inner_distr = distrax.Normal(3, 1)
+        inner_inner_distr = distrx.Normal(3, 1)
         inner_distr = Diagonal(
             src_distribution=inner_inner_distr,
             multiplicity=10,
@@ -277,10 +283,11 @@ class TestNoise:
         distr = MatrixExponential(
             src_distribution=inner_distr,
         )
-        out, lp = distr.sample_and_log_prob(
-            seed=key,
+        out = distr.sample(
+            key=key,
             sample_shape=(3, 5)
         )
+        lp = distr.log_prob(out)
         assert out.shape == (3, 5, 10, 10)
         assert lp.shape == (3, 5, 10, 10)
 
@@ -294,7 +301,7 @@ class TestNoise:
         assert (out >= 0).all()
 
         # Project symmetric samples into PSD cone
-        inner_inner_distr = distrax.Normal(0, 0.01)
+        inner_inner_distr = distrx.Normal(0, 0.01)
         inner_distr = Symmetric(
             src_distribution=inner_inner_distr,
             multiplicity=10
@@ -304,12 +311,12 @@ class TestNoise:
         )
 
         inner_samples = inner_distr.sample(
-            seed=key,
+            key=key,
             sample_shape=(5,)
         )
         assert inner_samples.shape == (5, 10, 10)
         out = distr.sample(
-            seed=key,
+            key=key,
             sample_shape=(5,)
         )
         assert out.shape == (5, 10, 10)
@@ -345,7 +352,7 @@ class TestNoise:
         )
 
         transform = ScalarIIDAddStochasticTransform(
-            distribution=distrax.Normal(0, 1),
+            distribution=distrx.Normal(0, 1),
             key=skey,
         )
         model = StochasticParameter.wrap(

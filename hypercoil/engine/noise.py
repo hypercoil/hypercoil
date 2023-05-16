@@ -13,8 +13,8 @@ from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import distrax
 import equinox as eqx
+import numpyro.distributions as distrx
 
 from ..formula.nnops import retrieve_address
 from .axisutil import argsort, axis_complement, standard_axis_number
@@ -35,21 +35,18 @@ def _symlog(input):
     should be favoured where possible.
     """
     L, Q = jnp.linalg.eigh((input + input.swapaxes(-2, -1)) / 2)
-    Lmap = map(L)
+    Lmap = jnp.log(L)
     Lmap = jnp.where(jnp.isnan(Lmap), 0, Lmap)
     output = Q @ (Lmap[..., None] * Q.swapaxes(-1, -2))
     return (output + output.swapaxes(-2, -1)) / 2
 
 
-# TODO: eqx.filter isn't compatible with distrax.Distribution objects.
-#       To get around this, we currently set distributions as static fields.
-#       This is a hack, but it should work for most of our needs as long as
-#       the distribution is the same instance across epoch updates.
-#       In the long run, we will want to figure out the cause for this
-#       incompatibility.
-#
-#       Opened an issue on distrax:
-#       https://github.com/deepmind/distrax/issues/193
+# TODO: We formerly used distrax.Distribution objects here, but they
+#       were not compatible with eqx.filter and distrax generally seems
+#       to be sparsely maintained. We have switched to numpyro distributions,
+#       but this might have introduced some bugs. We should improve test
+#       coverage for these functions and other sections of the codebase
+#       that use distributions.
 
 
 def document_stochastic_transforms(func):
@@ -82,11 +79,11 @@ def document_stochastic_transforms(func):
         specified axes; this sample is then broadcast across the remaining
         axes of the input."""
     iid_scalar_param_spec = """
-    distribution : ``distrax.Distribution``
+    distribution : ``distrx.Distribution``
         The distribution to sample from. The ``event_shape`` of this
         distribution should correspond to a scalar."""
     iid_tensor_param_spec = """
-    distribution : ``distrax.Distribution``
+    distribution : ``distrx.Distribution``
         The distribution to sample from. The ``event_shape`` of this
         distribution should match the shape of the input along a set of axes,
         which must be specified in the ``event_axes`` argument.
@@ -132,11 +129,11 @@ def sample_multivariate(
     #         f"Distribution event shape {distr.event_shape} does not match "
     #         f"tensor shape {shape} along axes {event_axes}."
     #     )
-    val = distr.sample(seed=key, sample_shape=sample_shape)
+    val = distr.sample(key=key, sample_shape=sample_shape)
 
     if mean_correction:
         try:
-            correction = 1 / (distr.mean() + jnp.finfo(jnp.float32).eps)
+            correction = 1 / (distr.mean + jnp.finfo(jnp.float32).eps)
         except AttributeError:
             correction = 1 / (val.mean() + jnp.finfo(jnp.float64).eps)
         val = val * correction
@@ -529,7 +526,7 @@ class ScalarIIDStochasticTransform(AxialSelectiveTransform):
         shape: Tuple[int],
         key: "jax.random.PRNGKey",
     ):
-        return self.distribution.sample(seed=key, sample_shape=shape)
+        return self.distribution.sample(key=key, sample_shape=shape)
 
 
 @document_stochastic_transforms
@@ -653,7 +650,7 @@ class ScalarIIDMulStochasticTransform(
         sample = super().sample_impl(shape=shape, key=key)
         try:
             mean_correction = 1 / (
-                self.distribution.mean() + jnp.finfo(jnp.float32).eps
+                self.distribution.mean + jnp.finfo(jnp.float32).eps
             )
         except AttributeError:
             mean_correction = 1 / (sample.mean() + jnp.finfo(jnp.float32).eps)
@@ -753,7 +750,7 @@ class EigenspaceReconditionTransform(TensorIIDAddStochasticTransform):
     ):
         if xi is None:
             xi = psi
-        src_distribution = distrax.Uniform(low=(psi - xi), high=psi)
+        src_distribution = distrx.Uniform(low=(psi - xi), high=psi)
         distribution = Diagonal(
             src_distribution=src_distribution,
             multiplicity=matrix_dim,
@@ -768,7 +765,7 @@ class EigenspaceReconditionTransform(TensorIIDAddStochasticTransform):
         )
 
 
-class OuterProduct(distrax.Distribution):
+class OuterProduct(distrx.Distribution):
     r"""
     Outer-product transformed distribution.
 
@@ -825,11 +822,11 @@ class OuterProduct(distrax.Distribution):
         )
         super().__init__()
 
-    def _sample_n(self, key: "jax.random.PRNGKey", n: int) -> Tensor:
+    def sample(self, key: "jax.random.PRNGKey", sample_shape: Tuple[int, ...]) -> Tensor:
         samples = self.src_distribution.sample(
-            seed=key, sample_shape=(n, self.rank, self.multiplicity)
+            key=key, sample_shape=(*sample_shape, self.rank, self.multiplicity)
         )
-        samples = samples.reshape((n, self.rank, -1))
+        samples = samples.reshape((*sample_shape, self.rank, -1))
         samples = samples.swapaxes(-1, -2) @ samples
         return samples
 
@@ -847,8 +844,9 @@ class OuterProduct(distrax.Distribution):
     def event_shape(self):
         return (self.matrix_dim, self.matrix_dim)
 
+    @property
     def mean(self):
-        mu = jnp.atleast_1d(self.src_distribution.mean())
+        mu = jnp.atleast_1d(self.src_distribution.mean)
         src_mean = jnp.concatenate((mu,) * self.multiplicity)[..., None]
         return self.rank * src_mean @ src_mean.T
 
@@ -885,7 +883,7 @@ class OuterProduct(distrax.Distribution):
         return math.sqrt(std / math.sqrt(rank + (rank**2) / matrix_dim))
 
 
-class Diagonal(distrax.Distribution):
+class Diagonal(distrx.Distribution):
     """
     Square diagonal transformed distribution.
 
@@ -915,12 +913,14 @@ class Diagonal(distrax.Distribution):
         )
         super().__init__()
 
-    def _sample_n(self, key: "jax.random.PRNGKey", n: int) -> Tensor:
+    def sample(self, key: "jax.random.PRNGKey", sample_shape: Tuple[int, ...]) -> Tensor:
         samples = self.src_distribution.sample(
-            seed=key, sample_shape=(n, self.multiplicity)
+            key=key, sample_shape=(*sample_shape, self.multiplicity)
         )
+        n = math.prod(sample_shape)
         samples = samples.reshape((n, -1))
         samples = jax.vmap(jnp.diagflat, in_axes=(0,))(samples)
+        samples = samples.reshape((*sample_shape, self.matrix_dim, self.matrix_dim))
         return samples
 
     def log_prob(self, value: Tensor) -> Tensor:
@@ -929,20 +929,22 @@ class Diagonal(distrax.Distribution):
         mask = jnp.eye(self.matrix_dim, dtype=jnp.bool_)[None, ...]
         diags = jnp.diagonal(value, axis1=-2, axis2=-1)[..., None]
         log_prob = self.src_distribution.log_prob(diags)
+        #print(mask, diags, log_prob)
         return jnp.where(mask, log_prob, 0.0)
 
     @property
     def event_shape(self):
         return (self.matrix_dim, self.matrix_dim)
 
+    @property
     def mean(self):
-        mu = jnp.atleast_1d(self.src_distribution.mean())
+        mu = jnp.atleast_1d(self.src_distribution.mean)
         return jnp.concatenate((mu,) * self.multiplicity) * jnp.eye(
             self.matrix_dim
         )
 
 
-class Symmetric(distrax.Distribution):
+class Symmetric(distrx.Distribution):
     def __init__(
         self,
         src_distribution: Distribution,
@@ -976,15 +978,15 @@ class Symmetric(distrax.Distribution):
             self.row_multiplicity = self.multiplicity
             self.col_multiplicity = self.matrix_dim // src_event_shape[0]
 
-    def _sample_n(self, key: "jax.random.PRNGKey", n: int) -> Tensor:
+    def sample(self, key: "jax.random.PRNGKey", sample_shape: Tuple[int, ...]) -> Tensor:
         src_event_shape = self.src_distribution.event_shape
         samples = self.src_distribution.sample(
-            seed=key,
-            sample_shape=(n, self.row_multiplicity, self.col_multiplicity),
+            key=key,
+            sample_shape=(*sample_shape, self.row_multiplicity, self.col_multiplicity),
         )
         if len(src_event_shape) == 2:
             samples = samples.swapaxes(-3, -2)
-        samples = samples.reshape(n, self.matrix_dim, -1)
+        samples = samples.reshape(*sample_shape, self.matrix_dim, -1)
         return samples + samples.swapaxes(-2, -1)
 
     def log_prob(self, value: Tensor) -> Tensor:
@@ -998,11 +1000,12 @@ class Symmetric(distrax.Distribution):
     def event_shape(self):
         return (self.matrix_dim, self.matrix_dim)
 
+    @property
     def mean(self):
-        return 2 * self.src_distribution.mean()
+        return 2 * self.src_distribution.mean
 
 
-class MatrixExponential(distrax.Distribution):
+class MatrixExponential(distrx.Distribution):
     """
     Matrix exponential transformed distribution.
 
@@ -1035,27 +1038,29 @@ class MatrixExponential(distrax.Distribution):
         self.rescale_var = rescale_var
         super().__init__()
 
-    def _sample_n(self, key: jax.random.PRNGKey, n: int) -> Tensor:
-        samples = self.src_distribution.sample(seed=key, sample_shape=(n,))
+    def sample(self, key: jax.random.PRNGKey, sample_shape: Tuple[int, ...]) -> Tensor:
+        n = math.prod(sample_shape)
+        samples = self.src_distribution.sample(key=key, sample_shape=(n,))
         if self.rescale_var:
             var_orig = samples.var(keepdims=True)
         samples = jax.vmap(jax.scipy.linalg.expm, in_axes=(0,))(samples)
         if self.rescale_var:
             var_transformed = samples.var(keepdims=True)
             samples = samples / jnp.sqrt(var_transformed / var_orig)
+        samples = samples.reshape(sample_shape + self.src_distribution.event_shape)
         return samples
 
     def log_prob(self, value: Tensor) -> Tensor:
         samples = _symlog(value)
         return self.src_distribution.log_prob(samples)
 
-    def _sample_n_and_log_prob(
-        self, key: "jax.random.PRNGKey", n: int
-    ) -> Tensor:
-        samples = self.src_distribution.sample(seed=key, sample_shape=(n,))
-        log_prob = self.src_distribution.log_prob(samples)
-        samples = jax.vmap(jax.scipy.linalg.expm, in_axes=(0,))(samples)
-        return samples, log_prob
+    # def _sample_n_and_log_prob(
+    #     self, key: "jax.random.PRNGKey", n: int
+    # ) -> Tensor:
+    #     samples = self.src_distribution.sample(key=key, sample_shape=(n,))
+    #     log_prob = self.src_distribution.log_prob(samples)
+    #     samples = jax.vmap(jax.scipy.linalg.expm, in_axes=(0,))(samples)
+    #     return samples, log_prob
 
     @property
     def event_shape(self):
