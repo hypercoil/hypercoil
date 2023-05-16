@@ -110,28 +110,13 @@ class LossScheme(eqx.Module):
         return len(self.loss)
 
     def __repr__(self) -> str:
-        import jax._src.pretty_printer as pp
-        from equinox.pretty_print import _comma_sep, _nest
-
-        indent = 2
-        # TODO: Right now, we're just hacking equinox's pretty printer here...
-        #      This is equinox's pretty printer for lists.
-        return pp.group(
-            pp.concat(
-                [
-                    pp.text("LossScheme("),
-                    _nest(
-                        indent,
-                        pp.join(
-                            _comma_sep,
-                            [pp._TextDoc(repr(loss)) for loss in self.loss],
-                        ),
-                    ),
-                    pp.brk(""),
-                    pp.text(")"),
-                ]
-            )
-        ).format()
+        return eqx.tree_pformat(
+            self,
+            follow_wrapped=True,
+            short_arrays=True,
+            truncate_leaf=lambda x: False,
+            indent=2,
+        )
 
     # TODO: Check if the multiplier for each loss is 0, and if so, don't
     #      evaluate it.

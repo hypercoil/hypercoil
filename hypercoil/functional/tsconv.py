@@ -17,7 +17,7 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
-from equinox.nn.conv import _ntuple
+from equinox.nn._conv import _ntuple
 
 from ..engine import NestedDocParse, Tensor, atleast_4d
 

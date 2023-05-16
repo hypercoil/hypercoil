@@ -174,6 +174,10 @@ class Loss(eqx.Module):
     def __repr__(self) -> str:
         return f"[ν = {self.nu}]{self.name}"
 
+    def __tree_pp__(self, **params) -> str:
+        import jax._src.pretty_printer as pp
+        return pp.text(repr(self))
+
 
 @document_loss()
 class ParameterisedLoss(Loss):

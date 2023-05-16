@@ -35,7 +35,10 @@ class ModelArgument(Mapping, eqx.Module):
         self._arg_dict = _arg_dict
 
     def __getattr__(self, name: str) -> Any:
-        return self._arg_dict[name]
+        try:
+            return self._arg_dict[name]
+        except KeyError:
+            return self.__dict__.get(name)
 
     def __getitem__(self, k: str) -> Any:
         return self._arg_dict[k]
@@ -84,7 +87,13 @@ class ModelArgument(Mapping, eqx.Module):
 
     def __repr__(self) -> str:
         agmt = namedtuple(type(self).__name__, self._arg_dict.keys())
-        return eqx.pretty_print.tree_pformat(agmt(**self._arg_dict))
+        return eqx.tree_pformat(
+            agmt(**self._arg_dict),
+            follow_wrapped=True,
+            short_arrays=True,
+            truncate_leaf=lambda x: False,
+            indent=2,
+        )
 
 
 class UnpackingModelArgument(ModelArgument):
