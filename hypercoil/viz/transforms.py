@@ -103,6 +103,62 @@ def scalars_from_cifti(
     return transform
 
 
+def scalars_from_atlas(
+    scalars: str,
+    compartment: str = ("cortex_L", "cortex_R"),
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(
+            surf: CortexTriSurface,
+            atlas: BaseAtlas,
+            maps: Optional[Mapping] = None,
+        ) -> Mapping:
+            if maps is None:
+                maps = atlas.maps
+            maps_L = maps_R = None
+            if "cortex_L" in compartment:
+                maps_L = maps["cortex_L"]
+            if "cortex_R" in compartment:
+                maps_R = maps["cortex_R"]
+            i = 0
+            for m in maps_L:
+                surf.add_vertex_dataset(
+                    name=f"{scalars}_{i}",
+                    left_data=m,
+                    is_masked=True,
+                )
+                i += 1
+            for m in maps_R:
+                surf.add_vertex_dataset(
+                    name=f"{scalars}_{i}",
+                    right_data=m,
+                    is_masked=True,
+                )
+                i += 1
+            return {
+                "surf": surf,
+                # "scalars": tuple(
+                #     f"{scalars}_{i}" for i in range(i)
+                # ),
+                # "hemi": tuple(
+                #     "left" if i < len(maps_L) else "right" for i in range(i)
+                # ),
+            }
+
+        def f_transformed(
+            *,
+            surf: CortexTriSurface,
+            atlas: BaseAtlas,
+            maps: Optional[Mapping] = None,
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f)(**params)(
+                surf=surf, atlas=atlas, maps=maps)
+
+        return f_transformed
+    return transform
+
+
 def resample_to_surface(
     scalars: str,
     template: str = "fsLR",
