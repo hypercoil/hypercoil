@@ -255,6 +255,63 @@ def vol_from_atlas(
     return transform
 
 
+def select_closest_poles(
+    projection: str,
+    n_poles: int = 1,
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(
+            surf: CortexTriSurface,
+            hemi: Optional[str],
+            hemi_params: Sequence,
+            scalars: str,
+        ) -> Mapping:
+            if projection == "sphere":
+                metric = "spherical"
+            else:
+                metric = "euclidean"
+            if hemi is None:
+                _hemi = ("left", "right")
+            else:
+                _hemi = (hemi,)
+            closest_poles = []
+            for h in _hemi:
+                coor = surf.scalars_centre_of_mass(
+                    hemisphere=h,
+                    scalars=scalars,
+                    projection=projection,
+                )
+                closest_poles.append(surf.closest_poles(
+                    hemisphere=h,
+                    coors=coor,
+                    metric=metric,
+                    n_poles=n_poles,
+                ))
+            hemi_params = list(hemi_params) + ["views"]
+            return {
+                "views": closest_poles,
+                "surf": surf,
+                "scalars": scalars,
+                "hemi": hemi,
+                "hemi_params": hemi_params,
+            }
+
+        def f_transformed(
+            *,
+            surf: CortexTriSurface,
+            scalars: str,
+            hemi: Optional[str] = None,
+            hemi_params: Sequence = (),
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f)(**params)(
+                surf=surf, hemi=hemi, hemi_params=hemi_params, scalars=scalars
+            )
+
+        return f_transformed
+    return transform
+
+
 def ax_grid(
     ncol: Optional[int] = None,
     nrow: Optional[int] = None,
