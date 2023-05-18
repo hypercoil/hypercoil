@@ -6,7 +6,7 @@ Brain network plotting
 ~~~~~~~~~~~~~~~~~~~~~~
 Brain network plotting utilities.
 """
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Mapping, Optional, Tuple, Union
 
 import numpy as np
 import pyvista as pv
@@ -57,7 +57,7 @@ def filter_adjacency_data(
     })
 
 
-def plot_embedded_graph(
+def embedded_graph_plotter(
     *,
     surf: "CortexTriSurface",
     edge_values: pd.DataFrame,
@@ -208,3 +208,54 @@ def plot_embedded_graph(
             opacity=1.0,
         )
     return p
+
+
+def plot_embedded_graph(
+    *,
+    surf: "CortexTriSurface",
+    edge_values: pd.DataFrame,
+    node_lh: np.ndarray,
+    node_values: Optional[pd.DataFrame] = None,
+    coor: Optional[np.ndarray] = None,
+    parcellation: Optional[str] = None,
+    node_color: Optional[str] = "black",
+    node_radius: Union[float, str] = 3.0,
+    node_cmap: Any = "viridis",
+    node_cmap_range: Tuple[float, float] = None,
+    node_radius_range: Tuple[float, float] = (2, 10),
+    edge_color: Optional[str] = "sgn",
+    edge_radius: Union[float, str] = "adj",
+    edge_cmap: Any = "coolwarm",
+    edge_cmap_range: Tuple[float, float] = None,
+    edge_radius_range: Tuple[float, float] = (0.1, 1.8),
+    projection: Optional[str] = "pial",
+    surf_opacity: float = 0.1,
+    hemisphere_slack: float = 1.1,
+    off_screen: bool = True,
+    theme: Optional[pv.themes.DocumentTheme] = None,
+    **params,
+) -> Mapping:
+    p = embedded_graph_plotter(
+        surf=surf,
+        edge_values=edge_values,
+        node_lh=node_lh,
+        node_values=node_values,
+        coor=coor,
+        parcellation=parcellation,
+        node_color=node_color,
+        node_radius=node_radius,
+        node_cmap=node_cmap,
+        node_cmap_range=node_cmap_range,
+        node_radius_range=node_radius_range,
+        edge_color=edge_color,
+        edge_radius=edge_radius,
+        edge_cmap=edge_cmap,
+        edge_cmap_range=edge_cmap_range,
+        edge_radius_range=edge_radius_range,
+        projection=projection,
+        surf_opacity=surf_opacity,
+        hemisphere_slack=hemisphere_slack,
+        off_screen=off_screen,
+        theme=theme,
+    )
+    return {**params, **{"plotter": p}}

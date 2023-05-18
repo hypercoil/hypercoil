@@ -6,7 +6,7 @@ Brain volume plotting
 ~~~~~~~~~~~~~~~~~~~~~
 Brain volume plotting utilities.
 """
-from typing import Any, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 import pyvista as pv
 import numpy as np
@@ -15,7 +15,7 @@ from .surf import CortexTriSurface
 from .utils import cortex_theme
 
 
-def plot_embedded_volume(
+def embedded_volume_plotter(
     *,
     surf: "CortexTriSurface",
     coor: np.ndarray,
@@ -63,3 +63,34 @@ def plot_embedded_volume(
         clim=clim,
     )
     return p
+
+
+def plot_embedded_volume(
+    *,
+    surf: "CortexTriSurface",
+    coor: np.ndarray,
+    val: np.ndarray,
+    voxdim: Sequence,
+    projection: Optional[str] = "pial",
+    off_screen: bool = True,
+    surf_opacity: float = 0.3,
+    theme: Optional[Any] = None,
+    point_size: Optional[float] = None,
+    cmap: Optional[str] = None,
+    clim: Optional[tuple] = None,
+    **params
+) -> Mapping[str, Any]:
+    p = embedded_volume_plotter(
+        surf=surf,
+        coor=coor,
+        val=val,
+        voxdim=voxdim,
+        projection=projection,
+        off_screen=off_screen,
+        surf_opacity=surf_opacity,
+        theme=theme,
+        point_size=point_size,
+        cmap=cmap,
+        clim=clim,
+    )
+    return {**params, **{"plotter": p}}

@@ -15,7 +15,7 @@ from hypercoil.viz.surf import (
     make_cmap,
 )
 from hypercoil.viz.netplot import (
-    plot_embedded_graph,
+    embedded_graph_plotter,
     filter_adjacency_data,
 )
 from hypercoil.viz.utils import plot_to_image
@@ -72,7 +72,7 @@ class TestNetworkVisualisations:
         node_lh = np.arange(400) < 200
         cmap, clim = make_cmap(
             surf, 'cmap', 'parcellation', separate=False)
-        p = plot_embedded_graph(
+        p = embedded_graph_plotter(
             surf=surf,
             edge_values=edge_values,
             node_values=node_values,

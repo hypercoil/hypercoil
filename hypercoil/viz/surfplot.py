@@ -6,7 +6,7 @@ Brain surface plotting
 ~~~~~~~~~~~~~~~~~~~~~~
 Brain surface plotting utilities.
 """
-from typing import Any, Literal, Optional, Tuple
+from typing import Any, Literal, Mapping, Optional, Sequence, Tuple
 import pyvista as pv
 
 from .surf import (
@@ -16,7 +16,7 @@ from .surf import (
 from .utils import cortex_theme
 
 
-def plot_surf_scalars(
+def surf_scalars_plotter(
     *,
     surf: "CortexTriSurface",
     projection: str = "veryinflated",
@@ -25,6 +25,7 @@ def plot_surf_scalars(
     boundary_color: str = "black",
     boundary_width: int = 0,
     off_screen: bool = True,
+    copy_actors: bool = False,
     cmap: Any = (None, None),
     clim: Any = (None, None),
     theme: Optional[pv.themes.DocumentTheme] = None,
@@ -42,12 +43,15 @@ def plot_surf_scalars(
         """
         Helper function to plot scalars for a single hemisphere.
         """
+        import numpy as np
         if hemi_id not in hemi:
             p = None
         else:
             p = pv.Plotter(off_screen=off_screen, theme=theme)
 
             hemi_surf.project(projection)
+            #TODO: copying the mesh seems like it could create memory issues.
+            #      A better solution would be delayed execution.
             p.add_mesh(
                 hemi_surf,
                 opacity=1.0,
@@ -55,7 +59,9 @@ def plot_surf_scalars(
                 scalars=scalars,
                 cmap=hemi_cmap,
                 clim=hemi_clim,
-                below_color='black',)
+                below_color='black',
+                copy_mesh=copy_actors,
+            )
             if boundary_width > 0:
                 p.add_mesh(
                     hemi_surf.contour(
@@ -86,3 +92,58 @@ def plot_surf_scalars(
     pr = _plot_scalars_hemi(
         "right", surf.right, cmap_right, clim_right)
     return pl, pr
+
+
+def plot_surf_scalars(
+    *,
+    surf: "CortexTriSurface",
+    projection: str = "veryinflated",
+    scalars: str = "parcellation",
+    hemi: Optional[Literal["left", "right"]] = None,
+    boundary_color: str = "black",
+    boundary_width: int = 0,
+    off_screen: bool = True,
+    copy_actors: bool = False,
+    cmap: Any = (None, None),
+    clim: Any = (None, None),
+    theme: Optional[pv.themes.DocumentTheme] = None,
+    hemi_params: Optional[Sequence[str]] = None,
+    **params: Any,
+) -> Tuple[Mapping[str, Any], Mapping[str, Any]]:
+    """
+    Create plotters for the left and right hemispheres of the surface, with
+    specified scalar values plotted on top of the surface.
+    """
+    pl, pr = surf_scalars_plotter(
+        surf=surf,
+        projection=projection,
+        scalars=scalars,
+        hemi=hemi,
+        boundary_color=boundary_color,
+        boundary_width=boundary_width,
+        off_screen=off_screen,
+        copy_actors=copy_actors,
+        cmap=cmap,
+        clim=clim,
+        theme=theme,
+    )
+    if pl is None:
+        return {**params, **{"plotter": pr}, **{"hemi": ("right",)}}
+    elif pr is None:
+        return {**params, **{"plotter": pl}, **{"hemi": ("left",)}}
+    else:
+        # ret = {}
+        # for k, v in params.items():
+        #     try:
+        #         if len(v) == 2:
+        #             ret[k] = (v[0], v[1])
+        #         else:
+        #             ret[k] = (v, v)
+        #     except TypeError:
+        #         ret[k] = (v, v)
+        # return {**ret, **{"plotter": (pl, pr)}}
+        return {
+            **{k: v if k in hemi_params else (v, v) for k, v in params.items()},
+            **{"plotter": (pl, pr)},
+            **{"hemi": ("left", "right")}
+        }
