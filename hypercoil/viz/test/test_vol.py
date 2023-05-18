@@ -22,9 +22,9 @@ from hypercoil.viz.volplot import (
 )
 from hypercoil.viz.flows import (
     apply_along_axis,
-    source_chain,
-    sink_chain,
-    transform_chain,
+    ichain,
+    ochain,
+    iochain,
     split_chain,
     map_over_sequence,
 )
@@ -34,6 +34,7 @@ from hypercoil.viz.transforms import (
     row_major_grid,
     col_major_grid,
     save_fig,
+    plot_and_save,
 )
 
 
@@ -46,21 +47,19 @@ class TestVolumeVisualisations:
             projections=('pial',)
         )
         nii = nb.load("/Users/rastkociric/Downloads/pain_thresh_cFWE05.nii.gz")
-        f = vol_from_nifti()(plot_embedded_volume)
-        p = f(
+        i_chain = vol_from_nifti()
+        o_chain = plot_and_save()
+        f = iochain(plot_embedded_volume, i_chain, o_chain)
+        out = f(
             surf=surf,
             nii=nii,
-            #point_size=5,
             cmap='magma',
-            #off_screen=False,
-        )
-        #plot_to_display(p)
-        plot_to_image(
-            p,
             basename='/tmp/vol',
             views=("dorsal", "left", "anterior"),
-            hemi='both'
+            hemi='both',
         )
+        assert len(out.keys()) == 1
+        assert "screenshots" in out.keys()
 
         atlas = MultifileVolumetricAtlas(
             ref_pointer=[tflow.get(
@@ -71,11 +70,11 @@ class TestVolumeVisualisations:
             for l in ('CSF', 'GM', 'WM')],
             clear_cache=False
         )
-        src_chain = source_chain(
+        i_chain = ichain(
             vol_from_atlas(),
             apply_along_axis(var="val", axis=0),
         )
-        snk_chain = sink_chain(
+        o_chain = ochain(
             split_chain(
                 row_major_grid(nrow=3, figsize=(30, 20)),
                 col_major_grid(ncol=3, figsize=(30, 20)),
@@ -90,8 +89,9 @@ class TestVolumeVisualisations:
                 },
             ),
         )
-        f = transform_chain(plot_embedded_volume, src_chain, snk_chain)
-        f(
+        f = iochain(plot_embedded_volume, i_chain, None)
+        f = iochain(plot_embedded_volume, i_chain, o_chain)
+        out = f(
             surf=surf,
             atlas=atlas,
             cmap='magma',

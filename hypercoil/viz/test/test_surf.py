@@ -8,9 +8,11 @@ import pytest
 
 from pkg_resources import resource_filename as pkgrf
 
+import jax
 import templateflow.api as tflow
 from neuromaps.transforms import mni152_to_fsaverage
 
+from hypercoil.init.atlas import DirichletInitSurfaceAtlas
 from hypercoil.viz.surf import (
     CortexTriSurface,
     make_cmap,
@@ -18,29 +20,36 @@ from hypercoil.viz.surf import (
 from hypercoil.viz.surfplot import plot_surf_scalars
 from hypercoil.viz.utils import plot_to_image
 from hypercoil.viz.flows import (
-    source_chain,
-    sink_chain,
-    transform_chain,
+    ichain,
+    ochain,
+    iochain,
     map_over_sequence,
     split_chain,
+    apply_along_axis,
+    replicate,
 )
 from hypercoil.viz.transforms import (
     surf_from_archive,
     resample_to_surface,
     plot_and_save,
     scalars_from_cifti,
+    scalars_from_atlas,
     parcellate_colormap,
+    row_major_grid,
+    col_major_grid,
+    save_fig,
+    select_closest_poles,
 )
 
 
 class TestSurfaceVisualisations:
     @pytest.mark.ci_unsupported
-    def test_surf(self):
-        src_chain = source_chain(
+    def test_parcellation(self):
+        i_chain = ichain(
             surf_from_archive(),
             resample_to_surface('gm_density', template='fsaverage'),
         )
-        snk_chain = sink_chain(
+        o_chain = ochain(
             map_over_sequence(
                 xfm=plot_and_save(),
                 mapping={
@@ -49,8 +58,8 @@ class TestSurfaceVisualisations:
                 }
             )
         )
-        f = transform_chain(plot_surf_scalars, src_chain, snk_chain)
-        f(
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+        out = f(
             template="fsaverage",
             load_mask=True,
             nii=tflow.get(
@@ -62,13 +71,17 @@ class TestSurfaceVisualisations:
             projection='pial',
             scalars='gm_density',
         )
+        assert len(out.keys()) == 1
+        assert "screenshots" in out.keys()
 
-        src_chain = source_chain(
+    @pytest.mark.ci_unsupported
+    def test_scalar(self):
+        i_chain = ichain(
             surf_from_archive(),
             scalars_from_cifti('parcellation'),
             parcellate_colormap('network', 'parcellation')
         )
-        snk_chain = sink_chain(
+        o_chain = ochain(
             split_chain(
                 map_over_sequence(
                     xfm=plot_and_save(),
@@ -82,12 +95,12 @@ class TestSurfaceVisualisations:
                     mapping={
                         "basename": ('/tmp/left', '/tmp/right'),
                         "hemi": ('left', 'right'),
-                        "views": (((-20, 0, 0),), (((60, 60, 0), (0, 0, 0), (0, 0, 1)),))
+                        "views": (((-20, 0, 0),), (((65, 65, 0), (0, 0, 0), (0, 0, 1)),))
                     }
                 ),
             )
         )
-        f = transform_chain(plot_surf_scalars, src_chain, snk_chain)
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
         f(
             template="fsLR",
             load_mask=True,
@@ -101,6 +114,82 @@ class TestSurfaceVisualisations:
             boundary_width=5,
         )
 
+    @pytest.mark.ci_unsupported
+    def test_continuous_parcellation(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            resample_to_surface('difumo', template='fsaverage'),
+            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(64)]}),
+            select_closest_poles(projection='pial', n_poles=3),
+        )
+        o_chain = ochain(
+            row_major_grid(ncol=3, figsize=(3, 10), num_panels=30),
+            save_fig()
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+        nii = tflow.get(
+            template='MNI152NLin2009cAsym',
+            atlas='DiFuMo',
+            resolution=2,
+            desc='64dimensions'
+        )
+        f(
+            template="fsaverage",
+            load_mask=True,
+            nii=nii,
+            projection='pial',
+            filename='/tmp/parcelpeaks_index-{index}.png',
+            clim=(0, 2e-4),
+            cmap='magma',
+            window_size=(400, 250),
+        )
+
+    @pytest.mark.ci_unsupported
+    def test_parcellation_from_atlas(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            scalars_from_atlas('dirichlet'),
+            replicate(mapping={"scalars": [f"dirichlet_{i}" for i in range(40)], "hemi": ["left" if i < 20 else "right" for i in range(40)]}),
+            select_closest_poles(projection='veryinflated', n_poles=3),
+        )
+        o_chain = ochain(
+            row_major_grid(ncol=3, figsize=(3, 10), num_panels=30),
+            save_fig()
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+
+        cifti_template = pkgrf(
+            'hypercoil',
+            'viz/resources/nullexample.nii'
+        )
+        atlas = DirichletInitSurfaceAtlas(
+            cifti_template=cifti_template,
+            mask_L=tflow.get(
+                template='fsLR',
+                hemi='L',
+                desc='nomedialwall',
+                density='32k'),
+            mask_R=tflow.get(
+                template='fsLR',
+                hemi='R',
+                desc='nomedialwall',
+                density='32k'),
+            compartment_labels={
+                'cortex_L': 20,
+                'cortex_R': 20,
+                'subcortex': 0,
+            },
+            key=jax.random.PRNGKey(0),
+        )
+        f(
+            template="fsLR",
+            load_mask=True,
+            atlas=atlas,
+            projection='veryinflated',
+            filename='/tmp/dirpeaks_index-{index}.png',
+            clim=(0.045, 0.055)
+        )
+        assert 0
     # @pytest.fixture(autouse=True)
     # def setup_class(self):
     #     ref_pointer = pkgrf(
