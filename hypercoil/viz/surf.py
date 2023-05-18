@@ -482,6 +482,26 @@ class CortexTriSurface:
             parcellation=parcellation
         )
 
+    def scalars_centre_of_mass(
+        self,
+        hemisphere: str,
+        scalars: str,
+        projection: str,
+    ):
+        projection_name = f"_projection_{projection}"
+        if hemisphere == 'left':
+            proj_data = self.left.point_data[projection_name]
+            scalars_data = self.left.point_data[scalars].reshape(-1, 1)
+        elif hemisphere == 'right':
+            proj_data = self.right.point_data[projection_name]
+            scalars_data = self.right.point_data[scalars].reshape(-1, 1)
+        else:
+            raise ValueError(
+                f"Invalid hemisphere: {hemisphere}. Must be 'left' or 'right'.")
+        num = np.nansum(proj_data * scalars_data, axis=0)
+        den = np.nansum(scalars_data, axis=0)
+        return num / den
+
     @staticmethod
     def _hemisphere_darray_impl(data, mask, projection):
         surf = pv.make_tri_mesh(*data[projection])
