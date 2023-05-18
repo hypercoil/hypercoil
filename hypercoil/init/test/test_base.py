@@ -143,7 +143,7 @@ class TestBaseInit:
         assert np.all(model.weight[1] != 0)
 
         model = SyloModulePSD(key=jax.random.PRNGKey(0), in_channels=2,
-                                out_channels=3, dim=10, rank=3)
+                              out_channels=3, dim=10, rank=3)
         model = SyloInitialiser.init(model, key=key, psd=True)
         assert isinstance(model.weight, jax.Array)
         assert model.weight.shape == (3, 2, 10, 3)

@@ -336,18 +336,41 @@ class CortexTriSurface:
         is_masked: bool = False,
         apply_mask: bool = True,
         null_value: Optional[float] = 0.,
+        map_all: bool = True,
         arr_idx: int = 0,
     ):
-        left_data = left_gifti.darrays[arr_idx].data if left_gifti else None
-        right_data = right_gifti.darrays[arr_idx].data if right_gifti else None
-        return self.add_vertex_dataset(
-            name=name,
-            left_data=left_data,
-            right_data=right_data,
-            is_masked=is_masked,
-            apply_mask=apply_mask,
-            null_value=null_value,
-        )
+        left_data = left_gifti.darrays if left_gifti else []
+        right_data = right_gifti.darrays if right_gifti else []
+        if map_all and len(left_data) > 1 and len(right_data) > 1:
+            if left_data and right_data and len(left_data) != len(right_data):
+                raise ValueError(
+                    "Left and right hemisphere gifti images must have the "
+                    "same number of data arrays."
+                )
+            n_darrays = max(len(left_data), len(right_data))
+            for i in range(n_darrays):
+                name_i = f"{name}_{i}"
+                data_l = left_data[i].data if left_gifti else None
+                data_r = right_data[i].data if right_gifti else None
+                self.add_vertex_dataset(
+                    name=name_i,
+                    left_data=data_l,
+                    right_data=data_r,
+                    is_masked=is_masked,
+                    apply_mask=apply_mask,
+                    null_value=null_value,
+                )
+        else:
+            left_data = left_data[arr_idx].data if left_gifti else None
+            right_data = right_data[arr_idx].data if right_gifti else None
+            self.add_vertex_dataset(
+                name=name,
+                left_data=left_data,
+                right_data=right_data,
+                is_masked=is_masked,
+                apply_mask=apply_mask,
+                null_value=null_value,
+            )
 
     def add_vertex_dataset(
         self,
