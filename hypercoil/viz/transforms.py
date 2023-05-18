@@ -45,9 +45,14 @@ def surf_from_archive(
                         load_mask=load_mask,
                         projections=projections,
                     )
-                except Exception:
+                    return {"surf": surf}
+                except Exception as e:
+                    print(f"Failed to load {template} from {a}: {e}")
                     continue
-            return {"surf": surf}
+            raise ValueError(
+                f"Could not load {template} with projections {projections} "
+                f"from any of {allowed}."
+            )
 
         def f_transformed(
             *,
@@ -59,7 +64,7 @@ def surf_from_archive(
                 projections = (params["projection"],)
             except KeyError:
                 projections = ("veryinflated",)
-            return xfm(f, transformer_f, unpack_dict=True)(**params)(
+            return xfm(f, transformer_f)(**params)(
                 template=template,
                 load_mask=load_mask,
                 projections=projections,
@@ -70,15 +75,15 @@ def surf_from_archive(
 
 
 def scalars_from_cifti(
-    scalar_name: str,
+    scalars: str,
     is_masked: bool = True,
     apply_mask: bool = False,
-    null_value: Optional[float] = None,
+    null_value: Optional[float] = 0.,
 ) -> callable:
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(surf: CortexTriSurface, cifti: nb.Cifti2Image):
             surf.add_cifti_dataset(
-                name=scalar_name,
+                name=scalars,
                 cifti=cifti,
                 is_masked=is_masked,
                 apply_mask=apply_mask,
@@ -92,16 +97,16 @@ def scalars_from_cifti(
             cifti: nb.Cifti2Image,
             **params: Mapping,
         ):
-            return xfm(f, transformer_f, unpack_dict=True)(
-                **params)(cifti=cifti, surf=surf)
+            return xfm(f, transformer_f)(**params)(cifti=cifti, surf=surf)
 
         return f_transformed
     return transform
 
 
 def resample_to_surface(
-    scalar_name: str,
+    scalars: str,
     template: str = "fsLR",
+    null_value: Optional[float] = 0.,
 ) -> callable:
     templates = {
         "fsLR": mni152_to_fslr,
@@ -109,15 +114,18 @@ def resample_to_surface(
     }
     f_resample = templates[template]
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
-        def transformer_f(nii: nb.Nifti1Image, surf: CortexTriSurface):
-            data = f_resample(nii)
+        def transformer_f(
+            nii: nb.Nifti1Image,
+            surf: CortexTriSurface,
+        ) -> Mapping:
+            left, right = f_resample(nii)
             surf.add_gifti_dataset(
-                name=scalar_name,
-                left_gifti=data[0],
-                right_gifti=data[1],
+                name=scalars,
+                left_gifti=left,
+                right_gifti=right,
                 is_masked=False,
                 apply_mask=True,
-                null_value=None,
+                null_value=null_value,
             )
             return {"surf": surf}
 
@@ -127,10 +135,7 @@ def resample_to_surface(
             surf: CortexTriSurface,
             **params: Mapping,
         ):
-            return xfm(f, transformer_f, unpack_dict=True)(**params)(
-                nii=nii,
-                surf=surf,
-            )
+            return xfm(f, transformer_f)(**params)(nii=nii, surf=surf)
 
         return f_transformed
     return transform
@@ -172,7 +177,7 @@ def parcellate_colormap(
             surf: CortexTriSurface,
             **params: Mapping,
         ):
-            return xfm(f, transformer_f, unpack_dict=True)(**params)(surf=surf)
+            return xfm(f, transformer_f)(**params)(surf=surf)
 
         return f_transformed
     return transform
@@ -205,8 +210,7 @@ def vol_from_nifti(
             return ret
 
         def f_transformed(*, nii: nb.Nifti1Image, **params: Mapping):
-            return xfm(f, transformer_f, unpack_dict=True)(
-                **params)(nii=nii)
+            return xfm(f, transformer_f)(**params)(nii=nii)
 
         return f_transformed
     return transform
@@ -245,8 +249,7 @@ def vol_from_atlas(
             maps: Optional[Mapping] = None,
             **params: Mapping,
         ):
-            return xfm(f, transformer_f, unpack_dict=True)(
-                **params)(atlas=atlas, maps=maps)
+            return xfm(f, transformer_f)(**params)(atlas=atlas, maps=maps)
 
         return f_transformed
     return transform
@@ -258,50 +261,73 @@ def ax_grid(
     figsize: Optional[Tuple[float, float]] = None,
     hide_axes: bool = True,
     tight_layout: bool = True,
+    num_panels: Optional[int] = None,
     order: Literal["row-major", "col-major"] = "row-major",
 ) -> callable:
+    if num_panels is None:
+        num_panels = float("inf")
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
-            out: Sequence[pv.Plotter],
+            plotter: Sequence[pv.Plotter],
             views: Sequence,
             window_size: Tuple[int, int],
             hemi: Optional[Literal["left", "right", "both"]],
             **params,
         ) -> Union[Tuple[plt.Figure, ...], plt.Figure]:
+            if isinstance(views[0], str):
+                views = [views] * len(plotter)
+            if isinstance(window_size[0], int):
+                window_size = [window_size] * len(plotter)
+            if isinstance(hemi, str):
+                hemi = [hemi] * len(plotter)
             out = tuple(
                 plot_to_image(
-                    o,
-                    views=views,
-                    window_size=window_size,
-                    hemi=hemi
-                ) for o in out
+                    _p,
+                    views=_v,
+                    window_size=_w,
+                    hemi=_h,
+                ) for _p, _v, _w, _h in zip(plotter, views, window_size, hemi)
             )
             out = list(chain(*out))
             try:
                 nout = len(out)
+                if nout > num_panels:
+                    n_panels = num_panels
+                    nfigs = ceil(nout / n_panels)
+                    out = tuple(
+                        out[i * n_panels:(i + 1) * n_panels]
+                        for i in range(nfigs)
+                    )
+                else:
+                    nfigs = 1
+                    n_panels = nout
+                    out = (out,)
                 if ncol is None:
-                    ncols = ceil(nout / nrow)
+                    ncols = ceil(n_panels / nrow)
                     nrows = nrow
                 elif nrow is None:
                     ncols = ncol
-                    nrows = ceil(nout / ncol)
+                    nrows = ceil(n_panels / ncol)
             except TypeError:
+                out = ((out,),)
                 nout = 1
-                out = (out,)
                 ncols = 1
                 nrows = 1
 
-            fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
-            if order == "col-major":
-                axes = axes.T
-            for i, ax in enumerate(axes.flat):
-                if i < nout:
-                    ax.imshow(out[i])
-                if hide_axes:
-                    ax.axis("off")
-            if tight_layout:
-                fig.tight_layout()
-            return fig
+            figs = []
+            for _out in out:
+                fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
+                if order == "col-major":
+                    axes = axes.T
+                for i, ax in enumerate(axes.flat):
+                    if i < len(_out):
+                        ax.imshow(_out[i])
+                    if hide_axes:
+                        ax.axis("off")
+                if tight_layout:
+                    fig.tight_layout()
+                figs.append(fig)
+            return {"fig": tuple(figs)}
 
         def f_transformed(
             views: Sequence = (
@@ -324,6 +350,7 @@ def row_major_grid(
     figsize: Optional[Tuple[float, float]] = None,
     hide_axes: bool = True,
     tight_layout: bool = True,
+    num_panels: Optional[int] = None,
 ) -> callable:
     return ax_grid(
         ncol=ncol,
@@ -331,6 +358,7 @@ def row_major_grid(
         figsize=figsize,
         hide_axes=hide_axes,
         tight_layout=tight_layout,
+        num_panels=num_panels,
         order="row-major",
     )
 
@@ -341,6 +369,7 @@ def col_major_grid(
     figsize: Optional[Tuple[float, float]] = None,
     hide_axes: bool = True,
     tight_layout: bool = True,
+    num_panels: Optional[int] = None,
 ) -> callable:
     return ax_grid(
         ncol=ncol,
@@ -348,6 +377,7 @@ def col_major_grid(
         figsize=figsize,
         hide_axes=hide_axes,
         tight_layout=tight_layout,
+        num_panels=num_panels,
         order="col-major",
     )
 
@@ -355,7 +385,7 @@ def col_major_grid(
 def plot_and_save():
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
-            pl: pv.Plotter,
+            plotter: pv.Plotter,
             basename: str,
             views: Sequence,
             window_size: Tuple[int, int],
@@ -363,13 +393,13 @@ def plot_and_save():
             **params,
         ):
             imgs = plot_to_image(
-                pl,
+                plotter,
                 basename=basename,
                 views=views,
                 window_size=window_size,
                 hemi=hemi,
             )
-            return imgs
+            return {**params, **{"screenshots": imgs}}
 
         def f_transformed(
             *,
@@ -396,8 +426,12 @@ def plot_and_save():
 def save_fig():
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(fig: plt.Figure, filename: str, **params):
-            fig.savefig(filename)
-            return fig
+            if not isinstance(fig, plt.Figure):
+                for i, _fig in enumerate(fig):
+                    _fig.savefig(filename.format(index=i))
+            else:
+                fig.savefig(filename)
+            return {"fig": fig}
 
         def f_transformed(*, filename: str = None, **params):
             return xfm(transformer_f, f)(filename=filename)(**params)
