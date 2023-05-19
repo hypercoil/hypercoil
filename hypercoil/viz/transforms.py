@@ -21,7 +21,7 @@ import pyvista as pv
 from hypercoil.init.atlas import BaseAtlas
 from .flows import direct_transform
 from .surf import CortexTriSurface, make_cmap
-from .utils import plot_to_image
+from .utils import plot_to_image, auto_focus
 
 
 def surf_from_archive(
@@ -311,9 +311,46 @@ def vol_from_atlas(
     return transform
 
 
-def select_closest_poles(
+def _ortho_cam_transformer(
+    surf: CortexTriSurface,
+    hemi: Optional[str],
+    scalars: str,
     projection: str,
-    n_poles: int = 1,
+    n_ortho: int,
+) -> Mapping:
+    if projection == "sphere":
+        metric = "spherical"
+        cur_proj = surf.projection
+        surf.left.project("sphere")
+        surf.right.project("sphere")
+    else:
+        metric = "euclidean"
+    if hemi is None:
+        _hemi = ("left", "right")
+    else:
+        _hemi = (hemi,)
+    closest_poles = []
+    for h in _hemi:
+        coor = surf.scalars_centre_of_mass(
+            hemisphere=h,
+            scalars=scalars,
+            projection=projection,
+        )
+        closest_poles.append(surf.closest_poles(
+            hemisphere=h,
+            coors=coor,
+            metric=metric,
+            n_poles=n_ortho,
+        ).tolist())
+    if projection == "sphere":
+        surf.left.project(cur_proj)
+        surf.right.project(cur_proj)
+    return closest_poles
+
+
+def closest_ortho_cameras(
+    projection: str,
+    n_ortho: int = 1,
 ) -> callable:
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
@@ -322,30 +359,16 @@ def select_closest_poles(
             hemi_params: Sequence,
             scalars: str,
         ) -> Mapping:
-            if projection == "sphere":
-                metric = "spherical"
-            else:
-                metric = "euclidean"
-            if hemi is None:
-                _hemi = ("left", "right")
-            else:
-                _hemi = (hemi,)
-            closest_poles = []
-            for h in _hemi:
-                coor = surf.scalars_centre_of_mass(
-                    hemisphere=h,
-                    scalars=scalars,
-                    projection=projection,
-                )
-                closest_poles.append(surf.closest_poles(
-                    hemisphere=h,
-                    coors=coor,
-                    metric=metric,
-                    n_poles=n_poles,
-                ))
-            hemi_params = list(hemi_params) + ["views"]
+            views = _ortho_cam_transformer(
+                surf=surf,
+                hemi=hemi,
+                scalars=scalars,
+                projection=projection,
+                n_ortho=n_ortho,
+            )
+            hemi_params = set(hemi_params).union({"views"})
             return {
-                "views": closest_poles,
+                "views": views,
                 "surf": surf,
                 "scalars": scalars,
                 "hemi": hemi,
@@ -361,7 +384,10 @@ def select_closest_poles(
             **params: Mapping,
         ):
             return xfm(f, transformer_f)(**params)(
-                surf=surf, hemi=hemi, hemi_params=hemi_params, scalars=scalars
+                surf=surf,
+                hemi=hemi,
+                hemi_params=hemi_params,
+                scalars=scalars,
             )
 
         return f_transformed
