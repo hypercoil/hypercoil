@@ -401,6 +401,87 @@ def planar_sweep_cameras(
     return transform
 
 
+def _focused_cam_transformer(
+    surf: CortexTriSurface,
+    hemi: Optional[str],
+    scalars: str,
+    projection: str,
+    kind: str,
+) -> Mapping:
+    if hemi is None:
+        _hemi = ("left", "right")
+    else:
+        _hemi = (hemi,)
+    cpos = []
+    for h in _hemi:
+        if kind == "centroid":
+            coor = surf.scalars_centre_of_mass(
+                hemisphere=h,
+                scalars=scalars,
+                projection=projection,
+            )
+        elif kind == "peak":
+            coor = surf.scalars_peak(
+                hemisphere=h,
+                scalars=scalars,
+                projection=projection,
+            )
+        vector, focus = auto_focus(
+            vector=coor,
+            plotter=surf.__getattribute__(h),
+            slack=1.1,
+        )
+        cpos.append(
+            (vector, focus, (0, 0, 1))
+        )
+    return cpos
+
+
+def scalar_focus_camera(
+    projection: str,
+    kind: Literal["centroid", "peak"] = "centroid",
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(
+            surf: CortexTriSurface,
+            hemi: Optional[str],
+            hemi_params: Sequence,
+            scalars: str,
+        ) -> Mapping:
+            views = _focused_cam_transformer(
+                surf=surf,
+                hemi=hemi,
+                scalars=scalars,
+                projection=projection,
+                kind=kind,
+            )
+            hemi_params = set(hemi_params).union({"views"})
+            return {
+                "views": (views,),
+                "surf": surf,
+                "scalars": scalars,
+                "hemi": hemi,
+                "hemi_params": hemi_params,
+            }
+
+        def f_transformed(
+            *,
+            surf: CortexTriSurface,
+            scalars: str,
+            hemi: Optional[str] = None,
+            hemi_params: Sequence = (),
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f)(**params)(
+                surf=surf,
+                hemi=hemi,
+                hemi_params=hemi_params,
+                scalars=scalars,
+            )
+        return f_transformed
+    return transform
+
+
 def _ortho_cam_transformer(
     surf: CortexTriSurface,
     hemi: Optional[str],
