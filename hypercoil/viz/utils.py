@@ -45,6 +45,21 @@ def half_width(
     )
 
 
+def auto_focus(
+    vector: Sequence[float],
+    plotter: pv.Plotter,
+    slack: float = 1.05,
+    focal_point: Optional[Sequence[float]] = None,
+) -> Tuple[float, float, float]:
+    vector = np.asarray(vector)
+    if focal_point is None:
+        focal_point = plotter.center
+    hw = half_width(plotter, slack=slack)
+    scalar = np.nanmin(hw / np.abs(vector))
+    vector = vector * scalar + focal_point
+    return vector, focal_point
+
+
 def cortex_view_dict() -> Dict[str, Tuple[Sequence[float], Sequence[float]]]:
     """
     Return a dict containing tuples of (vector, viewup) pairs for each
@@ -105,9 +120,7 @@ def cortex_cameras(
             if isinstance(hemi, str):
                 try:
                     vector, view_up = cortex_view_dict()[hemi][position]
-                    hw = half_width(plotter)
-                    focal_point = plotter.center
-                    vector = np.array(vector) * hw + focal_point
+                    vector, focal_point = auto_focus(vector, plotter)
                     return (vector, focal_point, view_up)
                 except KeyError:
                     raise e
@@ -154,8 +167,6 @@ def plot_to_image(
     basename: Optional[str] = None,
     hemi: Optional[Literal["left", "right", "both"]] = None,
 ) -> Tuple[np.ndarray]:
-    off_screen_orig = p.off_screen
-    p.off_screen = True
     if basename is None:
         screenshot = [True] * len(views)
     else:
@@ -176,6 +187,5 @@ def plot_to_image(
         )
         img = p.screenshot(fname, window_size=window_size, return_img=True)
         ret.append(img)
-    p.off_screen = off_screen_orig
     p.close()
     return tuple(ret)
