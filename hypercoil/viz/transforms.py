@@ -311,6 +311,96 @@ def vol_from_atlas(
     return transform
 
 
+def _planar_cam_transformer(
+    surf: CortexTriSurface,
+    hemi: Optional[str],
+    initial: Sequence,
+    normal: Sequence,
+    n_steps: int,
+) -> Mapping:
+    assert np.isclose(np.dot(initial, normal), 0)
+    angles = np.linspace(0, 2 * np.pi, n_steps, endpoint=False)
+    cos = np.cos(angles)
+    sin = np.sin(angles)
+    ax_x = initial / np.linalg.norm(initial)
+    ax_z = np.asarray(normal) / np.linalg.norm(normal)
+    ax_y = np.cross(ax_z, ax_x)
+    ax = np.stack((ax_x, ax_y, ax_z), axis=-1)
+
+    lin = np.zeros((n_steps, 3, 3))
+    lin[:, 0, 0] = cos
+    lin[:, 0, 1] = -sin
+    lin[:, 1, 0] = sin
+    lin[:, 1, 1] = cos
+    lin[:, -1, -1] = 1
+
+    lin = ax @ lin
+    vectors = lin @ np.asarray(initial)
+
+    if hemi is None:
+        _hemi = ("left", "right")
+    else:
+        _hemi = (hemi,)
+    cpos = []
+    for h in _hemi:
+        if h == "left":
+            vecs_hemi = vectors.copy()
+            vecs_hemi[:, 0] = -vecs_hemi[:, 0]
+        else:
+            vecs_hemi = vectors
+        for vector in vecs_hemi:
+            v, focus = auto_focus(
+                vector=vector,
+                plotter=surf.__getattribute__(h),
+                slack=1.3,
+            )
+            cpos.append(
+                (v, focus, (0, 0, 1))
+            )
+    return cpos
+
+
+def planar_sweep_cameras(
+    initial: Sequence[float] = (1, 0, 0),
+    normal: Sequence[float] = (0, 0, 1),
+    n_steps: int = 10,
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(
+            surf: CortexTriSurface,
+            hemi: Optional[str],
+            hemi_params: Sequence,
+        ) -> Mapping:
+            views = _planar_cam_transformer(
+                surf=surf,
+                hemi=hemi,
+                initial=initial,
+                normal=normal,
+                n_steps=n_steps,
+            )
+            hemi_params = set(hemi_params).union({"views"})
+            return {
+                "views": (views,),
+                "surf": surf,
+                "hemi": hemi,
+                "hemi_params": hemi_params,
+            }
+
+        def f_transformed(
+            *,
+            surf: CortexTriSurface,
+            hemi: Optional[str] = None,
+            hemi_params: Sequence = (),
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f)(**params)(
+                surf=surf, hemi=hemi, hemi_params=hemi_params,
+            )
+
+        return f_transformed
+    return transform
+
+
 def _ortho_cam_transformer(
     surf: CortexTriSurface,
     hemi: Optional[str],
