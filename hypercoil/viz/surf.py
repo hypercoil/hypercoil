@@ -351,12 +351,14 @@ class CortexTriSurface:
                 )
             n_darrays = max(len(left_data), len(right_data))
             exclude = exclude or []
+            names = []
             if select is not None:
                 exclude = [i for i in range(n_darrays) if i not in select]
             for i in range(n_darrays):
                 if i in exclude:
                     continue
                 name_i = f"{name}_{i}"
+                names.append(name_i)
                 data_l = left_data[i].data if left_gifti else None
                 data_r = right_data[i].data if right_gifti else None
                 self.add_vertex_dataset(
@@ -367,6 +369,7 @@ class CortexTriSurface:
                     apply_mask=apply_mask,
                     null_value=null_value,
                 )
+            return names
         else:
             left_data = left_data[arr_idx].data if left_gifti else None
             right_data = right_data[arr_idx].data if right_gifti else None

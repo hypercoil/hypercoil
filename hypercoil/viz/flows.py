@@ -130,19 +130,31 @@ def replicate_and_map(
 
 
 def replicate(
-    mapping: Mapping[str, Sequence],
+    mapping: Mapping[str, Sequence] = {},
+    map_over: Sequence[str] = (),
 ) -> callable:
-    n_vals = len(next(iter(mapping.values())))
-    for vals in mapping.values():
-        assert len(vals) == n_vals, (
-            "All values must have the same length. Perhaps you intended to "
-            "nest replications?"
-        )
+    if mapping:
+        n_vals = len(next(iter(mapping.values())))
+        for vals in mapping.values():
+            assert len(vals) == n_vals, (
+                "All values must have the same length. Perhaps you intended to "
+                "nest replications?"
+            )
     def transform(f: callable) -> callable:
         def f_transformed(**params: Mapping):
+            if map_over is not None:
+                #TODO: assert equal lengths
+                n_vals = len(params[map_over[0]])
+            mapped_params = {k: v for k, v in params.items() if k in map_over}
+            other_params = {k: v for k, v in params.items() if k not in map_over}
+            mapped_params = {**mapped_params, **mapping}
             ret = []
             for i in range(n_vals):
-                nxt = f(**{**params, **{k: mapping[k][i] for k in mapping}, **{"copy_actors": True}})
+                nxt = f(**{
+                    **other_params,
+                    **{k: mapped_params[k][i] for k in mapped_params},
+                    **{"copy_actors": True}
+                })
                 ret += [nxt]
             return _seq_to_dict(ret)
 

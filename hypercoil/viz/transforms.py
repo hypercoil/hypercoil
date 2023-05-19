@@ -129,6 +129,7 @@ def scalars_from_atlas(
                     if i not in select
                 ]
             i = 0
+            hemis = []
             for m in maps_L:
                 if i in excl:
                     i += 1
@@ -139,6 +140,7 @@ def scalars_from_atlas(
                     is_masked=True,
                 )
                 i += 1
+                hemis.append("left")
             for m in maps_R:
                 if i in excl:
                     i += 1
@@ -149,14 +151,13 @@ def scalars_from_atlas(
                     is_masked=True,
                 )
                 i += 1
+                hemis.append("right")
             return {
                 "surf": surf,
-                # "scalars": tuple(
-                #     f"{scalars}_{i}" for i in range(i)
-                # ),
-                # "hemi": tuple(
-                #     "left" if i < len(maps_L) else "right" for i in range(i)
-                # ),
+                "scalars": tuple(
+                    f"{scalars}_{j}" for j in range(i) if j not in excl
+                ),
+                "hemi": tuple(hemis),
             }
 
         def f_transformed(
@@ -191,7 +192,7 @@ def resample_to_surface(
             surf: CortexTriSurface,
         ) -> Mapping:
             left, right = f_resample(nii)
-            surf.add_gifti_dataset(
+            scalar_names = surf.add_gifti_dataset(
                 name=scalars,
                 left_gifti=left,
                 right_gifti=right,
@@ -201,7 +202,10 @@ def resample_to_surface(
                 select=select,
                 exclude=exclude,
             )
-            return {"surf": surf}
+            return {
+                "surf": surf,
+                "scalars": tuple(scalar_names),
+            }
 
         def f_transformed(
             *,

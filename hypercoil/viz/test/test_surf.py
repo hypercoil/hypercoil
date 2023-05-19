@@ -122,7 +122,7 @@ class TestSurfaceVisualisations:
         i_chain = ichain(
             surf_from_archive(),
             resample_to_surface('difumo', template='fsaverage', select=list(range(60))),
-            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(60)]}),
+            replicate(map_over=("scalars",)),
             scalar_focus_camera(projection='pial', kind='centroid'),
         )
         o_chain = ochain(
@@ -152,7 +152,7 @@ class TestSurfaceVisualisations:
         i_chain = ichain(
             surf_from_archive(),
             resample_to_surface('difumo', template='fsaverage'),
-            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(64)]}),
+            replicate(map_over=("scalars",)),
             closest_ortho_cameras(projection='pial', n_ortho=3),
         )
         o_chain = ochain(
@@ -182,7 +182,7 @@ class TestSurfaceVisualisations:
         i_chain = ichain(
             surf_from_archive(),
             resample_to_surface('difumo', template='fsaverage'),
-            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(64)]}),
+            replicate(map_over=("scalars",)),
             planar_sweep_cameras(initial=(1, 0, 0), normal=(0, 0, 1), n_steps=5),
         )
         o_chain = ochain(
@@ -212,7 +212,7 @@ class TestSurfaceVisualisations:
         i_chain = ichain(
             surf_from_archive(),
             resample_to_surface('difumo', template='fsaverage'),
-            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(64)]}),
+            replicate(map_over=("scalars",)),
             auto_cameras(projection='pial', n_ortho=3, focus='peak', n_angles=3),
         )
         o_chain = ochain(
@@ -242,10 +242,7 @@ class TestSurfaceVisualisations:
         i_chain = ichain(
             surf_from_archive(),
             scalars_from_atlas('dirichlet'),
-            replicate(mapping={
-                "scalars": [f"dirichlet_{i}" for i in range(40)],
-                "hemi": ["left" if i < 20 else "right" for i in range(40)]
-            }),
+            replicate(map_over=("scalars", "hemi")),
             scalar_focus_camera(projection='veryinflated', kind='peak'),
         )
         o_chain = ochain(
@@ -291,10 +288,7 @@ class TestSurfaceVisualisations:
         i_chain = ichain(
             surf_from_archive(),
             scalars_from_atlas('dirichlet', select=selected),
-            replicate(mapping={
-                "scalars": [f"dirichlet_{i}" for i in selected],
-                "hemi": ["left" if i < 19 else "right" for i in range(38)]
-            }),
+            replicate(map_over=("scalars", "hemi")),
             closest_ortho_cameras(projection='veryinflated', n_ortho=3),
         )
         o_chain = ochain(
@@ -339,10 +333,7 @@ class TestSurfaceVisualisations:
         i_chain = ichain(
             surf_from_archive(),
             scalars_from_atlas('dirichlet'),
-            replicate(mapping={
-                "scalars": [f"dirichlet_{i}" for i in range(40)],
-                "hemi": ["left" if i < 20 else "right" for i in range(40)]
-            }),
+            replicate(map_over=("scalars", "hemi")),
             planar_sweep_cameras(initial=(1, 0, 0), normal=(0, 0, 1), n_steps=10),
         )
         o_chain = ochain(
@@ -387,10 +378,7 @@ class TestSurfaceVisualisations:
         i_chain = ichain(
             surf_from_archive(),
             scalars_from_atlas('dirichlet'),
-            replicate(mapping={
-                "scalars": [f"dirichlet_{i}" for i in range(40)],
-                "hemi": ["left" if i < 20 else "right" for i in range(40)]
-            }),
+            replicate(map_over=("scalars", "hemi")),
             auto_cameras(projection='veryinflated', n_ortho=3, focus='peak', n_angles=3),
         )
         o_chain = ochain(
