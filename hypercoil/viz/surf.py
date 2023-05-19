@@ -487,7 +487,7 @@ class CortexTriSurface:
         hemisphere: str,
         scalars: str,
         projection: str,
-    ):
+    ) -> Tensor:
         projection_name = f"_projection_{projection}"
         if hemisphere == 'left':
             proj_data = self.left.point_data[projection_name]
@@ -501,6 +501,24 @@ class CortexTriSurface:
         num = np.nansum(proj_data * scalars_data, axis=0)
         den = np.nansum(scalars_data, axis=0)
         return num / den
+
+    def scalars_peak(
+        self,
+        hemisphere: str,
+        scalars: str,
+        projection: str
+    ) -> Tensor:
+        projection_name = f"_projection_{projection}"
+        if hemisphere == 'left':
+            proj_data = self.left.point_data[projection_name]
+            scalars_data = self.left.point_data[scalars].reshape(-1, 1)
+        elif hemisphere == 'right':
+            proj_data = self.right.point_data[projection_name]
+            scalars_data = self.right.point_data[scalars].reshape(-1, 1)
+        else:
+            raise ValueError(
+                f"Invalid hemisphere: {hemisphere}. Must be 'left' or 'right'.")
+        return proj_data[np.argmax(scalars_data)]
 
     @staticmethod
     def _hemisphere_darray_impl(data, mask, projection):
