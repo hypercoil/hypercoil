@@ -28,6 +28,7 @@ def surf_scalars_plotter(
     copy_actors: bool = False,
     cmap: Any = (None, None),
     clim: Any = (None, None),
+    below_color: str = "black",
     theme: Optional[pv.themes.DocumentTheme] = None,
 ) -> Tuple[Optional[pv.Plotter], Optional[pv.Plotter]]:
     """
@@ -59,7 +60,7 @@ def surf_scalars_plotter(
                 scalars=scalars,
                 cmap=hemi_cmap,
                 clim=hemi_clim,
-                below_color='black',
+                below_color=below_color,
                 copy_mesh=copy_actors,
             )
             if boundary_width > 0:
@@ -106,6 +107,7 @@ def plot_surf_scalars(
     copy_actors: bool = False,
     cmap: Any = (None, None),
     clim: Any = (None, None),
+    below_color: str = "black",
     theme: Optional[pv.themes.DocumentTheme] = None,
     hemi_params: Optional[Sequence[str]] = None,
     **params: Any,
@@ -125,6 +127,7 @@ def plot_surf_scalars(
         copy_actors=copy_actors,
         cmap=cmap,
         clim=clim,
+        below_color=below_color,
         theme=theme,
     )
     if pl is None:
