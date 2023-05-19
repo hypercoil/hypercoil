@@ -38,7 +38,10 @@ from hypercoil.viz.transforms import (
     row_major_grid,
     col_major_grid,
     save_fig,
-    select_closest_poles,
+    closest_ortho_cameras,
+    scalar_focus_camera,
+    planar_sweep_cameras,
+    auto_cameras,
 )
 
 
@@ -115,15 +118,15 @@ class TestSurfaceVisualisations:
         )
 
     @pytest.mark.ci_unsupported
-    def test_continuous_parcellation(self):
+    def test_focused_view_both_hemispheres(self):
         i_chain = ichain(
             surf_from_archive(),
-            resample_to_surface('difumo', template='fsaverage'),
-            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(64)]}),
-            select_closest_poles(projection='pial', n_poles=3),
+            resample_to_surface('difumo', template='fsaverage', select=list(range(60))),
+            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(60)]}),
+            scalar_focus_camera(projection='pial', kind='centroid'),
         )
         o_chain = ochain(
-            row_major_grid(ncol=3, figsize=(3, 10), num_panels=30),
+            row_major_grid(ncol=4, figsize=(8, 10), num_panels=20),
             save_fig()
         )
         f = iochain(plot_surf_scalars, i_chain, o_chain)
@@ -138,19 +141,161 @@ class TestSurfaceVisualisations:
             load_mask=True,
             nii=nii,
             projection='pial',
-            filename='/tmp/parcelpeaks_index-{index}.png',
-            clim=(0, 2e-4),
-            cmap='magma',
+            filename='/tmp/parcelfocused_index-{index}.png',
+            cmap='Purples',
+            below_color='white',
             window_size=(400, 250),
         )
 
     @pytest.mark.ci_unsupported
-    def test_parcellation_from_atlas(self):
+    def test_ortho_views_both_hemispheres(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            resample_to_surface('difumo', template='fsaverage'),
+            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(64)]}),
+            closest_ortho_cameras(projection='pial', n_ortho=3),
+        )
+        o_chain = ochain(
+            row_major_grid(ncol=3, figsize=(3, 16), num_panels=48),
+            save_fig()
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+        nii = tflow.get(
+            template='MNI152NLin2009cAsym',
+            atlas='DiFuMo',
+            resolution=2,
+            desc='64dimensions'
+        )
+        f(
+            template="fsaverage",
+            load_mask=True,
+            nii=nii,
+            projection='pial',
+            filename='/tmp/parcelortho_index-{index}.png',
+            cmap='Purples',
+            below_color='white',
+            window_size=(400, 250),
+        )
+
+    @pytest.mark.ci_unsupported
+    def test_planar_sweep_both_hemispheres(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            resample_to_surface('difumo', template='fsaverage'),
+            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(64)]}),
+            planar_sweep_cameras(initial=(1, 0, 0), normal=(0, 0, 1), n_steps=5),
+        )
+        o_chain = ochain(
+            row_major_grid(ncol=10, figsize=(10, 10), num_panels=100),
+            save_fig()
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+        nii = tflow.get(
+            template='MNI152NLin2009cAsym',
+            atlas='DiFuMo',
+            resolution=2,
+            desc='64dimensions'
+        )
+        f(
+            template="fsaverage",
+            load_mask=True,
+            nii=nii,
+            projection='pial',
+            filename='/tmp/parcelplanar_index-{index}.png',
+            cmap='Purples',
+            below_color='white',
+            window_size=(400, 250),
+        )
+
+    @pytest.mark.ci_unsupported
+    def test_auto_view_both_hemispheres(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            resample_to_surface('difumo', template='fsaverage'),
+            replicate(mapping={"scalars": [f"difumo_{i}" for i in range(64)]}),
+            auto_cameras(projection='pial', n_ortho=3, focus='peak', n_angles=3),
+        )
+        o_chain = ochain(
+            row_major_grid(ncol=14, figsize=(14, 6), num_panels=84),
+            save_fig()
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+        nii = tflow.get(
+            template='MNI152NLin2009cAsym',
+            atlas='DiFuMo',
+            resolution=2,
+            desc='64dimensions'
+        )
+        f(
+            template="fsaverage",
+            load_mask=True,
+            nii=nii,
+            projection='pial',
+            filename='/tmp/parcelauto_index-{index}.png',
+            cmap='Purples',
+            below_color='white',
+            window_size=(400, 250),
+        )
+
+    @pytest.mark.ci_unsupported
+    def test_focused_view_single_hemisphere(self):
         i_chain = ichain(
             surf_from_archive(),
             scalars_from_atlas('dirichlet'),
-            replicate(mapping={"scalars": [f"dirichlet_{i}" for i in range(40)], "hemi": ["left" if i < 20 else "right" for i in range(40)]}),
-            select_closest_poles(projection='veryinflated', n_poles=3),
+            replicate(mapping={
+                "scalars": [f"dirichlet_{i}" for i in range(40)],
+                "hemi": ["left" if i < 20 else "right" for i in range(40)]
+            }),
+            scalar_focus_camera(projection='veryinflated', kind='peak'),
+        )
+        o_chain = ochain(
+            row_major_grid(ncol=4, figsize=(8, 10), num_panels=20),
+            save_fig()
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+
+        cifti_template = pkgrf(
+            'hypercoil',
+            'viz/resources/nullexample.nii'
+        )
+        atlas = DirichletInitSurfaceAtlas(
+            cifti_template=cifti_template,
+            mask_L=tflow.get(
+                template='fsLR',
+                hemi='L',
+                desc='nomedialwall',
+                density='32k'),
+            mask_R=tflow.get(
+                template='fsLR',
+                hemi='R',
+                desc='nomedialwall',
+                density='32k'),
+            compartment_labels={
+                'cortex_L': 20,
+                'cortex_R': 20,
+                'subcortex': 0,
+            },
+            key=jax.random.PRNGKey(0),
+        )
+        f(
+            template="fsLR",
+            load_mask=True,
+            atlas=atlas,
+            projection='veryinflated',
+            filename='/tmp/dirfocused_index-{index}.png',
+        )
+
+    @pytest.mark.ci_unsupported
+    def test_ortho_views_single_hemisphere(self):
+        selected = list(range(19)) + list(range(20, 39))
+        i_chain = ichain(
+            surf_from_archive(),
+            scalars_from_atlas('dirichlet', select=selected),
+            replicate(mapping={
+                "scalars": [f"dirichlet_{i}" for i in selected],
+                "hemi": ["left" if i < 19 else "right" for i in range(38)]
+            }),
+            closest_ortho_cameras(projection='veryinflated', n_ortho=3),
         )
         o_chain = ochain(
             row_major_grid(ncol=3, figsize=(3, 10), num_panels=30),
@@ -186,10 +331,105 @@ class TestSurfaceVisualisations:
             load_mask=True,
             atlas=atlas,
             projection='veryinflated',
-            filename='/tmp/dirpeaks_index-{index}.png',
-            clim=(0.045, 0.055)
+            filename='/tmp/dirortho_index-{index}.png',
         )
-        assert 0
+
+    @pytest.mark.ci_unsupported
+    def test_planar_sweep_single_hemisphere(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            scalars_from_atlas('dirichlet'),
+            replicate(mapping={
+                "scalars": [f"dirichlet_{i}" for i in range(40)],
+                "hemi": ["left" if i < 20 else "right" for i in range(40)]
+            }),
+            planar_sweep_cameras(initial=(1, 0, 0), normal=(0, 0, 1), n_steps=10),
+        )
+        o_chain = ochain(
+            row_major_grid(ncol=10, figsize=(10, 10), num_panels=100),
+            save_fig()
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+
+        cifti_template = pkgrf(
+            'hypercoil',
+            'viz/resources/nullexample.nii'
+        )
+        atlas = DirichletInitSurfaceAtlas(
+            cifti_template=cifti_template,
+            mask_L=tflow.get(
+                template='fsLR',
+                hemi='L',
+                desc='nomedialwall',
+                density='32k'),
+            mask_R=tflow.get(
+                template='fsLR',
+                hemi='R',
+                desc='nomedialwall',
+                density='32k'),
+            compartment_labels={
+                'cortex_L': 20,
+                'cortex_R': 20,
+                'subcortex': 0,
+            },
+            key=jax.random.PRNGKey(0),
+        )
+        f(
+            template="fsLR",
+            load_mask=True,
+            atlas=atlas,
+            projection='veryinflated',
+            filename='/tmp/dirplanar_index-{index}.png',
+        )
+
+    @pytest.mark.ci_unsupported
+    def test_auto_view_single_hemisphere(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            scalars_from_atlas('dirichlet'),
+            replicate(mapping={
+                "scalars": [f"dirichlet_{i}" for i in range(40)],
+                "hemi": ["left" if i < 20 else "right" for i in range(40)]
+            }),
+            auto_cameras(projection='veryinflated', n_ortho=3, focus='peak', n_angles=3),
+        )
+        o_chain = ochain(
+            row_major_grid(ncol=7, figsize=(7, 10), num_panels=70),
+            save_fig()
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+
+        cifti_template = pkgrf(
+            'hypercoil',
+            'viz/resources/nullexample.nii'
+        )
+        atlas = DirichletInitSurfaceAtlas(
+            cifti_template=cifti_template,
+            mask_L=tflow.get(
+                template='fsLR',
+                hemi='L',
+                desc='nomedialwall',
+                density='32k'),
+            mask_R=tflow.get(
+                template='fsLR',
+                hemi='R',
+                desc='nomedialwall',
+                density='32k'),
+            compartment_labels={
+                'cortex_L': 20,
+                'cortex_R': 20,
+                'subcortex': 0,
+            },
+            key=jax.random.PRNGKey(0),
+        )
+        f(
+            template="fsLR",
+            load_mask=True,
+            atlas=atlas,
+            projection='veryinflated',
+            filename='/tmp/dirauto_index-{index}.png',
+        )
+
     # @pytest.fixture(autouse=True)
     # def setup_class(self):
     #     ref_pointer = pkgrf(
