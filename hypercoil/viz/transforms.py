@@ -565,6 +565,90 @@ def closest_ortho_cameras(
     return transform
 
 
+def auto_cameras(
+    projection: str,
+    n_ortho: int = 0,
+    focus: Optional[Literal["centroid", "peak"]] = None,
+    n_angles: int = 0,
+    initial_angle: Tuple[float, float, float] = (1, 0, 0),
+    normal_vector: Tuple[float, float, float] = (0, 0, 1),
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(
+            surf: CortexTriSurface,
+            hemi: Optional[str],
+            hemi_params: Sequence,
+            scalars: Optional[str],
+        ) -> Mapping:
+            views_ortho = views_focused = views_planar = []
+            if n_ortho > 0:
+                views_ortho = _ortho_cam_transformer(
+                    surf=surf,
+                    hemi=hemi,
+                    scalars=scalars,
+                    projection=projection,
+                    n_ortho=n_ortho,
+                )
+            if focus is not None:
+                views_focused = _focused_cam_transformer(
+                    surf=surf,
+                    hemi=hemi,
+                    scalars=scalars,
+                    projection=projection,
+                    kind=focus,
+                )
+            if n_angles > 0:
+                views_planar = _planar_cam_transformer(
+                    surf=surf,
+                    hemi=hemi,
+                    initial=initial_angle,
+                    normal=normal_vector,
+                    n_steps=n_angles,
+                )
+            hemi_params = set(hemi_params).union({"views"})
+            if hemi is not "left" and hemi is not "right":
+                views_left = []
+                views_right = []
+                if views_ortho:
+                    views_left.extend(views_ortho[0])
+                    views_right.extend(views_ortho[1])
+                if views_focused:
+                    views_left.append(views_focused[0])
+                    views_right.append(views_focused[1])
+                if views_planar:
+                    n = len(views_planar) // 2
+                    views_left.extend(views_planar[:n])
+                    views_right.extend(views_planar[n:])
+                views = (views_left, views_right)
+            else:
+                views = (tuple(views_ortho[0] + views_focused + views_planar),)
+            return {
+                "views": views,
+                "surf": surf,
+                "scalars": scalars,
+                "hemi": hemi,
+                "hemi_params": hemi_params,
+            }
+
+        def f_transformed(
+            *,
+            surf: CortexTriSurface,
+            scalars: Optional[str] = None,
+            hemi: Optional[str] = None,
+            hemi_params: Sequence = (),
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f)(**params)(
+                surf=surf,
+                hemi=hemi,
+                hemi_params=hemi_params,
+                scalars=scalars,
+            )
+
+        return f_transformed
+    return transform
+
+
 def ax_grid(
     ncol: Optional[int] = None,
     nrow: Optional[int] = None,
