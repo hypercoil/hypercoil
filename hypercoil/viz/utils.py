@@ -129,6 +129,21 @@ def cortex_cameras(
     return position
 
 
+def robust_clim(
+    surf: pv.PolyData,
+    scalar: str,
+    percent: float = 5.0,
+    bgval: Optional[float] = 0.0,
+) -> Tuple[float, float]:
+    data = surf.point_data[scalar]
+    if bgval is not None:
+        data = data[~np.isclose(data, bgval)]
+    return (
+        np.nanpercentile(data, percent),
+        np.nanpercentile(data, 100 - percent),
+    )
+
+
 def plot_to_display(
     p: pv.Plotter,
     cpos: Optional[Sequence[Sequence[float]]] = "yz",

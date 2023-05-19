@@ -13,7 +13,7 @@ from .surf import (
     CortexTriSurface,
     ProjectedPolyData,
 )
-from .utils import cortex_theme
+from .utils import cortex_theme, robust_clim
 
 
 def surf_scalars_plotter(
@@ -27,7 +27,7 @@ def surf_scalars_plotter(
     off_screen: bool = True,
     copy_actors: bool = False,
     cmap: Any = (None, None),
-    clim: Any = (None, None),
+    clim: Any = "robust",
     below_color: str = "black",
     theme: Optional[pv.themes.DocumentTheme] = None,
 ) -> Tuple[Optional[pv.Plotter], Optional[pv.Plotter]]:
@@ -44,13 +44,14 @@ def surf_scalars_plotter(
         """
         Helper function to plot scalars for a single hemisphere.
         """
-        import numpy as np
         if hemi_id not in hemi:
             p = None
         else:
             p = pv.Plotter(off_screen=off_screen, theme=theme)
 
             hemi_surf.project(projection)
+            if clim == "robust":
+                hemi_clim = robust_clim(hemi_surf, scalars)
             #TODO: copying the mesh seems like it could create memory issues.
             #      A better solution would be delayed execution.
             p.add_mesh(
@@ -106,7 +107,7 @@ def plot_surf_scalars(
     off_screen: bool = True,
     copy_actors: bool = False,
     cmap: Any = (None, None),
-    clim: Any = (None, None),
+    clim: Any = "robust",
     below_color: str = "black",
     theme: Optional[pv.themes.DocumentTheme] = None,
     hemi_params: Optional[Sequence[str]] = None,
