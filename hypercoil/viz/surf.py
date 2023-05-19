@@ -338,6 +338,8 @@ class CortexTriSurface:
         null_value: Optional[float] = 0.,
         map_all: bool = True,
         arr_idx: int = 0,
+        select: Optional[Sequence[int]] = None,
+        exclude: Optional[Sequence[int]] = None,
     ):
         left_data = left_gifti.darrays if left_gifti else []
         right_data = right_gifti.darrays if right_gifti else []
@@ -348,7 +350,12 @@ class CortexTriSurface:
                     "same number of data arrays."
                 )
             n_darrays = max(len(left_data), len(right_data))
+            exclude = exclude or []
+            if select is not None:
+                exclude = [i for i in range(n_darrays) if i not in select]
             for i in range(n_darrays):
+                if i in exclude:
+                    continue
                 name_i = f"{name}_{i}"
                 data_l = left_data[i].data if left_gifti else None
                 data_r = right_data[i].data if right_gifti else None
@@ -672,6 +679,7 @@ class CortexTriSurface:
                 f"but {metric} was given.")
         pole_index = np.argsort(dists, axis=1)[:, :n_poles]
         pole_names = np.array(list(poles.keys()))
+        #TODO: need to use tuple indexing here
         return pole_names[pole_index]
 
 

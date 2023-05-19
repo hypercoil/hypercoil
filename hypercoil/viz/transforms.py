@@ -106,6 +106,8 @@ def scalars_from_cifti(
 def scalars_from_atlas(
     scalars: str,
     compartment: str = ("cortex_L", "cortex_R"),
+    select: Optional[Sequence[int]] = None,
+    exclude: Optional[Sequence[int]] = None,
 ) -> callable:
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
@@ -120,8 +122,17 @@ def scalars_from_atlas(
                 maps_L = maps["cortex_L"]
             if "cortex_R" in compartment:
                 maps_R = maps["cortex_R"]
+            excl = exclude or []
+            if select is not None:
+                excl = [
+                    i for i in range(len(maps_L) + len(maps_R))
+                    if i not in select
+                ]
             i = 0
             for m in maps_L:
+                if i in excl:
+                    i += 1
+                    continue
                 surf.add_vertex_dataset(
                     name=f"{scalars}_{i}",
                     left_data=m,
@@ -129,6 +140,9 @@ def scalars_from_atlas(
                 )
                 i += 1
             for m in maps_R:
+                if i in excl:
+                    i += 1
+                    continue
                 surf.add_vertex_dataset(
                     name=f"{scalars}_{i}",
                     right_data=m,
@@ -163,6 +177,8 @@ def resample_to_surface(
     scalars: str,
     template: str = "fsLR",
     null_value: Optional[float] = 0.,
+    select: Optional[Sequence[int]] = None,
+    exclude: Optional[Sequence[int]] = None,
 ) -> callable:
     templates = {
         "fsLR": mni152_to_fslr,
@@ -182,6 +198,8 @@ def resample_to_surface(
                 is_masked=False,
                 apply_mask=True,
                 null_value=null_value,
+                select=select,
+                exclude=exclude,
             )
             return {"surf": surf}
 
@@ -825,6 +843,7 @@ def save_fig():
                     _fig.savefig(filename.format(index=i))
             else:
                 fig.savefig(filename)
+            plt.close("all")
             return {"fig": fig}
 
         def f_transformed(*, filename: str = None, **params):
