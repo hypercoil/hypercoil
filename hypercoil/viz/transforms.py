@@ -374,7 +374,7 @@ def _planar_cam_transformer(
             v, focus = auto_focus(
                 vector=vector,
                 plotter=surf.__getattribute__(h),
-                slack=1.3,
+                slack=2,
             )
             cpos.append(
                 (v, focus, (0, 0, 1))
@@ -401,8 +401,13 @@ def planar_sweep_cameras(
                 n_steps=n_steps,
             )
             hemi_params = set(hemi_params).union({"views"})
+            if hemi is None:
+                n_per_hemi = len(views) // 2
+                views = (views[:n_per_hemi], views[n_per_hemi:])
+            else:
+                views = (views,)
             return {
-                "views": (views,),
+                "views": views,
                 "surf": surf,
                 "hemi": hemi,
                 "hemi_params": hemi_params,
@@ -478,8 +483,13 @@ def scalar_focus_camera(
                 kind=kind,
             )
             hemi_params = set(hemi_params).union({"views"})
+            if hemi is None:
+                n_per_hemi = len(views) // 2
+                views = (views[:n_per_hemi], views[n_per_hemi:])
+            else:
+                views = (views,)
             return {
-                "views": (views,),
+                "views": views,
                 "surf": surf,
                 "scalars": scalars,
                 "hemi": hemi,
