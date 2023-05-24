@@ -202,6 +202,11 @@ def resample_to_surface(
                 select=select,
                 exclude=exclude,
             )
+            if len(scalar_names) == 1:
+                return {
+                    "surf": surf,
+                    "scalars": scalar_names[0],
+                }
             return {
                 "surf": surf,
                 "scalars": tuple(scalar_names),
@@ -241,13 +246,20 @@ def parcellate_colormap(
                 null_value=0.
             )
 
+            #TODO: These computations are pretty trivial, but there's still
+            #      absolutely no need to repeat work here.
+            #      Refactor make_cmap instead.
             (cmap_left, clim_left), (cmap_right, clim_right) = make_cmap(
                 surf, f'cmap_{cmap_name}', parcellation_name)
+            cmap, clim = make_cmap(
+                surf, f'cmap_{cmap_name}', parcellation_name, separate=False)
 
             return{
                 'surf': surf,
                 'cmap': (cmap_left, cmap_right),
                 'clim': (clim_left, clim_right),
+                'node_cmap': cmap,
+                'node_cmap_range': clim,
             }
 
         def f_transformed(
@@ -259,6 +271,24 @@ def parcellate_colormap(
 
         return f_transformed
     return transform
+
+
+def parcel_centres(
+    parcellation_name: str,
+    projection: str = "pial",
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(surf: CortexTriSurface) -> Mapping:
+            return {
+                "surf": surf,
+                "coor": surf.parcel_centres_of_mass(
+                    parcellation_name,
+                    projection
+                ),
+            }
+
+        def f_transformed(*, surf, **params: Mapping):
+            return xfm(f, transformer_f)(**params)(surf=surf)
 
 
 #TODO: replace threshold arg with the option to provide one of our hypermaths
@@ -304,7 +334,7 @@ def vol_from_atlas(
         def transformer_f(
             atlas: BaseAtlas,
             maps: Optional[Mapping] = None,
-        ):
+        ) -> Mapping:
             if maps is None:
                 maps = atlas.maps
             ret = {}
@@ -638,7 +668,7 @@ def auto_cameras(
                     n_steps=n_angles,
                 )
             hemi_params = set(hemi_params).union({"views"})
-            if hemi is not "left" and hemi is not "right":
+            if hemi != "left" and hemi != "right":
                 views_left = []
                 views_right = []
                 if views_ortho:
