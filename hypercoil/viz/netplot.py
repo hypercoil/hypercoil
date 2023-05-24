@@ -6,12 +6,13 @@ Brain network plotting
 ~~~~~~~~~~~~~~~~~~~~~~
 Brain network plotting utilities.
 """
-from typing import Any, Mapping, Optional, Tuple, Union
+from typing import Any, Literal, Mapping, Optional, Tuple, Union
 
 import numpy as np
 import pyvista as pv
 import pandas as pd
 from matplotlib.cm import get_cmap
+from matplotlib.colors import Normalize
 
 from .surf import CortexTriSurface
 from .utils import cortex_theme
@@ -19,19 +20,30 @@ from .utils import cortex_theme
 
 def filter_adjacency_data(
     adj: np.ndarray,
+    name: str = "edge",
     threshold: Union[float, int] = 0.0,
     percent_threshold: bool = False,
     topk_threshold_nodewise: bool = False,
-    absolute_threshold: bool = True,
-    node_selection: Optional[np.ndarray] = None,
+    absolute: bool = True,
+    incident_node_selection: Optional[np.ndarray] = None,
+    connected_node_selection: Optional[np.ndarray] = None,
+    edge_selection: Optional[np.ndarray] = None,
+    removed_val: Optional[float] = None,
+    surviving_val: Optional[float] = 1.0,
+    emit_degree: Union[bool, Literal["abs", "+", "-"]] = False,
 ) -> pd.DataFrame:
     adj_incl = np.ones_like(adj, dtype=bool)
 
     sgn = np.sign(adj)
-    if absolute_threshold:
+    if absolute:
         adj = np.abs(adj)
-    if node_selection is not None:
-        adj_incl[~node_selection, :] = 0
+    if incident_node_selection is not None:
+        adj_incl[~incident_node_selection, :] = 0
+    if connected_node_selection is not None:
+        adj_incl[~connected_node_selection, :] = 0
+        adj_incl[:, ~connected_node_selection] = 0
+    if edge_selection is not None:
+        adj_incl[~edge_selection] = 0
     if topk_threshold_nodewise:
         indices = np.argpartition(adj, int(threshold), axis=-1)
         indices = indices[..., int(threshold):]
@@ -41,65 +53,97 @@ def filter_adjacency_data(
     else:
         adj_incl[adj < threshold] = 0
 
+    degree = None
+    if emit_degree == "abs":
+        degree = np.abs(adj).sum(axis=0)
+    elif emit_degree == "+":
+        degree = np.maximum(adj, 0).sum(axis=0)
+    elif emit_degree == "-":
+        degree = -np.minimum(adj, 0).sum(axis=0)
+    elif emit_degree:
+        degree = adj.sum(axis=0)
+
     indices_incl = np.triu_indices(adj.shape[0], k=1)
     adj_incl = adj_incl | adj_incl.T
-    adj_incl = adj_incl[indices_incl]
-    indices_incl = tuple(i[adj_incl] for i in indices_incl)
 
+    if removed_val is not None:
+        adj[~adj_incl] = removed_val
+        if surviving_val is not None:
+            adj[adj_incl] = surviving_val
+    else:
+        adj_incl = adj_incl[indices_incl]
+        indices_incl = tuple(i[adj_incl] for i in indices_incl)
     adj = adj[indices_incl]
     sgn = sgn[indices_incl]
 
-    return pd.DataFrame({
-        "i": indices_incl[0],
-        "j": indices_incl[1],
-        "adj": adj,
-        "sgn": sgn,
-    })
+    edge_values = pd.DataFrame({
+        f"{name}_val": adj,
+        f"{name}_sgn": sgn,
+    }, index=pd.MultiIndex.from_arrays(indices_incl, names=["src", "dst"]))
+
+    if degree is not None:
+        degree = pd.DataFrame(
+            degree,
+            index=range(1, degree.shape[0] + 1),
+            columns=(f"{name}_degree",)
+        )
+        return edge_values, degree
+    return edge_values
 
 
 def embedded_graph_plotter(
     *,
     surf: "CortexTriSurface",
     edge_values: pd.DataFrame,
-    node_lh: np.ndarray,
     node_values: Optional[pd.DataFrame] = None,
     coor: Optional[np.ndarray] = None,
     parcellation: Optional[str] = None,
     node_color: Optional[str] = "black",
     node_radius: Union[float, str] = 3.0,
     node_cmap: Any = "viridis",
-    node_cmap_range: Tuple[float, float] = None,
+    node_cmap_range: Tuple[float, float] = (0, 1),
     node_radius_range: Tuple[float, float] = (2, 10),
-    edge_color: Optional[str] = "sgn",
-    edge_radius: Union[float, str] = "adj",
+    edge_color: Optional[str] = "edge_sgn",
+    edge_radius: Union[float, str] = "edge_val",
     edge_cmap: Any = "coolwarm",
-    edge_cmap_range: Tuple[float, float] = None,
+    edge_cmap_range: Tuple[float, float] = (0, 1),
     edge_radius_range: Tuple[float, float] = (0.1, 1.8),
     projection: Optional[str] = "pial",
     surf_opacity: float = 0.1,
     hemisphere_slack: float = 1.1,
+    node_lh: Optional[np.ndarray] = None,
     off_screen: bool = True,
     theme: Optional[pv.themes.DocumentTheme] = None,
 ) -> pv.Plotter:
     def get_node_color(color):
-        # print(color)
-        # print(isinstance(color, float))
-        # print(isinstance(color, int))
-        # print(type(color))
         if isinstance(color, str) or isinstance(color, tuple) or isinstance(color, list):
             return color
         else:
-            return get_cmap(node_cmap)(color)
+            try:
+                cmap = get_cmap(node_cmap)
+            except ValueError:
+                cmap = node_cmap
+            vmin, vmax = node_cmap_range
+            norm = Normalize(vmin=vmin, vmax=vmax)
+            return cmap(norm(color))
 
     def get_edge_color(color):
         if isinstance(color, str) or isinstance(color, tuple) or isinstance(color, list):
             return color
         else:
-            return get_cmap(edge_cmap)(color)
+            try:
+                cmap = get_cmap(edge_cmap)
+            except ValueError:
+                cmap = edge_cmap
+            vmin, vmax = edge_cmap_range
+            norm = Normalize(vmin=vmin, vmax=vmax)
+            return cmap(norm(color))
 
     def process_edge_values():
-        start = coor[edge_values["i"]]
-        end = coor[edge_values["j"]]
+        start_node, end_node = tuple(zip(*edge_values.index))
+        start_node, end_node = np.array(start_node), np.array(end_node)
+        start = coor[start_node]
+        end = coor[end_node]
         centre = (start + end) / 2
         direction = end - start
         length = np.linalg.norm(direction, axis=-1)
@@ -150,23 +194,25 @@ def embedded_graph_plotter(
     p = pv.Plotter(off_screen=off_screen, theme=theme)
     if parcellation is not None:
         coor = surf.parcel_centres_of_mass(
-            'parcellation',
-            'inflated',
+            parcellation,
+            projection,
         )
+    assert coor is not None, "Either coor or parcellation must be provided"
 
     surf.left.project(projection)
     surf.right.project(projection)
 
-    hw_left = (surf.left.bounds[1] - surf.left.bounds[0]) / 2
-    hw_right = (surf.right.bounds[1] - surf.right.bounds[0]) / 2
-    hemi_gap = surf.right.center[0] - surf.left.center[0]
-    min_gap = hw_left + hw_right
-    target_gap = min_gap * hemisphere_slack
-    displacement = (target_gap - hemi_gap) / 2
-    l = surf.left.translate((-displacement, 0, 0))
-    r = surf.right.translate((displacement, 0, 0))
-    coor[node_lh, 0] -= displacement
-    coor[~node_lh, 0] += displacement
+    if node_lh is not None:
+        hw_left = (surf.left.bounds[1] - surf.left.bounds[0]) / 2
+        hw_right = (surf.right.bounds[1] - surf.right.bounds[0]) / 2
+        hemi_gap = surf.right.center[0] - surf.left.center[0]
+        min_gap = hw_left + hw_right
+        target_gap = min_gap * hemisphere_slack
+        displacement = (target_gap - hemi_gap) / 2
+        l = surf.left.translate((-displacement, 0, 0))
+        r = surf.right.translate((displacement, 0, 0))
+        coor[node_lh, 0] -= displacement
+        coor[~node_lh, 0] += displacement
 
     p.add_mesh(
         l,
@@ -185,7 +231,6 @@ def embedded_graph_plotter(
             radius=rad,
             center=c,
         )
-        #print(col, get_node_color(col))
         p.add_mesh(
             node,
             color=get_node_color(col),
@@ -221,12 +266,12 @@ def plot_embedded_graph(
     node_color: Optional[str] = "black",
     node_radius: Union[float, str] = 3.0,
     node_cmap: Any = "viridis",
-    node_cmap_range: Tuple[float, float] = None,
+    node_cmap_range: Tuple[float, float] = (0, 1),
     node_radius_range: Tuple[float, float] = (2, 10),
-    edge_color: Optional[str] = "sgn",
-    edge_radius: Union[float, str] = "adj",
+    edge_color: Optional[str] = "edge_sgn",
+    edge_radius: Union[float, str] = "edge_val",
     edge_cmap: Any = "coolwarm",
-    edge_cmap_range: Tuple[float, float] = None,
+    edge_cmap_range: Tuple[float, float] = (0, 1),
     edge_radius_range: Tuple[float, float] = (0.1, 1.8),
     projection: Optional[str] = "pial",
     surf_opacity: float = 0.1,
