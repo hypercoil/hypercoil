@@ -377,6 +377,7 @@ def add_edge_variable(
     removed_val: Optional[float] = None,
     surviving_val: Optional[float] = 1.0,
     emit_degree: Union[bool, Literal["abs", "+", "-"]] = False,
+    emit_incident_nodes: Union[bool, tuple] = False,
 ) -> callable:
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
@@ -398,13 +399,14 @@ def add_edge_variable(
                 removed_val=removed_val,
                 surviving_val=surviving_val,
                 emit_degree=emit_degree,
+                emit_incident_nodes=emit_incident_nodes,
             )
 
-            if emit_degree is not False:
-                edge_df, degree_df = ret
+            if emit_degree is not False or emit_incident_nodes is not False:
+                edge_df, node_df = ret
                 return {
                     "edge_values": edge_df,
-                    "node_values": degree_df,
+                    "node_values": node_df,
                 }
             return {"edge_values": ret}
 

@@ -40,7 +40,7 @@ def filter_node_data(
     if incident_edge_selection is not None:
         node_incl[~incident_edge_selection.any(axis=-1)] = 0
     if topk_threshold:
-        indices = np.argpartition(val, int(threshold))
+        indices = np.argpartition(-val, int(threshold))
         node_incl[indices[int(threshold):]] = 0
     elif percent_threshold:
         node_incl[val < np.percentile(val[node_incl], 100 * threshold)] = 0
@@ -76,6 +76,7 @@ def filter_adjacency_data(
     removed_val: Optional[float] = None,
     surviving_val: Optional[float] = 1.0,
     emit_degree: Union[bool, Literal["abs", "+", "-"]] = False,
+    emit_incident_nodes: Union[bool, tuple] = False,
 ) -> pd.DataFrame:
     adj_incl = np.ones_like(adj, dtype=bool)
 
@@ -90,7 +91,7 @@ def filter_adjacency_data(
     if edge_selection is not None:
         adj_incl[~edge_selection] = 0
     if topk_threshold_nodewise:
-        indices = np.argpartition(adj, int(threshold), axis=-1)
+        indices = np.argpartition(-adj, int(threshold), axis=-1)
         indices = indices[..., int(threshold):]
         adj_incl[np.arange(adj.shape[0], dtype=int).reshape(-1, 1), indices] = 0
     elif percent_threshold:
@@ -110,6 +111,13 @@ def filter_adjacency_data(
 
     indices_incl = np.triu_indices(adj.shape[0], k=1)
     adj_incl = adj_incl | adj_incl.T
+
+    incidents = None
+    if emit_incident_nodes:
+        incidents = adj_incl.any(axis=0)
+        if isinstance(emit_incident_nodes, tuple):
+            exc, inc = emit_incident_nodes
+            incidents = np.where(incidents, inc, exc)
 
     if removed_val is not None:
         adj[~adj_incl] = removed_val
@@ -132,7 +140,18 @@ def filter_adjacency_data(
             index=range(1, degree.shape[0] + 1),
             columns=(f"{name}_degree",)
         )
-        return edge_values, degree
+        if incidents is None:
+            return edge_values, degree
+    if incidents is not None:
+        incidents = pd.DataFrame(
+            incidents,
+            index=range(1, incidents.shape[0] + 1),
+            columns=(f"{name}_incidents",)
+        )
+        if degree is None:
+            return edge_values, incidents
+        df = degree.join(incidents, how="outer")
+        return edge_values, df
     return edge_values
 
 
@@ -145,14 +164,16 @@ def embedded_graph_plotter(
     parcellation: Optional[str] = None,
     node_color: Optional[str] = "black",
     node_radius: Union[float, str] = 3.0,
+    node_radius_range: Tuple[float, float] = (2, 10),
     node_cmap: Any = "viridis",
     node_cmap_range: Tuple[float, float] = (0, 1),
-    node_radius_range: Tuple[float, float] = (2, 10),
+    node_opacity: Union[float, str] = 1.0,
     edge_color: Optional[str] = "edge_sgn",
     edge_radius: Union[float, str] = "edge_val",
+    edge_radius_range: Tuple[float, float] = (0.1, 1.8),
     edge_cmap: Any = "coolwarm",
     edge_cmap_range: Tuple[float, float] = (0, 1),
-    edge_radius_range: Tuple[float, float] = (0.1, 1.8),
+    edge_opacity: Union[float, str] = 1.0,
     projection: Optional[str] = "pial",
     surf_opacity: float = 0.1,
     hemisphere_slack: float = 1.1,
@@ -223,6 +244,16 @@ def embedded_graph_plotter(
         else:
             return (node_color,) * len(node_values)
 
+    def map_to_opacity():
+        if isinstance(node_opacity, float):
+            return (node_opacity,) * len(node_values)
+        #TODO: this will fail if you want to use the index as the opacity.
+        #      There's no legitimate reason you would want to do this
+        #      so it's a very low priority fix.
+        opa_min = max(0, node_values[node_opacity].min())
+        opa_max = min(1, node_values[node_opacity].max())
+        return map_to_attr(node_values, node_opacity, (opa_min, opa_max))
+
     def map_edge_to_radius():
         if isinstance(edge_radius, float):
             return (edge_radius,) * len(edge_values)
@@ -235,7 +266,21 @@ def embedded_graph_plotter(
         else:
             return (edge_color,) * len(edge_values)
 
-    theme = theme or cortex_theme()
+    def map_edge_to_opacity():
+        if isinstance(edge_opacity, float):
+            return (edge_opacity,) * len(edge_values)
+        #TODO: this will fail if you want to use the index as the opacity.
+        #      There's no conceivable reason you would want to do this
+        #      (and besides, it's a multiindex...) so it's a very low
+        #      priority fix.
+        opa_min = max(0, edge_values[edge_opacity].min())
+        opa_max = min(1, edge_values[edge_opacity].max())
+        return map_to_attr(edge_values, edge_opacity, (opa_min, opa_max))
+
+    if edge_opacity != 1.0 or node_opacity != 1.0:
+        theme = theme or pv.themes.DocumentTheme()
+    else:
+        theme = theme or cortex_theme()
     p = pv.Plotter(off_screen=off_screen, theme=theme)
     if parcellation is not None:
         coor = surf.parcel_centres_of_mass(
@@ -271,7 +316,12 @@ def embedded_graph_plotter(
         show_edges=False,
         color='white',
     )
-    for c, col, rad in zip(coor, map_to_color(), map_to_radius()):
+    for c, col, rad, opa in zip(
+        coor,
+        map_to_color(),
+        map_to_radius(),
+        map_to_opacity(),
+    ):
         node = pv.Icosphere(
             radius=rad,
             center=c,
@@ -279,12 +329,13 @@ def embedded_graph_plotter(
         p.add_mesh(
             node,
             color=get_node_color(col),
-            opacity=1.0,
+            opacity=opa,
         )
-    for c, d, ht, col, rad in zip(
+    for c, d, ht, col, rad, opa in zip(
         *process_edge_values(),
         map_edge_to_color(),
-        map_edge_to_radius()
+        map_edge_to_radius(),
+        map_edge_to_opacity(),
     ):
         edge = pv.Cylinder(
             center=c,
@@ -295,7 +346,7 @@ def embedded_graph_plotter(
         p.add_mesh(
             edge,
             color=get_edge_color(col),
-            opacity=1.0,
+            opacity=opa,
         )
     return p
 
@@ -310,14 +361,16 @@ def plot_embedded_graph(
     parcellation: Optional[str] = None,
     node_color: Optional[str] = "black",
     node_radius: Union[float, str] = 3.0,
+    node_radius_range: Tuple[float, float] = (2, 10),
     node_cmap: Any = "viridis",
     node_cmap_range: Tuple[float, float] = (0, 1),
-    node_radius_range: Tuple[float, float] = (2, 10),
+    node_opacity: Union[float, str] = 1.0,
     edge_color: Optional[str] = "edge_sgn",
     edge_radius: Union[float, str] = "edge_val",
+    edge_radius_range: Tuple[float, float] = (0.1, 1.8),
     edge_cmap: Any = "coolwarm",
     edge_cmap_range: Tuple[float, float] = (0, 1),
-    edge_radius_range: Tuple[float, float] = (0.1, 1.8),
+    edge_opacity: Union[float, str] = 1.0,
     projection: Optional[str] = "pial",
     surf_opacity: float = 0.1,
     hemisphere_slack: float = 1.1,
@@ -334,14 +387,16 @@ def plot_embedded_graph(
         parcellation=parcellation,
         node_color=node_color,
         node_radius=node_radius,
+        node_radius_range=node_radius_range,
         node_cmap=node_cmap,
         node_cmap_range=node_cmap_range,
-        node_radius_range=node_radius_range,
+        node_opacity=node_opacity,
         edge_color=edge_color,
         edge_radius=edge_radius,
+        edge_radius_range=edge_radius_range,
         edge_cmap=edge_cmap,
         edge_cmap_range=edge_cmap_range,
-        edge_radius_range=edge_radius_range,
+        edge_opacity=edge_opacity,
         projection=projection,
         surf_opacity=surf_opacity,
         hemisphere_slack=hemisphere_slack,
