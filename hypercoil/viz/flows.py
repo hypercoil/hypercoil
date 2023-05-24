@@ -112,41 +112,6 @@ def split_chain(
     return transform
 
 
-# def join(
-#     vars: Sequence[str],
-#     how: Literal["outer", "inner"] = "outer",
-#     fill_value: Any = None,
-# ) -> callable:
-#     def close_transform(*chains: Sequence[callable]) -> callable:
-#         def transform(f: callable) -> callable:
-#             def f_transformed(*pparams, **params: Mapping) -> Mapping:
-#                 ret = split_chain(*chains)(f)(**params)
-#                 for k, v in ret.items():
-#                     if k not in vars:
-#                         ret[k] = v[0]
-#                         continue
-#                     print(k, v)
-#                     ret[k] = v[0].join(v[1:], how=how)
-#                     if fill_value is not None:
-#                         ret[k] = v.fillna(fill_value)
-#                 return ret
-
-#             return f_transformed
-#         return transform
-#     return close_transform
-# def join(
-#     vars: Sequence[str],
-#     how: Literal["outer", "inner"] = "outer",
-#     fill_value: Any = None,
-# ) -> callable:
-#     join_transform = close_join_transform(vars, how, fill_value)
-#     def _curried(*chains: Sequence[callable]) -> callable:
-#         def transform(f: callable) -> callable:
-#             return tuple(xfm(f, join_transform) for xfm in chains)
-#         return transform
-#     return _curried
-
-
 def joindata(
     join_vars: Optional[Sequence[str]] = None,
     how: Literal["outer", "inner"] = "outer",

@@ -16,7 +16,23 @@ from hypercoil.viz.surf import (
 )
 from hypercoil.viz.netplot import (
     embedded_graph_plotter,
+    plot_embedded_graph,
     filter_adjacency_data,
+)
+from hypercoil.viz.flows import (
+    ichain,
+    ochain,
+    iochain,
+    joindata,
+)
+from hypercoil.viz.transforms import (
+    surf_from_archive,
+    resample_to_surface,
+    plot_and_save,
+    parcellate_colormap,
+    scalars_from_cifti,
+    add_edge_variable,
+    add_node_variable,
 )
 from hypercoil.viz.utils import plot_to_image
 
@@ -24,67 +40,54 @@ from hypercoil.viz.utils import plot_to_image
 class TestNetworkVisualisations:
     @pytest.mark.ci_unsupported
     def test_net(self):
-        surf = CortexTriSurface.from_tflow(
-            template="fsLR",
-            load_mask=True,
-            projections=('inflated',)
-        )
         parcellation = '/Users/rastkociric/Downloads/desc-schaefer_res-0400_atlas.nii'
         cov = pd.read_csv(pkgrf(
             'hypercoil',
             'examples/synthetic/data/synth-regts/'
             f'atlas-schaefer400_desc-synth_cov.tsv'
         ), sep='\t', header=None).values
-        node_values = np.maximum(cov, 0).sum(axis=0)
-        node_values = pd.DataFrame(
-            node_values,
-            index=range(1, 401),
-            columns=('degree',)
+
+        vis_nodes_edge_selection = np.zeros(400, dtype=bool)
+        vis_nodes_edge_selection[0:5] = True
+        vis_nodes_edge_selection[200:205] = True
+
+        i_chain = ichain(
+            surf_from_archive(),
+            joindata(fill_value=0.)(
+                add_edge_variable(
+                    "vis_conn",
+                    threshold=10,
+                    topk_threshold_nodewise=True,
+                    absolute=True,
+                    incident_node_selection=vis_nodes_edge_selection,
+                    emit_degree=True,
+                ),
+                add_edge_variable(
+                    "vis_internal_conn",
+                    absolute=True,
+                    connected_node_selection=vis_nodes_edge_selection,
+                ),
+            ),
+            scalars_from_cifti('parcellation'),
+            parcellate_colormap('network', 'parcellation'),
         )
-        node_edge_selection = np.zeros(cov.shape[0], dtype=bool)
-        node_edge_selection[0:5] = True
-        node_edge_selection[200:205] = True
-        edge_values = filter_adjacency_data(
-            cov,
-            threshold=10,
-            topk_threshold_nodewise=True,
-            absolute_threshold=True,
-            node_selection=node_edge_selection,
+        o_chain = ochain(
+            plot_and_save(),
         )
-        surf.add_cifti_dataset(
-            name='parcellation',
+        f = iochain(plot_embedded_graph, i_chain, o_chain)
+        f(
+            template="fsLR",
+            node_lh=(np.arange(400) < 200),
             cifti=parcellation,
-            is_masked=True,
-            apply_mask=False,
-            null_value=None,
-        )
-        cmap = pkgrf(
-            'hypercoil',
-            'viz/resources/cmap_network.nii'
-        )
-        surf.add_cifti_dataset(
-            name='cmap',
-            cifti=cmap,
-            is_masked=True,
-            apply_mask=False,
-            null_value=0.
-        )
-        node_lh = np.arange(400) < 200
-        cmap, clim = make_cmap(
-            surf, 'cmap', 'parcellation', separate=False)
-        p = embedded_graph_plotter(
-            surf=surf,
-            edge_values=edge_values,
-            node_values=node_values,
-            node_lh=node_lh,
-            parcellation=parcellation,
+            parcellation='parcellation',
             projection='inflated',
-            node_radius='degree',
+            node_radius='vis_conn_degree',
             node_color='index',
-            node_cmap=cmap,
-        )
-        plot_to_image(
-            p, basename='/tmp/net',
+            edge_color='vis_conn_sgn',
+            edge_radius='vis_conn_val',
+            vis_conn_adjacency=cov,
+            vis_internal_conn_adjacency=cov,
+            basename='/tmp/net',
             views=("dorsal", "left", "posterior"),
             hemi='both'
         )
