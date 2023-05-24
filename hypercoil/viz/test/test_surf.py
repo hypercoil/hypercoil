@@ -24,6 +24,7 @@ from hypercoil.viz.transforms import (
     plot_and_save,
     scalars_from_cifti,
     parcellate_colormap,
+    save_html,
 )
 
 
@@ -124,6 +125,35 @@ class TestSurfaceVisualisations:
                     }
                 ),
             )
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+        f(
+            template="fsLR",
+            load_mask=True,
+            cifti=pkgrf(
+                'hypercoil',
+                'viz/resources/nullexample.nii'
+            ),
+            projection='veryinflated',
+            scalars='parcellation',
+            boundary_color='black',
+            boundary_width=5,
+        )
+
+    @pytest.mark.ci_unsupported
+    def test_parcellation_html(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            scalars_from_cifti('parcellation'),
+            parcellate_colormap('network', 'parcellation')
+        )
+        o_chain = ochain(
+            map_over_sequence(
+                xfm=save_html(backend="panel"),
+                mapping={
+                    "filename": ('/tmp/left.html', '/tmp/right.html'),
+                }
+            ),
         )
         f = iochain(plot_surf_scalars, i_chain, o_chain)
         f(

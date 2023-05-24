@@ -1001,3 +1001,16 @@ def save_fig():
 
         return f_transformed
     return transform
+
+
+def save_html(backend: Literal["panel", "pythreejs"] = "panel"):
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(plotter: pv.Plotter, filename: str, **params):
+            plotter.export_html(filename, backend=backend)
+            return {"plotter": plotter}
+
+        def f_transformed(*, filename: str = None, **params):
+            return xfm(transformer_f, f)(filename=filename)(**params)
+
+        return f_transformed
+    return transform
