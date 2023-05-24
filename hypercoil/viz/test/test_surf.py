@@ -99,6 +99,46 @@ class TestSurfaceVisualisations:
             boundary_width=5,
         )
 
+    @pytest.mark.ci_unsupported
+    def test_parcellation_modal_cmap(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            scalars_from_cifti('parcellation'),
+            parcellate_colormap('modal', 'parcellation')
+        )
+        o_chain = ochain(
+            split_chain(
+                map_over_sequence(
+                    xfm=plot_and_save(),
+                    mapping={
+                        "basename": ('/tmp/leftmodal', '/tmp/rightmodal'),
+                        "hemi": ('left', 'right'),
+                    }
+                ),
+                map_over_sequence(
+                    xfm=plot_and_save(),
+                    mapping={
+                        "basename": ('/tmp/leftmodal', '/tmp/rightmodal'),
+                        "hemi": ('left', 'right'),
+                        "views": (((-20, 0, 0),), (((65, 65, 0), (0, 0, 0), (0, 0, 1)),))
+                    }
+                ),
+            )
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+        f(
+            template="fsLR",
+            load_mask=True,
+            cifti=pkgrf(
+                'hypercoil',
+                'viz/resources/nullexample.nii'
+            ),
+            projection='veryinflated',
+            scalars='parcellation',
+            boundary_color='black',
+            boundary_width=5,
+        )
+
     # @pytest.fixture(autouse=True)
     # def setup_class(self):
     #     ref_pointer = pkgrf(

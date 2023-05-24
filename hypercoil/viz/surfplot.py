@@ -110,7 +110,7 @@ def plot_surf_scalars(
     clim: Any = "robust",
     below_color: str = "black",
     theme: Optional[pv.themes.DocumentTheme] = None,
-    hemi_params: Optional[Sequence[str]] = None,
+    hemi_params: Optional[Sequence[str]] = (),
     **params: Any,
 ) -> Tuple[Mapping[str, Any], Mapping[str, Any]]:
     """
