@@ -14,12 +14,14 @@ from pkg_resources import resource_filename as pkgrf
 from typing import Literal, Mapping, Optional, Sequence, Tuple, Union
 import numpy as np
 import nibabel as nb
+import pandas as pd
 from neuromaps.transforms import mni152_to_fsaverage, mni152_to_fslr
 import matplotlib.pyplot as plt
 import pyvista as pv
 
 from hypercoil.init.atlas import BaseAtlas
 from .flows import direct_transform
+from .netplot import filter_adjacency_data, filter_node_data
 from .surf import CortexTriSurface, make_cmap
 from .utils import plot_to_image, auto_focus
 
@@ -358,6 +360,108 @@ def vol_from_atlas(
             **params: Mapping,
         ):
             return xfm(f, transformer_f)(**params)(atlas=atlas, maps=maps)
+
+        return f_transformed
+    return transform
+
+
+def add_edge_variable(
+    name: str,
+    threshold: float = 0.0,
+    percent_threshold: bool = False,
+    topk_threshold_nodewise: bool = False,
+    absolute: bool = True,
+    incident_node_selection: Optional[np.ndarray] = None,
+    connected_node_selection: Optional[np.ndarray] = None,
+    edge_selection: Optional[np.ndarray] = None,
+    removed_val: Optional[float] = None,
+    surviving_val: Optional[float] = 1.0,
+    emit_degree: Union[bool, Literal["abs", "+", "-"]] = False,
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(
+            adj: Union[np.ndarray, str] = None,
+        ) -> Mapping:
+            if isinstance(adj, str):
+                adj = pd.read_csv(adj, sep='\t', header=None).values
+
+            ret = filter_adjacency_data(
+                adj=adj,
+                name=name,
+                threshold=threshold,
+                percent_threshold=percent_threshold,
+                topk_threshold_nodewise=topk_threshold_nodewise,
+                absolute=absolute,
+                incident_node_selection=incident_node_selection,
+                connected_node_selection=connected_node_selection,
+                edge_selection=edge_selection,
+                removed_val=removed_val,
+                surviving_val=surviving_val,
+                emit_degree=emit_degree,
+            )
+
+            if emit_degree is not False:
+                edge_df, degree_df = ret
+                return {
+                    "edge_values": edge_df,
+                    "node_values": degree_df,
+                }
+            return {"edge_values": ret}
+
+        def f_transformed(**params: Mapping):
+            adj = params[f"{name}_adjacency"]
+            params = {
+                k: v for k, v in params.items()
+                if k != f"{name}_adjacency"
+            }
+            return xfm(f, transformer_f)(**params)(adj=adj)
+
+        return f_transformed
+    return transform
+
+
+def add_node_variable(
+    name: str = "node",
+    threshold: Union[float, int] = 0.0,
+    percent_threshold: bool = False,
+    topk_threshold: bool = False,
+    absolute: bool = True,
+    node_selection: Optional[np.ndarray] = None,
+    incident_edge_selection: Optional[np.ndarray] = None,
+    removed_val: Optional[float] = None,
+    surviving_val: Optional[float] = 1.0,
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(
+            val: Union[np.ndarray, str] = None,
+        ) -> Mapping:
+            if isinstance(val, str):
+                val = pd.read_csv(val, sep='\t', header=None).values
+
+            node_df = filter_node_data(
+                val=val,
+                name=name,
+                threshold=threshold,
+                percent_threshold=percent_threshold,
+                topk_threshold=topk_threshold,
+                absolute=absolute,
+                node_selection=node_selection,
+                incident_edge_selection=incident_edge_selection,
+                removed_val=removed_val,
+                surviving_val=surviving_val,
+            )
+
+            return {
+                "node_values": node_df,
+            }
+
+        def f_transformed(**params: Mapping):
+            val = params[f"{name}_nodal"]
+            params = {
+                k: v for k, v in params.items()
+                if k != f"{name}_nodal"
+            }
+            return xfm(f, transformer_f)(**params)(val=val)
 
         return f_transformed
     return transform
