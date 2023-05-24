@@ -18,6 +18,51 @@ from .surf import CortexTriSurface
 from .utils import cortex_theme
 
 
+def filter_node_data(
+    val: np.ndarray,
+    name: str = "node",
+    threshold: Union[float, int] = 0.0,
+    percent_threshold: bool = False,
+    topk_threshold: bool = False,
+    absolute: bool = True,
+    node_selection: Optional[np.ndarray] = None,
+    incident_edge_selection: Optional[np.ndarray] = None,
+    removed_val: Optional[float] = None,
+    surviving_val: Optional[float] = 1.0,
+) -> pd.DataFrame:
+    node_incl = np.ones_like(val, dtype=bool)
+
+    sgn = np.sign(val)
+    if absolute:
+        val = np.abs(val)
+    if node_selection is not None:
+        node_incl[~node_selection] = 0
+    if incident_edge_selection is not None:
+        node_incl[~incident_edge_selection.any(axis=-1)] = 0
+    if topk_threshold:
+        indices = np.argpartition(val, int(threshold))
+        node_incl[indices[int(threshold):]] = 0
+    elif percent_threshold:
+        node_incl[val < np.percentile(val[node_incl], 100 * threshold)] = 0
+    else:
+        node_incl[val < threshold] = 0
+
+    if removed_val is not None:
+        val[~node_incl] = removed_val
+        if surviving_val is not None:
+            val[node_incl] = surviving_val
+        index = np.arange(val.shape[0])
+    else:
+        val = val[node_incl]
+        sgn = sgn[node_incl]
+        index = np.where(node_incl)[0]
+
+    return pd.DataFrame({
+        f"{name}_val": val,
+        f"{name}_sgn": sgn,
+    }, index=pd.Index(index, name="node"))
+
+
 def filter_adjacency_data(
     adj: np.ndarray,
     name: str = "edge",
