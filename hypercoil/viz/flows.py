@@ -9,7 +9,7 @@ See also ``transforms.py`` for functions that transform the input and output
 flows of visualisation functions.
 """
 from itertools import chain
-from typing import Literal, Mapping, Optional, Sequence
+from typing import Any, Literal, Mapping, Optional, Sequence
 import numpy as np
 
 from hypercoil.engine.axisutil import promote_axis
@@ -18,18 +18,29 @@ from hypercoil.engine.axisutil import promote_axis
 def _seq_to_dict(
     seq: Sequence[Mapping],
     chain_vars: Sequence[str] = ("plotter",),
-    shared_keys: bool = True,
+    merge_type: Optional[Literal["union", "intersection"]] = None,
 ) -> Mapping[str, Sequence]:
-    if shared_keys:
+    if merge_type is None:
         keys = seq[0].keys()
     else:
-        keys = [set(s) for s in seq.keys()]
-        keys = set.intersection(*keys)
-    dct = {k: tuple(r[k] for r in seq) for k in keys}
+        keys = [set(s.keys()) for s in seq]
+        if merge_type == "union":
+            keys = set.union(*keys)
+        elif merge_type == "intersection":
+            keys = set.intersection(*keys)
+    if merge_type == "union":
+        NULLSTR = "__ignore__"
+        dct = {k: tuple(r.get(k, NULLSTR) for r in seq) for k in keys}
+        dct = {k: tuple(v for v in dct[k] if v is not NULLSTR) for k in keys}
+    else:
+        dct = {k: tuple(r[k] for r in seq) for k in keys}
     for k in dct:
         try:
+            # We don't want this path for just any iterable -- in particular,
+            # definitely not for np.ndarray, pd.DataFrame, strings, etc.
+            assert isinstance(dct[k][0], tuple) or isinstance(dct[k][0], list)
             dct[k] = tuple(chain(*dct[k]))
-        except TypeError:
+        except (TypeError, AssertionError, IndexError):
             pass
     # for k in chain_vars:
     #     if k not in dct:
@@ -99,6 +110,55 @@ def split_chain(
 
         return f_transformed
     return transform
+
+
+# def join(
+#     vars: Sequence[str],
+#     how: Literal["outer", "inner"] = "outer",
+#     fill_value: Any = None,
+# ) -> callable:
+#     def close_transform(*chains: Sequence[callable]) -> callable:
+#         def transform(f: callable) -> callable:
+#             def f_transformed(*pparams, **params: Mapping) -> Mapping:
+#                 ret = split_chain(*chains)(f)(**params)
+#                 for k, v in ret.items():
+#                     if k not in vars:
+#                         ret[k] = v[0]
+#                         continue
+#                     print(k, v)
+#                     ret[k] = v[0].join(v[1:], how=how)
+#                     if fill_value is not None:
+#                         ret[k] = v.fillna(fill_value)
+#                 return ret
+
+#             return f_transformed
+#         return transform
+#     return close_transform
+# def join(
+#     vars: Sequence[str],
+#     how: Literal["outer", "inner"] = "outer",
+#     fill_value: Any = None,
+# ) -> callable:
+#     join_transform = close_join_transform(vars, how, fill_value)
+#     def _curried(*chains: Sequence[callable]) -> callable:
+#         def transform(f: callable) -> callable:
+#             return tuple(xfm(f, join_transform) for xfm in chains)
+#         return transform
+#     return _curried
+
+
+def joindata(
+    join_vars: Optional[Sequence[str]] = None,
+    how: Literal["outer", "inner"] = "outer",
+    fill_value: Any = None,
+) -> callable:
+    def joining_f(arg):
+        out = arg[0].join(arg[1:], how=how)
+        if fill_value is not None:
+            out = out.fillna(fill_value)
+        return out
+
+    return join(joining_f, join_vars)
 
 
 def map_over_sequence(
@@ -316,3 +376,49 @@ def close_mapping_transform(
             return transformed_f_inner
         return transformed_f_outer
     return mapping_transform
+
+
+def delayed_outer_transform(
+    f_outer: callable,
+    f_inner: callable,
+    unpack_dict: Any = None,
+) -> callable:
+    def transformed_f_outer(**f_outer_params):
+        def transformed_f_inner(**f_inner_params):
+            out = f_inner(**f_inner_params)
+            return out, f_outer, f_outer_params
+        return transformed_f_inner
+    return transformed_f_outer
+
+
+def join(
+    joining_f: callable,
+    join_vars: Optional[Sequence[str]] = None,
+    unpack_dict: bool = True,
+) -> callable:
+    def split_chain(*chains: Sequence[callable]) -> callable:
+        def transform(f: callable) -> callable:
+            fs = [chain(f, delayed_outer_transform) for chain in chains]
+
+            def join_fs(**params):
+                out = [f(**params) for f in fs]
+                out = tuple(zip(*out))
+                f_outer = out[1][0]
+                f_outer_params = out[2][0]
+                out = _seq_to_dict(out[0], merge_type="union")
+                jvars = join_vars
+                if join_vars is None:
+                    jvars = tuple(out.keys())
+
+                for k, v in out.items():
+                    if k not in jvars:
+                        out[k] = v[0]
+                        continue
+                    out[k] = joining_f(v)
+                if unpack_dict:
+                    return f_outer(**{**f_outer_params, **out})
+                return f_outer(out, **f_outer_params)
+
+            return join_fs
+        return transform
+    return split_chain
