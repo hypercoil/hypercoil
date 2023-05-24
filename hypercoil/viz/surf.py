@@ -381,6 +381,7 @@ class CortexTriSurface:
                 apply_mask=apply_mask,
                 null_value=null_value,
             )
+            return (name,)
 
     def add_vertex_dataset(
         self,
