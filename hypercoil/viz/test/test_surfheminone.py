@@ -93,7 +93,7 @@ class TestSurfaceVisualisations:
             surf_from_archive(),
             resample_to_surface('difumo', template='fsaverage'),
             replicate(map_over=("scalars",)),
-            planar_sweep_cameras(initial=(1, 0, 0), normal=(0, 0, 1), n_steps=5),
+            planar_sweep_cameras(initial=(1, 0, 0), n_steps=5),
         )
         o_chain = ochain(
             row_major_grid(ncol=10, figsize=(10, 10), num_panels=100),

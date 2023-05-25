@@ -371,9 +371,7 @@ def join(
                 f_outer = out[1][0]
                 f_outer_params = out[2][0]
                 out = _seq_to_dict(out[0], merge_type="union")
-                jvars = join_vars
-                if join_vars is None:
-                    jvars = tuple(out.keys())
+                jvars = join_vars or tuple(out.keys())
 
                 for k, v in out.items():
                     if k not in jvars:

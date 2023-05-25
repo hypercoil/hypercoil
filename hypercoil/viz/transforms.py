@@ -292,6 +292,9 @@ def parcel_centres(
         def f_transformed(*, surf, **params: Mapping):
             return xfm(f, transformer_f)(**params)(surf=surf)
 
+        return f_transformed
+    return transform
+
 
 #TODO: replace threshold arg with the option to provide one of our hypermaths
 #      expressions.
@@ -473,9 +476,21 @@ def _planar_cam_transformer(
     surf: CortexTriSurface,
     hemi: Optional[str],
     initial: Sequence,
-    normal: Sequence,
+    normal: Optional[Sequence[float]],
     n_steps: int,
 ) -> Mapping:
+    if normal is None:
+        _x, _y, _z = initial
+        if (_x, _y, _z) == (0, 0, 1) or (_x, _y, _z) == (0, 0, -1):
+            normal = (1, 0, 0)
+        elif (_x, _y, _z) == (0, 0, 0):
+            raise ValueError("initial view cannot be (0, 0, 0)")
+        else:
+            ref = np.asarray((0, 0, 1))
+            initial = np.asarray(initial) / np.linalg.norm(initial)
+            rejection = ref - np.dot(ref, initial) * initial
+            normal = rejection / np.linalg.norm(rejection)
+
     assert np.isclose(np.dot(initial, normal), 0)
     angles = np.linspace(0, 2 * np.pi, n_steps, endpoint=False)
     cos = np.cos(angles)
@@ -520,7 +535,7 @@ def _planar_cam_transformer(
 
 def planar_sweep_cameras(
     initial: Sequence[float] = (1, 0, 0),
-    normal: Sequence[float] = (0, 0, 1),
+    normal: Optional[Sequence[float]] = None,
     n_steps: int = 10,
 ) -> callable:
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
@@ -739,7 +754,7 @@ def auto_cameras(
     focus: Optional[Literal["centroid", "peak"]] = None,
     n_angles: int = 0,
     initial_angle: Tuple[float, float, float] = (1, 0, 0),
-    normal_vector: Tuple[float, float, float] = (0, 0, 1),
+    normal_vector: Optional[Tuple[float, float, float]] = None,
 ) -> callable:
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
