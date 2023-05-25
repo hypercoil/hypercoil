@@ -8,6 +8,7 @@ import pytest
 
 from pkg_resources import resource_filename as pkgrf
 
+import numpy as np
 import templateflow.api as tflow
 
 from hypercoil.viz.surfplot import plot_surf_scalars
@@ -23,7 +24,9 @@ from hypercoil.viz.transforms import (
     resample_to_surface,
     plot_and_save,
     scalars_from_cifti,
+    parcellate_scalars,
     parcellate_colormap,
+    scatter_into_parcels,
     save_html,
 )
 
@@ -169,73 +172,69 @@ class TestSurfaceVisualisations:
             boundary_width=5,
         )
 
-    # @pytest.fixture(autouse=True)
-    # def setup_class(self):
-    #     ref_pointer = pkgrf(
-    #         'hypercoil',
-    #         'viz/resources/nullexample.nii'
-    #     )
-    #     self.atlas = CortexSubcortexCIfTIAtlas(
-    #         ref_pointer=ref_pointer,
-    #         mask_L=tflow.get(
-    #             template='fsLR',
-    #             hemi='L',
-    #             desc='nomedialwall',
-    #             density='32k'),
-    #         mask_R=tflow.get(
-    #             template='fsLR',
-    #             hemi='R',
-    #             desc='nomedialwall',
-    #             density='32k'),
-    #         clear_cache=False,
-    #         dtype=torch.float
-    #     )
-    #     self.lin = AtlasLinear(self.atlas)
-    #     self.modal_cmap = pkgrf(
-    #         'hypercoil',
-    #         'viz/resources/cmap_modal.nii'
-    #     )
-    #     self.network_cmap = pkgrf(
-    #         'hypercoil',
-    #         'viz/resources/cmap_network.nii'
-    #     )
+    @pytest.mark.ci_unsupported
+    def test_parcellated_scalars(self):
+        i_chain = ichain(
+            surf_from_archive(),
+            resample_to_surface('gm_density', template='fsLR'),
+            scalars_from_cifti('parcellation'),
+            parcellate_scalars('gm_density', 'parcellation'),
+        )
+        o_chain = ochain(
+            map_over_sequence(
+                xfm=plot_and_save(),
+                mapping={
+                    "basename": ('/tmp/left_density_parc', '/tmp/right_density_parc'),
+                    "hemi": ('left', 'right'),
+                }
+            )
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+        out = f(
+            template="fsLR",
+            load_mask=True,
+            cifti=pkgrf(
+                'hypercoil',
+                'viz/resources/nullexample.nii'
+            ),
+            nii=tflow.get(
+                template='MNI152NLin2009cAsym',
+                suffix='probseg',
+                label="GM",
+                resolution=2
+            ),
+            projection='inflated',
+            scalars='gm_density',
+            clim=(0.2, 0.9),
+        )
+        assert len(out.keys()) == 1
+        assert "screenshots" in out.keys()
 
-    # @pytest.mark.ci_unsupported
-    # def test_parcellation_plotter(self):
-    #     all_views = (
-    #         'dorsal', 'ventral',
-    #         'posterior', 'anterior',
-    #         'medial', 'lateral'
-    #     )
-    #     results = pkgrf(
-    #         'hypercoil',
-    #         'results/'
-    #     )
-    #     plotter = fsLRAtlasParcels(self.lin)
-    #     plotter(
-    #         cmap=self.modal_cmap,
-    #         views=all_views,
-    #         save=f'{results}/parcellation_cmap-modal'
-    #     )
-    #     plotter(
-    #         cmap=self.network_cmap,
-    #         views=all_views,
-    #         save=f'{results}/parcellation_cmap-network'
-    #     )
-    #     plotter(
-    #         cmap='RdBu_r',
-    #         views=all_views,
-    #         scores=torch.randn(400),
-    #         save=f'{results}/parcellation_desc-randomstats'
-    #     )
-
-    # @pytest.mark.ci_unsupported
-    # def test_map_plotter(self):
-    #     results = pkgrf(
-    #         'hypercoil',
-    #         'results/'
-    #     )
-    #     plotter = fsLRAtlasMaps(self.lin)
-    #     plotter(save=f'{results}/parcellation_maps', stop_batch=1)
-    #     plotter(save=f'{results}/parcellation_maps_selected',
-    #             select_nodes=[1, 3, 9, 221, 235])
+        parcellated = np.random.rand(400)
+        i_chain = ichain(
+            surf_from_archive(),
+            scalars_from_cifti('parcellation'),
+            scatter_into_parcels('scalars', 'parcellation'),
+        )
+        o_chain = ochain(
+            map_over_sequence(
+                xfm=plot_and_save(),
+                mapping={
+                    "basename": ('/tmp/left_noise_parc', '/tmp/right_noise_parc'),
+                    "hemi": ('left', 'right'),
+                }
+            )
+        )
+        f = iochain(plot_surf_scalars, i_chain, o_chain)
+        out = f(
+            template="fsLR",
+            load_mask=True,
+            cifti=pkgrf(
+                'hypercoil',
+                'viz/resources/nullexample.nii'
+            ),
+            parcellated=parcellated,
+            projection='inflated',
+            clim=(0, 1),
+            cmap='inferno',
+        )

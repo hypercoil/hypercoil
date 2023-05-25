@@ -19,6 +19,7 @@ from neuromaps.transforms import mni152_to_fsaverage, mni152_to_fslr
 import matplotlib.pyplot as plt
 import pyvista as pv
 
+from hypercoil.engine import Tensor
 from hypercoil.init.atlas import BaseAtlas
 from .flows import direct_transform
 from .netplot import filter_adjacency_data, filter_node_data
@@ -270,6 +271,67 @@ def parcellate_colormap(
             **params: Mapping,
         ):
             return xfm(f, transformer_f)(**params)(surf=surf)
+
+        return f_transformed
+    return transform
+
+
+def parcellate_scalars(
+    scalars: str,
+    parcellation_name: str,
+) -> callable:
+    sink = f"{scalars}_parcellated"
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(surf: CortexTriSurface) -> Mapping:
+            parcellated = surf.parcellate_vertex_dataset(
+                name=scalars,
+                parcellation=parcellation_name
+            )
+            surf.scatter_into_parcels(
+                data=parcellated,
+                parcellation=parcellation_name,
+                sink=sink
+            )
+            return {
+                'surf': surf,
+                'scalars': sink,
+            }
+
+        def f_transformed(
+            *,
+            surf: CortexTriSurface,
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f)(**params)(surf=surf)
+
+        return f_transformed
+    return transform
+
+
+def scatter_into_parcels(
+    scalars: str,
+    parcellation_name: str,
+) -> callable:
+    def transform(f: callable, xfm: callable = direct_transform) -> callable:
+        def transformer_f(surf: CortexTriSurface, parcellated: Tensor) -> Mapping:
+            surf.scatter_into_parcels(
+                data=parcellated,
+                parcellation=parcellation_name,
+                sink=scalars,
+            )
+            return {
+                'surf': surf,
+                'scalars': scalars,
+            }
+
+        def f_transformed(
+            *,
+            surf: CortexTriSurface,
+            parcellated: Tensor,
+            **params: Mapping,
+        ):
+            return xfm(f, transformer_f)(**params)(
+                surf=surf, parcellated=parcellated)
 
         return f_transformed
     return transform

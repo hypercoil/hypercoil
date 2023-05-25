@@ -1017,6 +1017,7 @@ class CortexTriSurface:
         point_data: Mapping,
         parcellation: str,
         null_value: Optional[float] = 0.,
+        transpose: bool = False,
     ) -> Tensor:
         parcellation = point_data[parcellation]
         if null_value is None:
@@ -1029,7 +1030,10 @@ class CortexTriSurface:
             n_parcels = parcellation.max() + 1
             parcellation = np.eye(n_parcels)[parcellation]
             parcellation = np.delete(parcellation, null_index, axis=1)
-        denom = parcellation.sum(axis=0, keepdims=True)
+        if transpose:
+            denom = parcellation.sum(axis=-1, keepdims=True)
+        else:
+            denom = parcellation.sum(axis=0, keepdims=True)
         denom = np.where(denom == 0, 1, denom)
         return parcellation / denom
 
@@ -1062,6 +1066,7 @@ class CortexTriSurface:
         parcellation = self._hemisphere_parcellation_impl(
             point_data,
             parcellation=parcellation,
+            transpose=True,
         )
         return parcellation @ data[:parcellation.shape[-1]]
 
