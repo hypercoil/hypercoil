@@ -816,6 +816,23 @@ class CortexTriSurface:
         name: str,
         parcellation: str,
     ) -> Tensor:
+        """
+        Map a vertex-wise dataset to a parcellated dataset. Parcellation is
+        performed by computing the mean of the vertex-wise data for each
+        parcel.
+
+        Parameters
+        ----------
+        name : str
+            Name of the dataset.
+        parcellation : str
+            Name of the parcellation dataset to use for parcellation.
+
+        Returns
+        -------
+        parcellated_data : Tensor
+            Parcellated data.
+        """
         parcellation_left = self._hemisphere_parcellate_impl(
             name, parcellation, 'left',
         )
@@ -834,6 +851,26 @@ class CortexTriSurface:
         parcellation: str,
         sink: Optional[str] = None
     ) -> Tensor:
+        """
+        Scatter a parcellated dataset into a vertex-wise dataset. Parcellation
+        is performed by assigning the value of each parcel to all vertices in
+        that parcel.
+
+        Parameters
+        ----------
+        data : Tensor
+            Data to scatter into parcels.
+        parcellation : str
+            Name of the parcellation dataset to use for parcellation.
+        sink : str (default: ``None``)
+            Name of the dataset to add the scattered data to. If ``None``, the
+            scattered data will not be added to the ``ProjectedPolyData``.
+
+        Returns
+        -------
+        scattered_data : Tensor
+            Scattered data.
+        """
         scattered_left = self._hemisphere_into_parcels_impl(
             data, parcellation, 'left',
         )
@@ -850,6 +887,21 @@ class CortexTriSurface:
         parcellation: str,
         projection: str,
     ):
+        """
+        Compute the centre of mass of each parcel in a parcellation.
+
+        Parameters
+        ----------
+        parcellation : str
+            Name of the parcellation dataset to use for parcellation.
+        projection : str
+            Name of the projection to use for vertex coordinates.
+
+        Returns
+        -------
+        centres_of_mass : Tensor
+            Centre of mass coordinates of each parcel.
+        """
         projection_name = f"_projection_{projection}"
         return self.parcellate_vertex_dataset(
             projection_name,
@@ -862,6 +914,24 @@ class CortexTriSurface:
         scalars: str,
         projection: str,
     ) -> Tensor:
+        """
+        Compute the centre of mass of a scalar dataset.
+
+        Parameters
+        ----------
+        hemisphere : str
+            Hemisphere to compute the centre of mass for. Must be ``'left'`` or
+            ``'right'``.
+        scalars : str
+            Name of the scalar dataset to compute the centre of mass for.
+        projection : str
+            Name of the projection to use for vertex coordinates.
+
+        Returns
+        -------
+        Tensor
+            Coordinates of the centre of mass.
+        """
         projection_name = f"_projection_{projection}"
         if hemisphere == 'left':
             proj_data = self.left.point_data[projection_name]
@@ -882,6 +952,24 @@ class CortexTriSurface:
         scalars: str,
         projection: str
     ) -> Tensor:
+        """
+        Find the coordinates of the peak value in a scalar dataset.
+
+        Parameters
+        ----------
+        hemisphere : str
+            Hemisphere to compute the peak for. Must be ``'left'`` or
+            ``'right'``.
+        scalars : str
+            Name of the scalar dataset to compute the peak for.
+        projection : str
+            Name of the projection to use for vertex coordinates.
+
+        Returns
+        -------
+        Tensor
+            Coordinates of the peak.
+        """
         projection_name = f"_projection_{projection}"
         if hemisphere == 'left':
             proj_data = self.left.point_data[projection_name]
@@ -895,6 +983,21 @@ class CortexTriSurface:
         return proj_data[np.argmax(scalars_data)]
 
     def poles(self, hemisphere: str) -> Tensor:
+        """
+        Find the poles (extremal coordinates along a canonical axis) of a
+        hemisphere.
+
+        Parameters
+        ----------
+        hemisphere : str
+            Hemisphere to compute the poles for. Must be ``'left'`` or
+            ``'right'``.
+
+        Returns
+        -------
+        Tensor
+            Coordinates of the poles.
+        """
         if hemisphere == "left":
             pole_names = (
                 "lateral", "posterior", "ventral",
@@ -920,6 +1023,29 @@ class CortexTriSurface:
         metric: str = "euclidean",
         n_poles: int = 1,
     ) -> Tensor:
+        """
+        Find the closest pole(s) to a set of coordinates.
+
+        Poles are defined as the extremal coordinates along a canonical axis.
+
+        Parameters
+        ----------
+        hemisphere : str
+            Hemisphere to compute the poles for. Must be ``'left'`` or
+            ``'right'``.
+        coors : Tensor
+            Coordinates to find the closest pole(s) to.
+        metric : str (default: Euclidean)
+            Metric to use for computing distances. Must be ``'euclidean'`` or
+            ``'spherical'``.
+        n_poles : int (default: 1)
+            Number of closest poles to return.
+
+        Returns
+        -------
+        Tensor
+            Names of the closest pole(s).
+        """
         poles = self.poles(hemisphere)
         poles_coors = np.array(list(poles.values()))
         if metric == "euclidean":
@@ -1019,6 +1145,10 @@ class CortexTriSurface:
         null_value: Optional[float] = 0.,
         transpose: bool = False,
     ) -> Tensor:
+        """
+        Helper function used to create a parcellation matrix when parcellating
+        or scattering data onto a cortical hemisphere.
+        """
         parcellation = point_data[parcellation]
         if null_value is None:
             null_value = parcellation.min() - 1
@@ -1043,6 +1173,9 @@ class CortexTriSurface:
         parcellation: str,
         hemisphere: str,
     ) -> Tensor:
+        """
+        Helper function used when parcellating data onto a cortical hemisphere.
+        """
         try:
             point_data = self.point_data[hemisphere]
         except KeyError:
@@ -1059,6 +1192,9 @@ class CortexTriSurface:
         parcellation: str,
         hemisphere: str,
     ) -> Tensor:
+        """
+        Helper function used when scattering data onto a cortical hemisphere.
+        """
         try:
             point_data = self.point_data[hemisphere]
         except KeyError:
@@ -1078,6 +1214,9 @@ def _cmap_impl_hemisphere(
     colours: Tensor,
     null_value: float
 ) -> Tuple[Tensor, Tuple[float, float]]:
+    """
+    Helper function used when creating a colormap for a cortical hemisphere.
+    """
     parcellation = surf.point_data[hemisphere][parcellation]
     start = int(np.min(parcellation[parcellation != null_value])) - 1
     stop = int(np.max(parcellation))
@@ -1086,31 +1225,75 @@ def _cmap_impl_hemisphere(
     return cmap, clim
 
 
-def make_cmap(surf, cmap, parcellation, null_value=0, separate=True):
+def make_cmap(
+    surf: CortexTriSurface,
+    cmap: str,
+    parcellation: str,
+    null_value: float = 0,
+    return_left: bool = True,
+    return_right: bool = True,
+    return_both: bool = False,
+) -> Union[
+    Tuple[Tensor, Tuple[float, float]],
+    Tuple[Tuple[Tensor, Tuple[float, float]],
+          Tuple[Tensor, Tuple[float, float]]],
+    Tuple[Tuple[Tensor, Tuple[float, float]],
+          Tuple[Tensor, Tuple[float, float]],
+          Tuple[Tensor, Tuple[float, float]]],
+]:
+    """
+    Create a colormap for a parcellation dataset defined over a cortical
+    surface.
+
+    Parameters
+    ----------
+    surf : CortexTriSurface
+        The surface over which the parcellation is defined. It should include
+        both the parcellation dataset and a vertexwise colormap dataset.
+    cmap : str
+        The name of the vertex-wise colormap dataset to use.
+    parcellation : str
+        The name of the parcellation dataset to use.
+    null_value : float (default: 0)
+        The value to use for null values in the parcellation dataset.
+    return_left : bool (default: True)
+        Whether to return a colormap for the left hemisphere.
+    return_right : bool (default: True)
+        Whether to return a colormap for the right hemisphere.
+    return_both : bool (default: False)
+        Whether to return a colormap for both hemispheres.
+    """
     colours = surf.parcellate_vertex_dataset(cmap, parcellation)
     colours = np.minimum(colours, 1)
     colours = np.maximum(colours, 0)
 
-    cmap_left, clim_left = _cmap_impl_hemisphere(
-        surf,
-        'left',
-        parcellation,
-        colours,
-        null_value
-    )
-    cmap_right, clim_right = _cmap_impl_hemisphere(
-        surf,
-        'right',
-        parcellation,
-        colours,
-        null_value
-    )
-    if separate:
-        return (cmap_left, clim_left), (cmap_right, clim_right)
-    else:
+    ret = []
+    if return_left or return_both:
+        cmap_left, clim_left = _cmap_impl_hemisphere(
+            surf,
+            'left',
+            parcellation,
+            colours,
+            null_value
+        )
+        ret += [(cmap_left, clim_left)]
+    if return_right or return_both:
+        cmap_right, clim_right = _cmap_impl_hemisphere(
+            surf,
+            'right',
+            parcellation,
+            colours,
+            null_value
+        )
+        ret += [(cmap_right, clim_right)]
+    if return_both:
         #TODO: Rewrite this to skip the unnecessary intermediate blocks above.
         cmin = min(clim_left[0], clim_right[0])
         cmax = max(clim_left[1], clim_right[1])
         cmap = ListedColormap(colours[:, :3])
         clim = (cmin, cmax)
-        return cmap, clim
+        ret += [(cmap, clim)]
+    if len(ret) == 1:
+        return ret[0]
+    else:
+        return tuple(ret)

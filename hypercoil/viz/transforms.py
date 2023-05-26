@@ -248,14 +248,13 @@ def parcellate_colormap(
                 apply_mask=False,
                 null_value=0.
             )
-
-            #TODO: These computations are pretty trivial, but there's still
-            #      absolutely no need to repeat work here.
-            #      Refactor make_cmap instead.
-            (cmap_left, clim_left), (cmap_right, clim_right) = make_cmap(
-                surf, f'cmap_{cmap_name}', parcellation_name)
-            cmap, clim = make_cmap(
-                surf, f'cmap_{cmap_name}', parcellation_name, separate=False)
+            (
+                (cmap_left, clim_left),
+                (cmap_right, clim_right),
+                (cmap, clim)
+            ) = make_cmap(
+                surf, f'cmap_{cmap_name}', parcellation_name, return_both=True
+            )
 
             return{
                 'surf': surf,
