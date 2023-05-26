@@ -31,7 +31,12 @@ class TestSurfaceVisualisations:
     def test_focused_view_both_hemispheres(self):
         i_chain = ichain(
             surf_from_archive(),
-            resample_to_surface('difumo', template='fsaverage', select=list(range(60))),
+            resample_to_surface(
+                'difumo',
+                template='fsaverage',
+                select=list(range(60)),
+                plot=True
+            ),
             replicate(map_over=("scalars",)),
             scalar_focus_camera(projection='pial', kind='centroid'),
         )
@@ -49,7 +54,7 @@ class TestSurfaceVisualisations:
         f(
             template="fsaverage",
             load_mask=True,
-            nii=nii,
+            difumo_nifti=nii,
             projection='pial',
             filename='/tmp/parcelfocused_index-{index}.png',
             cmap='Purples',
@@ -61,7 +66,7 @@ class TestSurfaceVisualisations:
     def test_ortho_views_both_hemispheres(self):
         i_chain = ichain(
             surf_from_archive(),
-            resample_to_surface('difumo', template='fsaverage'),
+            resample_to_surface('difumo', template='fsaverage', plot=True),
             replicate(map_over=("scalars",)),
             closest_ortho_cameras(projection='pial', n_ortho=3),
         )
@@ -79,7 +84,7 @@ class TestSurfaceVisualisations:
         f(
             template="fsaverage",
             load_mask=True,
-            nii=nii,
+            difumo_nifti=nii,
             projection='pial',
             filename='/tmp/parcelortho_index-{index}.png',
             cmap='Purples',
@@ -91,7 +96,7 @@ class TestSurfaceVisualisations:
     def test_planar_sweep_both_hemispheres(self):
         i_chain = ichain(
             surf_from_archive(),
-            resample_to_surface('difumo', template='fsaverage'),
+            resample_to_surface('difumo', template='fsaverage', plot=True),
             replicate(map_over=("scalars",)),
             planar_sweep_cameras(initial=(1, 0, 0), n_steps=5),
         )
@@ -109,7 +114,7 @@ class TestSurfaceVisualisations:
         f(
             template="fsaverage",
             load_mask=True,
-            nii=nii,
+            difumo_nifti=nii,
             projection='pial',
             filename='/tmp/parcelplanar_index-{index}.png',
             cmap='Purples',
@@ -121,7 +126,7 @@ class TestSurfaceVisualisations:
     def test_auto_view_both_hemispheres(self):
         i_chain = ichain(
             surf_from_archive(),
-            resample_to_surface('difumo', template='fsaverage'),
+            resample_to_surface('difumo', template='fsaverage', plot=True),
             replicate(map_over=("scalars",)),
             auto_cameras(projection='pial', n_ortho=3, focus='peak', n_angles=3),
         )
@@ -139,11 +144,10 @@ class TestSurfaceVisualisations:
         f(
             template="fsaverage",
             load_mask=True,
-            nii=nii,
+            difumo_nifti=nii,
             projection='pial',
             filename='/tmp/parcelauto_index-{index}.png',
             cmap='Purples',
             below_color='white',
             window_size=(400, 250),
         )
-        assert 0

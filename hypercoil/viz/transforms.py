@@ -141,7 +141,6 @@ def scalars_from_cifti(
           argument should be either a ``Cifti2Image`` object or a path to a
           CIFTI file. This is the CIFTI image whose data will be loaded onto
           the surface.
-        * The ``surf`` argument should be a ``CortexTriSurface`` object.
     """
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
@@ -168,11 +167,7 @@ def scalars_from_cifti(
             **params: Mapping,
         ):
             try:
-                cifti = params[f"{scalars}_cifti"]
-                params = {
-                    k: v for k, v in params.items()
-                    if k != f"{scalars}_cifti"
-                }
+                cifti = params.pop(f"{scalars}_cifti")
             except KeyError:
                 raise TypeError(
                     "Transformed plot function missing one required "
@@ -229,7 +224,6 @@ def scalars_from_atlas(
           argument should bean instance of an object derived from a
           ``hypercoil`` ``BaseAtlas``. This is the atlas whose data will be
           loaded onto the surface.
-        * The ``surf`` argument should be a ``CortexTriSurface`` object.
         * The optional ``maps`` argument can contain parcel-wise maps that
           override those in the atlas.
     """
@@ -297,11 +291,7 @@ def scalars_from_atlas(
             **params: Mapping,
         ):
             try:
-                atlas = params[f"{scalars}_atlas"]
-                params = {
-                    k: v for k, v in params.items()
-                    if k != f"{scalars}_atlas"
-                }
+                atlas = params.pop(f"{scalars}_atlas")
             except KeyError:
                 raise TypeError(
                     "Transformed plot function missing one required "
@@ -330,7 +320,42 @@ def resample_to_surface(
     null_value: Optional[float] = 0.,
     select: Optional[Sequence[int]] = None,
     exclude: Optional[Sequence[int]] = None,
+    plot: bool = False,
 ) -> callable:
+    """
+    Resample a scalar dataset from volumetric MNI152 space to a surface.
+
+    Parameters
+    ----------
+    scalars : str
+        The name that the scalar dataset resampled from volumetric space is
+        given on the surface.
+    template : str (default: "fsLR")
+        The name of the template to which the scalar dataset should be
+        resampled. Currently, only "fsLR" and "fsaverage" are supported.
+    null_value : float or None (default: 0.)
+        The value to use for voxels that are outside the brain mask.
+    select : Sequence[int] or None (default: None)
+        If not None, the indices of the scalar maps to load from the
+        volumetric dataset. If None, all scalar maps are loaded.
+    exclude : Sequence[int] or None (default: None)
+        If not None, the indices of the scalar maps to exclude from the
+        volumetric dataset. If None, no scalar maps are excluded.
+    plot : bool (default: False)
+        Indicates whether the scalar dataset should be plotted.
+
+    Returns
+    -------
+    callable
+        A transformer function. Transformer functions accept a plotting
+        function and return a new plotting function that takes the
+        following arguments:
+        * The transformed plotter will now require a ``<scalars>_nifti``
+          argument, where ``<scalars>`` is the name of the scalar dataset
+          provided as an argument to this function. The value of this
+          argument should be an instance of a ``nibabel`` ``Nifti1Image``
+          or a path to a NIfTI file.
+    """
     templates = {
         "fsLR": mni152_to_fslr,
         "fsaverage": mni152_to_fsaverage,
@@ -340,6 +365,7 @@ def resample_to_surface(
         def transformer_f(
             nii: nb.Nifti1Image,
             surf: CortexTriSurface,
+            scalars_to_plot: Optional[Sequence[str]] = None,
         ) -> Mapping:
             left, right = f_resample(nii)
             scalar_names = surf.add_gifti_dataset(
@@ -352,23 +378,30 @@ def resample_to_surface(
                 select=select,
                 exclude=exclude,
             )
-            if len(scalar_names) == 1:
-                return {
-                    "surf": surf,
-                    "scalars": scalar_names[0],
-                }
-            return {
-                "surf": surf,
-                "scalars": tuple(scalar_names),
-            }
+            ret = {"surf": surf}
+            if plot:
+                scalars_to_plot = tuple(scalars_to_plot + list(scalar_names))
+                ret["scalars"] = scalars_to_plot
+            return ret
 
         def f_transformed(
             *,
-            nii: nb.Nifti1Image,
             surf: CortexTriSurface,
             **params: Mapping,
         ):
-            return xfm(f, transformer_f)(**params)(nii=nii, surf=surf)
+            try:
+                nii = params.pop(f"{scalars}_nifti")
+            except KeyError:
+                raise TypeError(
+                    "Transformed plot function missing one required "
+                    f"keyword-only argument: {scalars}_nifti"
+                )
+            scalars_to_plot = params.get("scalars", []) if plot else None
+            return xfm(f, transformer_f)(**params)(
+                nii=nii,
+                surf=surf,
+                scalars_to_plot=scalars_to_plot
+            )
 
         return f_transformed
     return transform

@@ -36,7 +36,7 @@ class TestSurfaceVisualisations:
     def test_scalars(self):
         i_chain = ichain(
             surf_from_archive(),
-            resample_to_surface('gm_density', template='fsaverage'),
+            resample_to_surface('gm_density', template='fsaverage', plot=True),
         )
         o_chain = ochain(
             map_over_sequence(
@@ -51,14 +51,13 @@ class TestSurfaceVisualisations:
         out = f(
             template="fsaverage",
             load_mask=True,
-            nii=tflow.get(
+            gm_density_nifti=tflow.get(
                 template='MNI152NLin2009cAsym',
                 suffix='probseg',
                 label="GM",
                 resolution=2
             ),
             projection='pial',
-            scalars='gm_density',
         )
         assert len(out.keys()) == 1
         assert "screenshots" in out.keys()
@@ -173,7 +172,7 @@ class TestSurfaceVisualisations:
     def test_parcellated_scalars(self):
         i_chain = ichain(
             surf_from_archive(),
-            resample_to_surface('gm_density', template='fsLR'),
+            resample_to_surface('gm_density', template='fsLR', plot=True),
             scalars_from_cifti('parcellation'),
             parcellate_scalars('gm_density', 'parcellation'),
         )
@@ -194,14 +193,13 @@ class TestSurfaceVisualisations:
                 'hypercoil',
                 'viz/resources/nullexample.nii'
             ),
-            nii=tflow.get(
+            gm_density_nifti=tflow.get(
                 template='MNI152NLin2009cAsym',
                 suffix='probseg',
                 label="GM",
                 resolution=2
             ),
             projection='inflated',
-            scalars='gm_density',
             clim=(0.2, 0.9),
         )
         assert len(out.keys()) == 1
