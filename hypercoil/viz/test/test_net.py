@@ -70,7 +70,7 @@ class TestNetworkVisualisations:
         f(
             template="fsLR",
             node_lh=(np.arange(400) < 200),
-            cifti=parcellation,
+            parcellation_cifti=parcellation,
             parcellation='parcellation',
             projection='inflated',
             node_radius='vis_conn_degree',
@@ -124,7 +124,7 @@ class TestNetworkVisualisations:
         f(
             template="fsLR",
             node_lh=(np.arange(400) < 200),
-            cifti=parcellation,
+            parcellation_cifti=parcellation,
             parcellation='parcellation',
             projection='inflated',
             node_radius='vis_internal_conn_degree',

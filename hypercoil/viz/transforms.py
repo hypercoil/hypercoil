@@ -30,6 +30,32 @@ from .utils import plot_to_image, auto_focus
 def surf_from_archive(
     allowed: Sequence[str] = ("templateflow", "neuromaps")
 ) -> callable:
+    """
+    Load a surface from a cloud-based data archive.
+
+    Parameters
+    ----------
+    allowed : sequence of str (default: ("templateflow", "neuromaps")
+        The archives to search for the surface.
+
+    Returns
+    -------
+    callable
+        A transformer function. Transformer functions accept a plotting
+        function and return a new plotting function that takes the
+        following arguments:
+        * The transformed plotter will no longer require a ``surf`` argument,
+          but will require a ``template`` argument.
+        * The ``template`` argument should be a string that identifies the
+          template space to load the surface from. The ``template`` argument
+          will be passed to the archive loader function.
+        * An optional ``load_mask`` argument can be passed to the transformed
+          plotter to indicate whether the surface mask should be loaded
+        (defaults to ``True``).
+        * An optional ``projections`` argument can be passed to the
+          transformed plotter to indicate which projections to load
+          (defaults to ``("veryinflated",)``).
+    """
     archives = {
         "templateflow": CortexTriSurface.from_tflow,
         "neuromaps": CortexTriSurface.from_nmaps
@@ -82,9 +108,47 @@ def scalars_from_cifti(
     is_masked: bool = True,
     apply_mask: bool = False,
     null_value: Optional[float] = 0.,
+    plot: bool = False,
 ) -> callable:
+    """
+    Load a scalar dataset from a CIFTI file onto a CortexTriSurface.
+
+    Parameters
+    ----------
+    scalars : str
+        The name that the scalar dataset loaded from the CIFTI file is given
+        on the surface.
+    is_masked : bool (default: True)
+        Indicates whether the CIFTI file contains a dataset that is already
+        masked.
+    apply_mask : bool (default: False)
+        Indicates whether the surface mask should be applied to the CIFTI
+        dataset.
+    null_value : float or None (default: 0.)
+        The value to use for masked-out vertices.
+    plot : bool (default: False)
+        Indicates whether the scalar dataset should be plotted.
+
+    Returns
+    -------
+    callable
+        A transformer function. Transformer functions accept a plotting
+        function and return a new plotting function that takes the
+        following arguments:
+        * The transformed plotter will now require a ``<scalars>_cifti``
+          argument, where ``<scalars>`` is the name of the scalar dataset
+          provided as an argument to this function. The value of this
+          argument should be either a ``Cifti2Image`` object or a path to a
+          CIFTI file. This is the CIFTI image whose data will be loaded onto
+          the surface.
+        * The ``surf`` argument should be a ``CortexTriSurface`` object.
+    """
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
-        def transformer_f(surf: CortexTriSurface, cifti: nb.Cifti2Image):
+        def transformer_f(
+            surf: CortexTriSurface,
+            cifti: nb.Cifti2Image,
+            scalars_to_plot: Optional[Sequence[str]],
+        ) -> Mapping:
             surf.add_cifti_dataset(
                 name=scalars,
                 cifti=cifti,
@@ -92,15 +156,36 @@ def scalars_from_cifti(
                 apply_mask=apply_mask,
                 null_value=null_value,
             )
-            return {"surf": surf}
+            ret = {"surf": surf}
+            if plot:
+                scalars_to_plot = tuple(scalars_to_plot + [scalars])
+                ret["scalars"] = scalars_to_plot
+            return ret
 
         def f_transformed(
             *,
             surf: CortexTriSurface,
-            cifti: nb.Cifti2Image,
             **params: Mapping,
         ):
-            return xfm(f, transformer_f)(**params)(cifti=cifti, surf=surf)
+            try:
+                cifti = params[f"{scalars}_cifti"]
+                params = {
+                    k: v for k, v in params.items()
+                    if k != f"{scalars}_cifti"
+                }
+            except KeyError:
+                raise TypeError(
+                    "Transformed plot function missing one required "
+                    f"keyword-only argument: {scalars}_cifti"
+                )
+            scalars_to_plot = None
+            if plot:
+                scalars_to_plot = params.get("scalars", [])
+            return xfm(f, transformer_f)(**params)(
+                cifti=cifti,
+                surf=surf,
+                scalars_to_plot=scalars_to_plot
+            )
 
         return f_transformed
     return transform

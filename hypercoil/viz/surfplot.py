@@ -77,6 +77,9 @@ def surf_scalars_plotter(
         return p
 
     hemi = (hemi,) if hemi is not None else ("left", "right")
+    if (isinstance(scalars, tuple) or isinstance(scalars, list)
+        ) and len(scalars) == 1:
+        scalars = scalars[0]
     if len(cmap) == 2:
         cmap_left, cmap_right = cmap
     else:

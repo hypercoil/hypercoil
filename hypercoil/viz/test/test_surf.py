@@ -67,7 +67,7 @@ class TestSurfaceVisualisations:
     def test_parcellation(self):
         i_chain = ichain(
             surf_from_archive(),
-            scalars_from_cifti('parcellation'),
+            scalars_from_cifti('parcellation', plot=True),
             parcellate_colormap('network', 'parcellation')
         )
         o_chain = ochain(
@@ -93,12 +93,11 @@ class TestSurfaceVisualisations:
         f(
             template="fsLR",
             load_mask=True,
-            cifti=pkgrf(
+            parcellation_cifti=pkgrf(
                 'hypercoil',
                 'viz/resources/nullexample.nii'
             ),
             projection='veryinflated',
-            scalars='parcellation',
             boundary_color='black',
             boundary_width=5,
         )
@@ -107,7 +106,7 @@ class TestSurfaceVisualisations:
     def test_parcellation_modal_cmap(self):
         i_chain = ichain(
             surf_from_archive(),
-            scalars_from_cifti('parcellation'),
+            scalars_from_cifti('parcellation', plot=True),
             parcellate_colormap('modal', 'parcellation')
         )
         o_chain = ochain(
@@ -133,12 +132,11 @@ class TestSurfaceVisualisations:
         f(
             template="fsLR",
             load_mask=True,
-            cifti=pkgrf(
+            parcellation_cifti=pkgrf(
                 'hypercoil',
                 'viz/resources/nullexample.nii'
             ),
             projection='veryinflated',
-            scalars='parcellation',
             boundary_color='black',
             boundary_width=5,
         )
@@ -147,7 +145,7 @@ class TestSurfaceVisualisations:
     def test_parcellation_html(self):
         i_chain = ichain(
             surf_from_archive(),
-            scalars_from_cifti('parcellation'),
+            scalars_from_cifti('parcellation', plot=True),
             parcellate_colormap('network', 'parcellation')
         )
         o_chain = ochain(
@@ -162,12 +160,11 @@ class TestSurfaceVisualisations:
         f(
             template="fsLR",
             load_mask=True,
-            cifti=pkgrf(
+            parcellation_cifti=pkgrf(
                 'hypercoil',
                 'viz/resources/nullexample.nii'
             ),
             projection='veryinflated',
-            scalars='parcellation',
             boundary_color='black',
             boundary_width=5,
         )
@@ -193,7 +190,7 @@ class TestSurfaceVisualisations:
         out = f(
             template="fsLR",
             load_mask=True,
-            cifti=pkgrf(
+            parcellation_cifti=pkgrf(
                 'hypercoil',
                 'viz/resources/nullexample.nii'
             ),
@@ -229,7 +226,7 @@ class TestSurfaceVisualisations:
         out = f(
             template="fsLR",
             load_mask=True,
-            cifti=pkgrf(
+            parcellation_cifti=pkgrf(
                 'hypercoil',
                 'viz/resources/nullexample.nii'
             ),
