@@ -41,9 +41,9 @@ def surf_from_archive(
     Returns
     -------
     callable
-        A transformer function. Transformer functions accept a plotting
-        function and return a new plotting function that takes the
-        following arguments:
+        A transform function. Transform functions accept a plotting
+        function and return a new plotting function with different input and
+        output arguments.
         * The transformed plotter will no longer require a ``surf`` argument,
           but will require a ``template`` argument.
         * The ``template`` argument should be a string that identifies the
@@ -132,15 +132,18 @@ def scalars_from_cifti(
     Returns
     -------
     callable
-        A transformer function. Transformer functions accept a plotting
-        function and return a new plotting function that takes the
-        following arguments:
+        A transform function. Transform functions accept a plotting
+        function and return a new plotting function with different input and
+        output arguments.
         * The transformed plotter will now require a ``<scalars>_cifti``
           argument, where ``<scalars>`` is the name of the scalar dataset
           provided as an argument to this function. The value of this
           argument should be either a ``Cifti2Image`` object or a path to a
           CIFTI file. This is the CIFTI image whose data will be loaded onto
           the surface.
+        * If ``plot`` is ``True``, the transformed function will automatically
+          add the scalar dataset obtained from the CIfTI image to the sequence
+          of scalars to plot.
     """
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
@@ -157,7 +160,7 @@ def scalars_from_cifti(
             )
             ret = {"surf": surf}
             if plot:
-                scalars_to_plot = tuple(scalars_to_plot + [scalars])
+                scalars_to_plot = tuple(list(scalars_to_plot) + [scalars])
                 ret["scalars"] = scalars_to_plot
             return ret
 
@@ -173,9 +176,7 @@ def scalars_from_cifti(
                     "Transformed plot function missing one required "
                     f"keyword-only argument: {scalars}_cifti"
                 )
-            scalars_to_plot = None
-            if plot:
-                scalars_to_plot = params.get("scalars", [])
+            scalars_to_plot = params.get("scalars", []) if plot else None
             return xfm(f, transformer_f)(**params)(
                 cifti=cifti,
                 surf=surf,
@@ -215,9 +216,9 @@ def scalars_from_atlas(
     Returns
     -------
     callable
-        A transformer function. Transformer functions accept a plotting
-        function and return a new plotting function that takes the
-        following arguments:
+        A transform function. Transform functions accept a plotting
+        function and return a new plotting function with different input and
+        output arguments.
         * The transformed plotter will now require a ``<scalars>_atlas``
           argument, where ``<scalars>`` is the name of the scalar dataset
           provided as an argument to this function. The value of this
@@ -226,6 +227,9 @@ def scalars_from_atlas(
           loaded onto the surface.
         * The optional ``maps`` argument can contain parcel-wise maps that
           override those in the atlas.
+        * If ``plot`` is ``True``, the transformed function will automatically
+          add the scalar dataset from the atlas to the sequence of scalars to
+          plot.
     """
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
@@ -275,11 +279,11 @@ def scalars_from_atlas(
             ret = {"surf": surf}
             if plot:
                 scalars_to_plot = tuple(
-                    scalars_to_plot + [
+                    list(scalars_to_plot) + [
                         f"{scalars}_{j}" for j in range(i) if j not in excl
                     ]
                 )
-                hemi_to_plot = tuple(hemi_to_plot + hemis)
+                hemi_to_plot = tuple(list(hemi_to_plot) + hemis)
                 ret["scalars"] = scalars_to_plot
                 ret["hemi"] = hemi_to_plot
             return ret
@@ -297,11 +301,8 @@ def scalars_from_atlas(
                     "Transformed plot function missing one required "
                     f"keyword-only argument: {scalars}_atlas"
                 )
-            scalars_to_plot = None
-            hemi_to_plot = None
-            if plot:
-                scalars_to_plot = params.get("scalars", [])
-                hemi_to_plot = params.get("hemi", [])
+            scalars_to_plot = params.get("scalars", []) if plot else None
+            hemi_to_plot = params.get("hemi", []) if plot else None
             return xfm(f, transformer_f)(**params)(
                 surf=surf,
                 atlas=atlas,
@@ -347,14 +348,16 @@ def resample_to_surface(
     Returns
     -------
     callable
-        A transformer function. Transformer functions accept a plotting
-        function and return a new plotting function that takes the
-        following arguments:
+        A transform function. Transform functions accept a plotting
+        function and return a new plotting function with different input and
+        output arguments.
         * The transformed plotter will now require a ``<scalars>_nifti``
           argument, where ``<scalars>`` is the name of the scalar dataset
           provided as an argument to this function. The value of this
           argument should be an instance of a ``nibabel`` ``Nifti1Image``
           or a path to a NIfTI file.
+        * If ``plot`` is ``True``, the transformed function will automatically
+          add the resampled scalar dataset to the sequence of scalars to plot.
     """
     templates = {
         "fsLR": mni152_to_fslr,
@@ -380,7 +383,9 @@ def resample_to_surface(
             )
             ret = {"surf": surf}
             if plot:
-                scalars_to_plot = tuple(scalars_to_plot + list(scalar_names))
+                scalars_to_plot = tuple(
+                    list(scalars_to_plot) + list(scalar_names)
+                )
                 ret["scalars"] = scalars_to_plot
             return ret
 
@@ -411,6 +416,32 @@ def parcellate_colormap(
     cmap_name: str,
     parcellation_name: str,
 ) -> callable:
+    """
+    Add a colormap to a surface, and then parcellate it to obtain colours for
+    each parcel.
+
+    Parameters
+    ----------
+    cmap_name : str
+        The name of the colormap to add to the surface. Currently, only
+        "network" and "modal" are supported. The "network" colormap colours
+        each parcel based on its overlap with the 7 resting-state networks
+        defined by Yeo et al. (2011). The "modal" colormap colours each
+        parcel based on its affiliation with the 3 modal domains defined by
+        Glasser et al. (2016).
+    parcellation_name : str
+        The name of the parcellation to use to parcellate the colormap. The
+        parcellation must be present on the surface.
+
+    Returns
+    -------
+    callable
+        A transform function. Transform functions accept a plotting
+        function and return a new plotting function with different input and
+        output arguments.
+        * The transformed function will no longer accept the arguments
+          ``cmap``, ``clim``, ``node_cmap``, or ``node_cmap_range``.
+    """
     cmaps = {
         "network": "viz/resources/cmap_network.nii",
         "modal": "viz/resources/cmap_modal.nii",
@@ -458,10 +489,37 @@ def parcellate_colormap(
 def parcellate_scalars(
     scalars: str,
     parcellation_name: str,
+    plot: bool = True,
 ) -> callable:
+    """
+    Add a scalar dataset to a surface, and then parcellate it to obtain
+    values for each parcel.
+
+    Parameters
+    ----------
+    scalars : str
+        The name of the scalar dataset to add to the surface.
+    parcellation_name : str
+        The name of the parcellation to use to parcellate the scalar dataset.
+        The parcellation must be present on the surface.
+    plot : bool (default: True)
+        Indicates whether the parcellated scalar dataset should be plotted.
+
+    Returns
+    -------
+    callable
+        A transform function. Transform functions accept a plotting
+        function and return a new plotting function with different input and
+        output arguments.
+        * If ``plot`` is ``True``, the transformed function will automatically
+          add the parcellated scalar dataset to the sequence of scalars to plot.
+    """
     sink = f"{scalars}_parcellated"
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
-        def transformer_f(surf: CortexTriSurface) -> Mapping:
+        def transformer_f(
+            surf: CortexTriSurface,
+            scalars_to_plot: Optional[Sequence[str]] = None,
+        ) -> Mapping:
             parcellated = surf.parcellate_vertex_dataset(
                 name=scalars,
                 parcellation=parcellation_name
@@ -471,17 +529,22 @@ def parcellate_scalars(
                 parcellation=parcellation_name,
                 sink=sink
             )
-            return {
-                'surf': surf,
-                'scalars': sink,
-            }
+            ret = {"surf": surf}
+            if plot:
+                scalars_to_plot = tuple(list(scalars_to_plot) + [sink])
+                ret["scalars"] = scalars_to_plot
+            return ret
 
         def f_transformed(
             *,
             surf: CortexTriSurface,
             **params: Mapping,
         ):
-            return xfm(f, transformer_f)(**params)(surf=surf)
+            scalars_to_plot = params.get("scalars", []) if plot else None
+            return xfm(f, transformer_f)(**params)(
+                surf=surf,
+                scalars_to_plot=scalars_to_plot,
+            )
 
         return f_transformed
     return transform
@@ -490,18 +553,51 @@ def parcellate_scalars(
 def scatter_into_parcels(
     scalars: str,
     parcellation_name: str,
+    plot: bool = True,
 ) -> callable:
+    """
+    Add a parcel-valued scalar dataset to a surface by scattering the
+    parcel-wise values into the vertices of the surface.
+
+    Parameters
+    ----------
+    scalars : str
+        The name of the scalar dataset to add to the surface.
+    parcellation_name : str
+        The name of the parcellation to use to parcellate the scalar dataset.
+        The parcellation must be present on the surface.
+    plot : bool (default: True)
+        Indicates whether the parcel-valued scalar dataset should be plotted.
+
+    Returns
+    -------
+    callable
+        A transform function. Transform functions accept a plotting
+        function and return a new plotting function with different input and
+        output arguments.
+        * If ``plot`` is ``True``, the transformed function will automatically
+          add the parcel-valued scalar dataset to the sequence of scalars to
+          plot.
+        * The transformed plotter requires the argument ``parcellated`` to be
+          defined. This argument should be a tensor of shape ``(N,)`` where
+          ``N`` is the number of parcels in the parcellation.
+    """
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
-        def transformer_f(surf: CortexTriSurface, parcellated: Tensor) -> Mapping:
+        def transformer_f(
+            surf: CortexTriSurface,
+            parcellated: Tensor,
+            scalars_to_plot: Optional[Sequence[str]] = None,
+        ) -> Mapping:
             surf.scatter_into_parcels(
                 data=parcellated,
                 parcellation=parcellation_name,
                 sink=scalars,
             )
-            return {
-                'surf': surf,
-                'scalars': scalars,
-            }
+            ret = {"surf": surf}
+            if plot:
+                scalars_to_plot = tuple(list(scalars_to_plot) + [scalars])
+                ret["scalars"] = scalars_to_plot
+            return ret
 
         def f_transformed(
             *,
@@ -509,8 +605,12 @@ def scatter_into_parcels(
             parcellated: Tensor,
             **params: Mapping,
         ):
+            scalars_to_plot = params.get("scalars", []) if plot else None
             return xfm(f, transformer_f)(**params)(
-                surf=surf, parcellated=parcellated)
+                surf=surf,
+                parcellated=parcellated,
+                scalars_to_plot=scalars_to_plot,
+            )
 
         return f_transformed
     return transform

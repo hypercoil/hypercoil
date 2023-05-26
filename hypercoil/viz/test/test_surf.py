@@ -172,7 +172,7 @@ class TestSurfaceVisualisations:
     def test_parcellated_scalars(self):
         i_chain = ichain(
             surf_from_archive(),
-            resample_to_surface('gm_density', template='fsLR', plot=True),
+            resample_to_surface('gm_density', template='fsLR'),
             scalars_from_cifti('parcellation'),
             parcellate_scalars('gm_density', 'parcellation'),
         )
