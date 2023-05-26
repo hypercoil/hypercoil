@@ -196,12 +196,50 @@ def scalars_from_atlas(
     compartment: str = ("cortex_L", "cortex_R"),
     select: Optional[Sequence[int]] = None,
     exclude: Optional[Sequence[int]] = None,
+    plot: bool = False,
 ) -> callable:
+    """
+    Load a scalar dataset from an atlas object onto a CortexTriSurface.
+
+    Parameters
+    ----------
+    scalars : str
+        The name that the scalar dataset loaded from the atlas is given on
+        the surface.
+    compartment : str or Sequence[str] (default: ("cortex_L", "cortex_R"))
+        The atlas compartment(s) from which to load the scalar dataset.
+    select : Sequence[int] or None (default: None)
+        If not None, the indices of the scalar maps to load from the atlas.
+        If None, all scalar maps are loaded.
+    exclude : Sequence[int] or None (default: None)
+        If not None, the indices of the scalar maps to exclude from the
+        atlas. If None, no scalar maps are excluded.
+    plot : bool (default: True)
+        Indicates whether the scalar dataset should be plotted.
+
+    Returns
+    -------
+    callable
+        A transformer function. Transformer functions accept a plotting
+        function and return a new plotting function that takes the
+        following arguments:
+        * The transformed plotter will now require a ``<scalars>_atlas``
+          argument, where ``<scalars>`` is the name of the scalar dataset
+          provided as an argument to this function. The value of this
+          argument should bean instance of an object derived from a
+          ``hypercoil`` ``BaseAtlas``. This is the atlas whose data will be
+          loaded onto the surface.
+        * The ``surf`` argument should be a ``CortexTriSurface`` object.
+        * The optional ``maps`` argument can contain parcel-wise maps that
+          override those in the atlas.
+    """
     def transform(f: callable, xfm: callable = direct_transform) -> callable:
         def transformer_f(
             surf: CortexTriSurface,
             atlas: BaseAtlas,
             maps: Optional[Mapping] = None,
+            scalars_to_plot: Optional[Sequence[str]] = None,
+            hemi_to_plot: Optional[Sequence[str]] = None,
         ) -> Mapping:
             if maps is None:
                 maps = atlas.maps
@@ -240,23 +278,47 @@ def scalars_from_atlas(
                 )
                 i += 1
                 hemis.append("right")
-            return {
-                "surf": surf,
-                "scalars": tuple(
-                    f"{scalars}_{j}" for j in range(i) if j not in excl
-                ),
-                "hemi": tuple(hemis),
-            }
+            ret = {"surf": surf}
+            if plot:
+                scalars_to_plot = tuple(
+                    scalars_to_plot + [
+                        f"{scalars}_{j}" for j in range(i) if j not in excl
+                    ]
+                )
+                hemi_to_plot = tuple(hemi_to_plot + hemis)
+                ret["scalars"] = scalars_to_plot
+                ret["hemi"] = hemi_to_plot
+            return ret
 
         def f_transformed(
             *,
             surf: CortexTriSurface,
-            atlas: BaseAtlas,
             maps: Optional[Mapping] = None,
             **params: Mapping,
         ):
+            try:
+                atlas = params[f"{scalars}_atlas"]
+                params = {
+                    k: v for k, v in params.items()
+                    if k != f"{scalars}_atlas"
+                }
+            except KeyError:
+                raise TypeError(
+                    "Transformed plot function missing one required "
+                    f"keyword-only argument: {scalars}_atlas"
+                )
+            scalars_to_plot = None
+            hemi_to_plot = None
+            if plot:
+                scalars_to_plot = params.get("scalars", [])
+                hemi_to_plot = params.get("hemi", [])
             return xfm(f, transformer_f)(**params)(
-                surf=surf, atlas=atlas, maps=maps)
+                surf=surf,
+                atlas=atlas,
+                maps=maps,
+                scalars_to_plot=scalars_to_plot,
+                hemi_to_plot=hemi_to_plot,
+            )
 
         return f_transformed
     return transform

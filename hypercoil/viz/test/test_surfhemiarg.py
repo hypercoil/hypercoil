@@ -36,7 +36,7 @@ class TestSurfaceVisualisationsSingleHemisphere:
     def test_focused_view_single_hemisphere(self):
         i_chain = ichain(
             surf_from_archive(),
-            scalars_from_atlas('dirichlet'),
+            scalars_from_atlas('dirichlet', plot=True),
             replicate(map_over=("scalars", "hemi")),
             scalar_focus_camera(projection='veryinflated', kind='peak'),
         )
@@ -72,7 +72,7 @@ class TestSurfaceVisualisationsSingleHemisphere:
         f(
             template="fsLR",
             load_mask=True,
-            atlas=atlas,
+            dirichlet_atlas=atlas,
             projection='veryinflated',
             filename='/tmp/dirfocused_index-{index}.png',
         )
@@ -82,7 +82,7 @@ class TestSurfaceVisualisationsSingleHemisphere:
         selected = list(range(19)) + list(range(20, 39))
         i_chain = ichain(
             surf_from_archive(),
-            scalars_from_atlas('dirichlet', select=selected),
+            scalars_from_atlas('dirichlet', select=selected, plot=True),
             replicate(map_over=("scalars", "hemi")),
             closest_ortho_cameras(projection='veryinflated', n_ortho=3),
         )
@@ -118,7 +118,7 @@ class TestSurfaceVisualisationsSingleHemisphere:
         f(
             template="fsLR",
             load_mask=True,
-            atlas=atlas,
+            dirichlet_atlas=atlas,
             projection='veryinflated',
             filename='/tmp/dirortho_index-{index}.png',
         )
@@ -127,7 +127,7 @@ class TestSurfaceVisualisationsSingleHemisphere:
     def test_planar_sweep_single_hemisphere(self):
         i_chain = ichain(
             surf_from_archive(),
-            scalars_from_atlas('dirichlet'),
+            scalars_from_atlas('dirichlet', plot=True),
             replicate(map_over=("scalars", "hemi")),
             planar_sweep_cameras(initial=(1, 0, 0), normal=(0, 0, 1), n_steps=10),
         )
@@ -163,7 +163,7 @@ class TestSurfaceVisualisationsSingleHemisphere:
         f(
             template="fsLR",
             load_mask=True,
-            atlas=atlas,
+            dirichlet_atlas=atlas,
             projection='veryinflated',
             filename='/tmp/dirplanar_index-{index}.png',
         )
@@ -172,7 +172,7 @@ class TestSurfaceVisualisationsSingleHemisphere:
     def test_auto_view_single_hemisphere(self):
         i_chain = ichain(
             surf_from_archive(),
-            scalars_from_atlas('dirichlet'),
+            scalars_from_atlas('dirichlet', plot=True),
             replicate(map_over=("scalars", "hemi")),
             auto_cameras(projection='veryinflated', n_ortho=3, focus='peak', n_angles=3),
         )
@@ -208,7 +208,7 @@ class TestSurfaceVisualisationsSingleHemisphere:
         f(
             template="fsLR",
             load_mask=True,
-            atlas=atlas,
+            dirichlet_atlas=atlas,
             projection='veryinflated',
             filename='/tmp/dirauto_index-{index}.png',
         )
