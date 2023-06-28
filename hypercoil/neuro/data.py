@@ -15,6 +15,7 @@ from io import BytesIO
 from typing import (
     Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Type, Union,
 )
+from hypercoil.viz.flows import replicate, direct_transform
 
 
 def _null_op_one_arg(arg: Any) -> Any:
@@ -497,3 +498,27 @@ def scalar_transform(scalars: Optional[Sequence[str]] = None) -> callable:
             return {**features, **transformed}
         return transform_dataset
     return close_header
+
+
+def fmri_dataset_transform(
+    f_configure: callable,
+    xfm: callable = direct_transform,
+) -> callable:
+    def transformer_f_configure(
+        *,
+        header: Optional[Type[Header]] = None,
+    ) -> Mapping:
+        return {
+            'header': header or FunctionalMRIDataHeader,
+        }
+
+    def f_configure_transformed(
+        *,
+        header: Optional[Type[Header]] = None,
+        **params,
+    ) -> Mapping:
+        return xfm(f_configure, transformer_f_configure)(**params)(
+            header=header,
+        )
+
+    return f_configure_transformed
