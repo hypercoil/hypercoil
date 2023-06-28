@@ -10,9 +10,14 @@ import datalad.api as datalad
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from io import BytesIO
 from typing import (
     Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Type, Union,
 )
+
+
+class AbsentFromInstance:
+    """Sentinel object for absent values"""
 
 
 @dataclasses.dataclass
@@ -79,6 +84,60 @@ class Header:
 class FunctionalMRIDataHeader(Header):
     surface_mask: Optional[np.ndarray] = dataclasses.field(default=None)
     volume_mask: Optional[np.ndarray] = dataclasses.field(default=None)
+
+
+@dataclasses.dataclass
+class AgnosticSchema:
+    schema: Mapping[str, Any]
+
+    def __getitem__(self, key):
+        return self.schema[key]
+
+    def __setitem__(self, key, value):
+        self.schema[key] = value
+
+    def __contains__(self, key):
+        return key in self.schema
+
+    def __iter__(self):
+        return iter(self.schema)
+
+    def __len__(self):
+        return len(self.schema)
+
+    def __repr__(self):
+        return repr(self.schema)
+
+    def __str__(self):
+        return str(self.schema)
+
+    @property
+    def constructor(self):
+        return {
+            k: (type(v).__name__, v.dtype)
+            for k, v in self.schema.items()
+        }
+
+    def to_json(self, path):
+        with open(path, 'w') as f:
+            json.dump(self.constructor, f, indent=4)
+
+    @classmethod
+    def from_json(cls, path):
+        with open(path, 'r') as f:
+            schema = json.load(f)
+        for k, (t, d) in schema.items():
+            if t == 'DataArray':
+                schema[k] = DataArray(dtype=d)
+            elif t == 'InexactArray':
+                schema[k] = InexactArray(dtype=d)
+            elif t == 'ExactNumeric':
+                schema[k] = ExactNumeric(dtype=d)
+            elif t == 'InexactNumeric':
+                schema[k] = InexactNumeric(dtype=d)
+            elif t == 'String':
+                schema[k] = String()
+        return cls(schema)
 
 
 @dataclasses.dataclass
