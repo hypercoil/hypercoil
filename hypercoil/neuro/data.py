@@ -7,14 +7,17 @@ Data transformations.
 import dataclasses, os, glob, string, time, re, tarfile
 import json, pickle
 import datalad.api as datalad
+import nibabel as nb
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import templateflow.api as tflow
 from contextlib import ExitStack
 from io import BytesIO
 from typing import (
     Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Type, Union,
 )
+from hypercoil.neuro.const import template_dict, neuromaps_fetch_fn
 from hypercoil.viz.flows import replicate, direct_transform
 
 
@@ -675,3 +678,156 @@ def transformer_bids_specs(
             'references': references,
         }
     return transformer
+
+
+def record_bold_surface(
+    mask: bool = True,
+    priority: int = 0,
+    **spec: Mapping[str, str],
+) -> callable:
+    """
+    Add surface datasets in the specified space to a data record.
+    """
+    def header_writer():
+        def tflow_cfg():
+            return {
+                'query': template.TFLOW_MASK_QUERY,
+                'fetch': tflow.get,
+            }
+        def nmaps_cfg():
+            return {
+                'query': template.NMAPS_MASK_QUERY,
+                'fetch': neuromaps_fetch_fn,
+            }
+
+        space = spec.get('space', 'fsaverage5')
+        density = spec.get('density', None)
+        template = template_dict()[space]
+        for cfg in (tflow_cfg, nmaps_cfg):
+            try:
+                fetch_fn = cfg()['fetch']
+                mask_query = cfg()['query']
+                if density is not None:
+                    mask_query['density'] = density
+                lh_mask, rh_mask = (
+                    fetch_fn(**mask_query, hemi="L"),
+                    fetch_fn(**mask_query, hemi="R")
+                )
+                return {
+                    'L': nb.load(lh_mask).darrays[0].data.astype(bool),
+                    'R': nb.load(rh_mask).darrays[0].data.astype(bool),
+                }
+            except Exception as e:
+                continue
+        raise e
+
+    def instance_transform(
+        header: Header,
+        path_transform: callable,
+        f: callable,
+        xfm: callable = direct_transform
+    ) -> callable:
+        def transformer_f(dataset: pd.Series) -> Mapping:
+            path_L = path_transform(dataset['surface_L'])
+            path_R = path_transform(dataset['surface_R'])
+            L = nb.load(path_L)
+            sample_time = float(L.darrays[0].meta['TimeStep'])
+            if sample_time > 10: # assume milliseconds
+                sample_time /= 1000
+            L = np.stack([e.data for e in L.darrays], axis=-1)
+            R = nb.load(path_R)
+            R = np.stack([e.data for e in R.darrays], axis=-1)
+            if mask:
+                surface_mask = header.surface_mask
+                L = L[surface_mask['L']]
+                R = R[surface_mask['R']]
+            surface = np.concatenate([L, R], axis=0)
+            return {
+                'dataset': dataset,
+                'surface': surface,
+                'sample_time': sample_time,
+            }
+
+        def f_transformed(
+            *,
+            dataset: pd.Series,
+            **params,
+        ):
+            return xfm(f, transformer_f)(**params)(dataset=dataset)
+
+        return f_transformed
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        transformer_f_index = transformer_bids_specs(
+            ('surface_L', 'surface_R'), spec)
+
+        def f_index_transformed(
+            *,
+            dtypes: Mapping[str, str],
+            references: Optional[Sequence[str]] = None,
+            **params,
+        ):
+            return xfm(f_index, transformer_f_index)(**params)(
+                dtypes=dtypes,
+                references=references,
+            )
+
+        def transformer_f_configure(
+            *,
+            header_writers: Optional[Mapping[str, callable]] = None,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+        ) -> Mapping:
+            if mask:
+                if header_writers is None:
+                    header_writers = {}
+                header_writers['surface_mask'] = header_writer
+            if instance_transforms is None:
+                instance_transforms = []
+            instance_transforms.append((instance_transform, priority))
+            return {
+                'header_writers': header_writers,
+                'instance_transforms': instance_transforms,
+            }
+
+        def f_configure_transformed(
+            *,
+            header_writers: Optional[Mapping[str, callable]] = None,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+            **params,
+        ):
+            return xfm(f_configure, transformer_f_configure)(**params)(
+                header_writers=header_writers,
+                instance_transforms=instance_transforms,
+            )
+
+        def transformer_f_record(
+            schema: Mapping = None,
+        ) -> Mapping:
+            if schema is None:
+                schema = {}
+            schema["surface"] = InexactArray()
+            schema["sample_time"] = InexactNumeric('float32')
+            return {
+                "schema": schema,
+            }
+
+        def f_record_transformed(
+            *,
+            schema: Mapping = None,
+            **params,
+        ):
+            return xfm(f_record, transformer_f_record)(**params)(
+                schema=schema,
+            )
+
+        return (
+            f_index_transformed,
+            f_configure_transformed,
+            f_record_transformed,
+        )
+    return transform
