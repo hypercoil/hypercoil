@@ -831,3 +831,138 @@ def record_bold_surface(
             f_record_transformed,
         )
     return transform
+
+
+def record_bold_volume(
+    mask: Union[bool, str, Mapping] = True,
+    priority: int = 0,
+    **spec: Mapping[str, str],
+) -> callable:
+    """
+    Add volumetric datasets in the specified space to a data record.
+    """
+    #TODO: Allow specification of explicit mask, for instance grey matter
+    #      voxels only
+    def header_writer():
+        if isinstance(mask, str):
+            brain_mask = mask
+        elif isinstance(mask, dict):
+            space = (
+                mask.get('space', None) or
+                spec.get('space', 'MNI152NLin2009cAsym')
+            )
+            brain_mask = tflow.get({**mask, **{'space': space}})
+        else:
+            space = spec.get('space', 'MNI152NLin2009cAsym')
+            resolution = spec.get('resolution', 2)
+            brain_mask = tflow.get(
+                template=space,
+                desc='brain',
+                suffix='mask',
+                resolution=resolution,
+            )
+        return nb.load(brain_mask).get_fdata().astype(bool)
+
+    def instance_transform(
+        header: Header,
+        path_transform: callable,
+        f: callable,
+        xfm: callable = direct_transform
+    ) -> callable:
+        def transformer_f(dataset: pd.Series) -> Mapping:
+            path_volume = path_transform(dataset['volume'])
+            volume = nb.load(path_volume)
+            sample_time = volume.header.get_zooms()[-1]
+            if sample_time > 10: # assume milliseconds
+                sample_time /= 1000
+            volume = volume.get_fdata()
+            if mask:
+                volume = volume[header.volume_mask]
+            return {
+                'dataset': dataset,
+                'volume': volume,
+                'sample_time': sample_time,
+            }
+
+        def f_transformed(
+            *,
+            dataset: pd.Series,
+            **params,
+        ):
+            return xfm(f, transformer_f)(**params)(dataset=dataset)
+
+        return f_transformed
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        transformer_f_index = transformer_bids_specs('volume', spec)
+
+        def f_index_transformed(
+            *,
+            dtypes: Mapping[str, str],
+            references: Optional[Sequence[str]] = None,
+            **params,
+        ):
+            return xfm(f_index, transformer_f_index)(**params)(
+                dtypes=dtypes,
+                references=references,
+            )
+
+        def transformer_f_configure(
+            *,
+            header_writers: Optional[Mapping[str, callable]] = None,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+        ) -> Mapping:
+            if mask:
+                if header_writers is None:
+                    header_writers = {}
+                header_writers['volume_mask'] = header_writer
+            if instance_transforms is None:
+                instance_transforms = []
+            instance_transforms.append((instance_transform, priority))
+            return {
+                'header_writers': header_writers,
+                'instance_transforms': instance_transforms,
+            }
+
+        def f_configure_transformed(
+            *,
+            header_writers: Optional[Mapping[str, callable]] = None,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+            **params,
+        ):
+            return xfm(f_configure, transformer_f_configure)(**params)(
+                header_writers=header_writers,
+                instance_transforms=instance_transforms,
+            )
+
+        def transformer_f_record(
+            schema: Mapping = None,
+        ) -> Mapping:
+            if schema is None:
+                schema = {}
+            schema["volume"] = InexactArray()
+            schema["sample_time"] = InexactNumeric('float32')
+            return {
+                "schema": schema,
+            }
+
+        def f_record_transformed(
+            *,
+            schema: Mapping = None,
+            **params,
+        ):
+            return xfm(f_record, transformer_f_record)(**params)(
+                schema=schema,
+            )
+
+        return (
+            f_index_transformed,
+            f_configure_transformed,
+            f_record_transformed,
+        )
+    return transform
