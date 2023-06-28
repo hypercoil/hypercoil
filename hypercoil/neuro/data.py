@@ -1512,6 +1512,27 @@ def instance_as_tf_example(schema: Mapping) -> callable:
     return f_package_tf_example
 
 
+def tf_example_as_instance(schema: Mapping) -> callable:
+    def f_unpackage_tf_example(
+        *,
+        example: tf.train.Example,
+        **params,
+    ) -> Mapping:
+        tf_example = tf.io.parse_single_example(example, schema_to_tfrecords(schema))
+        instance = {}
+        for k, v in schema.items():
+            instance[k] = v.from_feature(tf_example[k])
+        return instance
+    return f_unpackage_tf_example
+
+
+def schema_to_tfrecords(schema: Mapping) -> Mapping:
+    return {
+        k: tf.io.FixedLenFeature([], dtype=v.dtype_tf)
+        for k, v in schema.items()
+    }
+
+
 def write_instance_as_tf_example(schema: Mapping) -> callable:
     make_example = instance_as_tf_example(schema)
 
