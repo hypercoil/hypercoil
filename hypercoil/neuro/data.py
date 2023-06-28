@@ -1137,6 +1137,59 @@ def filter_missing(
     return filtering_transform(filtering_f)
 
 
+def filter_entity(
+    entity: str,
+    include: Optional[Sequence] = None,
+    exclude: Optional[Sequence] = None,
+) -> callable:
+    def filtering_f(table: pd.DataFrame) -> pd.DataFrame:
+        drop = None
+        _include = include
+        _exclude = exclude
+        unique = table[entity].unique()
+        if isinstance(_include, str):
+            _include = (_include,)
+        if isinstance(_exclude, str):
+            _exclude = (_exclude,)
+        if _include is not None:
+            drop = tuple(set(unique) - set(_include))
+        if _exclude is not None:
+            drop = tuple(set(_exclude))
+        if drop is not None:
+            table = table[~table[entity].isin(drop)]
+        return table
+
+    return filtering_transform(filtering_f)
+
+
+def filter_subjects(
+    include: Optional[Sequence] = None,
+    exclude: Optional[Sequence] = None,
+) -> callable:
+    return filter_entity('subject', include, exclude)
+
+
+def filter_sessions(
+    include: Optional[Sequence] = None,
+    exclude: Optional[Sequence] = None,
+) -> callable:
+    return filter_entity('session', include, exclude)
+
+
+def filter_runs(
+    include: Optional[Sequence] = None,
+    exclude: Optional[Sequence] = None,
+) -> callable:
+    return filter_entity('run', include, exclude)
+
+
+def filter_tasks(
+    include: Optional[Sequence] = None,
+    exclude: Optional[Sequence] = None,
+) -> callable:
+    return filter_entity('task', include, exclude)
+
+
 def datalad_source(root: str) -> callable:
     def path_transform(path: str) -> str:
         datalad.get(path, dataset=root)
