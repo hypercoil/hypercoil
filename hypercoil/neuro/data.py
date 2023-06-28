@@ -18,6 +18,35 @@ from typing import (
 from hypercoil.viz.flows import replicate, direct_transform
 
 
+NIMG_ENTITIES = {'subject', 'session', 'run', 'task'}
+BIDS_REGEX = {
+    'datatype': '.*/(?P<datatype>[^/]*)/[^/]*',
+    'subject': '.*/[^/]*sub-(?P<subject>[^_]*)[^/]*',
+    'session': '.*/[^/]*ses-(?P<subject>[^_]*)[^/]*',
+    'run': '.*/[^/]*run-(?P<run>[^_]*)[^/]*',
+    'task': '.*/[^/]*task-(?P<task>[^_]*)[^/]*',
+    'space': '.*/[^/]*space-(?P<space>[^_]*)[^/]*',
+    'desc': '.*/[^/]*desc-(?P<desc>[^_]*)[^/]*',
+    'suffix': '.*/[^/]*_(?P<suffix>[^/_\.]*)\..*',
+    'extension': '.*/[^/\.]*(?P<extension>\..*)$'
+}
+BIDS_DTYPES = {
+    'surface_L': ('*_desc-preproc*_bold.L.func.gii', '.L.func.gii'),
+    'surface_R': ('*_desc-preproc*_bold.R.func.gii', '.R.func.gii'),
+    'volume': ('*_desc-preproc*_bold.nii.gz', '.nii.gz'),
+    'confounds': ('*_desc-confounds*_timeseries.tsv', '.tsv'),
+    'confounds_metadata': ('*_desc-confounds*_timeseries.json', '.json'),
+}
+BIDS_DTYPES_LEGACY = {
+    'surface_L': ('*_bold*{space}.L.func.gii', '.L.func.gii'),
+    'surface_R': ('*_bold*{space}.R.func.gii', '.R.func.gii'),
+    'volume': ('*_bold*{space}*_preproc.nii.gz', '.nii.gz'),
+    'confounds': ('*_bold*_confounds.tsv', '.tsv'),
+}
+HCP_REGEX = {}
+HCP_DTYPES = {}
+
+
 def _null_op_one_arg(arg: Any) -> Any:
     return arg
 
@@ -522,3 +551,89 @@ def fmri_dataset_transform(
         )
 
     return f_configure_transformed
+
+
+def fmriprep_dataset():
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f_index(
+            regex: Optional[Mapping[str, str]] = None,
+            dtypes: Optional[Mapping[str, str]] = None,
+            entities: Optional[set[str]] = None,
+            pivot: Optional[str] = None,
+        ) -> Mapping:
+            return {
+                'dtypes': dtypes or {**BIDS_DTYPES},
+                'regex': regex or {**BIDS_REGEX},
+                'entities': entities or NIMG_ENTITIES,
+                'pivot': pivot or 'extension',
+            }
+
+        def f_index_transformed(
+            *,
+            regex: Optional[Mapping[str, str]] = None,
+            dtypes: Optional[Mapping[str, str]] = None,
+            entities: Optional[set[str]] = None,
+            pivot: Optional[str] = None,
+            **params,
+        ):
+            return xfm(f_index, transformer_f_index)(**params)(
+                regex=regex,
+                dtypes=dtypes,
+                entities=entities,
+                pivot=pivot,
+            )
+
+        f_configure_transformed = fmri_dataset_transform(f_configure, xfm)
+
+        return (
+            f_index_transformed,
+            f_configure_transformed,
+            f_record,
+        )
+    return transform
+
+
+def hcp_dataset():
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f_index(
+            regex: Optional[Mapping[str, str]] = None,
+            dtypes: Optional[Mapping[str, str]] = None,
+            entities: Optional[Sequence[str]] = None,
+        ) -> Mapping:
+            return {
+                'dtypes': dtypes or {**HCP_DTYPES},
+                'regex': regex or {**HCP_REGEX},
+                'entities': entities or NIMG_ENTITIES,
+            }
+
+        def f_index_transformed(
+            *,
+            regex: Optional[Mapping[str, str]] = None,
+            dtypes: Optional[Mapping[str, str]] = None,
+            entities: Optional[Sequence[str]] = None,
+            **params,
+        ):
+            return xfm(f_index, transformer_f_index)(**params)(
+                regex=regex,
+                dtypes=dtypes,
+                entities=entities,
+            )
+
+        f_configure_transformed = fmri_dataset_transform(f_configure, xfm)
+
+        return (
+            f_index_transformed,
+            f_configure_transformed,
+            f_record,
+        )
+    return transform
