@@ -1528,6 +1528,26 @@ def write_instance_as_tf_example(schema: Mapping) -> callable:
     return f_write_instance_as_tf_example
 
 
+def write_instance_as_tarfile(schema: Mapping) -> callable:
+    def f_write_instance_as_tarfile(
+        *,
+        instance: Mapping,
+        context: str,
+        instance_id: str,
+        **params,
+    ) -> None:
+        print(f'Writing to {context}')
+        for k, v in schema.items():
+            feature = instance.get(k, AbsentFromInstance())
+            if isinstance(feature, AbsentFromInstance):
+                continue
+            encoded = v.encode_tar(feature)
+            tarinfo = tarfile.TarInfo(f'{instance_id}.{k}')
+            tarinfo.size = len(encoded)
+            context.addfile(tarinfo, BytesIO(encoded))
+    return f_write_instance_as_tarfile
+
+
 def write_tfrecord(subdir: str = 'tfrecord') -> callable:
     def fname_pattern(dir: str, **params):
         param_fields = '_'.join(f'{k}-{v}' for k, v in params.items())
@@ -1548,6 +1568,49 @@ def write_tfrecord(subdir: str = 'tfrecord') -> callable:
                 instance_writers = []
             instance_writers += [(
                 write_instance_as_tf_example,
+                fname_pattern,
+            )]
+            return {
+                'instance_writers': instance_writers,
+            }
+
+        def f_record_transformed(
+            *,
+            instance_writers: Optional[Sequence[callable]] = None,
+            **params,
+        ):
+            return xfm(f_record, transformer_f_record)(**params)(
+                instance_writers=instance_writers,
+            )
+
+        return (
+            f_index,
+            f_configure,
+            f_record_transformed,
+        )
+    return transform
+
+
+def write_tarball(subdir: str = 'tar') -> callable:
+    def fname_pattern(dir: str, **params):
+        param_fields = '_'.join(f'{k}-{v}' for k, v in params.items())
+        fname = f'{dir}/{subdir}/{param_fields}.tar'
+        os.makedirs(os.path.dirname(fname), exist_ok=True)
+        return tarfile.open(fname, 'w'), fname
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f_record(
+            instance_writers: Optional[Sequence[callable]],
+        ) -> Mapping:
+            if instance_writers is None:
+                instance_writers = []
+            instance_writers += [(
+                write_instance_as_tarfile,
                 fname_pattern,
             )]
             return {
