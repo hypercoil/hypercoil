@@ -1117,6 +1117,26 @@ def filtering_transform(filtering_f: callable) -> callable:
     return transform
 
 
+def filter_missing(
+    reference: Optional[str] = None,
+    anchor: Optional[str] = None,
+    pivot: Optional[Union[str, Sequence[str]]] = None,
+) -> callable:
+    def filtering_f(table: pd.DataFrame) -> pd.DataFrame:
+        df = table
+        if anchor is not None and pivot is not None:
+            df = df.pivot(index=anchor, columns=pivot)
+        if reference is None:
+            df = df[~df.isnull().any(axis=1)]
+        else:
+            df = df[~df[reference].isnull()]
+        if anchor is not None and pivot is not None:
+            df = df.stack(pivot).reset_index()
+        return df
+
+    return filtering_transform(filtering_f)
+
+
 def datalad_source(root: str) -> callable:
     def path_transform(path: str) -> str:
         datalad.get(path, dataset=root)
