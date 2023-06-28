@@ -1132,6 +1132,84 @@ def record_tsv(*paths: Sequence[str]) -> callable:
     return transform
 
 
+def polynomial_detrend(
+    *,
+    order: Union[int, Literal['auto']] = 1,
+    features: Optional[Sequence[str]] = ('volume', 'surface', 'confounds'),
+    axes: Optional[Sequence[int]] = None,
+    priority: int = 1,
+) -> callable:
+    def instance_transform(
+        header: Header,
+        path_transform: callable,
+        f: callable,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f(**transformed_features) -> Mapping:
+            print('detrending time series')
+            _axes = axes or [-1] * len(features)
+            for ax, feature in zip(_axes, features):
+                data = transformed_features.get(feature, None)
+                if data is None:
+                    continue
+                size = data.shape[ax]
+                _order = order
+                if order == 'auto':
+                    sample_time = header['sample_time']
+                    _order = int(1 + sample_time * size / 150)
+                basis = [
+                    np.polynomial.legendre.Legendre.basis(
+                        d, (1, size)
+                    ).linspace(size) for d in range(_order + 1)
+                ]
+                basis = np.stack([b for _, b in basis]).T
+                if ax != 0:
+                    data = data.swapaxes(0, ax)
+                coefs = np.linalg.lstsq(basis, data, rcond=None)[0]
+                data = data - basis @ coefs
+                if ax != 0:
+                    data = data.swapaxes(0, ax)
+                print(feature, data.shape)
+                transformed_features[feature] = data
+            return transformed_features
+
+        def f_transformed(dataset: pd.Series, **params):
+            return xfm(f, transformer_f)(dataset=dataset)(**params)
+
+        return f_transformed
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> Tuple[callable, callable, callable]:
+        def transformer_f_configure(
+            *,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+        ) -> Mapping:
+            if instance_transforms is None:
+                instance_transforms = []
+            instance_transforms.append((instance_transform, priority))
+            return {'instance_transforms': instance_transforms}
+
+        def f_configure_transformed(
+            *,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+            **params,
+        ):
+            return xfm(f_configure, transformer_f_configure)(**params)(
+                instance_transforms=instance_transforms,
+            )
+
+        return (
+            f_index,
+            f_configure_transformed,
+            f_record,
+        )
+    return transform
+
+
 def filtering_transform(filtering_f: callable) -> callable:
     def transform(
         f_index: callable = filesystem_dataset,
