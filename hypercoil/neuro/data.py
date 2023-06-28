@@ -1277,6 +1277,115 @@ def standardise(
     return transform
 
 
+def nanfill(
+    *,
+    features: Optional[Sequence[str]] = ('volume', 'surface', 'confounds'),
+    fill_value_nan: Union[float, Sequence[float]] = 0.0,
+    fill_value_inf: Optional[Union[float, Sequence[float]]] = None,
+    record_mask: bool = False,
+    priority: int = 1,
+) -> callable:
+    def instance_transform(
+        header: Header,
+        path_transform: callable,
+        f: callable,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f(**transformed_features) -> Mapping:
+            print('populating nan and inf values')
+            _fillnan_all = fill_value_nan
+            _fillinf_all = fill_value_inf
+            if not isinstance(fill_value_nan, Sequence):
+                _fillnan_all = [fill_value_nan] * len(features)
+            if not isinstance(fill_value_inf, Sequence):
+                _fillinf_all = [fill_value_inf] * len(features)
+            _fillinf_pos = _fillinf_neg = fill_value_inf
+            for feature, _fillinf, _fillnan in zip(
+                features, _fillinf_all, _fillnan_all,
+            ):
+                data = transformed_features.get(feature, None)
+                if data is None:
+                    continue
+                if _fillinf is not None:
+                    if _fillinf > 0:
+                        _fillinf_neg *= -1
+                    else:
+                        _fillinf_pos *= -1
+                if record_mask:
+                    nanmask = np.isnan(data)
+                    infmask = np.isinf(data)
+                    feature_nanmask = f'{feature}_nanmask'
+                    feature_infmask = f'{feature}_infmask'
+                    transformed_features[feature_nanmask] = nanmask
+                    transformed_features[feature_infmask] = infmask
+                data = np.nan_to_num(
+                    data,
+                    nan=_fillnan,
+                    posinf=_fillinf_pos,
+                    neginf=_fillinf_neg,
+                )
+                transformed_features[feature] = data
+            return transformed_features
+
+        def f_transformed(dataset: pd.Series, **params):
+            return xfm(f, transformer_f)(dataset=dataset)(**params)
+
+        return f_transformed
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> Tuple[callable, callable, callable]:
+        def transformer_f_configure(
+            *,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+        ) -> Mapping:
+            if instance_transforms is None:
+                instance_transforms = []
+            instance_transforms.append((instance_transform, priority))
+            return {'instance_transforms': instance_transforms}
+
+        def f_configure_transformed(
+            *,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+            **params,
+        ):
+            return xfm(f_configure, transformer_f_configure)(**params)(
+                instance_transforms=instance_transforms,
+            )
+
+        def transformer_f_record(
+            schema: Mapping = None,
+        ) -> Mapping:
+            if record_mask:
+                if schema is None:
+                    schema = {}
+                for feature in features:
+                    schema[f'{feature}_nanmask'] = DataArray('bool')
+                    schema[f'{feature}_infmask'] = DataArray('bool')
+            return {
+                "schema": schema,
+            }
+
+        def f_record_transformed(
+            *,
+            schema: Mapping = None,
+            **params,
+        ):
+            return xfm(f_record, transformer_f_record)(**params)(
+                schema=schema,
+            )
+
+        return (
+            f_index,
+            f_configure_transformed,
+            f_record_transformed,
+        )
+    return transform
+
+
 def filtering_transform(filtering_f: callable) -> callable:
     def transform(
         f_index: callable = filesystem_dataset,
