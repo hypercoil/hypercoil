@@ -10,6 +10,7 @@ import datalad.api as datalad
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from contextlib import ExitStack
 from io import BytesIO
 from typing import (
     Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Type, Union,
@@ -408,6 +409,67 @@ def configure_transforms(
         'dataset': dataset,
         'header': header,
         #'filetypes': filetypes,
+        'instance_transform': instance_transform,
+        'schema': schema,
+        **params,
+    }
+
+
+def write_records(
+    *,
+    write_path: str,
+    dataset: pd.DataFrame,
+    header: Header,
+    instance_transform: callable,
+    instance_writers: Optional[Sequence[callable]] = None,
+    shard_writers: Optional[Sequence[callable]] = None,
+    schema: Mapping[str, Any],
+    write_header: bool = True,
+    write_schema: bool = True,
+    fname_entities: Optional[Mapping[str, str]] = None,
+    **params,
+) -> Mapping[str, Any]:
+    HEADER_FNAME = 'dataset.hdr'
+    SCHEMA_FNAME = 'schema.json'
+    header_path = os.path.join(write_path, HEADER_FNAME)
+    schema_path = os.path.join(write_path, SCHEMA_FNAME)
+
+    os.makedirs(write_path, exist_ok=True)
+    schema = AgnosticSchema(schema)
+
+    if write_header:
+        header.save(header_path)
+    if write_schema:
+        schema.to_json(schema_path)
+
+    instance_writers = instance_writers or []
+    shard_writers = shard_writers or []
+    instance_writers = [
+        (writer(schema.schema), *pattern(dir=write_path, **fname_entities))
+        for writer, pattern in instance_writers
+    ]
+    with ExitStack() as stack:
+        instance_writers = tuple(
+            (writer, stack.enter_context(context), filename)
+            for writer, context, filename in instance_writers
+        )
+        for i, instance in dataset.reset_index().iterrows():
+            instance = instance_transform(dataset=instance)
+            instance_id = [(e, instance[e]) for e in dataset.index.names]
+            instance_id = '_'.join(['-'.join(e) for e in instance_id])
+            instance_id = instance_id or f"instance_{i}"
+            for writer, context, filename in instance_writers:
+                writer(
+                    instance=instance,
+                    context=context,
+                    instance_id=instance_id
+                )
+        for writer, filename in shard_writers:
+            writer(shard=dataset, filename=filename)
+    return {
+        'write_path': write_path,
+        'dataset': dataset,
+        'header': header,
         'instance_transform': instance_transform,
         'schema': schema,
         **params,
