@@ -17,6 +17,7 @@ from io import BytesIO
 from typing import (
     Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Type, Union,
 )
+from hypercoil.formula.dfops import ConfoundFormulaGrammar
 from hypercoil.neuro.const import template_dict, neuromaps_fetch_fn
 from hypercoil.viz.flows import replicate, direct_transform
 
@@ -947,6 +948,119 @@ def record_bold_volume(
                 schema = {}
             schema["volume"] = InexactArray()
             schema["sample_time"] = InexactNumeric('float32')
+            return {
+                "schema": schema,
+            }
+
+        def f_record_transformed(
+            *,
+            schema: Mapping = None,
+            **params,
+        ):
+            return xfm(f_record, transformer_f_record)(**params)(
+                schema=schema,
+            )
+
+        return (
+            f_index_transformed,
+            f_configure_transformed,
+            f_record_transformed,
+        )
+    return transform
+
+
+def record_confounds(
+    model: Optional[str] = None,
+    priority: int = 0,
+) -> callable:
+    """
+    Add confound datasets to a data record.
+    """
+    def instance_transform(
+        header: Header,
+        path_transform: callable,
+        f: callable,
+        xfm: callable = direct_transform
+    ) -> callable:
+        def transformer_f(dataset: pd.Series) -> Mapping:
+            path_confounds = path_transform(dataset['confounds'])
+            confounds = pd.read_csv(path_confounds, sep='\t')
+            metadata = dataset.get('confounds_metadata', None)
+            if metadata is not None:
+                with open(metadata, 'r') as f:
+                    metadata = json.load(f)
+            if model is not None:
+                model_f = ConfoundFormulaGrammar().compile(model)
+                confounds = model_f(confounds, metadata)
+            return {
+                'dataset': dataset,
+                'confounds': confounds.values.T,
+                'confounds_names': list(confounds.columns),
+            }
+
+        def f_transformed(
+            *,
+            dataset: pd.Series,
+            **params,
+        ):
+            return xfm(f, transformer_f)(**params)(dataset=dataset)
+
+        return f_transformed
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f_index(
+            references: Optional[Sequence[str]] = None,
+        ) -> Mapping:
+            if references is None:
+                references = ('confounds', 'confounds_metadata')
+            else:
+                references = tuple(
+                    list(references) +
+                    ['confounds', 'confounds_metadata']
+                )
+            return {
+                'references': references,
+            }
+
+        def f_index_transformed(
+            *,
+            references: Optional[Sequence[str]] = None,
+            **params,
+        ):
+            return xfm(f_index, transformer_f_index)(**params)(
+                references=references,
+            )
+
+        def transformer_f_configure(
+            *,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+        ) -> Mapping:
+            if instance_transforms is None:
+                instance_transforms = []
+            instance_transforms.append((instance_transform, priority))
+            return {'instance_transforms': instance_transforms}
+
+        def f_configure_transformed(
+            *,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+            **params,
+        ):
+            return xfm(f_configure, transformer_f_configure)(**params)(
+                instance_transforms=instance_transforms,
+            )
+
+        def transformer_f_record(
+            schema: Mapping = None,
+        ) -> Mapping:
+            if schema is None:
+                schema = {}
+            schema["confounds"] = InexactArray()
+            schema["confounds_names"] = DataArray('string')
             return {
                 "schema": schema,
             }
