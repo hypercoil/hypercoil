@@ -14,6 +14,8 @@ import tensorflow as tf
 import templateflow.api as tflow
 from contextlib import ExitStack
 from io import BytesIO
+from math import prod
+from scipy.stats import percentileofscore
 from typing import (
     Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Type, Union,
 )
@@ -594,6 +596,256 @@ def shard_dataset(
                 ],
                 'write_header': [write_header] + [False] * (_n_shards - 1),
                 'write_schema': [write_schema] + [False] * (_n_shards - 1),
+                'fname_entities': fname_entities,
+            }
+
+        def f_record_transformed(
+            dataset: pd.DataFrame,
+            write_header: bool = True,
+            write_schema: bool = True,
+            fname_entities: Optional[Mapping[str, str]] = None,
+            **params,
+        ) -> Mapping:
+            f_record_repl = replicate(
+                map_over=('dataset', 'write_header', 'write_schema', 'fname_entities'),
+                additional_params=None,
+            )(f_record)
+            out = xfm(f_record_repl, transformer_f_record)(**params)(
+                dataset=dataset,
+                write_header=write_header,
+                write_schema=write_schema,
+                fname_entities=fname_entities,
+            )
+            return {
+                k: v if k == 'dataset' else v[0]
+                for k, v in out.items()
+            }
+
+        return (
+            f_index,
+            f_configure,
+            f_record_transformed,
+        )
+    return transform
+
+
+def split_dataset(
+    n_splits: int = 5,
+    split_on: Optional[Sequence[str]] = None,
+    random_state: Optional[int] = None,
+    stratify: Optional[Sequence[str]] = None,
+    representative: Optional[Sequence[str]] = None,
+    n_quantiles: Optional[Sequence[int]] = None,
+    aggregate: str = 'mean',
+    zero_pad: int = 0,
+) -> callable:
+    def n_per_split(table: pd.DataFrame) -> Sequence[int]:
+        n = len(table) // n_splits
+        n = [n] * n_splits
+        r = len(table) - sum(n)
+        for i in range(r):
+            n[i] += 1
+        return n
+
+    def running_total_splits(
+        levels: Sequence[int]
+    ) -> Tuple[int, Sequence[bool]]:
+        indeterminate = {0, -1, -2}
+        fixed = [e not in indeterminate for e in levels]
+        return prod([e for e, f in zip(levels, fixed) if f]), fixed
+
+    def representative_variables(
+        dataset: pd.DataFrame,
+    ) -> pd.DataFrame:
+        def _reduce_columns(dataset, column):
+            df = pd.DataFrame(dataset.reset_index()[column])
+            agg = getattr(df, aggregate)(1)
+            return pd.DataFrame(agg)[0].values
+
+        return pd.DataFrame({
+            e: _reduce_columns(dataset, e)
+            for e in representative
+        }, index=dataset.index)
+
+    def representative_sample_levels(
+        table: pd.DataFrame,
+        n: Sequence[int],
+    ) -> Sequence[int]:
+        max_n_quantiles_total = min(n)
+        n_unique = table[list(representative)].nunique()
+        levels = n_quantiles or [-1] * len(representative)
+        running_total, fixed = running_total_splits(levels)
+        if running_total > max_n_quantiles_total:
+            raise ValueError(
+                'The number of levels required exceeds the number of '
+                'samples per split.'
+            )
+        for i, f in enumerate(fixed):
+            if f:
+                continue
+            if n_unique[i] <= max_n_quantiles_total // running_total:
+                levels[i] = n_unique[i]
+                running_total, fixed = running_total_splits(levels)
+            elif levels[i] == -2:
+                raise ValueError(
+                    'The number of levels required exceeds the number of '
+                    'samples per split.'
+                )
+        n_indeterminate = len(levels) - sum(fixed)
+        n_available = max_n_quantiles_total // running_total
+        default = int(n_available ** (1 / n_indeterminate))
+        default = [default] * n_indeterminate
+        i = 0
+        while True:
+            default[i] += 1
+            if prod(default) > n_available:
+                default[i] -= 1
+                break
+            i = (i + 1) % n_indeterminate
+        for i, f in enumerate(fixed):
+            if f:
+                continue
+            levels[i] = default.pop()
+        return {k: v for k, v in zip(representative, levels)}
+
+    def configure_level_table(
+        table: pd.DataFrame,
+        levels: Sequence[int],
+    ) -> pd.DataFrame:
+        try:
+            key = next(iter(levels))
+        except StopIteration:
+            return None
+        val = levels[key]
+        quantile = (percentileofscore(table[key], table[key]) * val /
+            (100 + 1 / len(table))
+        ).astype(int)
+        quantile = pd.DataFrame({key: quantile}, index=table.index)
+        subframes = [
+            configure_level_table(
+                table[quantile[key] == q],
+                {_k: v for _k, v in levels.items() if _k != key},
+            ) for q in quantile[key].unique()
+        ]
+        if not any([e is None for e in subframes]):
+            table = pd.concat(subframes)
+            return quantile.join(table)
+        return quantile
+
+    def initialise_splits(
+        table: pd.DataFrame,
+        n_per_level: int,
+        _stratify: Optional[Sequence[str]] = None,
+    ) -> Tuple[Sequence[pd.DataFrame], pd.DataFrame]:
+        folds = [None] * n_splits
+        for i in range(n_splits):
+            fold = table.groupby(_stratify).sample(
+                n=n_per_level, replace=False, random_state=random_state,
+            )
+            folds[i] = fold
+            table = table.drop(fold.index)
+        return folds, table
+
+    def finalise_splits(
+        folds: Sequence[pd.DataFrame],
+        table: pd.DataFrame,
+        n: Sequence[int],
+    ) -> Sequence[pd.DataFrame]:
+        def _multiindex_constructor(new, fold):
+            return pd.MultiIndex.from_tuples((new,), names=fold.names)
+
+        def _index_constructor(new, fold):
+            return pd.Index((new,), name=fold.name)
+
+        folds = [e.index for e in folds]
+        folds_type = (type(folds[0])).__name__
+        if folds_type == 'MultiIndex':
+            constructor = _multiindex_constructor
+        elif folds_type == 'Index':
+            constructor = _index_constructor
+        current = [n[i] - len(e) for i, e in enumerate(folds)]
+        for i, _ in table.iterrows():
+            j = np.argmax(current)
+            new = constructor(i, folds[j])
+            folds[j] = folds[j].append(new)
+            current[j] -= 1
+        return pd.concat(
+            pd.DataFrame({'split': [i] * len(e)}, index=e)
+            for i, e in enumerate(folds)
+        )
+
+    def execute_split(
+        dataset: pd.DataFrame
+    ) -> Sequence[pd.DataFrame]:
+        if stratify is not None and representative is not None:
+            raise ValueError(
+                'Specify either stratified or representative splits, not '
+                'both.'
+            )
+
+        if split_on is not None:
+            _split_on = split_on or []
+            if isinstance(_split_on, str):
+                _split_on = [split_on]
+            index = dataset.index.names
+            pivot = [e for e in index if e not in _split_on]
+            splits = dataset.reset_index().pivot(index=_split_on, columns=pivot)
+        else:
+            splits = dataset
+
+        n = n_per_split(splits)
+        if representative is not None:
+            level_table = representative_variables(splits)
+            levels = representative_sample_levels(dataset, n)
+            level_table = configure_level_table(level_table, levels)
+            _stratify = list(representative)
+            n_per_level = min(n) // prod(levels.values())
+        else:
+            level_table = splits
+            _stratify = list(stratify)
+            n_per_level = min(n) // prod(
+                level_table[list(_stratify)].nunique())
+        if _stratify is None:
+            _stratify = []
+        if isinstance(stratify, str):
+            _stratify = [_stratify]
+        folds, level_table = initialise_splits(
+            level_table, n_per_level, _stratify,
+        )
+        print([fold for fold in folds])
+        splits = finalise_splits(folds, level_table, n)
+        return dataset.join(splits, how='left')
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f_record(
+            dataset: pd.DataFrame,
+            write_header: bool = True,
+            write_schema: bool = True,
+            fname_entities: Optional[Sequence[str]] = None,
+        ) -> Sequence[Mapping]:
+            splits = execute_split(dataset)
+
+            fname_entities = fname_entities or {}
+            split_pattern = '{split}'
+            if zero_pad:
+                split_pattern = '{split:0' + str(zero_pad) + 'd}'
+            fname_entities = [
+                {**fname_entities, 'split': split_pattern.format(split=i)}
+                for i in range(n_splits)
+            ]
+
+            return {
+                'dataset': [
+                    splits[splits.split == i].drop('split', axis=1)
+                    for i in range(n_splits)
+                ],
+                'write_header': [write_header] + [False] * (n_splits - 1),
+                'write_schema': [write_schema] + [False] * (n_splits - 1),
                 'fname_entities': fname_entities,
             }
 
