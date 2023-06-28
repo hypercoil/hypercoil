@@ -5,6 +5,7 @@
 Data transformations.
 """
 import dataclasses, os, glob, string, time, re, tarfile
+import json, pickle
 import datalad.api as datalad
 import numpy as np
 import pandas as pd
@@ -46,6 +47,37 @@ class Categoricals:
 
     def __setitem__(self, var: str, values: Sequence[Any]):
         self.definition[var] = values
+
+
+@dataclasses.dataclass
+class Header:
+    categoricals: Categoricals = dataclasses.field(default=Categoricals({}))
+
+    @property
+    def constructor(self):
+        _constructor = {}
+        for field in dataclasses.fields(self):
+            if field.name == 'categoricals':
+                _constructor[field.name] = self.categoricals.definition
+            else:
+                _constructor[field.name] = getattr(self, field.name)
+        return _constructor
+
+    def save(self, path):
+        with open(path, 'wb') as f:
+            pickle.dump(self.constructor, f)
+
+    @classmethod
+    def load(cls, path):
+        with open(path, 'rb') as f:
+            constructor = pickle.load(f)
+        return cls(**constructor)
+
+
+@dataclasses.dataclass
+class FunctionalMRIDataHeader(Header):
+    surface_mask: Optional[np.ndarray] = dataclasses.field(default=None)
+    volume_mask: Optional[np.ndarray] = dataclasses.field(default=None)
 
 
 #lru cache?
