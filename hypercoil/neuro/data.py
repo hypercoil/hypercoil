@@ -1210,6 +1210,73 @@ def polynomial_detrend(
     return transform
 
 
+def standardise(
+    *,
+    features: Optional[Sequence[str]] = ('volume', 'surface', 'confounds'),
+    axes: Optional[Sequence[int]] = None,
+    priority: int = 1,
+) -> callable:
+    def instance_transform(
+        header: Header,
+        path_transform: callable,
+        f: callable,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f(**transformed_features) -> Mapping:
+            print('z-scoring time series')
+            _axes = axes or [-1] * len(features)
+            for ax, feature in zip(_axes, features):
+                data = transformed_features.get(feature, None)
+                if data is None:
+                    continue
+                if ax != 0:
+                    data = data.swapaxes(0, ax)
+                data = (
+                    (data - data.mean(axis=0, keepdims=True)) /
+                    data.std(axis=0, keepdims=True)
+                )
+                if ax != 0:
+                    data = data.swapaxes(0, ax)
+                transformed_features[feature] = data
+            return transformed_features
+
+        def f_transformed(dataset: pd.Series, **params):
+            return xfm(f, transformer_f)(dataset=dataset)(**params)
+
+        return f_transformed
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> Tuple[callable, callable, callable]:
+        def transformer_f_configure(
+            *,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+        ) -> Mapping:
+            if instance_transforms is None:
+                instance_transforms = []
+            instance_transforms.append((instance_transform, priority))
+            return {'instance_transforms': instance_transforms}
+
+        def f_configure_transformed(
+            *,
+            instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+            **params,
+        ):
+            return xfm(f_configure, transformer_f_configure)(**params)(
+                instance_transforms=instance_transforms,
+            )
+
+        return (
+            f_index,
+            f_configure_transformed,
+            f_record,
+        )
+    return transform
+
+
 def filtering_transform(filtering_f: callable) -> callable:
     def transform(
         f_index: callable = filesystem_dataset,
