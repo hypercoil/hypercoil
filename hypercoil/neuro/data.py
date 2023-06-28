@@ -6,10 +6,47 @@ Data transformations.
 """
 import dataclasses, os, glob, string, time, re, tarfile
 import datalad.api as datalad
+import numpy as np
 import pandas as pd
 from typing import (
     Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Type, Union,
 )
+
+
+@dataclasses.dataclass
+class Categoricals:
+    definition: Mapping[str, Sequence[Any]]
+
+    def decode(self, var: str, code: Union[int, np.ndarray]) -> Any:
+        if isinstance(code, int):
+            code = [code]
+        elif isinstance(code, np.ndarray):
+            code = code.nonzero()[-1].tolist()
+        return [self.definition[var][c] for c in code]
+
+    def encode(
+        self,
+        var: str,
+        value: Union[Any, Sequence[Any]]
+    ) -> np.ndarray:
+        if isinstance(value, str):
+            value = [value]
+        try:
+            iter(value)
+        except TypeError:
+            value = [value]
+        value = np.array([self.definition[var].index(v) for v in value])
+        return np.eye(self.level_count(var))[value]
+
+    def level_count(self, var: str) -> int:
+        return len(self.definition[var])
+
+    def __getitem__(self, var: str) -> Sequence[Any]:
+        return self.definition[var]
+
+    def __setitem__(self, var: str, values: Sequence[Any]):
+        self.definition[var] = values
+
 
 #lru cache?
 def filesystem_dataset(
