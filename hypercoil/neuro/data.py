@@ -1082,6 +1082,56 @@ def record_confounds(
     return transform
 
 
+def record_tsv(*paths: Sequence[str]) -> callable:
+    """
+    Add a TSV dataset to a data record.
+    """
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f_index(
+            tables: Optional[Sequence[pd.DataFrame]] = None,
+            entities: Optional[Sequence[str]] = None,
+        ) -> Mapping:
+            tsv_tables = (
+                pd.read_csv(
+                    path,
+                    sep='\t',
+                    converters={e: str for e in entities},
+                )
+                for path in paths
+            )
+            if tables is None:
+                tables = tuple(tsv_tables)
+            else:
+                tables = tuple(list(tables) + list(tsv_tables))
+            return {
+                'tables': tables,
+                'entities': entities,
+            }
+
+        def f_index_transformed(
+            *,
+            tables: Optional[Sequence[pd.DataFrame]] = None,
+            entities: Optional[Sequence[str]] = None,
+            **params,
+        ):
+            return xfm(f_index, transformer_f_index)(**params)(
+                tables=tables,
+                entities=entities,
+            )
+
+        return (
+            f_index_transformed,
+            f_configure,
+            f_record,
+        )
+    return transform
+
+
 def filtering_transform(filtering_f: callable) -> callable:
     def transform(
         f_index: callable = filesystem_dataset,
