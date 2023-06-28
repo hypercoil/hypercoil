@@ -9,6 +9,7 @@ import json, pickle
 import datalad.api as datalad
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 from typing import (
     Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Type, Union,
 )
@@ -78,6 +79,78 @@ class Header:
 class FunctionalMRIDataHeader(Header):
     surface_mask: Optional[np.ndarray] = dataclasses.field(default=None)
     volume_mask: Optional[np.ndarray] = dataclasses.field(default=None)
+
+
+@dataclasses.dataclass
+class DataArray:
+    dtype: str = 'bool'
+
+    @property
+    def dtype_tf(self):
+        return tf.string
+
+    def encode_tf(self, data, serialise=True):
+        if serialise:
+            data = tf.io.serialize_tensor(data).numpy()
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[data]))
+
+    def decode_tf(self, feature):
+        return tf.io.parse_tensor(feature, out_type=getattr(tf, self.dtype))
+
+    def encode_tar(self, data):
+        stream = BytesIO()
+        np.lib.format.write_array(stream, np.asarray(data), allow_pickle=False)
+        return stream.getvalue()
+
+
+class InexactArray(DataArray):
+    dtype: str = 'float32'
+    def decode_tf(self, feature):
+        # Why double? No idea
+        return tf.io.parse_tensor(feature, out_type=tf.double)
+
+@dataclasses.dataclass
+class Numeric:
+    @property
+    def dtype_tf(self):
+        return getattr(tf, self.dtype)
+
+    def decode_tf(self, feature):
+        return tf.cast(feature, dtype=self.dtype_tf)
+
+    def encode_tar(self, data):
+        return str(data).encode('utf-8')
+
+
+@dataclasses.dataclass
+class InexactNumeric(Numeric):
+    dtype: str = 'float32'
+
+    def encode_tf(self, data, serialise=True):
+        return tf.train.Feature(float_list=tf.train.FloatList(value=[data]))
+
+
+@dataclasses.dataclass
+class ExactNumeric(Numeric):
+    dtype: str = 'int64'
+
+    def encode_tf(self, data, serialise=True):
+        return tf.train.Feature(int64_list=tf.train.Int64List(value=[data]))
+
+
+@dataclasses.dataclass
+class String(DataArray):
+    dtype: str = 'string'
+
+    def encode_tf(self, data, serialise=True):
+        data = data.encode('utf-8')
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[data]))
+
+    def decode_tf(self, feature):
+        return tf.cast(feature, dtype=tf.string)
+
+    def encode_tar(self, data):
+        return data.encode('utf-8')
 
 
 #lru cache?
