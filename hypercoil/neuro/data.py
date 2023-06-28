@@ -1082,6 +1082,41 @@ def record_confounds(
     return transform
 
 
+def filtering_transform(filtering_f: callable) -> callable:
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f_index(
+            filters: Optional[Sequence[callable]] = None,
+        ) -> Mapping:
+            if filters is None:
+                filters = (filtering_f,)
+            else:
+                filters = tuple(list(filters) + [filtering_f])
+            return {
+                'filters': filters,
+            }
+
+        def f_index_transformed(
+            *,
+            filters: Optional[Sequence[str]] = None,
+            **params,
+        ):
+            return xfm(f_index, transformer_f_index)(**params)(
+                filters=filters,
+            )
+
+        return (
+            f_index_transformed,
+            f_configure,
+            f_record,
+        )
+    return transform
+
+
 def datalad_source(root: str) -> callable:
     def path_transform(path: str) -> str:
         datalad.get(path, dataset=root)
