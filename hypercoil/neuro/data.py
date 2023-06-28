@@ -1107,3 +1107,22 @@ def datalad_source(root: str) -> callable:
             f_record,
         )
     return transform
+
+
+def datapipe(*pparams):
+    def configure_pipeline(
+        *,
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+    ) -> callable:
+        for transform in reversed(pparams):
+            f_index, f_configure, f_record = transform(
+                f_index, f_configure, f_record,
+            )
+
+        def execute_pipeline(**params) -> Mapping:
+            return f_record(**f_configure(**f_index(**params)))
+
+        return execute_pipeline
+    return configure_pipeline
