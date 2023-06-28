@@ -533,6 +533,100 @@ def scalar_transform(scalars: Optional[Sequence[str]] = None) -> callable:
     return close_header
 
 
+def shard_dataset(
+    n_shards: Optional[int] = None,
+    shard_on: Optional[Union[str, Sequence[str]]] = None,
+    random_state: Optional[int] = None,
+    shuffle: bool = True,
+    zero_pad: int = 0,
+) -> callable:
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> Tuple[callable, callable, callable]:
+        def transformer_f_record(
+            dataset: pd.DataFrame,
+            write_header: bool = True,
+            write_schema: bool = True,
+            fname_entities: Optional[Mapping[str, str]] = None,
+        ) -> Mapping:
+            _shard_on = shard_on or []
+            if isinstance(_shard_on, str):
+                _shard_on = [shard_on]
+
+            index = dataset.index.names
+            pivot = [e for e in index if e not in _shard_on]
+            shards = dataset.reset_index().pivot(index=_shard_on, columns=pivot)
+            _n_shards = n_shards or len(shards)
+            asgt = list(range(_n_shards))
+            while len(asgt) < len(shards):
+                asgt += asgt
+            asgt = asgt[:len(shards)]
+            if shuffle:
+                asgt = np.random.default_rng(seed=random_state).permutation(asgt)
+            lvals = (
+                shards.columns.get_level_values(i)
+                for i in range(1, shards.columns.nlevels)
+            )
+            lvals = list(zip(*lvals))
+            asgt = pd.DataFrame({tuple(['shard'] + list(e)): asgt for e in lvals})
+            asgt.columns.names = shards.columns.names
+            asgt.index = shards.index
+            shards = shards.join(asgt)
+            shards = shards.stack(pivot).reset_index().set_index(index)
+            shards = dataset.join(shards.shard, how='left')
+
+            fname_entities = fname_entities or {}
+            shard_pattern = '{shard}'
+            if zero_pad:
+                shard_pattern = '{shard:0' + str(zero_pad) + 'd}'
+            fname_entities = [
+                {**fname_entities, 'shard': shard_pattern.format(shard=i)}
+                for i in range(_n_shards)
+            ]
+
+            return {
+                'dataset': [
+                    shards[shards.shard == i].drop('shard', axis=1)
+                    for i in range(_n_shards)
+                ],
+                'write_header': [write_header] + [False] * (_n_shards - 1),
+                'write_schema': [write_schema] + [False] * (_n_shards - 1),
+                'fname_entities': fname_entities,
+            }
+
+        def f_record_transformed(
+            dataset: pd.DataFrame,
+            write_header: bool = True,
+            write_schema: bool = True,
+            fname_entities: Optional[Mapping[str, str]] = None,
+            **params,
+        ) -> Mapping:
+            f_record_repl = replicate(
+                map_over=('dataset', 'write_header', 'write_schema', 'fname_entities'),
+                additional_params=None,
+            )(f_record)
+            out = xfm(f_record_repl, transformer_f_record)(**params)(
+                dataset=dataset,
+                write_header=write_header,
+                write_schema=write_schema,
+                fname_entities=fname_entities,
+            )
+            return {
+                k: v if k == 'dataset' else v[0]
+                for k, v in out.items()
+            }
+
+        return (
+            f_index,
+            f_configure,
+            f_record_transformed,
+        )
+    return transform
+
+
 def fmri_dataset_transform(
     f_configure: callable,
     xfm: callable = direct_transform,
