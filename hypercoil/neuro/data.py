@@ -1080,3 +1080,30 @@ def record_confounds(
             f_record_transformed,
         )
     return transform
+
+
+def datalad_source(root: str) -> callable:
+    def path_transform(path: str) -> str:
+        datalad.get(path, dataset=root)
+        return path
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f_configure() -> Mapping:
+            return {
+                'path_transform': path_transform,
+            }
+
+        def f_configure_transformed(**params):
+            return xfm(f_configure, transformer_f_configure)(**params)()
+
+        return (
+            f_index,
+            f_configure_transformed,
+            f_record,
+        )
+    return transform
