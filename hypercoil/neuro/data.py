@@ -1494,6 +1494,83 @@ def filter_tasks(
     return filter_entity('task', include, exclude)
 
 
+def instance_as_tf_example(schema: Mapping) -> callable:
+    def f_package_tf_example(
+        *,
+        instance: Mapping,
+        **params,
+    ) -> Mapping:
+        features = {}
+        for k, v in schema.items():
+            feature = instance.get(k, AbsentFromInstance())
+            if isinstance(feature, AbsentFromInstance):
+                continue
+            features[k] = v.encode_tf(instance[k])
+        return tf.train.Example(
+            features=tf.train.Features(feature=features),
+        ).SerializeToString()
+    return f_package_tf_example
+
+
+def write_instance_as_tf_example(schema: Mapping) -> callable:
+    make_example = instance_as_tf_example(schema)
+
+    def f_write_instance_as_tf_example(
+        *,
+        instance: Mapping,
+        context: str,
+        instance_id: str,
+        **params,
+    ) -> None:
+        print(f'Writing to {context}')
+        example = make_example(instance=instance)
+        context.write(example)
+    return f_write_instance_as_tf_example
+
+
+def write_tfrecord(subdir: str = 'tfrecord') -> callable:
+    def fname_pattern(dir: str, **params):
+        param_fields = '_'.join(f'{k}-{v}' for k, v in params.items())
+        fname = f'{dir}/{subdir}/{param_fields}.tfrecord'
+        os.makedirs(os.path.dirname(fname), exist_ok=True)
+        return open(fname, 'wb'), fname
+
+    def transform(
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        xfm: callable = direct_transform,
+    ) -> callable:
+        def transformer_f_record(
+            instance_writers: Optional[Sequence[callable]],
+        ) -> Mapping:
+            if instance_writers is None:
+                instance_writers = []
+            instance_writers += [(
+                write_instance_as_tf_example,
+                fname_pattern,
+            )]
+            return {
+                'instance_writers': instance_writers,
+            }
+
+        def f_record_transformed(
+            *,
+            instance_writers: Optional[Sequence[callable]] = None,
+            **params,
+        ):
+            return xfm(f_record, transformer_f_record)(**params)(
+                instance_writers=instance_writers,
+            )
+
+        return (
+            f_index,
+            f_configure,
+            f_record_transformed,
+        )
+    return transform
+
+
 def datalad_source(root: str) -> callable:
     def path_transform(path: str) -> str:
         datalad.get(path, dataset=root)
