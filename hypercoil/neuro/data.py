@@ -16,6 +16,14 @@ from typing import (
 )
 
 
+def _null_op_one_arg(arg: Any) -> Any:
+    return arg
+
+
+def _null_op(**params: Mapping) -> Mapping:
+    return params
+
+
 class AbsentFromInstance:
     """Sentinel object for absent values"""
 
@@ -322,9 +330,108 @@ def filesystem_dataset(
     }
 
 
+def configure_transforms(
+    *,
+    dataset: pd.DataFrame,
+    filetypes: Sequence[str],
+    header: Optional[Type[Header]] = None,
+    header_writers: Optional[Mapping[str, callable]] = None,
+    instance_transforms: Optional[Sequence[Tuple[callable, int]]] = None,
+    path_transform: callable = _null_op_one_arg,
+    categorical: Optional[Sequence[str]] = None,
+    infer_categorical: bool = True,
+    **params,
+) -> Mapping:
+    index = dataset.index.names
+    dataset = dataset.reset_index()
+    filetypes = set(list(filetypes) + ['fname']).intersection(dataset.columns)
+    scalars = set(dataset.columns) - filetypes
+
+    scalar_dtypes = {
+        k: v for k, v in dataset.dtypes.to_dict().items()
+        if k in scalars
+    }
+    inexact_dtypes = {'float16', 'float32', 'float64', 'float128'}
+    schema = {}
+    for k, v in scalar_dtypes.items():
+        # We assume any object dtype is a string.
+        if isinstance(v, str) or str(v) == 'object':
+            schema[k] = String()
+        elif str(v) in inexact_dtypes:
+            schema[k] = InexactNumeric(dtype=str(v))
+        else:
+            schema[k] = ExactNumeric(dtype=str(v))
+
+    if infer_categorical and categorical is None:
+        categorical = [
+            k for k, v in scalar_dtypes.items()
+            if not any(v == t for t in inexact_dtypes)
+        ]
+    if categorical is not None:
+        categoricals = {
+            k: dataset[k].unique().tolist()
+            for k in categorical
+        }
+        categoricals = Categoricals(definition=categoricals)
+    else:
+        categorical = []
+        categoricals = None
+
+    header = header or Header
+    header_writers = header_writers or {}
+    header = header(
+        **{k: v() for k, v in header_writers.items()},
+        categoricals=categoricals,
+    )
+
+    instance_transform = scalar_transform(scalars=scalars)(header)
+    if instance_transforms is not None:
+        # Two reversals are necessary to ensure that the transforms are
+        # applied in the correct order. The reverse sort is necessary in order
+        # to apply transforms in order of their priority. Reversing the list
+        # of transforms is necessary because the first transform in the list
+        # is the one that is applied last.
+        instance_transforms = sorted(
+            reversed(instance_transforms),
+            key=lambda e: e[1],
+            reverse=True
+        )
+        for transform, _ in instance_transforms:
+            instance_transform = transform(
+                header=header,
+                path_transform=path_transform,
+                f=instance_transform,
+            )
+
+    dataset = dataset.set_index(index)
+    return {
+        'dataset': dataset,
+        'header': header,
+        #'filetypes': filetypes,
+        'instance_transform': instance_transform,
+        'schema': schema,
+        **params,
+    }
+
+
 def match_or_null(pattern: str, string: str) -> Optional[Mapping[str, str]]:
     match = re.match(pattern, string)
     if match:
         return match.groupdict()
     else:
         return {}
+
+
+def scalar_transform(scalars: Optional[Sequence[str]] = None) -> callable:
+    def close_header(header: Header) -> callable:
+        categoricals = header.categoricals
+        def transform_dataset(
+            dataset: pd.Series,
+            **features,
+        ) -> Mapping[str, Any]:
+            transformed = dataset[list(scalars)].to_dict()
+            #for var in categoricals.definition:
+            #    transformed[var] = categoricals.encode(var, transformed[var])
+            return {**features, **transformed}
+        return transform_dataset
+    return close_header
