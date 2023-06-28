@@ -637,3 +637,41 @@ def hcp_dataset():
             f_record,
         )
     return transform
+
+
+def transformer_bids_specs(
+    reference_name: Union[str, Sequence[str]],
+    spec: Mapping[str, str]
+) -> callable:
+    if isinstance(reference_name, str):
+        refnames = (reference_name,)
+    else:
+        refnames = reference_name
+
+    def format_ref(ref: str) -> str:
+        base = {
+            field: '*' for _, field, _, _
+            in string.Formatter().parse(ref)
+        }
+        args = {**base, **spec}
+        return ref.format(**args)
+
+    def transformer(
+        dtypes: Mapping[str, str],
+        references: Optional[Sequence[str]] = None,
+    ) -> Mapping:
+        refs = [dtypes[refname] for refname in refnames]
+        refs = {
+            refname: (format_ref(ref[0]), ref[1])
+            for ref, refname in zip(refs, refnames)
+        }
+        dtypes = {**dtypes, **refs}
+        if references is None:
+            references = refnames
+        else:
+            references = tuple(list(references) + list(refnames))
+        return {
+            'dtypes': dtypes,
+            'references': references,
+        }
+    return transformer
