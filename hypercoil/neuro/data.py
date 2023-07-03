@@ -381,8 +381,8 @@ def configure_transforms(
 ) -> Mapping:
     index = dataset.index.names
     dataset = dataset.reset_index()
-    filetypes = set(list(filetypes) + ['fname']).intersection(dataset.columns)
-    scalars = set(dataset.columns) - filetypes
+    ftypes = set(list(filetypes) + ['fname']).intersection(dataset.columns)
+    scalars = set(dataset.columns) - ftypes
 
     scalar_dtypes = {
         k: v for k, v in dataset.dtypes.to_dict().items()
@@ -444,7 +444,7 @@ def configure_transforms(
     return {
         'dataset': dataset,
         'header': header,
-        #'filetypes': filetypes,
+        'filetypes': filetypes,
         'instance_transform': instance_transform,
         'schema': schema,
         **params,
@@ -480,6 +480,7 @@ def write_records(
 
     instance_writers = instance_writers or []
     shard_writers = shard_writers or []
+    fname_entities = fname_entities or {}
     instance_writers = [
         (writer(schema.schema), *pattern(dir=write_path, **fname_entities))
         for writer, pattern in instance_writers
@@ -508,6 +509,7 @@ def write_records(
         'header': header,
         'instance_transform': instance_transform,
         'schema': schema,
+        'fname_entities': fname_entities,
         **params,
     }
 
@@ -554,13 +556,16 @@ def shard_dataset(
             write_schema: bool = True,
             fname_entities: Optional[Mapping[str, str]] = None,
         ) -> Mapping:
-            _shard_on = shard_on or []
-            if isinstance(_shard_on, str):
-                _shard_on = [shard_on]
+            if shard_on is not None:
+                _shard_on = shard_on or []
+                if isinstance(_shard_on, str):
+                    _shard_on = [shard_on]
 
-            index = dataset.index.names
-            pivot = [e for e in index if e not in _shard_on]
-            shards = dataset.reset_index().pivot(index=_shard_on, columns=pivot)
+                index = dataset.index.names
+                pivot = [e for e in index if e not in _shard_on]
+                shards = dataset.reset_index().pivot(index=_shard_on, columns=pivot)
+            else:
+                shards = dataset
             _n_shards = n_shards or len(shards)
             asgt = list(range(_n_shards))
             while len(asgt) < len(shards):
@@ -568,17 +573,21 @@ def shard_dataset(
             asgt = asgt[:len(shards)]
             if shuffle:
                 asgt = np.random.default_rng(seed=random_state).permutation(asgt)
-            lvals = (
-                shards.columns.get_level_values(i)
-                for i in range(1, shards.columns.nlevels)
-            )
-            lvals = list(zip(*lvals))
-            asgt = pd.DataFrame({tuple(['shard'] + list(e)): asgt for e in lvals})
-            asgt.columns.names = shards.columns.names
-            asgt.index = shards.index
-            shards = shards.join(asgt)
-            shards = shards.stack(pivot).reset_index().set_index(index)
-            shards = dataset.join(shards.shard, how='left')
+            asgt = pd.DataFrame({'shard': asgt}, index=shards.index)
+            shards = dataset.join(asgt, how='left')
+
+            # lvals = (
+            #     shards.columns.get_level_values(i)
+            #     for i in range(1, shards.columns.nlevels)
+            # )
+            # lvals = list(zip(*lvals))
+            # asgt = pd.DataFrame({tuple(['shard'] + list(e)): asgt for e in lvals})
+            # asgt.columns.names = shards.columns.names
+            # asgt.index = shards.index
+            # shards = shards.join(asgt)
+            # if shard_on is not None:
+            #     shards = shards.stack(pivot).reset_index().set_index(index)
+            #     shards = dataset.join(shards.shard, how='left')
 
             fname_entities = fname_entities or {}
             shard_pattern = '{shard}'
@@ -617,7 +626,7 @@ def shard_dataset(
                 fname_entities=fname_entities,
             )
             return {
-                k: v if k == 'dataset' else v[0]
+                k: v if (k == 'dataset' or k == 'fname_entities') else v[0]
                 for k, v in out.items()
             }
 
@@ -867,7 +876,7 @@ def split_dataset(
                 fname_entities=fname_entities,
             )
             return {
-                k: v if k == 'dataset' else v[0]
+                k: v if (k == 'dataset' or k == 'fname_entities') else v[0]
                 for k, v in out.items()
             }
 
