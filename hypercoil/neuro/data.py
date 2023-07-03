@@ -257,6 +257,42 @@ class String(DataArray):
         return data.encode('utf-8')
 
 
+@dataclasses.dataclass
+class SanitisedFunctionWrapper:
+    f: Callable
+    def __str__(self):
+        return self.f.__name__
+
+    def __repr__(self):
+        return self.f.__name__
+
+    def __call__(self, *pparams, **params):
+        return self.f(*pparams, **params)
+
+
+@dataclasses.dataclass
+class PipelineArgument:
+    def __init__(self, *pparams, **params) -> None:
+        self.pparams = pparams
+        self.params = params
+
+
+@dataclasses.dataclass
+class PipelineStage:
+    f: callable
+    args: PipelineArgument = dataclasses.field(
+        default_factory=PipelineArgument)
+    split: bool = False
+
+    def __post_init__(self):
+        self.f = SanitisedFunctionWrapper(self.f)
+
+    def __call__(self, *pparams, **params):
+        return self.f(*self.args.pparams, **self.args.params)(
+            *pparams, **params
+        )
+
+
 #lru cache?
 def filesystem_dataset(
     *,
