@@ -2090,3 +2090,109 @@ def datapipe(*pparams):
 
         return execute_pipeline
     return configure_pipeline
+
+
+def _uncurried_datapipe(
+    *,
+    workflow: Sequence[PipelineStage],
+    f_index: callable = filesystem_dataset,
+    f_configure: callable = configure_transforms,
+    f_record: callable = write_records,
+    arguments: Mapping[str, Any] = {},
+) -> Mapping[str, Any]:
+    return datapipe(*workflow)(
+        f_index=f_index,
+        f_configure=f_configure,
+        f_record=f_record,
+    )(**arguments)
+
+
+import pydra
+from pydra.mark import annotate, task
+
+
+@task
+@annotate({
+    'workflow': Sequence[PipelineStage],
+    'f_index': callable,
+    'f_configure': callable,
+    'f_record': callable,
+    'arguments': Mapping[str, Any],
+    'return': {
+        'dataset': Sequence[pd.DataFrame],
+        'fname_entities': Sequence[Mapping[str, str]]
+    }
+})
+def first_pass_sanitised(
+    workflow: Sequence[PipelineStage],
+    f_index: callable = filesystem_dataset,
+    f_configure: callable = configure_transforms,
+    f_record: callable = write_records,
+    arguments: Mapping[str, Any] = {},
+) -> Tuple[Sequence[pd.DataFrame], Sequence[str]]:
+    first_pass_out = _uncurried_datapipe(
+        workflow=workflow,
+        f_index=f_index,
+        f_configure=f_configure,
+        f_record=f_record,
+        arguments=arguments,
+    )
+    return (
+        first_pass_out['dataset'],
+        first_pass_out['fname_entities'],
+    )
+
+
+def ddatapipe(*pparams: Sequence[PipelineStage]):
+    def configure_pipeline(
+        *,
+        f_index: callable = filesystem_dataset,
+        f_configure: callable = configure_transforms,
+        f_record: callable = write_records,
+        return_workflow_only: bool = False,
+        plugin: str = 'cf',
+        plugin_args: Optional[Mapping[str, Any]] = None,
+    ) -> callable:
+        _plugin_args = plugin_args or {}
+        def gen_workflow(**params):
+            out_path = params['write_path']
+            wf = pydra.Workflow(
+                name='datapipe',
+                input_spec=['workflow', 'f_index', 'f_configure', 'f_record', 'arguments'],
+                workflow=pparams,
+                f_index=SanitisedFunctionWrapper(f_index),
+                f_configure=SanitisedFunctionWrapper(f_configure),
+                f_record=SanitisedFunctionWrapper(f_record),
+                arguments=params,
+                messengers=pydra.utils.messenger.FileMessenger(),
+                messenger_args={'messenger_dir': os.path.join(out_path, 'pydra')},
+            )
+            wf.add(first_pass_sanitised(
+                name='first_pass',
+                workflow=wf.lzin.workflow,
+                f_index=wf.lzin.f_index,
+                f_configure=wf.lzin.f_configure,
+                f_record=wf.lzin.f_record,
+                arguments=wf.lzin.arguments,
+            ))
+            wf.set_output([
+                ('dataset', wf.first_pass.lzout.dataset),
+                ('fname_entities', wf.first_pass.lzout.fname_entities),
+            ])
+            return wf
+
+        def execute_pipeline(**params):
+            wf = gen_workflow(**params)
+            with pydra.Submitter(plugin=plugin, **_plugin_args) as sub:
+                sub(runnable=wf)
+            results = wf.result(return_inputs=True)
+            return results
+
+        if return_workflow_only:
+            return gen_workflow
+        return execute_pipeline
+    return configure_pipeline
+
+
+def identity(x):
+    return x
