@@ -895,7 +895,7 @@ class _CIfTIOutputMixin:
         if maps is None:
             maps = self.maps
         offset = 1
-        dataobj = np.zeros_like(self.ref.dataobj)
+        dataobj = np.zeros(self.ref.shape)
         for k, v in maps.items():
             if v.shape == (0,):
                 continue

@@ -6,6 +6,7 @@ Constants
 ~~~~~~~~~
 Constants for import.
 """
+from typing import Optional
 from neuromaps.datasets import fetch_fsaverage
 
 
@@ -13,19 +14,26 @@ def neuromaps_fetch_fn(
     nmaps_fetch_fn: callable,
     density: str,
     suffix: str,
-    hemi: int,
+    hemi: Optional[int] = None,
 ):
-    hemi_map = {
-        "L": 0,
-        "R": 1,
-    }
-    return nmaps_fetch_fn(density=density)[suffix][hemi_map[hemi]]
+    template = nmaps_fetch_fn(density=density)[suffix]
+    if hemi is not None:
+        hemi_map = {
+            "L": 0,
+            "R": 1,
+        }
+        return template[hemi_map[hemi]]
+    else:
+        return template
 
 
 def template_dict():
+    _fsLR = fsLR()
+    _fsaverage = fsaverage()
     return {
-        "fsLR": fsLR(),
-        "fsaverage": fsaverage(),
+        "fsLR": _fsLR,
+        "fsaverage": _fsaverage,
+        "fsaverage5": _fsaverage,
     }
 
 
