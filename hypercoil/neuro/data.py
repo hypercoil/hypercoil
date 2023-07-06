@@ -2120,10 +2120,12 @@ from pydra.mark import annotate, task
     'arguments': Mapping[str, Any],
     'return': {
         'dataset': Sequence[pd.DataFrame],
-        'fname_entities': Sequence[Mapping[str, str]]
-    }
+        'fname_entities': Sequence[Mapping[str, str]],
+        'write_aux': Sequence[bool],
+        'filetypes': Sequence[str],
+    },
 })
-def first_pass_sanitised(
+def _first_pass_sanitised(
     workflow: Sequence[PipelineStage],
     f_index: callable = filesystem_dataset,
     f_configure: callable = configure_transforms,
@@ -2137,9 +2139,60 @@ def first_pass_sanitised(
         f_record=f_record,
         arguments=arguments,
     )
+    write_aux = [False] * len(first_pass_out['dataset'])
+    write_aux[0] = True
     return (
-        first_pass_out['dataset'],
-        first_pass_out['fname_entities'],
+        list(first_pass_out['dataset']),
+        list(first_pass_out['fname_entities']),
+        write_aux,
+        first_pass_out['filetypes']
+    )
+
+
+@task
+@annotate({
+    'workflow': Sequence[PipelineStage],
+    'dataset': pd.DataFrame,
+    'fname_entities': Mapping[str, str],
+    'write_aux': bool,
+    'filetypes': Sequence[str],
+    'f_index': callable,
+    'f_configure': callable,
+    'f_record': callable,
+    'arguments': Mapping[str, Any],
+    'return': {
+        'dataset': Sequence[pd.DataFrame],
+    },
+})
+def _second_pass_sanitised(
+    workflow: Sequence[PipelineStage],
+    dataset: pd.DataFrame,
+    fname_entities: Mapping[str, str],
+    write_aux: bool,
+    filetypes: Sequence[str],
+    f_index: callable = filesystem_dataset,
+    f_configure: callable = configure_transforms,
+    f_record: callable = write_records,
+    arguments: Mapping[str, Any] = {},
+) -> Tuple[Sequence[pd.DataFrame], Sequence[str]]:
+    workflow = [e for e in workflow if not e.split]
+    arguments = {
+        **arguments,
+        'dataset': dataset,
+        'fname_entities': fname_entities,
+        'write_header': write_aux,
+        'write_schema': write_aux,
+        'filetypes': filetypes,
+    }
+    second_pass_out = _uncurried_datapipe(
+        workflow=workflow,
+        f_index=f_index,
+        f_configure=f_configure,
+        f_record=f_record,
+        arguments=arguments,
+    )
+    return (
+        second_pass_out['dataset']#,
     )
 
 
@@ -2158,26 +2211,41 @@ def ddatapipe(*pparams: Sequence[PipelineStage]):
             out_path = params['write_path']
             wf = pydra.Workflow(
                 name='datapipe',
-                input_spec=['workflow', 'f_index', 'f_configure', 'f_record', 'arguments'],
+                input_spec=[
+                    'workflow', 'f_index', 'f_configure',
+                    'f_record', 'null_op', 'arguments'
+                ],
                 workflow=pparams,
                 f_index=SanitisedFunctionWrapper(f_index),
                 f_configure=SanitisedFunctionWrapper(f_configure),
                 f_record=SanitisedFunctionWrapper(f_record),
+                null_op=SanitisedFunctionWrapper(_null_op),
                 arguments=params,
                 messengers=pydra.utils.messenger.FileMessenger(),
                 messenger_args={'messenger_dir': os.path.join(out_path, 'pydra')},
             )
-            wf.add(first_pass_sanitised(
+            wf.add(_first_pass_sanitised(
                 name='first_pass',
                 workflow=wf.lzin.workflow,
                 f_index=wf.lzin.f_index,
+                f_configure=wf.lzin.null_op,
+                f_record=wf.lzin.null_op,
+                arguments=wf.lzin.arguments,
+            ))
+            wf.add(_second_pass_sanitised(
+                name='second_pass',
+                workflow=wf.lzin.workflow,
+                dataset=wf.first_pass.lzout.dataset,
+                fname_entities=wf.first_pass.lzout.fname_entities,
+                write_aux=wf.first_pass.lzout.write_aux,
+                filetypes=wf.first_pass.lzout.filetypes,
+                f_index=wf.lzin.null_op,
                 f_configure=wf.lzin.f_configure,
                 f_record=wf.lzin.f_record,
                 arguments=wf.lzin.arguments,
-            ))
+            ).split(('dataset', 'fname_entities', 'write_aux')))
             wf.set_output([
-                ('dataset', wf.first_pass.lzout.dataset),
-                ('fname_entities', wf.first_pass.lzout.fname_entities),
+                ('data', wf.second_pass.lzout.dataset),
             ])
             return wf
 
