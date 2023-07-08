@@ -63,6 +63,76 @@ def _get_hemisphere_parameters(
     return HemisphereParameters(left, right)
 
 
+def get_color(color, cmap, clim):
+    if (
+        isinstance(color, str) or
+        isinstance(color, tuple) or
+        isinstance(color, list)
+    ):
+        return color
+    else:
+        try:
+            cmap = get_cmap(cmap)
+        except ValueError:
+            cmap = cmap
+        vmin, vmax = clim
+        norm = Normalize(vmin=vmin, vmax=vmax)
+        return cmap(norm(color))
+
+
+def map_to_attr(values, attr, attr_range):
+    if attr == "index":
+        attr = np.array(values.index)
+    else:
+        attr = values[attr]
+    if attr_range is None:
+        return attr
+    max_val = attr.max()
+    min_val = attr.min()
+    return (
+        attr_range[0]
+        + (attr_range[1] - attr_range[0])
+        * (attr - min_val)
+        / (max_val - min_val)
+    )
+
+
+def map_to_radius(
+    values: Sequence,
+    radius: Union[float, str],
+    radius_range: Tuple[float, float],
+) -> Sequence:
+    if isinstance(radius, float):
+        return (radius,) * len(values)
+    else:
+        return map_to_attr(values, radius, radius_range)
+
+
+def map_to_color(
+    values: Sequence,
+    color: Union[str, Sequence],
+    clim: Optional[Tuple[float, float]] = None,
+) -> Sequence:
+    if color in values.columns or color == "index":
+        return map_to_attr(values, color, clim)
+    else:
+        return (color,) * len(values)
+
+
+def map_to_opacity(
+    values: Sequence,
+    alpha: Union[float, str],
+) -> Sequence:
+    if isinstance(alpha, float):
+        return (alpha,) * len(values)
+    #TODO: this will fail if you want to use the index as the opacity.
+    #      There's no legitimate reason you would want to do this
+    #      so it's a very low priority fix.
+    opa_min = max(0, values[alpha].min())
+    opa_max = min(1, values[alpha].max())
+    return map_to_attr(values, alpha, (opa_min, opa_max))
+
+
 def unified_plotter(
     *,
     surf: Optional["CortexTriSurface"] = None,
@@ -88,17 +158,17 @@ def unified_plotter(
     node_radius: Union[float, str] = 3.0,
     node_radius_range: Tuple[float, float] = (2, 10),
     node_cmap: Any = "viridis",
-    node_cmap_range: Tuple[float, float] = (0, 1),
+    node_clim: Tuple[float, float] = (0, 1),
     node_alpha: Union[float, str] = 1.0,
     node_lh: Optional[np.ndarray] = None,
     edge_color: Optional[str] = "edge_sgn",
     edge_radius: Union[float, str] = "edge_val",
     edge_radius_range: Tuple[float, float] = (0.1, 1.8),
-    edge_cmap: Any = "RdBu_r",
-    edge_cmap_range: Tuple[float, float] = (0, 1),
+    edge_cmap: Any = "RdYlBu",
+    edge_clim: Tuple[float, float] = (0, 1),
     edge_alpha: Union[float, str] = 1.0,
     hemisphere: Optional[Literal["left", "right"]] = None,
-    hemisphere_slack: float = 0.,
+    hemisphere_slack: float = 1.,
     off_screen: bool = True,
     copy_actors: bool = False,
     theme: Optional[pv.themes.DocumentTheme] = None,
@@ -109,38 +179,6 @@ def unified_plotter(
 ) -> Optional[Sequence[pv.Plotter]]:
 
     # Helper functions for graph plots
-    def get_node_color(color):
-        if (
-            isinstance(color, str) or
-            isinstance(color, tuple) or
-            isinstance(color, list)
-        ):
-            return color
-        else:
-            try:
-                cmap = get_cmap(node_cmap)
-            except ValueError:
-                cmap = node_cmap
-            vmin, vmax = node_cmap_range
-            norm = Normalize(vmin=vmin, vmax=vmax)
-            return cmap(norm(color))
-
-    def get_edge_color(color):
-        if (
-            isinstance(color, str) or
-            isinstance(color, tuple) or
-            isinstance(color, list)
-        ):
-            return color
-        else:
-            try:
-                cmap = get_cmap(edge_cmap)
-            except ValueError:
-                cmap = edge_cmap
-            vmin, vmax = edge_cmap_range
-            norm = Normalize(vmin=vmin, vmax=vmax)
-            return cmap(norm(color))
-
     def process_edge_values():
         start_node, end_node = tuple(zip(*edge_values.index))
         start_node, end_node = np.array(start_node), np.array(end_node)
@@ -151,67 +189,6 @@ def unified_plotter(
         length = np.linalg.norm(direction, axis=-1)
         direction = direction / length.reshape(-1, 1)
         return centre, direction, length
-
-    def map_to_attr(values, attr, attr_range):
-        if attr == "index":
-            attr = np.array(values.index)
-        else:
-            attr = values[attr]
-        if attr_range is None:
-            return attr
-        max_val = attr.max()
-        min_val = attr.min()
-        return (
-            attr_range[0]
-            + (attr_range[1] - attr_range[0])
-            * (attr - min_val)
-            / (max_val - min_val)
-        )
-
-    def map_to_radius():
-        if isinstance(node_radius, float):
-            return (node_radius,) * len(node_values)
-        else:
-            return map_to_attr(node_values, node_radius, node_radius_range)
-
-    def map_to_color():
-        if node_color in node_values.columns or node_color == "index":
-            return map_to_attr(node_values, node_color, node_cmap_range)
-        else:
-            return (node_color,) * len(node_values)
-
-    def map_to_opacity():
-        if isinstance(node_alpha, float):
-            return (node_alpha,) * len(node_values)
-        #TODO: this will fail if you want to use the index as the opacity.
-        #      There's no legitimate reason you would want to do this
-        #      so it's a very low priority fix.
-        opa_min = max(0, node_values[node_alpha].min())
-        opa_max = min(1, node_values[node_alpha].max())
-        return map_to_attr(node_values, node_alpha, (opa_min, opa_max))
-
-    def map_edge_to_radius():
-        if isinstance(edge_radius, float):
-            return (edge_radius,) * len(edge_values)
-        else:
-            return map_to_attr(edge_values, edge_radius, edge_radius_range)
-
-    def map_edge_to_color():
-        if edge_color in edge_values.columns or edge_color == "index":
-            return map_to_attr(edge_values, edge_color, edge_cmap_range)
-        else:
-            return (edge_color,) * len(edge_values)
-
-    def map_edge_to_opacity():
-        if isinstance(edge_alpha, float):
-            return (edge_alpha,) * len(edge_values)
-        #TODO: this will fail if you want to use the index as the opacity.
-        #      There's no conceivable reason you would want to do this
-        #      (and besides, it's a multiindex...) so it's a very low
-        #      priority fix.
-        opa_min = max(0, edge_values[edge_alpha].min())
-        opa_max = min(1, edge_values[edge_alpha].max())
-        return map_to_attr(edge_values, edge_alpha, (opa_min, opa_max))    
 
     #TODO: cortex_theme doesn't work here for some reason. If the background
     #      is transparent, all of the points are also made transparent. So
@@ -234,10 +211,63 @@ def unified_plotter(
 
     p = pv.Plotter(off_screen=off_screen, theme=theme)
 
+    if len(hemispheres) == 2 and hemisphere_slack is not None:
+        if surf is not None:
+            surf.left.project(surf_projection)
+            surf.right.project(surf_projection)
+            hw_left = (surf.left.bounds[1] - surf.left.bounds[0]) / 2
+            hw_right = (surf.right.bounds[1] - surf.right.bounds[0]) / 2
+            hemi_gap = surf.right.center[0] - surf.left.center[0]
+        elif node_coor is not None and node_lh is not None:
+            hw_left = (node_coor[node_lh, 0].max() -
+                    node_coor[node_lh, 0].min()) / 2
+            hw_right = (node_coor[~node_lh, 0].max() -
+                        node_coor[~node_lh, 0].min()) / 2
+            hemi_gap = (
+                node_coor[~node_lh, 0].max() + node_coor[~node_lh, 0].min()
+            ) / 2 - (
+                node_coor[node_lh, 0].max() + node_coor[node_lh, 0].min()
+            ) / 2
+        elif vol_coor is not None:
+            left_mask = vol_coor[:, 0] < 0
+            hw_left = (vol_coor[left_mask, 0].max() -
+                    vol_coor[left_mask, 0].min()) / 2
+            hw_right = (vol_coor[~left_mask, 0].max() -
+                        vol_coor[~left_mask, 0].min()) / 2
+            hemi_gap = (
+                vol_coor[~left_mask, 0].max() + vol_coor[~left_mask, 0].min()
+            ) / 2 - (
+                vol_coor[left_mask, 0].max() + vol_coor[left_mask, 0].min()
+            ) / 2
+        else:
+            hw_left = hw_right = hemi_gap = 0
+        min_gap = hw_left + hw_right
+        target_gap = min_gap * hemisphere_slack
+        displacement = (target_gap - hemi_gap) / 2
+        if surf is not None:
+            left = surf.left.translate((-displacement, 0, 0))
+            right = surf.right.translate((displacement, 0, 0))
+            surf = CortexTriSurface(left=left, right=right, mask=surf.mask)
+        if node_coor is not None and node_lh is not None:
+            # We need to make a copy of coordinate arrays because we might be
+            # making multiple calls to this function, and we don't want to
+            # keep displacing coordinates.
+            node_coor = node_coor.copy()
+            node_coor[node_lh, 0] -= displacement
+            node_coor[~node_lh, 0] += displacement
+        if vol_coor is not None:
+            left_mask = vol_coor[:, 0] < 0
+            vol_coor = vol_coor.copy()
+            vol_coor[left_mask, 0] -= displacement
+            vol_coor[~left_mask, 0] += displacement
+    elif surf is not None:
+        for hemisphere in hemispheres:
+            surf.__getattribute__(hemisphere).project(surf_projection)
+
     if surf is not None:
         for hemisphere in hemispheres:
             hemi_surf = surf.__getattribute__(hemisphere)
-            hemi_surf.project(surf_projection)
+            #hemi_surf.project(surf_projection)
             hemi_clim = hemi_params.get(hemisphere, 'surf_scalars_clim')
             hemi_cmap = hemi_params.get(hemisphere, 'surf_scalars_cmap')
             hemi_color = None if hemi_cmap else 'white'
@@ -272,7 +302,7 @@ def unified_plotter(
             "Volumetric scalars provided with unspecified coordinates")
         vol_scalars_point_size = vol_scalars_point_size or min(vol_voxdim[:3])
         p.add_points(
-            vol_coor.T,
+            vol_coor,
             render_points_as_spheres=False,
             style='points_gaussian',
             emissive=False,
@@ -287,9 +317,9 @@ def unified_plotter(
     if node_coor is not None:
         for c, col, rad, opa in zip(
             node_coor,
-            map_to_color(),
-            map_to_radius(),
-            map_to_opacity(),
+            map_to_color(node_values, node_color, None),
+            map_to_radius(node_values, node_radius, node_radius_range),
+            map_to_opacity(node_values, node_alpha),
         ):
             node = pv.Icosphere(
                 radius=rad,
@@ -297,15 +327,15 @@ def unified_plotter(
             )
             p.add_mesh(
                 node,
-                color=get_node_color(col),
+                color=get_color(color=col, cmap=node_cmap, clim=node_clim),
                 opacity=opa,
             )
     if edge_values is not None:
         for c, d, ht, col, rad, opa in zip(
             *process_edge_values(),
-            map_edge_to_color(),
-            map_edge_to_radius(),
-            map_edge_to_opacity(),
+            map_to_color(edge_values, edge_color, None),
+            map_to_radius(edge_values, edge_radius, edge_radius_range),
+            map_to_opacity(edge_values, edge_alpha),
         ):
             edge = pv.Cylinder(
                 center=c,
@@ -315,7 +345,7 @@ def unified_plotter(
             )
             p.add_mesh(
                 edge,
-                color=get_edge_color(col),
+                color=get_color(color=col, cmap=edge_cmap, clim=edge_clim),
                 opacity=opa,
             )
 
