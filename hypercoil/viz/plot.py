@@ -63,7 +63,7 @@ def _get_hemisphere_parameters(
     return HemisphereParameters(left, right)
 
 
-def get_color(color, cmap, clim):
+def _get_color(color, cmap, clim):
     if (
         isinstance(color, str) or
         isinstance(color, tuple) or
@@ -80,7 +80,7 @@ def get_color(color, cmap, clim):
         return cmap(norm(color))
 
 
-def map_to_attr(values, attr, attr_range):
+def _map_to_attr(values, attr, attr_range):
     if attr == "index":
         attr = np.array(values.index)
     else:
@@ -97,7 +97,7 @@ def map_to_attr(values, attr, attr_range):
     )
 
 
-def map_to_radius(
+def _map_to_radius(
     values: Sequence,
     radius: Union[float, str],
     radius_range: Tuple[float, float],
@@ -105,21 +105,21 @@ def map_to_radius(
     if isinstance(radius, float):
         return (radius,) * len(values)
     else:
-        return map_to_attr(values, radius, radius_range)
+        return _map_to_attr(values, radius, radius_range)
 
 
-def map_to_color(
+def _map_to_color(
     values: Sequence,
     color: Union[str, Sequence],
     clim: Optional[Tuple[float, float]] = None,
 ) -> Sequence:
     if color in values.columns or color == "index":
-        return map_to_attr(values, color, clim)
+        return _map_to_attr(values, color, clim)
     else:
         return (color,) * len(values)
 
 
-def map_to_opacity(
+def _map_to_opacity(
     values: Sequence,
     alpha: Union[float, str],
 ) -> Sequence:
@@ -130,7 +130,7 @@ def map_to_opacity(
     #      so it's a very low priority fix.
     opa_min = max(0, values[alpha].min())
     opa_max = min(1, values[alpha].max())
-    return map_to_attr(values, alpha, (opa_min, opa_max))
+    return _map_to_attr(values, alpha, (opa_min, opa_max))
 
 
 def unified_plotter(
@@ -150,7 +150,7 @@ def unified_plotter(
     vol_voxdim: Optional[Sequence[float]] = None,
     vol_scalars_cmap: Optional[str] = None,
     vol_scalars_clim: Optional[tuple] = None,
-    edge_values: Optional[pd.DataFrame] = None,
+    vol_scalars_alpha: float = 0.99,
     node_values: Optional[pd.DataFrame] = None,
     node_coor: Optional[np.ndarray] = None,
     node_parcel_scalars: Optional[str] = None,
@@ -161,6 +161,7 @@ def unified_plotter(
     node_clim: Tuple[float, float] = (0, 1),
     node_alpha: Union[float, str] = 1.0,
     node_lh: Optional[np.ndarray] = None,
+    edge_values: Optional[pd.DataFrame] = None,
     edge_color: Optional[str] = "edge_sgn",
     edge_radius: Union[float, str] = "edge_val",
     edge_radius_range: Tuple[float, float] = (0.1, 1.8),
@@ -168,15 +169,179 @@ def unified_plotter(
     edge_clim: Tuple[float, float] = (0, 1),
     edge_alpha: Union[float, str] = 1.0,
     hemisphere: Optional[Literal["left", "right"]] = None,
-    hemisphere_slack: float = 1.,
+    hemisphere_slack: Optional[Union[float, Literal['default']]] = 'default',
     off_screen: bool = True,
     copy_actors: bool = False,
-    theme: Optional[pv.themes.DocumentTheme] = None,
+    theme: Optional[Any] = None,
     views: Sequence = (),
     return_plotter: bool = False,
     return_screenshot: bool = True,
     return_html: bool = False,
 ) -> Optional[Sequence[pv.Plotter]]:
+    """
+    Plot a surface, volume, and/or graph in a single figure.
+
+    This is the main plotting function for this package. It uses PyVista
+    as the backend, and returns a PyVista plotter object or a specified
+    output format.
+
+    It is not recommended to use this function directly. Instead, define a
+    functional pipeline using the other plotting functions in this package;
+    the specified pipeline transforms ``unified_plotter`` into a more
+    user-friendly interface that enables reconfiguring the acceptable input
+    and output formats. For example, a pipeline can reconfigure the input
+    formats to accept standard neuroimaging data types, and reconfigure the
+    output formats to return a set of static images corresponding to different
+    views or camera angles, or an interactive HTML visualization.
+
+    Parameters
+    ----------
+    surf : cortex.CortexTriSurface (default: None)
+        A surface to plot. If not specified, no surface will be plotted.
+    surf_projection : str (default: 'pial')
+        The projection of the surface to plot. The projection must be
+        available in the surface's ``projections`` attribute. For typical
+        surfaces, available projections might include ``'pial'``,
+        ``'inflated'``, ``veryinflated``, ``'white'``, and ``'sphere'``.
+    surf_alpha : float (default: 1.0)
+        The opacity of the surface.
+    surf_scalars : str (default: None)
+        The name of the scalars to plot on the surface. The scalars must be
+        available in the surface's ``point_data`` attribute. If not specified,
+        no scalars will be plotted.
+    surf_scalars_boundary_color : str (default: 'black')
+        The color of the boundary between the surface and the background. Note
+        that this boundary is only visible if ``surf_scalars_boundary_width``
+        is greater than 0.
+    surf_scalars_boundary_width : int (default: 0)
+        The width of the boundary between the surface and the background. If
+        set to 0, no boundary will be plotted.
+    surf_scalars_cmap : str or tuple (default: (None, None))
+        The colormap to use for the surface scalars. If a tuple is specified,
+        the first element is the colormap to use for the left hemisphere, and
+        the second element is the colormap to use for the right hemisphere.
+        If a single colormap is specified, it will be used for both
+        hemispheres.
+    surf_scalars_clim : str or tuple (default: 'robust')
+        The colormap limits to use for the surface scalars. If a tuple is
+        specified, the first element is the colormap limits to use for the
+        left hemisphere, and the second element is the colormap limits to use
+        for the right hemisphere. If a single value is specified, it will be
+        used for both hemispheres. If set to ``'robust'``, the colormap limits
+        will be set to the 5th and 95th percentiles of the data.
+    surf_scalars_below_color : str (default: 'black')
+        The color to use for values below the colormap limits.
+    vol_coor : np.ndarray (default: None)
+        The coordinates of the volumetric data to plot. If not specified, no
+        volumetric data will be plotted.
+    vol_scalars : np.ndarray (default: None)
+        The volumetric data to plot. If not specified, no volumetric data will
+        be plotted.
+    vol_scalars_point_size : float (default: None)
+        The size of the points to plot for the volumetric data. If not
+        specified, the size of the points will be automatically determined
+        based on the size of the volumetric data.
+    vol_voxdim : tuple (default: None)
+        The dimensions of the voxels in the volumetric data.
+    vol_scalars_cmap : str (default: 'viridis')
+        The colormap to use for the volumetric data.
+    vol_scalars_clim : tuple (default: None)
+        The colormap limits to use for the volumetric data.
+    vol_scalars_alpha : float (default: 1.0)
+        The opacity of the volumetric data.
+    node_values : pd.DataFrame (default: None)
+        A table containing node-valued variables. Columns in the table can be
+        used to specify attributes of plotted nodes, such as their color,
+        radius, and opacity.
+    node_coor : np.ndarray (default: None)
+        The coordinates of the nodes to plot. If not specified, no nodes will
+        be plotted. Node coordinates can also be computed from a parcellation
+        by specifying ``node_parcel_scalars``.
+    node_parcel_scalars : str (default: None)
+        If provided, node coordinates will be computed as the centroids of
+        parcels in the specified parcellation. The parcellation must be
+        available in the ``point_data`` attribute of the surface. If not
+        specified, node coordinates must be provided in ``node_coor`` or
+        nodes will not be plotted.
+    node_color : str or colour specification (default: 'black')
+        The color of the nodes. If ``node_values`` is specified, this argument
+        can be used to specify a column in the table to use for the node
+        colors.
+    node_radius : float or str (default: 3.0)
+        The radius of the nodes. If ``node_values`` is specified, this
+        argument can be used to specify a column in the table to use for the
+        node radii.
+    node_radius_range : tuple (default: (2, 10))
+        The range of node radii to use. The values in ``node_radius`` will be
+        linearly scaled to this range.
+    node_cmap : str or matplotlib colormap (default: 'viridis')
+        The colormap to use for the nodes.
+    node_clim : tuple (default: (0, 1))
+        The range of values to map into the dynamic range of the colormap.
+    node_alpha : float or str (default: 1.0)
+        The opacity of the nodes. If ``node_values`` is specified, this
+        argument can be used to specify a column in the table to use for the
+        node opacities.
+    node_lh : np.ndarray (default: None)
+        Boolean-valued array indicating which nodes belong to the left
+        hemisphere.
+    edge_values : pd.DataFrame (default: None)
+        A table containing edge-valued variables. The table must have a
+        MultiIndex with two levels, where the first level contains the
+        starting node of each edge, and the second level contains the ending
+        node of each edge. Additional columns can be used to specify
+        attributes of plotted edges, such as their color, radius, and
+        opacity.
+    edge_color : str or colour specification (default: 'edge_sgn')
+        The color of the edges. If ``edge_values`` is specified, this argument
+        can be used to specify a column in the table to use for the edge
+        colors. By default, edges are colored according to the value of the
+        ``edge_sgn`` column in ``edge_values``, which is 1 for positive edges
+        and -1 for negative edges when the edges are digested by the
+        ``filter_adjacency_data`` function using the default settings.
+    edge_radius : float or str (default: 'edge_val')
+        The radius of the edges. If ``edge_values`` is specified, this
+        argument can be used to specify a column in the table to use for the
+        edge radii. By default, edges are sized according to the value of the
+        ``edge_val`` column in ``edge_values``, which is the absolute value of
+        the edge weight when the edges are digested by the
+        ``filter_adjacency_data`` function using the default settings.
+    edge_radius_range : tuple (default: (0.1, 1.8))
+        The range of edge radii to use. The values in ``edge_radius`` will be
+        linearly scaled to this range.
+    edge_cmap : str or matplotlib colormap (default: 'RdYlBu')
+        The colormap to use for the edges.
+    edge_clim : tuple (default: None)
+        The range of values to map into the dynamic range of the colormap.
+    edge_alpha : float or str (default: 1.0)
+        The opacity of the edges. If ``edge_values`` is specified, this
+        argument can be used to specify a column in the table to use for the
+        edge opacities.
+    hemisphere : str (default: None)
+        The hemisphere to plot. If not specified, both hemispheres will be
+        plotted.
+    hemisphere_slack : float, None, or ``'default'`` (default: ``'default'``)
+        The amount of slack to add between the hemispheres when plotting both
+        hemispheres. This argument is ignored if ``hemisphere`` is not
+        specified. The slack is specified in units of hemisphere width. Thus,
+        a slack of 1.0 means that the hemispheres will be plotted without any
+        extra space or overlap between them. When the slack is greater than
+        1.0, the hemispheres will be plotted with extra space between them.
+        When the slack is less than 1.0, the hemispheres will be plotted with
+        some overlap between them. If the slack is set to ``'default'``, the
+        slack will be set to 1.1 for projections that have overlapping
+        hemispheres and None for projections that do not have overlapping
+        hemispheres.
+    off_screen : bool (default: True)
+        Whether to render the plot off-screen. If ``False``, a window will
+        appear containing an interactive plot.
+    copy_actors : bool (default: True)
+        Whether to copy the actors before returning them. If ``False``, the
+        actors will be modified in-place.
+    theme : PyVista plotter theme (default: None)
+        The PyVista plotter theme to use. If not specified, the default
+        DocumentTheme will be used.
+    """
 
     # Helper functions for graph plots
     def process_edge_values():
@@ -211,6 +376,12 @@ def unified_plotter(
 
     p = pv.Plotter(off_screen=off_screen, theme=theme)
 
+    if hemisphere_slack == 'default':
+        proj_require_slack = {'inflated', 'veryinflated', 'sphere'}
+        if surf_projection in proj_require_slack:
+            hemisphere_slack = 1.1
+        else:
+            hemisphere_slack = None
     if len(hemispheres) == 2 and hemisphere_slack is not None:
         if surf is not None:
             surf.left.project(surf_projection)
@@ -307,7 +478,7 @@ def unified_plotter(
             style='points_gaussian',
             emissive=False,
             scalars=vol_scalars,
-            opacity=0.99,
+            opacity=vol_scalars_alpha,
             point_size=vol_scalars_point_size,
             ambient=1.0,
             cmap=vol_scalars_cmap,
@@ -317,9 +488,9 @@ def unified_plotter(
     if node_coor is not None:
         for c, col, rad, opa in zip(
             node_coor,
-            map_to_color(node_values, node_color, None),
-            map_to_radius(node_values, node_radius, node_radius_range),
-            map_to_opacity(node_values, node_alpha),
+            _map_to_color(node_values, node_color, None),
+            _map_to_radius(node_values, node_radius, node_radius_range),
+            _map_to_opacity(node_values, node_alpha),
         ):
             node = pv.Icosphere(
                 radius=rad,
@@ -327,15 +498,15 @@ def unified_plotter(
             )
             p.add_mesh(
                 node,
-                color=get_color(color=col, cmap=node_cmap, clim=node_clim),
+                color=_get_color(color=col, cmap=node_cmap, clim=node_clim),
                 opacity=opa,
             )
     if edge_values is not None:
         for c, d, ht, col, rad, opa in zip(
             *process_edge_values(),
-            map_to_color(edge_values, edge_color, None),
-            map_to_radius(edge_values, edge_radius, edge_radius_range),
-            map_to_opacity(edge_values, edge_alpha),
+            _map_to_color(edge_values, edge_color, None),
+            _map_to_radius(edge_values, edge_radius, edge_radius_range),
+            _map_to_opacity(edge_values, edge_alpha),
         ):
             edge = pv.Cylinder(
                 center=c,
@@ -345,7 +516,7 @@ def unified_plotter(
             )
             p.add_mesh(
                 edge,
-                color=get_color(color=col, cmap=edge_cmap, clim=edge_clim),
+                color=_get_color(color=col, cmap=edge_cmap, clim=edge_clim),
                 opacity=opa,
             )
 
