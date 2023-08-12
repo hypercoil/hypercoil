@@ -40,6 +40,7 @@ dependencies = [
     "nibabel >= 4.0.1",
     "scipy >= 1.9.0",
     "templateflow >= 0.8.1",
+    "lytemaps",
     "click",
     "requests",
 ]
@@ -52,6 +53,8 @@ test = [
     "nilearn",
     "communities",
     "brainspace",
+    "hypercoil-examples",
+    "hyve-examples",
     "pytest",
     "pytest-cov",
     "coverage[toml]",
