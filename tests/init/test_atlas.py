@@ -13,6 +13,10 @@ import nibabel as nb
 import templateflow.api as tflow
 from pkg_resources import resource_filename as pkgrf
 from nilearn.input_data import NiftiLabelsMasker, NiftiMapsMasker
+from hyve_examples import (
+    get_null400_cifti,
+    get_null400_gifti,
+)
 from hypercoil.nn.atlas import AtlasLinear
 from hypercoil.init.atlas import (
     CortexSubcortexCIfTIAtlas,
@@ -149,10 +153,7 @@ class TestAtlasInit:
         atlas.to_nifti(save=f'{results}/atlas_copy_vol_p.nii', discretise=False)
 
     def test_cifti_atlas(self):
-        ref_pointer = pkgrf(
-            'hypercoil',
-            'viz/resources/nullexample.nii'
-        )
+        ref_pointer = get_null400_cifti()
         atlas = CortexSubcortexCIfTIAtlas(
             ref_pointer=ref_pointer,
             mask_L=tflow.get(
@@ -230,14 +231,8 @@ class TestAtlasInit:
         """
 
     def test_gifti_atlas(self):
-        ref_L = pkgrf(
-            'hypercoil',
-            'viz/resources/nullexample_L.gii'
-        )
-        ref_R = pkgrf(
-            'hypercoil',
-            'viz/resources/nullexample_R.gii'
-        )
+        null_atlas = get_null400_gifti()
+        ref_L, ref_R = null_atlas['left'], null_atlas['right']
         ref_pointer = (ref_L, ref_R, None,)
 
         mask_source = {
@@ -377,10 +372,7 @@ class TestAtlasInit:
         ) < 0.05
 
     def test_surface_dirichlet_atlas(self):
-        cifti_template = pkgrf(
-            'hypercoil',
-            'viz/resources/nullexample.nii'
-        )
+        cifti_template = get_null400_cifti()
         atlas = DirichletInitSurfaceAtlas(
             cifti_template=cifti_template,
             mask_L=tflow.get(
@@ -415,10 +407,7 @@ class TestAtlasInit:
             np.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
 
     def test_atlas_empty_compartment(self):
-        cifti_template = pkgrf(
-            'hypercoil',
-            'viz/resources/nullexample.nii'
-        )
+        cifti_template = get_null400_cifti()
         atlas = DirichletInitSurfaceAtlas(
             cifti_template=cifti_template,
             mask_L=tflow.get(

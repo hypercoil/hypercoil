@@ -117,17 +117,20 @@ def modelobj_from_dataobj(
 #
 #       Update: I think we mostly worked this out in the end using model axes.
 #       We'll see how it goes in practice.
+def _imobj_from_pointer_default(x):
+    return x
+
+
+def _dataobj_from_imobj_default(x):
+    return x.get_fdata()
+
+
 class Reference(eqx.Module):
     pointer: Any
     model_axes: Sequence[int]
     imobj: Union['nb.Nifti1Image', 'nb.Cifti2Image', 'nb.GiftiImage']
-
-    def _imobj_from_pointer(x):
-        return x
-
-    def _dataobj_from_imobj(x):
-        return x.get_fdata()
-
+    _imobj_from_pointer: Callable = _imobj_from_pointer_default
+    _dataobj_from_imobj: Callable = _dataobj_from_imobj_default
     cached: bool = False
     dataobj: Optional[Tensor] = None
     modelobj: Optional[Tensor] = None
@@ -696,7 +699,7 @@ class _VolumeMultiReferenceMixin:
         # TODO: We should at least check that the affine matrices are
         #       compatible.
         ref = tuple(nb.load(path) for path in ref_pointer)
-        dataobj = np.stack((r.get_fdata() for r in ref), -1)
+        dataobj = np.stack([r.get_fdata() for r in ref], -1)
         ref = nb.Nifti1Image(
             dataobj=dataobj,
             affine=ref[0].affine,

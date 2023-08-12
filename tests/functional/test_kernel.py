@@ -60,8 +60,8 @@ class TestKernel:
             static_argnames=('r', 'gamma')
         )(X, Y, r=1)
         assert np.allclose(out, ref, atol=1e-5)
-        ref = pk_ref(X, Y, gamma=-1, degree=7, coef0=-100)
-        out = polynomial_kernel(X, Y, gamma=-1, order=7, r=-100)
+        ref = pk_ref(X, Y, gamma=5, degree=7, coef0=-100)
+        out = polynomial_kernel(X, Y, gamma=5, order=7, r=-100)
         assert np.allclose(out, ref, atol=1e-5)
 
     def test_sigmoid_kernel(self):
@@ -85,11 +85,11 @@ class TestKernel:
         ref = gk_ref(X, Y)
         out = gaussian_kernel(X, Y)
         assert np.allclose(out, ref, atol=1e-5)
-        ref = gk_ref(X, Y, gamma=-2e-5)
+        ref = gk_ref(X, Y, gamma=2e5)
         out = jax.jit(
             rbf_kernel,
             static_argnames=('gamma',)
-        )(X, Y, gamma=-2e-5)
+        )(X, Y, gamma=2e5)
         assert np.allclose(out, ref, atol=1e-5)
         ref = gk_ref(X, Y, gamma=0.25)
         out = jax.jit(
