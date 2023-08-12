@@ -33,30 +33,33 @@ requires-python = ">=3.10"
 dependencies = [
     "jax >= 0.3.16",
     "equinox >= 0.7.1",
+    "numpyro",
     "optax >= 0.1.3",
-    "distrax >= 0.1.2",
     "numpy >= 1.22.4",
     "pandas >= 1.4.3",
     "nibabel >= 4.0.1",
     "scipy >= 1.9.0",
     "templateflow >= 0.8.1",
-    "hyve >= 0.0.2.dev1",
     "click",
-    "seaborn",
     "requests",
-    "matplotlib",
-    "bs4",
-    "lxml",
 ]
 
 [project.optional-dependencies]
 test = [
+    "matplotlib",
     "scikit-image",
     "pingouin",
-    "pytest",
     "nilearn",
     "communities",
     "brainspace",
+    "pytest",
+    "pytest-cov",
+    "coverage[toml]",
+    "ruff",
+    "blue",
+]
+viz = [
+    "hyve >= 0.0.2.dev1",
 ]
 doc = ["sphinx"]
 
@@ -111,7 +114,13 @@ section-order = [
     "first-party",
     "local-folder",
 ]
-no-lines-before = ["standard-library", "ecosystem", "third-party", "first-party", "local-folder"]
+no-lines-before = [
+    "standard-library",
+    "ecosystem",
+    "third-party",
+    "first-party",
+    "local-folder"
+]
 split-on-trailing-comma = true
 lines-after-imports = 2
 

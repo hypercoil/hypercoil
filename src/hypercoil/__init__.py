@@ -17,4 +17,7 @@ from . import functional
 from . import init
 from . import loss
 from . import nn
-import hyve as viz
+try:
+    import hyve as viz
+except ImportError:
+    viz = NotImplemented

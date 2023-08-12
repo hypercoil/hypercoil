@@ -349,8 +349,10 @@ class StochasticParameter(eqx.Module):
         parameters = retrieve_address(model, where)
         wrapped = ()
         for i, _ in enumerate(parameters):
+
             def where_i(model):
                 return retrieve_address(model, where)[i]
+
             wrapped += (
                 cls(
                     model=model,

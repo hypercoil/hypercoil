@@ -477,8 +477,10 @@ def weighted_interpolate(
         map_to_kernel = partial(centred_square_kernel, max_stage=max_stage)
         # map_to_kernel = lambda s: jnp.ones(2 * s + 1)
     kernels = jnp.stack(make_kernels(stages, map_to_kernel))
+
     def f(x, k):
         return _weighted_interpolate_stage(data=x[0], mask=x[1], kernel=k)
+
     (data, mask), _ = jax.lax.scan(
         f=f,
         init=(data, mask),

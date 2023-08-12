@@ -8,7 +8,7 @@ Constants for import.
 """
 from typing import Optional
 
-from neuromaps.datasets import fetch_fsaverage
+from lytemaps.datasets import fetch_fsaverage
 
 
 def neuromaps_fetch_fn(
