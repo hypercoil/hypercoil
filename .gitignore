@@ -144,6 +144,6 @@ cython_debug/
 .vscode/
 
 # hypercoil-specific
-hypercoil/examples/synthetic/results
-hypercoil/results
-hypercoil/neuro/datasets
+src/hypercoil/examples/synthetic/results
+src/hypercoil/results
+src/hypercoil/neuro/datasets
