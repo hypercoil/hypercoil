@@ -108,7 +108,7 @@ class DeltaPlusInitialiser(MappedInitialiser):
         loc: Optional[Tuple[int, ...]] = None,
         scale: float = 1,
         var: Tensor = 0.2,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:

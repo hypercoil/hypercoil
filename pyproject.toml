@@ -60,7 +60,7 @@ test = [
 ]
 doc = ["sphinx"]
 
-[tool.black]
+[tool.blue]
 line-length = 79
 target-version = ["py310"]
 exclude = '.*test_.*|__init__.py|__about__.py|.*/downstream/.*|.*/examples/.*'
@@ -81,7 +81,11 @@ omit = [
 ]
 
 [tool.ruff]
-ignore = []
+ignore = [
+    "E501", # line too long, taken care of by blue
+    "E741",
+    "W605",
+]
 line-length = 79
 select = [
     "E",

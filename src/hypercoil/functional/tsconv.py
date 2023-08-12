@@ -23,10 +23,10 @@ from ..engine import NestedDocParse, Tensor, atleast_4d
 
 
 torch_dims = {
-    0: ("NC", "OI", "NC"),
-    1: ("NCH", "OIH", "NCH"),
-    2: ("NCHW", "OIHW", "NCHW"),
-    3: ("NCHWD", "OIHWD", "NCHWD"),
+    0: ('NC', 'OI', 'NC'),
+    1: ('NCH', 'OIH', 'NCH'),
+    2: ('NCHW', 'OIHW', 'NCHW'),
+    3: ('NCHWD', 'OIHWD', 'NCHWD'),
 }
 
 
@@ -142,7 +142,7 @@ def tsconv2d(
     bias: Optional[Tensor] = None,
     padding: Optional[
         Union[
-            Literal["initial", "final"],
+            Literal['initial', 'final'],
             Sequence[Tuple[int, int]],
         ]
     ] = None,
@@ -226,7 +226,7 @@ def polyconv2d(
     bias: Optional[Tensor] = None,
     padding: Optional[
         Union[
-            Literal["initial", "final"],
+            Literal['initial', 'final'],
             Sequence[Tuple[int, int]],
         ]
     ] = None,
@@ -276,15 +276,15 @@ def _configure_weight_for_ts_conv(weight: Tensor) -> Tensor:
 def _configure_padding_for_ts_conv(
     padding: Union[
         None,
-        Literal["initial", "final"],
+        Literal['initial', 'final'],
         Sequence[Tuple[int, int]],
     ],
     weight: Tensor,
 ) -> Sequence[Tuple[int, int]]:
     size = weight.shape[-1]
-    if padding == "final":
+    if padding == 'final':
         padding = ((0, 0), (0, size - 1))
-    elif padding == "initial":
+    elif padding == 'initial':
         padding = ((0, 0), (size - 1, 0))
     padding = padding or ((0, 0), (size // 2, size // 2))
     return padding

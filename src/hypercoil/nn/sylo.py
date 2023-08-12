@@ -114,7 +114,7 @@ class Sylo(eqx.Module):
     out_channels: int
     dim: Tuple[int]
     rank: int
-    symmetry: Optional[Literal["psd", "cross", "skew"]] = "psd"
+    symmetry: Optional[Literal['psd', 'cross', 'skew']] = 'psd'
     similarity: Callable
     remove_diagonal: bool
 
@@ -129,23 +129,23 @@ class Sylo(eqx.Module):
         dim: int,
         rank: int = 1,
         bias: bool = True,
-        symmetry: Optional[Literal["psd", "cross", "skew"]] = "psd",
+        symmetry: Optional[Literal['psd', 'cross', 'skew']] = 'psd',
         coupling: (
-            Optional[Union[Literal["+", "-", "split"], int, float]]
+            Optional[Union[Literal['+', '-', 'split'], int, float]]
         ) = None,
         fixed_coupling: bool = False,
         similarity: Callable = crosshair_similarity,
         remove_diagonal: bool = False,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if isinstance(dim, int):
             H, W = dim, dim
         elif symmetry and dim[0] != dim[1]:
             raise ValueError(
-                "Symmetry constraints are invalid for nonsquare "
-                "matrices. Set symmetry=False or use an integer "
-                "dim"
+                'Symmetry constraints are invalid for nonsquare '
+                'matrices. Set symmetry=False or use an integer '
+                'dim'
             )
         else:
             H, W = dim
@@ -160,7 +160,7 @@ class Sylo(eqx.Module):
 
         key_l, key_r, key_c, key_b = jax.random.split(key, 4)
         lim = in_channels * (H + W - 1)
-        if symmetry == "psd":
+        if symmetry == 'psd':
             lim = 1 / jnp.sqrt(lim * (rank + (rank**2) / H))
         else:
             lim = 1 / jnp.sqrt(lim * rank)
@@ -171,7 +171,7 @@ class Sylo(eqx.Module):
             minval=-lim,
             maxval=lim,
         )
-        if symmetry == "psd":
+        if symmetry == 'psd':
             weight_R = weight_L
         else:
             weight_R = jax.random.uniform(
@@ -195,21 +195,24 @@ class Sylo(eqx.Module):
 
     def _cfg_coupling(
         self,
-        coupling: (Optional[Union[Literal["+", "-", "split"], int, float]]),
+        coupling: (Optional[Union[Literal['+', '-', 'split'], int, float]]),
         fixed_coupling: bool,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ) -> Optional[Tensor]:
         if fixed_coupling:
             f = jnp.ones
         else:
-            f = lambda x: jax.random.uniform(key=key, shape=x)
-        if coupling == "split":
+
+            def f(x):
+                return jax.random.uniform(key=key, shape=x)
+
+        if coupling == 'split':
             coupling = self.out_channels // 2
         elif isinstance(coupling, float):
             coupling = int(self.out_channels * coupling)
-        if coupling is None or coupling == "+":
+        if coupling is None or coupling == '+':
             parameter = None
-        elif coupling == "-":
+        elif coupling == '-':
             parameter = -f((self.out_channels, self.in_channels, self.rank, 1))
         elif isinstance(coupling, int):
             parameter = -f((self.out_channels, self.in_channels, self.rank, 1))
@@ -219,7 +222,7 @@ class Sylo(eqx.Module):
     @property
     def templates(self) -> Tensor:
         weight_L = _to_jax_array(self.weight[0])
-        if self.symmetry == "psd":
+        if self.symmetry == 'psd':
             weight_R = weight_L
         else:
             weight_R = _to_jax_array(self.weight[1])
@@ -228,17 +231,17 @@ class Sylo(eqx.Module):
             L=weight_L,
             R=weight_R,
             C=coupling,
-            symmetry=(self.symmetry if self.symmetry != "psd" else None),
+            symmetry=(self.symmetry if self.symmetry != 'psd' else None),
         )
 
     def __call__(
         self,
         input: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight_L = _to_jax_array(self.weight[0])
-        if self.symmetry == "psd":
+        if self.symmetry == 'psd':
             weight_R = weight_L
         else:
             weight_R = _to_jax_array(self.weight[1])

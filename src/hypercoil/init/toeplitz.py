@@ -58,7 +58,7 @@ class ToeplitzInitialiser(MappedInitialiser):
         c: Tensor,
         r: Optional[Tensor] = None,
         fill_value: float = 0.0,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: Optional[jax.random.PRNGKey] = None,
     ):
         init = cls(mapper=mapper, c=c, r=r, fill_value=fill_value)

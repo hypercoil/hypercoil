@@ -21,7 +21,7 @@ def random_bipartite_lattice(
     in_features: int,
     out_features: int,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ):
     """
     Generate a random biregular graph ('bipartite lattice').
@@ -74,7 +74,7 @@ class VerticalCompression(eqx.Module):
     renormalise: bool
     fold_channels: bool
     sign: int
-    forward_operation: Literal["compress", "uncompress", "reconstruct"]
+    forward_operation: Literal['compress', 'uncompress', 'reconstruct']
 
     def __init__(
         self,
@@ -85,11 +85,11 @@ class VerticalCompression(eqx.Module):
         renormalise: bool = True,
         fold_channels: bool = True,
         forward_operation: (
-            Literal["compress", "uncompress", "reconstruct"]
-        ) = "compress",
+            Literal['compress', 'uncompress', 'reconstruct']
+        ) = 'compress',
         sign: int = 1,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         self.in_features = in_features
         self.out_features = out_features
@@ -123,9 +123,9 @@ class VerticalCompression(eqx.Module):
 
     @staticmethod
     def mode(
-        model: "VerticalCompression",
-        mode: Literal["train", "eval"],
-    ) -> "VerticalCompression":
+        model: 'VerticalCompression',
+        mode: Literal['train', 'eval'],
+    ) -> 'VerticalCompression':
         return eqx.tree_at(
             lambda m: m.forward_operation,
             model,
@@ -159,11 +159,11 @@ class VerticalCompression(eqx.Module):
         self,
         input: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
-        if self.forward_operation == "compress":
+        if self.forward_operation == 'compress':
             return self.compress(input=input)
-        elif self.forward_operation == "uncompress":
+        elif self.forward_operation == 'uncompress':
             return self.uncompress(compressed=input)
-        elif self.forward_operation == "reconstruct":
+        elif self.forward_operation == 'reconstruct':
             return self.reconstruct(input=input)

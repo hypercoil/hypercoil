@@ -47,15 +47,15 @@ def _compose(
 def _seq_pad(
     x: Tuple[Any, ...],
     n: int,
-    pad: str = "last",
+    pad: str = 'last',
     pad_value: Any = None,
 ) -> Tuple[Any, ...]:
     padding = [pad_value for _ in range(n + 1 - len(x))]
-    if pad == "last":
+    if pad == 'last':
         return tuple((*x, *padding))
-    elif pad == "first":
+    elif pad == 'first':
         return tuple((*padding, *x))
-    raise ValueError(f"Invalid padding: {pad}")
+    raise ValueError(f'Invalid padding: {pad}')
 
 
 def atleast_4d(*pparams) -> Tensor:
@@ -167,9 +167,9 @@ def apply_vmap_over_outer(
             )
             criterion = structuring_arg(align_outer)
         if criterion:
-            output_structure = _seq_pad(output_structure, ndmax, "last")
+            output_structure = _seq_pad(output_structure, ndmax, 'last')
         else:
-            output_structure = _seq_pad(output_structure, ndmax, "first")
+            output_structure = _seq_pad(output_structure, ndmax, 'first')
     # print(ndim, tuple(range(ndmax + 1)))
     # print([(
     #    tree_map(
@@ -289,7 +289,7 @@ def demote_axis(
     return tuple(_demote_axis(ndim=ndim, axis=axis))
 
 
-@partial(jax.jit, static_argnames=("axis", "n_folds"))
+@partial(jax.jit, static_argnames=('axis', 'n_folds'))
 def fold_axis(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     """
     Fold the specified axis into the specified number of folds.
@@ -326,7 +326,7 @@ def _reduce_cond(acc, x, f, identity):
 # fmt: on
 
 
-@partial(jax.jit, static_argnames=("axes",))
+@partial(jax.jit, static_argnames=('axes',))
 def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
     """
     Unfold the specified consecutive axes into a single new axis.
@@ -349,7 +349,7 @@ def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
     return tensor.reshape(new_shape)
 
 
-@partial(jax.jit, static_argnames=("axis", "n_folds"))
+@partial(jax.jit, static_argnames=('axis', 'n_folds'))
 def fold_and_promote(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     """
     Fold the specified axis into the specified number of folds, and promote
@@ -359,7 +359,7 @@ def fold_and_promote(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     return jnp.transpose(folded, promote_axis(folded.ndim, axis))
 
 
-@partial(jax.jit, static_argnames=("target_address", "axes"))
+@partial(jax.jit, static_argnames=('target_address', 'axes'))
 def demote_and_unfold(
     tensor: Tensor,
     target_address: int,
@@ -419,20 +419,20 @@ def orient_and_conform(
     if isinstance(axis, int):
         axis = (axis,)
     if dim is None and reference is None:
-        raise ValueError("Must specify either `reference` or `dim`")
+        raise ValueError('Must specify either `reference` or `dim`')
     elif dim is None:
         dim = reference.ndim
     # can't rely on this when we compile with jit
     assert (
         len(axis) == input.ndim
-    ), "Output orientation axis required for each input dimension"
+    ), 'Output orientation axis required for each input dimension'
     shape = [1] * dim
     asgn = [0] * dim
     for size, ax in zip(input.shape, axis):
         shape[ax] = size
         assert (
             sum(asgn[ax:]) == 0
-        ), "All axes must be in order. Transpose the input if necessary."
+        ), 'All axes must be in order. Transpose the input if necessary.'
         asgn[ax] = 1
     return input.reshape(*shape)
 
@@ -451,7 +451,7 @@ def promote_to_rank(tensor: Tensor, rank: int) -> Tensor:
 def extend_to_size(
     tensor: Tensor,
     shape: Sequence[int],
-    fill: float = float("nan"),
+    fill: float = float('nan'),
 ) -> Tensor:
     """
     Extend a tensor in the positive direction until its size matches the
@@ -465,7 +465,7 @@ def extend_to_size(
 
 def extend_to_max_size(
     tensors: Sequence[Tensor],
-    fill: float = float("nan"),
+    fill: float = float('nan'),
 ) -> Tensor:
     """
     Extend all tensors in a sequence until their sizes are equal to the size

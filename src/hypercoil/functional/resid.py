@@ -68,7 +68,7 @@ def residualise(
     X: Tensor,
     rowvar: bool = True,
     l2: float = 0.0,
-    return_mode: str = "residual",
+    return_mode: str = 'residual',
 ) -> Tensor:
     r"""
     Residualise a tensor block via ordinary linear least squares.
@@ -113,7 +113,7 @@ def residualise(
         proj = betas.swapaxes(-1, -2) @ X
     else:
         proj = X @ betas
-    if return_mode == "residual":
+    if return_mode == 'residual':
         return Y - proj
-    elif return_mode == "orthogonal":
+    elif return_mode == 'orthogonal':
         return proj

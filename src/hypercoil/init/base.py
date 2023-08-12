@@ -89,7 +89,7 @@ class Initialiser(eqx.Module):
         self,
         model: PyTree,
         *,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ):
@@ -121,7 +121,7 @@ class Initialiser(eqx.Module):
         cls,
         model: PyTree,
         *,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
@@ -207,7 +207,7 @@ class MappedInitialiser(Initialiser):
         model: PyTree,
         *,
         mapper: Optional[Type[MappedParameter]] = None,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
@@ -279,7 +279,7 @@ class DistributionInitialiser(MappedInitialiser):
         *,
         mapper: Optional[Type[MappedParameter]] = None,
         distribution: Distribution = None,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
@@ -325,7 +325,7 @@ class ConstantInitialiser(MappedInitialiser):
         *,
         mapper: Optional[Type[MappedParameter]] = None,
         value: float = 0,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:
@@ -378,7 +378,7 @@ class IdentityInitialiser(MappedInitialiser):
         mapper: Optional[Type[MappedParameter]] = None,
         scale: float = 1,
         shift: float = 0,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:

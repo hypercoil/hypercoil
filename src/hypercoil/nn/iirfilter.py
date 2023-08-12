@@ -39,7 +39,7 @@ class DTDFCell(eqx.Module):
 
         self.N = init_spec.N
         self.multiplier = 1
-        if init_spec.btype in ("bandpass", "bandstop"):
+        if init_spec.btype in ('bandpass', 'bandstop'):
             self.multiplier = 2
 
         coefs = jnp.array(init_spec.coefs)
@@ -61,7 +61,7 @@ class DTDFCell(eqx.Module):
 class Spec(object):
     def __init__(self, N):
         self.N = N
-        self.btype = "lowpass"
+        self.btype = 'lowpass'
 
 
 class DTDF(eqx.Module):
@@ -80,13 +80,13 @@ class DTDF(eqx.Module):
         initial_states: Optional[Tensor] = None,
         feature_ax: bool = False,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         if not feature_ax:
             input = input[..., None]
         else:
-            raise NotImplementedError("No support for final feature axis yet")
-        batch_size = input.shape[0]
+            raise NotImplementedError('No support for final feature axis yet')
+        input.shape[0]
         sequence_length = input.shape[-2]
 
         if initial_states is None:
@@ -119,9 +119,9 @@ class IIRFiltFilt(IIRFilter):
         initial_states: Optional[Tensor] = None,
         feature_ax: bool = False,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
-        raise NotImplementedError("Zero-phase filter not yet implemented")
+        raise NotImplementedError('Zero-phase filter not yet implemented')
         out = super()(
             input=input,
             initial_states=initial_states,

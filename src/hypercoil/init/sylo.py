@@ -9,7 +9,6 @@ import math
 from typing import Callable, Literal, Optional, Tuple, Type, Union
 
 import jax
-import jax.numpy as jnp
 from numpyro.distributions import Normal, Uniform
 
 from ..engine import PyTree, Tensor
@@ -28,20 +27,20 @@ def calculate_gain(
     """
     nonlinearity = nonlinearity.lower()
     gain_map = {
-        "linear": 1.0,
-        "conv1d": 1.0,
-        "conv2d": 1.0,
-        "conv3d": 1.0,
-        "conv_transpose1d": 1.0,
-        "conv_transpose2d": 1.0,
-        "conv_transpose3d": 1.0,
-        "tanh": 5.0 / 3,
-        "selu": 3.0 / 4,
-        "leaky_relu": (2.0 / (1 + negative_slope**2)),
+        'linear': 1.0,
+        'conv1d': 1.0,
+        'conv2d': 1.0,
+        'conv3d': 1.0,
+        'conv_transpose1d': 1.0,
+        'conv_transpose2d': 1.0,
+        'conv_transpose3d': 1.0,
+        'tanh': 5.0 / 3,
+        'selu': 3.0 / 4,
+        'leaky_relu': (2.0 / (1 + negative_slope**2)),
     }
     gain = gain_map.get(nonlinearity, None)
     if gain is None:
-        raise ValueError(f"Unsupported nonlinearity {nonlinearity}")
+        raise ValueError(f'Unsupported nonlinearity {nonlinearity}')
     return gain
 
 
@@ -52,9 +51,9 @@ def sylo_init(
     shape: Tuple[int, ...],
     shape_R: Optional[Tuple[int, ...]] = None,
     negative_slope: float = 0,
-    mode: Literal["fan_in", "fan_out"] = "fan_in",
-    init_distr: Literal["uniform", "normal"] = "uniform",
-    nonlinearity: str = "leaky_relu",
+    mode: Literal['fan_in', 'fan_out'] = 'fan_in',
+    init_distr: Literal['uniform', 'normal'] = 'uniform',
+    nonlinearity: str = 'leaky_relu',
     psd: bool = False,
     key: jax.random.PRNGKey,
 ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
@@ -76,9 +75,9 @@ def sylo_init(
     # TODO: Does gain go inside or outside of the outer sqrt?
     # Right now it's outside since we'd rather the std explode than vanish...
     std = gain / math.sqrt(math.sqrt(fan_crosshair * fan_expansion))
-    if init_distr == "normal":
+    if init_distr == 'normal':
         distr = Normal(loc=0, scale=std)
-    elif init_distr == "uniform":
+    elif init_distr == 'uniform':
         bound = math.sqrt(3.0) * std
         distr = Uniform(low=-bound, high=bound)
 
@@ -95,11 +94,11 @@ def sylo_init(
 def _calculate_correct_fan_crosshair(
     shape: Tuple[int, ...],
     shape_R: Tuple[int, ...],
-    mode: Literal["fan_in", "fan_out"],
+    mode: Literal['fan_in', 'fan_out'],
 ) -> int:
     mode = mode.lower()
     fan_in, fan_out = _calculate_fan_in_and_fan_out_crosshair(shape, shape_R)
-    return fan_in if mode == "fan_in" else fan_out
+    return fan_in if mode == 'fan_in' else fan_out
 
 
 def _calculate_fan_in_and_fan_out_crosshair(
@@ -126,17 +125,17 @@ def _calculate_fan_in_expansion(shape: Tuple[int, ...], psd: bool) -> float:
 
 class SyloInitialiser(MappedInitialiser):
     negative_slope: float = 0
-    mode: Literal["fan_in", "fan_out"] = "fan_in"
-    init_distr: Literal["uniform", "normal"] = "uniform"
-    nonlinearity: str = "leaky_relu"
+    mode: Literal['fan_in', 'fan_out'] = 'fan_in'
+    init_distr: Literal['uniform', 'normal'] = 'uniform'
+    nonlinearity: str = 'leaky_relu'
     psd: bool = False
 
     def __init__(
         self,
         negative_slope: float = 0,
-        mode: Literal["fan_in", "fan_out"] = "fan_in",
-        init_distr: Literal["uniform", "normal"] = "uniform",
-        nonlinearity: str = "leaky_relu",
+        mode: Literal['fan_in', 'fan_out'] = 'fan_in',
+        init_distr: Literal['uniform', 'normal'] = 'uniform',
+        nonlinearity: str = 'leaky_relu',
         psd: bool = False,
         mapper: Optional[Type[MappedParameter]] = None,
     ):
@@ -151,7 +150,7 @@ class SyloInitialiser(MappedInitialiser):
         self,
         model: PyTree,
         *,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ):
@@ -160,7 +159,7 @@ class SyloInitialiser(MappedInitialiser):
         keys = jax.random.split(key, len(parameters))
         for key, parameter in zip(keys, parameters):
             if not isinstance(parameter, jax.Array) and not hasattr(
-                parameter, "__jax_array__"
+                parameter, '__jax_array__'
             ):
                 shape = (parameter[0].shape, parameter[1].shape)
             else:
@@ -201,11 +200,11 @@ class SyloInitialiser(MappedInitialiser):
         *,
         mapper: Optional[Type[MappedParameter]] = None,
         negative_slope: float = 0,
-        mode: Literal["fan_in", "fan_out"] = "fan_in",
-        init_distr: Literal["uniform", "normal"] = "uniform",
-        nonlinearity: str = "leaky_relu",
+        mode: Literal['fan_in', 'fan_out'] = 'fan_in',
+        init_distr: Literal['uniform', 'normal'] = 'uniform',
+        nonlinearity: str = 'leaky_relu',
         psd: bool = False,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ):

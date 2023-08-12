@@ -114,7 +114,7 @@ def sample_multivariate(
     shape: Tuple[int],
     event_axes: Sequence[int],
     mean_correction: bool = False,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ):
     ndim = len(shape)
     event_axes = tuple(standard_axis_number(axis, ndim) for axis in event_axes)
@@ -157,7 +157,7 @@ class StochasticSource(eqx.Module):
     ``code``.
     """
 
-    key: "jax.random.PRNGKey"
+    key: 'jax.random.PRNGKey'
     code: Any = 0
 
     def refresh(self):
@@ -252,7 +252,7 @@ class StochasticTransform(eqx.Module):
         self,
         *,
         inference: bool = False,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
         refresh_code: Any = 0,
     ):
         self.inference = inference
@@ -263,7 +263,7 @@ class StochasticTransform(eqx.Module):
         self,
         *,
         shape: Tuple[int, ...],
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ) -> Tensor:
         """
         Sample from the source.
@@ -275,7 +275,7 @@ class StochasticTransform(eqx.Module):
         self,
         input: Tensor,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         """
         Inject stochasticity into the input.
@@ -338,7 +338,7 @@ class StochasticParameter(eqx.Module):
         cls,
         model: PyTree,
         *pparams,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         transform: StochasticTransform,
         **params,
     ) -> PyTree:
@@ -349,7 +349,8 @@ class StochasticParameter(eqx.Module):
         parameters = retrieve_address(model, where)
         wrapped = ()
         for i, _ in enumerate(parameters):
-            where_i = lambda model: retrieve_address(model, where)[i]
+            def where_i(model):
+                return retrieve_address(model, where)[i]
             wrapped += (
                 cls(
                     model=model,
@@ -375,7 +376,7 @@ class AdditiveNoiseMixin:
     method.
     """
 
-    def inject(self, input: Tensor, *, key: "jax.random.PRNGKey") -> Tensor:
+    def inject(self, input: Tensor, *, key: 'jax.random.PRNGKey') -> Tensor:
         return input + self.sample(shape=input.shape, key=key)
 
 
@@ -389,7 +390,7 @@ class MultiplicativeNoiseMixin:
     the ``sample`` method.
     """
 
-    def inject(self, input: Tensor, *, key: "jax.random.PRNGKey") -> Tensor:
+    def inject(self, input: Tensor, *, key: 'jax.random.PRNGKey') -> Tensor:
         return input * self.sample(shape=input.shape, key=key)
 
 
@@ -430,7 +431,7 @@ class AxialSelectiveTransform(StochasticTransform):
         *,
         sample_axes: Optional[Tuple[int, ...]] = None,
         inference: bool = False,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
         refresh_code: Any = 0,
     ):
         self.sample_axes = sample_axes
@@ -445,7 +446,7 @@ class AxialSelectiveTransform(StochasticTransform):
         self,
         *,
         shape: Tuple[int],
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ) -> Tensor:
         raise NotImplementedError
 
@@ -453,7 +454,7 @@ class AxialSelectiveTransform(StochasticTransform):
         self,
         *,
         shape: Tuple[int],
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ) -> Tensor:
         shape = self.select_dimensions(shape)
         return self.sample_impl(shape=shape, key=key)
@@ -509,7 +510,7 @@ class ScalarIIDStochasticTransform(AxialSelectiveTransform):
         distribution: Distribution,
         sample_axes: Optional[Tuple[int, ...]] = None,
         inference: bool = False,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
         refresh_code: Any = 0,
     ):
         self.distribution = distribution
@@ -524,7 +525,7 @@ class ScalarIIDStochasticTransform(AxialSelectiveTransform):
         self,
         *,
         shape: Tuple[int],
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         return self.distribution.sample(key=key, sample_shape=shape)
 
@@ -554,7 +555,7 @@ class TensorIIDStochasticTransform(AxialSelectiveTransform):
         event_axes: Optional[Tuple[int, ...]] = None,
         sample_axes: Optional[Tuple[int, ...]] = None,
         inference: bool = False,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
         refresh_code: Any = 0,
     ):
         self.distribution = distribution
@@ -570,7 +571,7 @@ class TensorIIDStochasticTransform(AxialSelectiveTransform):
         self,
         *,
         shape: Tuple[int],
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         event_axes = self.canonicalise_axis_numbers(
             ndim=len(shape), axes=self.event_axes
@@ -645,7 +646,7 @@ class ScalarIIDMulStochasticTransform(
         self,
         *,
         shape: Tuple[int],
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         sample = super().sample_impl(shape=shape, key=key)
         try:
@@ -681,7 +682,7 @@ class TensorIIDMulStochasticTransform(
         self,
         *,
         shape: Tuple[int],
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         event_axes = self.canonicalise_axis_numbers(
             ndim=len(shape), axes=self.event_axes
@@ -745,7 +746,7 @@ class EigenspaceReconditionTransform(TensorIIDAddStochasticTransform):
         event_axes: Optional[Tuple[int, ...]] = (-2, -1),
         sample_axes: Optional[Tuple[int, ...]] = None,
         inference: bool = False,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
         refresh_code: Any = 0,
     ):
         if xi is None:
@@ -822,7 +823,9 @@ class OuterProduct(distrx.Distribution):
         )
         super().__init__()
 
-    def sample(self, key: "jax.random.PRNGKey", sample_shape: Tuple[int, ...]) -> Tensor:
+    def sample(
+        self, key: 'jax.random.PRNGKey', sample_shape: Tuple[int, ...]
+    ) -> Tensor:
         samples = self.src_distribution.sample(
             key=key, sample_shape=(*sample_shape, self.rank, self.multiplicity)
         )
@@ -838,7 +841,7 @@ class OuterProduct(distrx.Distribution):
         # -- and that's only for off-diagonals.
         #
         # So, we just return NaN.
-        return float("nan") * value
+        return float('nan') * value
 
     @property
     def event_shape(self):
@@ -913,14 +916,18 @@ class Diagonal(distrx.Distribution):
         )
         super().__init__()
 
-    def sample(self, key: "jax.random.PRNGKey", sample_shape: Tuple[int, ...]) -> Tensor:
+    def sample(
+        self, key: 'jax.random.PRNGKey', sample_shape: Tuple[int, ...]
+    ) -> Tensor:
         samples = self.src_distribution.sample(
             key=key, sample_shape=(*sample_shape, self.multiplicity)
         )
         n = math.prod(sample_shape)
         samples = samples.reshape((n, -1))
         samples = jax.vmap(jnp.diagflat, in_axes=(0,))(samples)
-        samples = samples.reshape((*sample_shape, self.matrix_dim, self.matrix_dim))
+        samples = samples.reshape(
+            (*sample_shape, self.matrix_dim, self.matrix_dim)
+        )
         return samples
 
     def log_prob(self, value: Tensor) -> Tensor:
@@ -929,7 +936,7 @@ class Diagonal(distrx.Distribution):
         mask = jnp.eye(self.matrix_dim, dtype=jnp.bool_)[None, ...]
         diags = jnp.diagonal(value, axis1=-2, axis2=-1)[..., None]
         log_prob = self.src_distribution.log_prob(diags)
-        #print(mask, diags, log_prob)
+        # print(mask, diags, log_prob)
         return jnp.where(mask, log_prob, 0.0)
 
     @property
@@ -962,9 +969,9 @@ class Symmetric(distrx.Distribution):
         src_event_shape = self.src_distribution.event_shape
         if len(src_event_shape) > 2:
             raise ValueError(
-                "Invalid source distribution was provided: "
-                "event_shape must be a scalar or a 1- or 2-D "
-                "tensor."
+                'Invalid source distribution was provided: '
+                'event_shape must be a scalar or a 1- or 2-D '
+                'tensor.'
             )
         elif len(src_event_shape) == 0:
             self.matrix_dim = self.multiplicity
@@ -978,11 +985,17 @@ class Symmetric(distrx.Distribution):
             self.row_multiplicity = self.multiplicity
             self.col_multiplicity = self.matrix_dim // src_event_shape[0]
 
-    def sample(self, key: "jax.random.PRNGKey", sample_shape: Tuple[int, ...]) -> Tensor:
+    def sample(
+        self, key: 'jax.random.PRNGKey', sample_shape: Tuple[int, ...]
+    ) -> Tensor:
         src_event_shape = self.src_distribution.event_shape
         samples = self.src_distribution.sample(
             key=key,
-            sample_shape=(*sample_shape, self.row_multiplicity, self.col_multiplicity),
+            sample_shape=(
+                *sample_shape,
+                self.row_multiplicity,
+                self.col_multiplicity,
+            ),
         )
         if len(src_event_shape) == 2:
             samples = samples.swapaxes(-3, -2)
@@ -994,7 +1007,7 @@ class Symmetric(distrx.Distribution):
         # might not have access to the PDFs, and there's no guarantee that the
         # source distribution is continuous anyway, so we're leaving this as
         # NaN
-        return float("nan") * value
+        return float('nan') * value
 
     @property
     def event_shape(self):
@@ -1038,7 +1051,9 @@ class MatrixExponential(distrx.Distribution):
         self.rescale_var = rescale_var
         super().__init__()
 
-    def sample(self, key: jax.random.PRNGKey, sample_shape: Tuple[int, ...]) -> Tensor:
+    def sample(
+        self, key: jax.random.PRNGKey, sample_shape: Tuple[int, ...]
+    ) -> Tensor:
         n = math.prod(sample_shape)
         samples = self.src_distribution.sample(key=key, sample_shape=(n,))
         if self.rescale_var:
@@ -1047,7 +1062,9 @@ class MatrixExponential(distrx.Distribution):
         if self.rescale_var:
             var_transformed = samples.var(keepdims=True)
             samples = samples / jnp.sqrt(var_transformed / var_orig)
-        samples = samples.reshape(sample_shape + self.src_distribution.event_shape)
+        samples = samples.reshape(
+            sample_shape + self.src_distribution.event_shape
+        )
         return samples
 
     def log_prob(self, value: Tensor) -> Tensor:

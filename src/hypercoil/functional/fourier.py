@@ -245,7 +245,7 @@ def analytic_signal(
     {analytic_signal_see_also}
     """
     if jnp.iscomplexobj(X):
-        raise ValueError("Input for analytic signal must be strictly real")
+        raise ValueError('Input for analytic signal must be strictly real')
 
     Xf = jnp.fft.fft(X, n=n, axis=axis)
     n = n or X.shape[axis]

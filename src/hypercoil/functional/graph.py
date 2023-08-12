@@ -110,7 +110,7 @@ def document_modularity(f: Callable) -> Callable:
         Sign of connections to be considered in the modularity.
     **params
         Any additional parameters are passed to the null model."""
-    coaffiliation_param_spec = """
+    coaffiliation_param_spec = r"""
     C : Tensor
         Community affiliation of vertices in the source set. Each slice is a
         matrix :math:`C^{(i)} \in \mathbb{R}^{I \ times C}` that encodes the
@@ -183,7 +183,7 @@ def modularity_matrix(
     gamma: float = 1,
     null: Callable = girvan_newman_null,
     normalise_modularity: bool = False,
-    sign: Optional[Literal["+", "-"]] = "+",
+    sign: Optional[Literal['+', '-']] = '+',
     **params,
 ) -> Tensor:
     """
@@ -209,9 +209,9 @@ def modularity_matrix(
     --------
     relaxed_modularity: Compute the modularity given a community structure.
     """
-    if sign == "+":
+    if sign == '+':
         A = relu(A)
-    elif sign == "-":
+    elif sign == '-':
         A = -relu(-A)
     mod = A - gamma * null(A, **params)
     if normalise_modularity:
@@ -274,7 +274,7 @@ def relaxed_modularity(
     normalise_modularity: bool = True,
     normalise_coaffiliation: bool = True,
     directed: bool = False,
-    sign: Optional[Literal["+", "-"]] = "+",
+    sign: Optional[Literal['+', '-']] = '+',
     **params,
 ) -> Tensor:
     """

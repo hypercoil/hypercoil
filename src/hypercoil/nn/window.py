@@ -32,7 +32,7 @@ class WindowAmplifier(eqx.Module):
         augmentation_axis: int = 0,
         windowing_axis: int = -1,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         self.window_fn = sample_windows(
             allow_overlap=allow_overlap,
@@ -48,7 +48,7 @@ class WindowAmplifier(eqx.Module):
         data: Union[Tensor, Sequence[Tensor]],
         split_key: bool = False,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         ## TODO: enable automask to exclude nan frames
         single_input = not isinstance(data, Sequence)

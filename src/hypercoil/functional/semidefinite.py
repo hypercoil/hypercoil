@@ -183,7 +183,7 @@ def tangent_project_spd(
     reference: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -235,7 +235,7 @@ def cone_project_spd(
     reference: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -327,7 +327,7 @@ def mean_logeuc_spd(
     axis: Union[int, Sequence[int]] = 0,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -368,7 +368,7 @@ def mean_geom_spd(
     max_iter: int = 10,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:

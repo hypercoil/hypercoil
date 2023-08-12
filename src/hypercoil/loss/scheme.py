@@ -13,12 +13,14 @@ import jax
 import equinox as eqx
 
 from ..engine.argument import (
-    ModelArgument as LossArgument,
+    ModelArgument as LossArgument,  # noqa
+)
+from ..engine.argument import (
     UnpackingModelArgument as UnpackingLossArgument,
 )
 
 
-LossReturn = namedtuple("LossReturn", ("value", "nu"))
+LossReturn = namedtuple('LossReturn', ('value', 'nu'))
 
 
 def unpack_or_noop(*pparams) -> Any:
@@ -35,7 +37,7 @@ def apply_and_evaluate(
     loss: Callable,
     applied: Any,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Any:
     if isinstance(applied, UnpackingLossArgument):
         return loss(**applied, key=key)
@@ -85,7 +87,7 @@ class LossApply(eqx.Module):
     def __call__(
         self,
         *pparams,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
         **params,
     ) -> float:
         """
@@ -98,7 +100,7 @@ class LossApply(eqx.Module):
 class LossScheme(eqx.Module):
     loss: Tuple[Callable]
     apply: Callable = unpack_or_noop
-    name = "LossScheme"
+    name = 'LossScheme'
 
     def __add__(self, other):
         return LossScheme(loss=(self.loss + other.loss))
@@ -120,7 +122,7 @@ class LossScheme(eqx.Module):
 
     # TODO: Check if the multiplier for each loss is 0, and if so, don't
     #      evaluate it.
-    def __call__(self, *pparams, key="jax.random.PRNGKey", **params):
+    def __call__(self, *pparams, key='jax.random.PRNGKey', **params):
         total_loss = 0
         all_items = {}
         applied = self.apply(*pparams, **params)
@@ -130,7 +132,7 @@ class LossScheme(eqx.Module):
                 acc, items = apply_and_evaluate(f, applied, key=k)
             elif isinstance(f, LossApply) and isinstance(f.loss, LossScheme):
 
-                def f_(*pparams, key: "jax.random.PRNGKey", **params):
+                def f_(*pparams, key: 'jax.random.PRNGKey', **params):
                     return f.loss(f.apply(*pparams, **params), key=key)
 
                 acc, items = apply_and_evaluate(f_, applied, key=k)

@@ -28,7 +28,7 @@ def document_window_fn(fn: Callable) -> Callable:
     callable
         The decorated function.
     """
-    fn.__doc__ = f"""
+    fn.__doc__ = """
     Sample windows from a tensor.
 
     Parameters
@@ -56,7 +56,7 @@ def _select_fn_allow_overlap(
     input_size: int,
     window_size: int,
     num_windows: int,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tensor:
     return jax.random.choice(
         key,
@@ -70,7 +70,7 @@ def _select_fn_no_overlap(
     input_size: int,
     window_size: int,
     num_windows: int,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tensor:
     unused_size = input_size - window_size * num_windows
     intervals = Multinomial(
@@ -121,7 +121,7 @@ def _sample_window_impl(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tensor:
     tensor = jnp.asarray(tensor)
     if windowing_axis < 0:
@@ -162,7 +162,7 @@ def sample_nonoverlapping_windows_existing_ax(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tensor:
     return _sample_window_impl(
         tensor,
@@ -184,7 +184,7 @@ def sample_nonoverlapping_windows_new_ax(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tensor:
     return _sample_window_impl(
         tensor,
@@ -206,7 +206,7 @@ def sample_overlapping_windows_existing_ax(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tensor:
     return _sample_window_impl(
         tensor,
@@ -228,7 +228,7 @@ def sample_overlapping_windows_new_ax(
     windowing_axis: int = -1,
     multiplying_axis: int = 0,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tensor:
     return _sample_window_impl(
         tensor,

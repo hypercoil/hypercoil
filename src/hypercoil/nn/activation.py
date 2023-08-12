@@ -29,14 +29,14 @@ class CorrelationNorm(eqx.Module):
     """
 
     factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None
-    grad_path: Literal["input", "both"] = "both"
+    grad_path: Literal['input', 'both'] = 'both'
 
     def __call__(
         self,
         input: Tensor,
         factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         if factor is None:
             factor = self.factor
@@ -64,7 +64,7 @@ class Isochor(eqx.Module):
         self,
         input: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         return isochor(
             input=input,

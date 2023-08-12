@@ -43,7 +43,7 @@ class LinearRFNN(eqx.Module):
         response_duration: int = 9,
         leak: float = 0.001,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         if basis_functions is None:
             basis_functions = (lambda x: x,)
@@ -54,7 +54,7 @@ class LinearRFNN(eqx.Module):
         lim_lin = 1.0 / math.sqrt(num_columns)
         lim_rf = 1.0 / math.sqrt(in_channels * response_duration)
         self.weight = {
-            "rf": jax.random.uniform(
+            'rf': jax.random.uniform(
                 key_rf,
                 shape=(
                     num_response_functions,
@@ -65,13 +65,13 @@ class LinearRFNN(eqx.Module):
                 minval=-lim_rf,
                 maxval=lim_rf,
             ),
-            "lin": jax.random.uniform(
+            'lin': jax.random.uniform(
                 key_lin,
                 shape=(model_dim, num_columns),
                 minval=-lim_lin,
                 maxval=lim_lin,
             ),
-            "thresh": 0.05
+            'thresh': 0.05
             * jax.random.normal(
                 key_thresh,
                 shape=(num_response_functions, 1, 1),
@@ -87,19 +87,19 @@ class LinearRFNN(eqx.Module):
         self,
         x: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight = {k: _to_jax_array(v) for k, v in self.weight.items()}
         x = atleast_4d(x)
 
         # If we have no response functions, just select a linear combination
         if self.num_response_functions == 0:
-            return weight["lin"] @ x
+            return weight['lin'] @ x
 
         # Step 1: Convolve with response functions
         rf_conv = basisconv2d(
             X=x,
-            weight=weight["rf"],
+            weight=weight['rf'],
             basis_functions=self.basis_functions,
             include_const=False,
             bias=None,
@@ -107,9 +107,9 @@ class LinearRFNN(eqx.Module):
         )
 
         # Step 2: Threshold
-        rf_conv = rf_conv - weight["thresh"]
+        rf_conv = rf_conv - weight['thresh']
         rf_conv = jax.nn.leaky_relu(rf_conv, negative_slope=self.leak)
-        rf_conv = rf_conv + weight["thresh"]
+        rf_conv = rf_conv + weight['thresh']
         n, c, v, t = rf_conv.shape
 
         # Step 3: Select the model as a linear combination
@@ -117,7 +117,7 @@ class LinearRFNN(eqx.Module):
             (x, rf_conv.reshape(n, 1, c * v, t)),
             axis=-2,
         )
-        return weight["lin"] @ all_functions
+        return weight['lin'] @ all_functions
 
 
 class QCPredict(eqx.Module):
@@ -139,7 +139,7 @@ class QCPredict(eqx.Module):
         num_qc: int = 1,
         leak: float = 0.05,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         if basis_functions is None:
             basis_functions = (lambda x: x,)
@@ -162,7 +162,7 @@ class QCPredict(eqx.Module):
         )
 
         self.weight = {
-            "rf": jax.random.uniform(
+            'rf': jax.random.uniform(
                 key_rf,
                 shape=(
                     num_response_functions,
@@ -173,7 +173,7 @@ class QCPredict(eqx.Module):
                 minval=-lim_rf,
                 maxval=lim_rf,
             ),
-            "global": jax.random.uniform(
+            'global': jax.random.uniform(
                 key_global,
                 shape=(
                     num_global_patterns,
@@ -184,7 +184,7 @@ class QCPredict(eqx.Module):
                 minval=-lim_global,
                 maxval=lim_global,
             ),
-            "final": jax.random.uniform(
+            'final': jax.random.uniform(
                 key_final,
                 shape=(
                     num_qc,
@@ -195,17 +195,17 @@ class QCPredict(eqx.Module):
                 minval=-lim_final,
                 maxval=lim_final,
             ),
-            "thresh_rf": 0.01
+            'thresh_rf': 0.01
             * jax.random.normal(
                 key_thresh_rf,
                 shape=(num_response_functions, 1, 1),
             ),
-            "thresh_global": 0.01
+            'thresh_global': 0.01
             * jax.random.normal(
                 key_thresh_global,
                 shape=(num_global_patterns, 1, 1),
             ),
-            "thresh_final": 0.01
+            'thresh_final': 0.01
             * jax.random.normal(
                 key_thresh_final,
                 shape=(num_qc, 1, 1),
@@ -234,7 +234,7 @@ class QCPredict(eqx.Module):
         self,
         x: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight = {k: _to_jax_array(v) for k, v in self.weight.items()}
         rf_conv = self.conv_and_thresh(
@@ -244,8 +244,8 @@ class QCPredict(eqx.Module):
                 include_const=False,
             ),
             x=x,
-            weight=weight["rf"],
-            thresh=weight["thresh_rf"],
+            weight=weight['rf'],
+            thresh=weight['thresh_rf'],
         )
         n, c, v, t = rf_conv.shape
         augmented = jnp.concatenate(
@@ -262,8 +262,8 @@ class QCPredict(eqx.Module):
         global_conv = self.conv_and_thresh(
             conv=tsconv2d,
             x=augmented,
-            weight=weight["global"],
-            thresh=weight["thresh_global"],
+            weight=weight['global'],
+            thresh=weight['thresh_global'],
         )
         augmented = jnp.concatenate(
             (
@@ -276,8 +276,8 @@ class QCPredict(eqx.Module):
         final_conv = self.conv_and_thresh(
             conv=tsconv2d,
             x=augmented,
-            weight=weight["final"],
-            thresh=weight["thresh_final"],
+            weight=weight['final'],
+            thresh=weight['thresh_final'],
         )
         return final_conv
 
@@ -316,7 +316,7 @@ class LinearCombinationSelector(LinearRFNN):
         model_dim: int,
         num_columns: int,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         super().__init__(
             model_dim=model_dim,
@@ -419,7 +419,7 @@ class EliminationSelector(eqx.Module):
         self,
         x: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight = _to_jax_array(self.weight)
         weight = jnp.maximum(weight, 0)

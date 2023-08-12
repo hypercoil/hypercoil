@@ -73,7 +73,7 @@ from .scalarise import (
 )
 
 
-def document_loss(default_scalarise: str = "mean"):
+def document_loss(default_scalarise: str = 'mean'):
     param_spec = """
     Parameters
     ----------
@@ -150,12 +150,12 @@ class Loss(eqx.Module):
         nu: float = 1.0,
         name: Optional[str] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
 
         if name is None:
-            name = "".join(i.title() for i in score.__name__.split("_"))
-            name = f"{name}Loss"
+            name = ''.join(i.title() for i in score.__name__.split('_'))
+            name = f'{name}Loss'
         self.name = name
 
         self.score = score
@@ -166,16 +166,17 @@ class Loss(eqx.Module):
     def __call__(
         self,
         *pparams,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
         **params,
     ) -> float:
         return self.nu * self.loss(*pparams, key=key, **params)
 
     def __repr__(self) -> str:
-        return f"[ν = {self.nu}]{self.name}"
+        return f'[ν = {self.nu}]{self.name}'
 
     def __tree_pp__(self, **params) -> str:
         import jax._src.pretty_printer as pp
+
         return pp.text(repr(self))
 
 
@@ -209,7 +210,7 @@ class ParameterisedLoss(Loss):
         name: Optional[str] = None,
         *,
         params: Optional[Mapping] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
 
         super().__init__(
@@ -227,7 +228,7 @@ class ParameterisedLoss(Loss):
     def __call__(
         self,
         *pparams,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
         **params,
     ) -> float:
         return self.nu * self.loss(
@@ -258,10 +259,10 @@ class MSELoss(Loss):
         nu: float = 1.0,
         name: Optional[str] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "MSELoss"
+            name = 'MSELoss'
 
         super().__init__(
             score=difference,
@@ -276,7 +277,7 @@ class MSELoss(Loss):
         Y: Tensor,
         Y_hat: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return super().__call__(X=Y, Y=Y_hat)
 
@@ -327,7 +328,7 @@ class NormedLoss(Loss):
         p: float = 2.0,
         axis: Union[int, Sequence[int]] = None,
         outer_scalarise: Callable = mean_scalarise,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         scalarisation = outer_scalarise(inner=vnorm_scalarise(p=p, axis=axis))
         super().__init__(
@@ -366,10 +367,10 @@ class ConstraintViolationLoss(Loss):
         constraints: Sequence[Callable],
         broadcast_against_input: bool = False,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "ConstraintViolation"
+            name = 'ConstraintViolation'
         super().__init__(
             score=constraint_violation,
             scalarisation=scalarisation or mean_scalarise(),
@@ -384,7 +385,7 @@ class ConstraintViolationLoss(Loss):
         self,
         X: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -412,10 +413,10 @@ class UnilateralLoss(Loss):
         name: Optional[str] = None,
         *,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "UnilateralLoss"
+            name = 'UnilateralLoss'
         super().__init__(
             score=unilateral_loss,
             scalarisation=scalarisation or mean_scalarise(),
@@ -428,13 +429,13 @@ class UnilateralLoss(Loss):
         self,
         X: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(X, key=key)
 
 
 @document_constraint_violation
-@document_loss(default_scalarise="sum")
+@document_loss(default_scalarise='sum')
 class HingeLoss(Loss):
     """
     Hinge loss function.
@@ -451,10 +452,10 @@ class HingeLoss(Loss):
         name: Optional[str] = None,
         *,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "HingeLoss"
+            name = 'HingeLoss'
         super().__init__(
             score=hinge_loss,
             scalarisation=scalarisation or sum_scalarise(),
@@ -468,13 +469,13 @@ class HingeLoss(Loss):
         Y_hat: Tensor,
         Y: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(Y_hat, Y, key=key)
 
 
 @document_smoothness
-@document_loss(default_scalarise="L1 norm")
+@document_loss(default_scalarise='L1 norm')
 class SmoothnessLoss(Loss):
     """
     Smoothness loss function.
@@ -499,10 +500,10 @@ class SmoothnessLoss(Loss):
         pad_value: Optional[float] = None,
         axis: int = -1,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "Smoothness"
+            name = 'Smoothness'
         super().__init__(
             score=smoothness,
             scalarisation=scalarisation or vnorm_scalarise(p=1, axis=None),
@@ -519,7 +520,7 @@ class SmoothnessLoss(Loss):
         self,
         X: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -554,10 +555,10 @@ class BimodalSymmetricLoss(Loss):
         *,
         modes: Tuple[int, int] = (0, 1),
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "BimodalSymmetric"
+            name = 'BimodalSymmetric'
         super().__init__(
             score=_bimodal_symmetric_impl,
             scalarisation=scalarisation or mean_scalarise(),
@@ -573,7 +574,7 @@ class BimodalSymmetricLoss(Loss):
         self,
         X: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -602,7 +603,7 @@ class _GramDeterminantLoss(Loss):
         psi: float = 0.0,
         xi: float = 0.0,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             score=score,
@@ -620,7 +621,7 @@ class _GramDeterminantLoss(Loss):
         self,
         X: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -655,10 +656,10 @@ class GramDeterminantLoss(_GramDeterminantLoss):
         psi: float = 0.0,
         xi: float = 0.0,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "GramDeterminant"
+            name = 'GramDeterminant'
         super().__init__(
             score=det_gram,
             nu=nu,
@@ -696,10 +697,10 @@ class GramLogDeterminantLoss(_GramDeterminantLoss):
         psi: float = 0.0,
         xi: float = 0.0,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "GramLogDeterminant"
+            name = 'GramLogDeterminant'
         super().__init__(
             score=log_det_gram,
             nu=nu,
@@ -731,7 +732,7 @@ class _InformationLoss(Loss):
         keepdims: bool = False,
         reduce: bool = True,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             score=score,
@@ -747,7 +748,7 @@ class _InformationLoss(Loss):
     def __call__(
         self,
         *pparams,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             *pparams,
@@ -783,10 +784,10 @@ class EntropyLoss(_InformationLoss):
         keepdims: bool = False,
         reduce: bool = True,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "Entropy"
+            name = 'Entropy'
         super().__init__(
             score=entropy,
             nu=nu,
@@ -824,10 +825,10 @@ class EntropyLogitLoss(_InformationLoss):
         keepdims: bool = False,
         reduce: bool = True,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "EntropyLogit"
+            name = 'EntropyLogit'
         super().__init__(
             score=entropy_logit,
             nu=nu,
@@ -866,10 +867,10 @@ class KLDivergenceLoss(_InformationLoss):
         keepdims: bool = False,
         reduce: bool = True,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "KLDivergence"
+            name = 'KLDivergence'
         super().__init__(
             score=kl_divergence,
             nu=nu,
@@ -908,10 +909,10 @@ class KLDivergenceLogitLoss(_InformationLoss):
         keepdims: bool = False,
         reduce: bool = True,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "KLDivergenceLogit"
+            name = 'KLDivergenceLogit'
         super().__init__(
             score=kl_divergence_logit,
             nu=nu,
@@ -950,10 +951,10 @@ class JSDivergenceLoss(_InformationLoss):
         keepdims: bool = False,
         reduce: bool = True,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "JSDivergence"
+            name = 'JSDivergence'
         super().__init__(
             score=js_divergence,
             nu=nu,
@@ -992,10 +993,10 @@ class JSDivergenceLogitLoss(_InformationLoss):
         keepdims: bool = False,
         reduce: bool = True,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "JSDivergenceLogit"
+            name = 'JSDivergenceLogit'
         super().__init__(
             score=js_divergence_logit,
             nu=nu,
@@ -1025,7 +1026,7 @@ class _BregmanDivergenceLoss(Loss):
         f: Callable,
         f_dim: int,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             nu=nu,
@@ -1042,7 +1043,7 @@ class _BregmanDivergenceLoss(Loss):
         X: Tensor,
         Y: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -1078,10 +1079,10 @@ class BregmanDivergenceLoss(_BregmanDivergenceLoss):
         f: Callable,
         f_dim: int,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "BregmanDivergence"
+            name = 'BregmanDivergence'
         super().__init__(
             score=bregman_divergence,
             nu=nu,
@@ -1118,10 +1119,10 @@ class BregmanDivergenceLogitLoss(_BregmanDivergenceLoss):
         f: Callable,
         f_dim: int,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "BregmanDivergenceLogit"
+            name = 'BregmanDivergenceLogit'
         super().__init__(
             score=bregman_divergence_logit,
             nu=nu,
@@ -1134,7 +1135,7 @@ class BregmanDivergenceLogitLoss(_BregmanDivergenceLoss):
 
 
 @document_equilibrium
-@document_loss(default_scalarise="mean square")
+@document_loss(default_scalarise='mean square')
 class EquilibriumLoss(Loss):
     """
     Mass equilibrium loss.
@@ -1162,10 +1163,10 @@ class EquilibriumLoss(Loss):
         level_axis: Union[int, Tuple[int, ...]] = -1,
         instance_axes: Union[int, Tuple[int, ...]] = (-2, -1),
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "Equilibrium"
+            name = 'Equilibrium'
         super().__init__(
             nu=nu,
             name=name,
@@ -1180,7 +1181,7 @@ class EquilibriumLoss(Loss):
         self,
         X: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -1221,10 +1222,10 @@ class EquilibriumLogitLoss(Loss):
         prob_axis: Union[int, Tuple[int, ...]] = -2,
         instance_axes: Union[int, Tuple[int, ...]] = (-2, -1),
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "EquilibriumLogit"
+            name = 'EquilibriumLogit'
         super().__init__(
             nu=nu,
             name=name,
@@ -1240,7 +1241,7 @@ class EquilibriumLogitLoss(Loss):
         self,
         X: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -1278,10 +1279,10 @@ class SecondMomentLoss(Loss):
         standardise: bool = False,
         skip_normalise: bool = False,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "SecondMoment"
+            name = 'SecondMoment'
         super().__init__(
             nu=nu,
             name=name,
@@ -1297,7 +1298,7 @@ class SecondMomentLoss(Loss):
         X: Tensor,
         weight: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -1337,10 +1338,10 @@ class SecondMomentCentredLoss(Loss):
         standardise_mu: bool = False,
         skip_normalise: bool = False,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "SecondMomentCentred"
+            name = 'SecondMomentCentred'
         super().__init__(
             nu=nu,
             name=name,
@@ -1358,7 +1359,7 @@ class SecondMomentCentredLoss(Loss):
         weight: Tensor,
         mu: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -1391,14 +1392,14 @@ class BatchCorrelationLoss(Loss):
         nu: float = 1.0,
         name: Optional[str] = None,
         *,
-        tol: Union[float, Literal["auto"]] = 0,
+        tol: Union[float, Literal['auto']] = 0,
         tol_sig: float = 0.1,
         abs: bool = True,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "BatchCorrelation"
+            name = 'BatchCorrelation'
         super().__init__(
             nu=nu,
             name=name,
@@ -1415,7 +1416,7 @@ class BatchCorrelationLoss(Loss):
         X: Tensor,
         N: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -1443,7 +1444,7 @@ class QCFCLoss(BatchCorrelationLoss):
         FC: Tensor,
         QC: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return super().__call__(
             X=FC,
@@ -1476,10 +1477,10 @@ class ReferenceTetherLoss(Loss):
         coor: Optional[Tensor] = None,
         radius: Optional[float] = 100.0,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "ReferenceTether"
+            name = 'ReferenceTether'
         super().__init__(
             nu=nu,
             name=name,
@@ -1497,7 +1498,7 @@ class ReferenceTetherLoss(Loss):
         ref: Optional[Tensor] = None,
         coor: Optional[Tensor] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         if ref is None:
             ref = self.ref
@@ -1539,10 +1540,10 @@ class InterhemisphericTetherLoss(Loss):
         rh_coor: Optional[Tensor] = None,
         radius: Optional[float] = 100.0,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "InterhemisphericTether"
+            name = 'InterhemisphericTether'
         super().__init__(
             nu=nu,
             name=name,
@@ -1561,7 +1562,7 @@ class InterhemisphericTetherLoss(Loss):
         lh_coor: Optional[Tensor] = None,
         rh_coor: Optional[Tensor] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         if lh_coor is None:
             lh_coor = self.lh_coor
@@ -1592,7 +1593,7 @@ class CompactnessLoss(Loss):
     """
 
     coor: Optional[Tensor]
-    norm: Union[int, float, Literal["inf"]]
+    norm: Union[int, float, Literal['inf']]
     floor: float
     radius: float
 
@@ -1603,13 +1604,13 @@ class CompactnessLoss(Loss):
         *,
         coor: Optional[Tensor] = None,
         radius: Optional[float] = 100.0,
-        norm: Union[int, float, Literal["inf"]] = 2,
+        norm: Union[int, float, Literal['inf']] = 2,
         floor: float = 0.0,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "Compactness"
+            name = 'Compactness'
         super().__init__(
             nu=nu,
             name=name,
@@ -1627,7 +1628,7 @@ class CompactnessLoss(Loss):
         X: Tensor,
         coor: Optional[Tensor] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         if coor is None:
             coor = self.coor
@@ -1663,10 +1664,10 @@ class DispersionLoss(Loss):
         *,
         metric: Callable = linear_distance,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "Dispersion"
+            name = 'Dispersion'
         super().__init__(
             nu=nu,
             name=name,
@@ -1680,7 +1681,7 @@ class DispersionLoss(Loss):
         self,
         X: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(X, metric=self.metric, key=key)
 
@@ -1709,10 +1710,10 @@ class MultivariateKurtosis(Loss):
         l2: float = 0.0,
         dimensional_scaling: bool = False,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "MultivariateKurtosis"
+            name = 'MultivariateKurtosis'
         super().__init__(
             nu=nu,
             name=name,
@@ -1727,7 +1728,7 @@ class MultivariateKurtosis(Loss):
         self,
         X: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         return self.nu * self.loss(
             X,
@@ -1769,10 +1770,10 @@ class ConnectopyLoss(Loss):
         affinity: Optional[Callable] = None,
         scalarisation: Optional[Callable] = None,
         progressive_theta: bool = False,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "Connectopy"
+            name = 'Connectopy'
         super().__init__(
             nu=nu,
             name=name,
@@ -1794,7 +1795,7 @@ class ConnectopyLoss(Loss):
         theta: Optional[Any] = None,
         omega: Optional[Any] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         if theta is None:
             theta = self.theta
@@ -1838,10 +1839,10 @@ class ModularityLoss(Loss):
         gamma: float = 1.0,
         exclude_diag: bool = True,
         scalarisation: Optional[Callable] = None,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if name is None:
-            name = "Modularity"
+            name = 'Modularity'
         super().__init__(
             nu=nu,
             name=name,
@@ -1860,7 +1861,7 @@ class ModularityLoss(Loss):
         D: Optional[Tensor] = None,
         theta: Optional[Tensor] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> float:
         if theta is None:
             theta = self.theta

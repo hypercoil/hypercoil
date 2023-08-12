@@ -82,7 +82,7 @@ def symmap(
     spd: bool = True,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -121,10 +121,10 @@ def symmap(
     """
     if psi > 0:
         if psi > 1:
-            raise ValueError("Nonconvex combination. Select psi in [0, 1].")
-        if recondition == "convexcombination":
+            raise ValueError('Nonconvex combination. Select psi in [0, 1].')
+        if recondition == 'convexcombination':
             input = (1 - psi) * input + psi * jnp.eye(input.shape[-1])
-        elif recondition == "eigenspaces":
+        elif recondition == 'eigenspaces':
             input = recondition_eigenspaces(input, psi=psi, xi=psi, key=key)
     if not spd:
         return jax.scipy.linalg.funm(input, map)
@@ -148,7 +148,7 @@ def symlog(
     input: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
@@ -236,7 +236,7 @@ def symsqrt(
     input: Tensor,
     psi: float = 0,
     key: Optional[Tensor] = None,
-    recondition: Literal["eigenspaces", "convexcombination"] = "eigenspaces",
+    recondition: Literal['eigenspaces', 'convexcombination'] = 'eigenspaces',
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:

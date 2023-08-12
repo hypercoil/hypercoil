@@ -23,7 +23,7 @@ class TimeSeriesConv2D(eqx.Module):
     weight: Tensor
     bias: Optional[Tensor]
     padding: Optional[
-        Union[Literal["initial", "final"], Sequence[Tuple[int, int]]]
+        Union[Literal['initial', 'final'], Sequence[Tuple[int, int]]]
     ]
     in_channels: int
     out_channels: int
@@ -35,7 +35,7 @@ class TimeSeriesConv2D(eqx.Module):
         memory: int = 3,
         kernel_width: int = 1,
         padding: Optional[
-            Union[Literal["initial", "final"], Sequence[Tuple[int, int]]]
+            Union[Literal['initial', 'final'], Sequence[Tuple[int, int]]]
         ] = None,
         use_bias: bool = False,
         *,
@@ -45,7 +45,7 @@ class TimeSeriesConv2D(eqx.Module):
         self.out_channels = out_channels
         self.padding = padding
 
-        if padding == "initial" or padding == "final":
+        if padding == 'initial' or padding == 'final':
             kernel_duration = memory + 1
         else:
             kernel_duration = memory * 2 + 1
@@ -76,7 +76,7 @@ class TimeSeriesConv2D(eqx.Module):
         self,
         input: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight = _to_jax_array(self.weight)
         bias = self.bias
@@ -149,7 +149,7 @@ class PolyConv2D(TimeSeriesConv2D):
         memory: int = 3,
         kernel_width: int = 1,
         padding: Optional[
-            Union[Literal["initial", "final"], Sequence[Tuple[int, int]]]
+            Union[Literal['initial', 'final'], Sequence[Tuple[int, int]]]
         ] = None,
         use_bias: bool = False,
         include_const: bool = False,
@@ -172,7 +172,7 @@ class PolyConv2D(TimeSeriesConv2D):
         self,
         input: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight = _to_jax_array(self.weight)
         bias = self.bias
@@ -201,7 +201,7 @@ class BasisConv2D(TimeSeriesConv2D):
         memory: int = 3,
         kernel_width: int = 1,
         padding: Optional[
-            Union[Literal["initial", "final"], Sequence[Tuple[int, int]]]
+            Union[Literal['initial', 'final'], Sequence[Tuple[int, int]]]
         ] = None,
         use_bias: bool = False,
         include_const: bool = False,
@@ -225,7 +225,7 @@ class BasisConv2D(TimeSeriesConv2D):
         self,
         input: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight = _to_jax_array(self.weight)
         bias = self.bias

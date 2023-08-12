@@ -26,7 +26,7 @@ def sylo(
     R: Optional[Tensor] = None,
     C: Optional[Tensor] = None,
     bias: Optional[Tensor] = None,
-    symmetry: Optional[Literal["cross", "skew"]] = None,
+    symmetry: Optional[Literal['cross', 'skew']] = None,
     similarity: Callable = crosshair_similarity,
     remove_diagonal: bool = False,
 ) -> Tensor:

@@ -29,7 +29,7 @@ def laplace_init(
     shape: Tuple[int, ...],
     loc: Optional[Sequence[int]] = None,
     width: Optional[Sequence[float]] = 1,
-    normalise: Optional[Literal["max", "sum"]] = None,
+    normalise: Optional[Literal['max', 'sum']] = None,
     var: float = 0.02,
     excl_axis: Optional[Sequence[int]] = None,
     key: jax.random.PRNGKey,
@@ -58,9 +58,9 @@ def laplace_init(
             val = [ax.reshape(ax_shape)] + val
         ax_shape += [1]
     val = reduce(jnp.multiply, val)
-    if normalise == "max":
+    if normalise == 'max':
         val /= val.max()
-    elif normalise == "sum":
+    elif normalise == 'sum':
         val /= val.sum()
     val = jnp.broadcast_to(val, shape)
     if var != 0:
@@ -72,7 +72,7 @@ class LaplaceInitialiser(MappedInitialiser):
 
     loc: Optional[Sequence[int]]
     width: Optional[Sequence[float]]
-    normalise: Optional[Literal["max", "sum"]]
+    normalise: Optional[Literal['max', 'sum']]
     var: float
     excl_axis: Optional[Sequence[int]]
 
@@ -80,7 +80,7 @@ class LaplaceInitialiser(MappedInitialiser):
         self,
         loc: Optional[Sequence[int]] = None,
         width: Optional[Sequence[float]] = None,
-        normalise: Optional[Literal["max", "sum"]] = None,
+        normalise: Optional[Literal['max', 'sum']] = None,
         var: float = 0.02,
         excl_axis: Optional[Sequence[int]] = None,
         mapper: Optional[Type[MappedParameter]] = None,
@@ -115,10 +115,10 @@ class LaplaceInitialiser(MappedInitialiser):
         mapper: Optional[Type[MappedParameter]] = None,
         loc: Optional[Sequence[int]] = None,
         width: Optional[Sequence[float]] = None,
-        normalise: Optional[Literal["max", "sum"]] = None,
+        normalise: Optional[Literal['max', 'sum']] = None,
         var: float = 0.02,
         excl_axis: Optional[Sequence[int]] = None,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:

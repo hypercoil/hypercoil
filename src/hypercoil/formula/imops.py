@@ -38,9 +38,9 @@ def image_leaf_ingress(
     arg: Any,
 ) -> Callable:
     return jnp.array(arg.get_fdata()), {
-        "header": arg.header,
-        "affine": arg.affine,
-        "imtype": "nifti",
+        'header': arg.header,
+        'affine': arg.affine,
+        'imtype': 'nifti',
     }
 
 
@@ -56,21 +56,21 @@ def scalar_leaf_ingress(
 
 def select_args(
     args: Sequence,
-    side: Literal["left", "right"],
+    side: Literal['left', 'right'],
     num: int,
 ):
-    if side == "left":
+    if side == 'left':
         return args[:num]
     else:
         return args[-num:]
 
 
 def sub_regex(s: str) -> str:
-    i = r"\-?[0-9]*"
-    f = r"\-?[0-9]*\.*[0-9]*"
-    nni = r"[0-9]*"
-    nnf = r"[0-9]*\.*[0-9]*"
-    nnii = r"[0-9]*[0-9\,]*"
+    i = r'\-?[0-9]*'
+    f = r'\-?[0-9]*\.*[0-9]*'
+    nni = r'[0-9]*'
+    nnf = r'[0-9]*\.*[0-9]*'
+    nnii = r'[0-9]*[0-9\,]*'
     return s.format(
         i=i,
         f=f,
@@ -87,31 +87,31 @@ def form_regex(
     right: bool = False,
 ):
     typedict = {
-        "int": "i",
-        "float": "f",
-        "nnint": "nni",
-        "nnfloat": "nnf",
-        "nnintseq": "nnii",
+        'int': 'i',
+        'float': 'f',
+        'nnint': 'nni',
+        'nnfloat': 'nnf',
+        'nnintseq': 'nnii',
     }
-    scalar = ""
-    paramstr = ""
-    right = r"\,\.\.\." if right else ""
+    scalar = ''
+    paramstr = ''
+    right = r'\,\.\.\.' if right else ''
     if unarised is not None:
         unarised = typedict[unarised]
-        scalar = "{{(?P<scalar>{}){}}}".format(
-            sub_regex(f"{{{unarised}}}"),
+        scalar = '{{(?P<scalar>{}){}}}'.format(
+            sub_regex(f'{{{unarised}}}'),
             right,
         )
     if params is not None:
         paramstr = tuple(
-            "(?P<{param}>{kind})".format(
-                param=param, kind=sub_regex(f"{{{typedict[kind]}}}")
+            '(?P<{param}>{kind})'.format(
+                param=param, kind=sub_regex(f'{{{typedict[kind]}}}')
             )
             for param, kind in params.items()
         )
-        paramstr = r"\|?".join(paramstr)
-        paramstr = r"\[?" + paramstr + r"\]?"
-    return f"[ ]?-{cmd}{paramstr}{scalar}[ ]?"
+        paramstr = r'\|?'.join(paramstr)
+        paramstr = r'\[?' + paramstr + r'\]?'
+    return f'[ ]?-{cmd}{paramstr}{scalar}[ ]?'
 
 
 # TODO: This doesn't actually do anything yet. The last valid argument takes
@@ -123,12 +123,12 @@ def coalesce_metadata(*args: Tuple[Dict[str, Any], ...]) -> Dict[str, Any]:
     """
     out = {}
     for arg in args:
-        header = arg.get("header", None)
+        header = arg.get('header', None)
         if header is not None:
-            out["header"] = header
-        affine = arg.get("affine", None)
+            out['header'] = header
+        affine = arg.get('affine', None)
         if affine is not None:
-            out["affine"] = affine
+            out['affine'] = affine
     return out
 
 
@@ -138,7 +138,7 @@ def coalesce_metadata(*args: Tuple[Dict[str, Any], ...]) -> Dict[str, Any]:
 def morphology_rect_strel(
     image: Tensor,
     strel_shape: Tuple[int, ...],
-    op: Literal["dilate", "erode", "open", "close"],
+    op: Literal['dilate', 'erode', 'open', 'close'],
     mask: Optional[Tensor] = None,
 ) -> Tensor:
     """
@@ -146,14 +146,14 @@ def morphology_rect_strel(
     """
 
     op_series = {
-        "dilate": ("dilate",),
-        "erode": ("erode",),
-        "open": ("erode", "dilate"),
-        "close": ("dilate", "erode"),
+        'dilate': ('dilate',),
+        'erode': ('erode',),
+        'open': ('erode', 'dilate'),
+        'close': ('dilate', 'erode'),
     }
     op_dict = {
-        "dilate": (-float("inf"), jax.lax.max),
-        "erode": (float("inf"), jax.lax.min),
+        'dilate': (-float('inf'), jax.lax.max),
+        'erode': (float('inf'), jax.lax.min),
     }
 
     stride = tuple(1 for _ in strel_shape)
@@ -196,14 +196,14 @@ def morphology_rect_strel_fill_holes(
     data = jnp.pad(data, padding, constant_values=True)
     mask = jnp.pad(mask, padding, constant_values=False)
     for _ in range(num_iters):
-        data = morphology_rect_strel(data, strel_shape, "dilate", mask)
+        data = morphology_rect_strel(data, strel_shape, 'dilate', mask)
     slices = tuple(slice(1, -1) for _ in range(image.ndim))
     return jnp.logical_not(data)[slices]
 
 
 class ImageMathsGrammar(Grammar):
     groupings: GroupingPool = GroupingPool(
-        Grouping(open="(", close=")"),
+        Grouping(open='(', close=')'),
     )
     transforms: TransformPool = field(
         default_factory=lambda: TransformPool(
@@ -242,10 +242,10 @@ class NiftiObjectInterpreter(LeafInterpreter):
     def __call__(self, leaf: Any) -> Callable:
         def img_and_meta(
             *args: Any,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Dict[str, Any]]:
             arg = select_args(args, side=side, num=1)[0]
-            if leaf[:3] == "IMG":
+            if leaf[:3] == 'IMG':
                 return image_leaf_ingress(arg)
             else:
                 return scalar_leaf_ingress(leaf)
@@ -257,10 +257,10 @@ class NiftiFileInterpreter(LeafInterpreter):
     def __call__(self, leaf: Any) -> Callable:
         def img_and_meta(
             *args: Any,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Dict[str, Any]]:
             arg = select_args(args, side=side, num=1)[0]
-            if leaf[:3] == "IMG":
+            if leaf[:3] == 'IMG':
                 obj = nb.load(arg)
                 return image_leaf_ingress(obj)
             else:
@@ -273,22 +273,22 @@ class NiftiFileInterpreter(LeafInterpreter):
 
 
 class BinariseSuffixLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="bin",
+            cmd='bin',
             params={
-                "threshold": "float",
+                'threshold': 'float',
             },
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        threshold = params["threshold"]
-        if threshold == "":
-            params["threshold"] = 0.0
+        threshold = params['threshold']
+        if threshold == '':
+            params['threshold'] = 0.0
         else:
-            params["threshold"] = float(threshold)
+            params['threshold'] = float(threshold)
         return params
 
 
@@ -301,15 +301,15 @@ class BinariseNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        threshold = params["threshold"]
-        num_leaves = params["num_leaves"]
+        threshold = params['threshold']
+        num_leaves = params['num_leaves']
 
         def binarise(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Any]:
             args = select_args(args, side, num_leaves)
-            img, meta = f(*args, side="left")
+            img, meta = f(*args, side='left')
             return jnp.where(img > threshold, True, False), meta
 
         return binarise
@@ -319,24 +319,24 @@ class BinariseNode(TransformPrimitive):
 
 
 class UnaryThresholdSuffixLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="thr",
+            cmd='thr',
             params={
-                "fill": "float",
+                'fill': 'float',
             },
-            unarised="float",
+            unarised='float',
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["threshold"] = float(params["scalar"])
-        fill_value = params["fill"]
-        if fill_value == "":
-            params["fill"] = 0.0
+        params['threshold'] = float(params['scalar'])
+        fill_value = params['fill']
+        if fill_value == '':
+            params['fill'] = 0.0
         else:
-            params["fill"] = float(fill_value)
+            params['fill'] = float(fill_value)
         return params
 
 
@@ -351,38 +351,38 @@ class UnaryThresholdNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        thresh = params["threshold"]
-        fill_value = params["fill"]
-        num_leaves = params["num_leaves"]
+        thresh = params['threshold']
+        fill_value = params['fill']
+        num_leaves = params['num_leaves']
 
         def threshold(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Any]:
             args = select_args(args, side, num_leaves)
-            img, meta = f(*args, side="left")
+            img, meta = f(*args, side='left')
             return jnp.where(img > thresh, img, fill_value), meta
 
         return threshold
 
 
 class BinaryThresholdInfixLiteralisation(Literalisation):
-    affix: str = "infix"
+    affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="thr",
+            cmd='thr',
             params={
-                "fill": "float",
+                'fill': 'float',
             },
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        fill_value = params["fill"]
-        if fill_value == "":
-            params["fill"] = 0.0
+        fill_value = params['fill']
+        if fill_value == '':
+            params['fill'] = 0.0
         else:
-            params["fill"] = float(fill_value)
+            params['fill'] = float(fill_value)
         return params
 
 
@@ -397,8 +397,8 @@ class BinaryThresholdNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f_lhs, f_rhs = pparams
-        fill = params["fill"]
-        num_leaves = params["num_leaves"]
+        fill = params['fill']
+        num_leaves = params['num_leaves']
 
         def threshold(lhs: Tensor, rhs: Tensor) -> Tensor:
             return jnp.where(lhs > rhs, lhs, fill)
@@ -410,24 +410,24 @@ class BinaryThresholdNode(TransformPrimitive):
 
 
 class UnaryUpperThresholdSuffixLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="uthr",
+            cmd='uthr',
             params={
-                "fill": "float",
+                'fill': 'float',
             },
-            unarised="float",
+            unarised='float',
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["threshold"] = float(params["scalar"])
-        fill_value = params["fill"]
-        if fill_value == "":
-            params["fill"] = 0.0
+        params['threshold'] = float(params['scalar'])
+        fill_value = params['fill']
+        if fill_value == '':
+            params['fill'] = 0.0
         else:
-            params["fill"] = float(fill_value)
+            params['fill'] = float(fill_value)
         return params
 
 
@@ -442,38 +442,38 @@ class UnaryUpperThresholdNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        thresh = params["threshold"]
-        fill_value = params["fill"]
-        num_leaves = params["num_leaves"]
+        thresh = params['threshold']
+        fill_value = params['fill']
+        num_leaves = params['num_leaves']
 
         def threshold(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Any]:
             args = select_args(args, side, num_leaves)
-            img, meta = f(*args, side="left")
+            img, meta = f(*args, side='left')
             return jnp.where(img < thresh, img, fill_value), meta
 
         return threshold
 
 
 class UpperThresholdInfixLiteralisation(Literalisation):
-    affix: str = "infix"
+    affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="uthr",
+            cmd='uthr',
             params={
-                "fill": "float",
+                'fill': 'float',
             },
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        fill_value = params["fill"]
-        if fill_value == "":
-            params["fill"] = 0.0
+        fill_value = params['fill']
+        if fill_value == '':
+            params['fill'] = 0.0
         else:
-            params["fill"] = float(fill_value)
+            params['fill'] = float(fill_value)
         return params
 
 
@@ -486,8 +486,8 @@ class UpperThresholdNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f_lhs, f_rhs = pparams
-        fill = params["fill"]
-        num_leaves = params["num_leaves"]
+        fill = params['fill']
+        num_leaves = params['num_leaves']
 
         def uthreshold(lhs: Tensor, rhs: Tensor) -> Tensor:
             return jnp.where(lhs < rhs, lhs, fill)
@@ -502,13 +502,13 @@ class UpperThresholdNode(TransformPrimitive):
 
 class MorphologicalSuffixLiteralisation(Literalisation):
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        kernel_size = params["kernel_size"]
-        if kernel_size == "":
-            params["kernel_size"] = (1,)
+        kernel_size = params['kernel_size']
+        if kernel_size == '':
+            params['kernel_size'] = (1,)
         else:
-            kernel_size = kernel_size.split(",")
+            kernel_size = kernel_size.split(',')
             kernel_size = tuple(int(k) for k in kernel_size)
-            params["kernel_size"] = kernel_size
+            params['kernel_size'] = kernel_size
         return params
 
 
@@ -538,12 +538,12 @@ def _morphological_transform(
 
 
 class DilateSuffixLiteralisation(MorphologicalSuffixLiteralisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="dil",
+            cmd='dil',
             params={
-                "kernel_size": "nnintseq",
+                'kernel_size': 'nnintseq',
             },
         )
     )
@@ -558,12 +558,12 @@ class DilateNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        kernel_size = params["kernel_size"]
-        num_leaves = params["num_leaves"]
+        kernel_size = params['kernel_size']
+        num_leaves = params['num_leaves']
 
         def dilate(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tensor:
             args = select_args(args, side, num_leaves)
             img, meta = f(*args)
@@ -571,7 +571,7 @@ class DilateNode(TransformPrimitive):
                 img=img,
                 meta=meta,
                 kernel_size=kernel_size,
-                op="dilate",
+                op='dilate',
             )
 
         return dilate
@@ -581,12 +581,12 @@ class DilateNode(TransformPrimitive):
 
 
 class ErodeSuffixLiteralisation(MorphologicalSuffixLiteralisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="ero",
+            cmd='ero',
             params={
-                "kernel_size": "nnintseq",
+                'kernel_size': 'nnintseq',
             },
         )
     )
@@ -601,12 +601,12 @@ class ErodeNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        kernel_size = params["kernel_size"]
-        num_leaves = params["num_leaves"]
+        kernel_size = params['kernel_size']
+        num_leaves = params['num_leaves']
 
         def erode(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tensor:
             args = select_args(args, side, num_leaves)
             img, meta = f(*args)
@@ -614,7 +614,7 @@ class ErodeNode(TransformPrimitive):
                 img=img,
                 meta=meta,
                 kernel_size=kernel_size,
-                op="erode",
+                op='erode',
             )
 
         return erode
@@ -624,12 +624,12 @@ class ErodeNode(TransformPrimitive):
 
 
 class OpeningSuffixLiteralisation(MorphologicalSuffixLiteralisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="opening",
+            cmd='opening',
             params={
-                "kernel_size": "nnintseq",
+                'kernel_size': 'nnintseq',
             },
         )
     )
@@ -644,12 +644,12 @@ class OpeningNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        kernel_size = params["kernel_size"]
-        num_leaves = params["num_leaves"]
+        kernel_size = params['kernel_size']
+        num_leaves = params['num_leaves']
 
         def opening(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tensor:
             args = select_args(args, side, num_leaves)
             img, meta = f(*args)
@@ -657,7 +657,7 @@ class OpeningNode(TransformPrimitive):
                 img=img,
                 meta=meta,
                 kernel_size=kernel_size,
-                op="open",
+                op='open',
             )
 
         return opening
@@ -667,12 +667,12 @@ class OpeningNode(TransformPrimitive):
 
 
 class ClosingSuffixLiteralisation(MorphologicalSuffixLiteralisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="closing",
+            cmd='closing',
             params={
-                "kernel_size": "nnintseq",
+                'kernel_size': 'nnintseq',
             },
         )
     )
@@ -687,12 +687,12 @@ class ClosingNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        kernel_size = params["kernel_size"]
-        num_leaves = params["num_leaves"]
+        kernel_size = params['kernel_size']
+        num_leaves = params['num_leaves']
 
         def closing(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tensor:
             args = select_args(args, side, num_leaves)
             img, meta = f(*args)
@@ -700,7 +700,7 @@ class ClosingNode(TransformPrimitive):
                 img=img,
                 meta=meta,
                 kernel_size=kernel_size,
-                op="close",
+                op='close',
             )
 
         return closing
@@ -710,30 +710,30 @@ class ClosingNode(TransformPrimitive):
 
 
 class FillHolesSuffixLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="fillholes",
+            cmd='fillholes',
             params={
-                "kernel_size": "nnintseq",
-                "num_iters": "nnint",
+                'kernel_size': 'nnintseq',
+                'num_iters': 'nnint',
             },
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        num_iters = params.get("num_iters", None)
+        num_iters = params.get('num_iters', None)
         if num_iters is not None:
             num_iters = int(num_iters)
-        params["num_iters"] = num_iters
+        params['num_iters'] = num_iters
 
-        kernel_size = params["kernel_size"]
-        if kernel_size == "":
-            params["kernel_size"] = (1,)
+        kernel_size = params['kernel_size']
+        if kernel_size == '':
+            params['kernel_size'] = (1,)
         else:
-            kernel_size = kernel_size.split(",")
+            kernel_size = kernel_size.split(',')
             kernel_size = tuple(int(k) for k in kernel_size)
-            params["kernel_size"] = kernel_size
+            params['kernel_size'] = kernel_size
         return params
 
 
@@ -746,13 +746,13 @@ class FillHolesNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        kernel_size = params["kernel_size"]
-        num_iters = params["num_iters"]
-        num_leaves = params["num_leaves"]
+        kernel_size = params['kernel_size']
+        num_iters = params['num_iters']
+        num_leaves = params['num_leaves']
 
         def closing(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tensor:
             args = select_args(args, side, num_leaves)
             img, meta = f(*args)
@@ -781,10 +781,10 @@ class FillHolesNode(TransformPrimitive):
 
 
 class NegationSuffixLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="neg",
+            cmd='neg',
         )
     )
 
@@ -801,11 +801,11 @@ class NegationNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        num_leaves = params["num_leaves"]
+        num_leaves = params['num_leaves']
 
         def negate(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tensor:
             args = select_args(args, side, num_leaves)
             img, meta = f(*args)
@@ -830,11 +830,11 @@ def binary_transform(
 ) -> Callable:
     def transform_impl(
         *args,
-        side: Literal["left", "right"] = "left",
+        side: Literal['left', 'right'] = 'left',
     ) -> Tensor:
         args = select_args(args, side, num_leaves)
-        img_lhs, meta_lhs = f_lhs(*args, side="left")
-        img_rhs, meta_rhs = f_rhs(*args, side="right")
+        img_lhs, meta_lhs = f_lhs(*args, side='left')
+        img_rhs, meta_rhs = f_rhs(*args, side='right')
         return (
             transform(img_lhs, img_rhs),
             coalesce_metadata(meta_lhs, meta_rhs),
@@ -847,10 +847,10 @@ def binary_transform(
 
 
 class UnionInfixLiteralisation(Literalisation):
-    affix: str = "infix"
+    affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="or",
+            cmd='or',
         )
     )
 
@@ -867,7 +867,7 @@ class UnionNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f_lhs, f_rhs = pparams
-        num_leaves = params["num_leaves"]
+        num_leaves = params['num_leaves']
 
         def union(lhs: Tensor, rhs: Tensor) -> Tensor:
             return jnp.logical_or(lhs, rhs)
@@ -879,10 +879,10 @@ class UnionNode(TransformPrimitive):
 
 
 class IntersectionInfixLiteralisation(Literalisation):
-    affix: str = "infix"
+    affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="and",
+            cmd='and',
         )
     )
 
@@ -899,7 +899,7 @@ class IntersectionNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f_lhs, f_rhs = pparams
-        num_leaves = params["num_leaves"]
+        num_leaves = params['num_leaves']
 
         def intersection(lhs: Tensor, rhs: Tensor) -> Tensor:
             return jnp.logical_and(lhs, rhs)
@@ -916,16 +916,16 @@ class IntersectionNode(TransformPrimitive):
 
 
 class UnaryAdditionSuffixLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="add",
-            unarised="float",
+            cmd='add',
+            unarised='float',
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["scalar"] = float(params["scalar"])
+        params['scalar'] = float(params['scalar'])
         return params
 
 
@@ -938,25 +938,25 @@ class UnaryAdditionNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        scalar = params["scalar"]
-        num_leaves = params["num_leaves"]
+        scalar = params['scalar']
+        num_leaves = params['num_leaves']
 
         def add(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Any]:
             args = select_args(args, side, num_leaves)
-            img, meta = f(*args, side="left")
+            img, meta = f(*args, side='left')
             return img + scalar, meta
 
         return add
 
 
 class AdditionInfixLiteralisation(Literalisation):
-    affix: str = "infix"
+    affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="add",
+            cmd='add',
         )
     )
 
@@ -973,7 +973,7 @@ class AdditionNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f_lhs, f_rhs = pparams
-        num_leaves = params["num_leaves"]
+        num_leaves = params['num_leaves']
 
         def add(lhs: Tensor, rhs: Tensor) -> Tensor:
             return lhs + rhs
@@ -985,33 +985,33 @@ class AdditionNode(TransformPrimitive):
 
 
 class UnarySubtractionSuffixLeftLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="sub",
-            unarised="float",
+            cmd='sub',
+            unarised='float',
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["scalar"] = float(params["scalar"])
-        params["side"] = "left"
+        params['scalar'] = float(params['scalar'])
+        params['side'] = 'left'
         return params
 
 
 class UnarySubtractionSuffixRightLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="sub",
-            unarised="float",
+            cmd='sub',
+            unarised='float',
             right=True,
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["scalar"] = float(params["scalar"])
-        params["side"] = "right"
+        params['scalar'] = float(params['scalar'])
+        params['side'] = 'right'
         return params
 
 
@@ -1027,17 +1027,17 @@ class UnarySubtractionNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        scalar = params["scalar"]
-        op_side = params["side"]
-        num_leaves = params["num_leaves"]
+        scalar = params['scalar']
+        op_side = params['side']
+        num_leaves = params['num_leaves']
 
         def subtract(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Any]:
             args = select_args(args, side, num_leaves)
-            img, meta = f(*args, side="left")
-            if op_side == "left":
+            img, meta = f(*args, side='left')
+            if op_side == 'left':
                 return img - scalar, meta
             else:
                 return scalar - img, meta
@@ -1046,10 +1046,10 @@ class UnarySubtractionNode(TransformPrimitive):
 
 
 class SubtractionInfixLiteralisation(Literalisation):
-    affix: str = "infix"
+    affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="sub",
+            cmd='sub',
         )
     )
 
@@ -1066,7 +1066,7 @@ class SubtractionNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f_lhs, f_rhs = pparams
-        num_leaves = params["num_leaves"]
+        num_leaves = params['num_leaves']
 
         def subtract(lhs: Tensor, rhs: Tensor) -> Tensor:
             return lhs - rhs
@@ -1078,16 +1078,16 @@ class SubtractionNode(TransformPrimitive):
 
 
 class UnaryMultiplicationSuffixLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="mul",
-            unarised="float",
+            cmd='mul',
+            unarised='float',
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["scalar"] = float(params["scalar"])
+        params['scalar'] = float(params['scalar'])
         return params
 
 
@@ -1102,25 +1102,25 @@ class UnaryMultiplicationNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        scalar = params["scalar"]
-        num_leaves = params["num_leaves"]
+        scalar = params['scalar']
+        num_leaves = params['num_leaves']
 
         def multiply(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Any]:
             args = select_args(args, side, num_leaves)
-            img, meta = f(*args, side="left")
+            img, meta = f(*args, side='left')
             return img * scalar, meta
 
         return multiply
 
 
 class MultiplicationInfixLiteralisation(Literalisation):
-    affix: str = "infix"
+    affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="mul",
+            cmd='mul',
         )
     )
 
@@ -1137,7 +1137,7 @@ class MultiplicationNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f_lhs, f_rhs = pparams
-        num_leaves = params["num_leaves"]
+        num_leaves = params['num_leaves']
 
         def multiply(lhs: Tensor, rhs: Tensor) -> Tensor:
             return lhs * rhs
@@ -1149,33 +1149,33 @@ class MultiplicationNode(TransformPrimitive):
 
 
 class UnaryDivisionSuffixLeftLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="div",
-            unarised="float",
+            cmd='div',
+            unarised='float',
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["scalar"] = float(params["scalar"])
-        params["side"] = "left"
+        params['scalar'] = float(params['scalar'])
+        params['side'] = 'left'
         return params
 
 
 class UnaryDivisionSuffixRightLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="div",
-            unarised="float",
+            cmd='div',
+            unarised='float',
             right=True,
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["scalar"] = float(params["scalar"])
-        params["side"] = "right"
+        params['scalar'] = float(params['scalar'])
+        params['side'] = 'right'
         return params
 
 
@@ -1191,17 +1191,17 @@ class UnaryDivisionNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        scalar = params["scalar"]
-        op_side = params["side"]
-        num_leaves = params["num_leaves"]
+        scalar = params['scalar']
+        op_side = params['side']
+        num_leaves = params['num_leaves']
 
         def divide(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Any]:
             args = select_args(args, side, num_leaves)
-            img, meta = f(*args, side="left")
-            if op_side == "left":
+            img, meta = f(*args, side='left')
+            if op_side == 'left':
                 return img / scalar, meta
             else:
                 return scalar / img, meta
@@ -1210,10 +1210,10 @@ class UnaryDivisionNode(TransformPrimitive):
 
 
 class DivisionInfixLiteralisation(Literalisation):
-    affix: str = "infix"
+    affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="div",
+            cmd='div',
         )
     )
 
@@ -1230,7 +1230,7 @@ class DivisionNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f_lhs, f_rhs = pparams
-        num_leaves = params["num_leaves"]
+        num_leaves = params['num_leaves']
 
         def divide(lhs: Tensor, rhs: Tensor) -> Tensor:
             return lhs * rhs
@@ -1242,33 +1242,33 @@ class DivisionNode(TransformPrimitive):
 
 
 class UnaryRemainderSuffixLeftLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="mod",
-            unarised="int",
+            cmd='mod',
+            unarised='int',
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["scalar"] = float(params["scalar"])
-        params["side"] = "left"
+        params['scalar'] = float(params['scalar'])
+        params['side'] = 'left'
         return params
 
 
 class UnaryRemainderSuffixRightLiteralisation(Literalisation):
-    affix: str = "suffix"
+    affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="mod",
-            unarised="int",
+            cmd='mod',
+            unarised='int',
             right=True,
         )
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["scalar"] = float(params["scalar"])
-        params["side"] = "right"
+        params['scalar'] = float(params['scalar'])
+        params['side'] = 'right'
         return params
 
 
@@ -1284,17 +1284,17 @@ class UnaryRemainderNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f = pparams[0]
-        scalar = params["scalar"]
-        op_side = params["side"]
-        num_leaves = params["num_leaves"]
+        scalar = params['scalar']
+        op_side = params['side']
+        num_leaves = params['num_leaves']
 
         def modulo(
             *args,
-            side: Literal["left", "right"] = "left",
+            side: Literal['left', 'right'] = 'left',
         ) -> Tuple[Tensor, Any]:
             args = select_args(args, side, num_leaves)
-            img, meta = f(*args, side="left")
-            if op_side == "left":
+            img, meta = f(*args, side='left')
+            if op_side == 'left':
                 return img % scalar, meta
             else:
                 return scalar % img, meta
@@ -1303,10 +1303,10 @@ class UnaryRemainderNode(TransformPrimitive):
 
 
 class RemainderInfixLiteralisation(Literalisation):
-    affix: str = "infix"
+    affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
-            cmd="mod",
+            cmd='mod',
         )
     )
 
@@ -1323,7 +1323,7 @@ class RemainderNode(TransformPrimitive):
     def ascend(self, *pparams, **params) -> Callable:
 
         f_lhs, f_rhs = pparams
-        num_leaves = params["num_leaves"]
+        num_leaves = params['num_leaves']
 
         def modulo(lhs: Tensor, rhs: Tensor) -> Tensor:
             return lhs % rhs

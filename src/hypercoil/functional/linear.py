@@ -45,10 +45,10 @@ def normalise_psc(data: Tensor, weight: Optional[Tensor] = None) -> Tensor:
 
 def _norm() -> Mapping[str, Callable]:
     return {
-        "mean": normalise_mean,
-        "absmean": normalise_absmean,
-        "zscore": normalise_zscore,
-        "psc": normalise_psc,
+        'mean': normalise_mean,
+        'absmean': normalise_absmean,
+        'zscore': normalise_zscore,
+        'psc': normalise_psc,
     }
 
 
@@ -80,11 +80,11 @@ def select_compartment(
 def linear_call(
     input: Tensor,
     weight: Tensor,
-    forward_mode: Literal["map", "project"] = "map",
+    forward_mode: Literal['map', 'project'] = 'map',
 ) -> Tensor:
-    if forward_mode == "map":
+    if forward_mode == 'map':
         return weight @ input
-    elif forward_mode == "project":
+    elif forward_mode == 'project':
         return jnp.linalg.lstsq(weight.swapaxes(-2, -1), input)[0]
 
 
@@ -93,7 +93,7 @@ def _compartmentalised_linear_impl(
     weight: Tensor,
     limits: Tuple[int, int],
     normalisation: Optional[str] = None,
-    forward_mode: Literal["map", "project"] = "map",
+    forward_mode: Literal['map', 'project'] = 'map',
 ) -> Tensor:
     """
     Linear layer with compartment-specific weights.
@@ -131,9 +131,9 @@ def compartmentalised_linear(
     decoder: Optional[Mapping[str, Tensor]] = None,
     bias: Optional[Tensor] = None,
     normalisation: (
-        Optional[Literal["mean", "absmean", "zscore", "psc"]]
+        Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
     ) = None,
-    forward_mode: Literal["map", "project"] = "map",
+    forward_mode: Literal['map', 'project'] = 'map',
     concatenate: bool = True,
 ) -> Tensor:
     """

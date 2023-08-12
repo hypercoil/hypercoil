@@ -14,7 +14,6 @@ import equinox as eqx
 
 from ..engine import Tensor
 from ..engine.paramutil import _to_jax_array
-from ..functional.matrix import expand_outer
 from ..functional.sylo import recombine
 
 
@@ -60,7 +59,7 @@ class Recombinator(eqx.Module):
         bias: bool = True,
         positive_only: bool = False,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         key_w, key_b = jax.random.split(key)
 
@@ -94,7 +93,7 @@ class Recombinator(eqx.Module):
         input: Tensor,
         query: Tensor = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         weight = _to_jax_array(self.weight)
         if self.bias is not None:

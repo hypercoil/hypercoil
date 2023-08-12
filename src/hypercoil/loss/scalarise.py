@@ -132,7 +132,7 @@ def sum_scalarise(
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional["jax.random.PRNGKey"] = None,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by summing
@@ -164,7 +164,7 @@ def mean_scalarise(
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional["jax.random.PRNGKey"] = None,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -196,7 +196,7 @@ def meansq_scalarise(
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional["jax.random.PRNGKey"] = None,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -228,7 +228,7 @@ def max_scalarise(
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional["jax.random.PRNGKey"] = None,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -265,7 +265,7 @@ def norm_scalarise(
     axis: Union[int, Sequence[int]] = -1,
     inner: Optional[Callable] = None,
     keepdims: bool = False,
-    key: Optional["jax.random.PRNGKey"] = None,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[..., float]:
     """
     Compute a specified norm along an axis or set of axes, and then map the
@@ -324,7 +324,7 @@ def vnorm_scalarise(
     axis: Union[int, Sequence[int]] = -1,
     inner: Optional[Callable] = None,
     keepdims: bool = False,
-    key: Optional["jax.random.PRNGKey"] = None,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[..., float]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -393,7 +393,7 @@ def wmean(
         axis = (axis,)
     assert weight.ndim == len(
         axis
-    ), "Weight must have as many dimensions as are being reduced"
+    ), 'Weight must have as many dimensions as are being reduced'
     retain = [(i not in axis) for i in range(input.ndim)]
     for i, d in enumerate(retain):
         if d:
@@ -408,7 +408,7 @@ def selfwmean(
     input: Tensor,
     axis: Optional[Union[Sequence[int], int]] = None,
     keepdims: bool = False,
-    gradpath: Optional[Literal["weight", "input"]] = "input",
+    gradpath: Optional[Literal['weight', 'input']] = 'input',
     softmax_axis: Optional[Union[Sequence[int], int, bool]] = False,
     softmax_invert: bool = False,
 ) -> Tensor:
@@ -426,9 +426,9 @@ def selfwmean(
         weight = jax.nn.softmax(input, axis=softmax_axis)
     # I don't think this actually does what we want it to, but this function
     # is actually unsupported, so we won't worry about it yet.
-    if gradpath == "input":
+    if gradpath == 'input':
         weight = jax.lax.stop_gradient(weight)
-    elif gradpath == "weight":
+    elif gradpath == 'weight':
         input = jax.lax.stop_gradient(input)
     return wmean(
         input=input,
@@ -444,7 +444,7 @@ def wmean_scalarise(
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
     keepdims: bool = False,
-    key: Optional["jax.random.PRNGKey"] = None,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking
@@ -491,11 +491,11 @@ def selfwmean_scalarise(
     *,
     inner: Optional[Callable] = None,
     axis: Union[int, Sequence[int]] = None,
-    gradpath: Optional[Literal["weight", "input"]] = "input",
+    gradpath: Optional[Literal['weight', 'input']] = 'input',
     softmax_axis: Optional[Union[Sequence[int], int, bool]] = False,
     softmax_invert: bool = False,
     keepdims: bool = False,
-    key: Optional["jax.random.PRNGKey"] = None,
+    key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
     Transform a tensor-valued function to a scalar-valued function by taking

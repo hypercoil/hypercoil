@@ -7,7 +7,7 @@ can disappear altogether or be moved elsewhere, but for now they exist, a sad
 blemish.
 """
 from __future__ import annotations
-from typing import Callable, Optional, Sequence, Tuple, Union
+from typing import Callable, Sequence, Tuple, Union
 
 import jax.numpy as jnp
 from jax.experimental.sparse import BCOO

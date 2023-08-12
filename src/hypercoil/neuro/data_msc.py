@@ -8,15 +8,18 @@ Minimal MSC dataset for testing or rapid prototyping.
 """
 from __future__ import annotations
 import os
+import pathlib
 import re
 import shutil
-import pathlib
-import requests, zipfile
-import pandas as pd
+import zipfile
+from typing import Optional, Sequence, Tuple
+
 import jax
 import jax.numpy as jnp
+import pandas as pd
+import requests
 from pkg_resources import resource_filename as pkgrf
-from typing import Optional, Sequence, Tuple
+
 from ..engine import extend_to_max_size
 
 
@@ -53,8 +56,10 @@ def minimal_msc_download(delete_if_exists: bool = False) -> str:
         f.write(r.content)
     with zipfile.ZipFile(zip_target, 'r') as zip_ref:
         zip_ref.extractall(f'{output}')
-    shutil.move(f'{output}/miniMSC-4b346577c67e278e0f51b209a83aed87811788c6',
-                f'{output}/MSCMinimal')
+    shutil.move(
+        f'{output}/miniMSC-4b346577c67e278e0f51b209a83aed87811788c6',
+        f'{output}/MSCMinimal',
+    )
     os.remove(zip_target)
     return f'{output}/MSCMinimal'
 
@@ -74,13 +79,17 @@ def minimal_msc_all_pointers(
     if task is None:
         task = '*'
     paths = pathlib.Path(f'{dir}/data/ts/').glob(
-        f'sub-MSC{sub}_ses-func{ses}_task-{task}_*ts.1D')
+        f'sub-MSC{sub}_ses-func{ses}_task-{task}_*ts.1D'
+    )
     paths = list(paths)
     paths.sort()
-    paths = tuple((
-        str(path),
-        f"{re.sub(r'/ts/', '/motion/', str(path))[:-17]}relRMS.1D",
-    ) for path in paths)
+    paths = tuple(
+        (
+            str(path),
+            f"{re.sub(r'/ts/', '/motion/', str(path))[:-17]}relRMS.1D",
+        )
+        for path in paths
+    )
     return paths
 
 
@@ -88,13 +97,14 @@ class MSCMinimal:
     """
     Minimal version of the Midnight Scan Club dataset.
     """
-    #TODO: add option to split by subject or session
-    #TODO: gotta implement DataLoader / torch data compatibility for
+
+    # TODO: add option to split by subject or session
+    # TODO: gotta implement DataLoader / torch data compatibility for
     # parallelisation. or use async.
     def __init__(
         self,
         delete_if_exists: bool = False,
-        #all_in_memory: bool = False,
+        # all_in_memory: bool = False,
         shuffle: bool = True,
         batch_size: int = 1,
         sub: Optional[str] = None,
@@ -105,7 +115,8 @@ class MSCMinimal:
     ):
         self.srcdir = minimal_msc_download(delete_if_exists=delete_if_exists)
         self.paths = minimal_msc_all_pointers(
-            self.srcdir, sub=sub, task=task, ses=ses)
+            self.srcdir, sub=sub, task=task, ses=ses
+        )
         self.max = len(self.paths)
         self.shuffle = shuffle
         self.rms_thresh = rms_thresh
@@ -125,10 +136,12 @@ class MSCMinimal:
         }
         if self.rms_thresh is not None:
             motion = pd.read_csv(motion, sep=' ', header=None)
-            tmask = (motion <= self.rms_thresh)
-            ret.update({
-                'tmask': jnp.array(tmask.values.T.astype(bool)),
-            })
+            tmask = motion <= self.rms_thresh
+            ret.update(
+                {
+                    'tmask': jnp.array(tmask.values.T.astype(bool)),
+                }
+            )
         return ret
 
     def _load_batch(self):
@@ -141,15 +154,20 @@ class MSCMinimal:
             'bold': jnp.stack(
                 extend_to_max_size(
                     tuple(item['bold'] for item in batchref), fill=0
-                )),
+                )
+            ),
         }
         if self.rms_thresh is not None:
-            batch.update({
-                'tmask': jnp.stack(
-                    extend_to_max_size(
-                        tuple(item['tmask'] for item in batchref), fill=False
-                    )),
-            })
+            batch.update(
+                {
+                    'tmask': jnp.stack(
+                        extend_to_max_size(
+                            tuple(item['tmask'] for item in batchref),
+                            fill=False,
+                        )
+                    ),
+                }
+            )
         return batch
 
     def cfg_iter(
@@ -160,7 +178,9 @@ class MSCMinimal:
         self.idx = -self.batch_size
         idxmap = jnp.arange(self.max)
         if shuffle:
-            idxmap = jax.random.permutation(key=key, x=idxmap, independent=True)
+            idxmap = jax.random.permutation(
+                key=key, x=idxmap, independent=True
+            )
         self.idxmap = idxmap
 
     def __iter__(self):

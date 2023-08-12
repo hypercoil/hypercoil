@@ -42,7 +42,7 @@ class SpectralInterpolate(eqx.Module):
         input: Tensor,
         mask: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         return spectral_interpolate(
             data=input,
@@ -65,7 +65,7 @@ class LinearInterpolate(eqx.Module):
         input: Tensor,
         mask: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         return linear_interpolate(
             data=input,
@@ -97,7 +97,7 @@ class HybridInterpolate(eqx.Module):
         input: Tensor,
         mask: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         return hybrid_interpolate(
             data=input,

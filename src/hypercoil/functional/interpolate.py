@@ -451,7 +451,7 @@ def weighted_interpolate(
     data: Tensor,
     mask: Tensor,
     start_stage: int = 1,
-    max_stage: Union[int, Literal["auto"]] = "auto",
+    max_stage: Union[int, Literal['auto']] = 'auto',
     stages: Optional[Sequence[int]] = None,
     map_to_kernel: Optional[Callable] = None,
 ) -> Tensor:
@@ -477,12 +477,8 @@ def weighted_interpolate(
         map_to_kernel = partial(centred_square_kernel, max_stage=max_stage)
         # map_to_kernel = lambda s: jnp.ones(2 * s + 1)
     kernels = jnp.stack(make_kernels(stages, map_to_kernel))
-    f = lambda x, k: _weighted_interpolate_stage(
-        data=x[0],
-        mask=x[1],
-        kernel=k,
-        # orig_data=orig_data,
-    )
+    def f(x, k):
+        return _weighted_interpolate_stage(data=x[0], mask=x[1], kernel=k)
     (data, mask), _ = jax.lax.scan(
         f=f,
         init=(data, mask),
@@ -501,10 +497,10 @@ def make_kernels(
 
 def all_stages(
     start_stage: int = 1,
-    max_stage: Union[int, Literal["auto"]] = "auto",
+    max_stage: Union[int, Literal['auto']] = 'auto',
     mask: Optional[Tensor] = None,
 ) -> Sequence[int]:
-    if max_stage == "auto":
+    if max_stage == 'auto':
         max_stage = vmap_over_outer(max_number_consecutive, 1)((~mask,)).max()
     return range(start_stage, max_stage + 1)
 
@@ -638,7 +634,7 @@ def _apply_periodogram(
     all_samples: Tensor,
     angular_frequencies: Tensor,
 ) -> Tuple[Tensor, Tensor]:
-    seen_samples = jnp.where(tmask, all_samples, float("nan"))
+    seen_samples = jnp.where(tmask, all_samples, float('nan'))
     arg = jnp.outer(angular_frequencies, seen_samples)
     return jnp.sin(arg), jnp.cos(arg)
 

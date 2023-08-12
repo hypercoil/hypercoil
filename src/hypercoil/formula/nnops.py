@@ -83,7 +83,7 @@ def filter_address(
 
 class ParameterAddressGrammar(Grammar):
     groupings: GroupingPool = GroupingPool(
-        Grouping(open="(", close=")"),
+        Grouping(open='(', close=')'),
     )
     transforms: TransformPool = field(
         default_factory=lambda: TransformPool(
@@ -112,9 +112,9 @@ class ParameterSelectInterpreter(LeafInterpreter):
             except AttributeError:
                 try:
                     return (model.__getitem__(leaf),)
-                except (AttributeError, KeyError, TypeError) as e:
+                except (AttributeError, KeyError, TypeError):
                     raise AttributeError(
-                        f"Could not retrieve parameter {leaf} from model {model}."
+                        f'Could not retrieve parameter {leaf} from model {model}.'
                     )
 
         def retrieve_parameters(arg: Any) -> PyTree:
@@ -131,7 +131,7 @@ class ParameterSelectInterpreter(LeafInterpreter):
 class ParameterAddressRootNode(TransformPrimitive):
     min_arity: int = 1
     max_arity: int = 1
-    priority: float = float("inf")
+    priority: float = float('inf')
     associative: bool = False
     commutative: bool = False
     literals: Sequence[Literalisation] = ()
@@ -149,8 +149,8 @@ class ParameterAddressRootNode(TransformPrimitive):
 
 
 class ConcatenateInfixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "infix"
-    regex: str = r"\;"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
+    regex: str = r'\;'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -158,7 +158,7 @@ class ConcatenateInfixLiteralisation(Literalisation):
 
 class ConcatenateNode(TransformPrimitive):
     min_arity: int = 2
-    max_arity: int = float("inf")
+    max_arity: int = float('inf')
     priority: int = 4
     associative: bool = True
     commutative: bool = True
@@ -176,16 +176,16 @@ class ConcatenateNode(TransformPrimitive):
 
 
 class StringKeyInfixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "infix"
-    regex: str = r"\$"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
+    regex: str = r'\$'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
 
 
 class AttributeInfixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "infix"
-    regex: str = r"\."
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
+    regex: str = r'\.'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -221,33 +221,33 @@ class KeyNode(TransformPrimitive):
 
 
 class IntegerKeySuffixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "suffix"
-    regex: str = r"\#(?P<index>[0-9]+)"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
+    regex: str = r'\#(?P<index>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["index"] = (int(params["index"]),)
+        params['index'] = (int(params['index']),)
         return params
 
 
 class IntegerKeyMultiSuffixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "suffix"
-    regex: str = r"\#(?P<index>[0-9]+[\,[0-9]+]+)"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
+    regex: str = r'\#(?P<index>[0-9]+[\,[0-9]+]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["index"] = tuple(int(z) for z in params["index"].split(","))
+        params['index'] = tuple(int(z) for z in params['index'].split(','))
         return params
 
 
 class IntegerKeyMultiRangeSuffixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "suffix"
-    regex: str = r"\#(?P<index>[0-9]+[\:0-9]*[\,\:0-9]+)"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
+    regex: str = r'\#(?P<index>[0-9]+[\:0-9]*[\,\:0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        keys = params["index"].split(",")
+        keys = params['index'].split(',')
         index = []
         for key in keys:
-            if ":" in key:
-                lim = [int(z) if z != "" else None for z in key.split(":")]
+            if ':' in key:
+                lim = [int(z) if z != '' else None for z in key.split(':')]
                 if isinstance(lim[1], int):
                     lim[1] += 1
                 index += [
@@ -255,7 +255,7 @@ class IntegerKeyMultiRangeSuffixLiteralisation(Literalisation):
                 ]
             else:
                 index += [int(key)]
-        params["index"] = tuple(index)
+        params['index'] = tuple(index)
         return params
 
 
@@ -277,11 +277,13 @@ class IntegerKeyNode(TransformPrimitive):
         if pparams:
             f = pparams[0]
         else:
-            f = lambda x: x
+
+            def f(x):
+                return x
 
         def getitem_impl(acc):
             out = ()
-            for index in params["index"]:
+            for index in params['index']:
                 if isinstance(index, slice):
                     start, stop, step = index.start, index.stop, index.step
                     if start is None:

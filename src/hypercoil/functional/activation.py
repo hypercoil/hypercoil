@@ -306,7 +306,7 @@ def document_corrnorm(f: Callable) -> Callable:
 def corrnorm(
     input: Tensor,
     factor: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
-    gradpath: Literal["input", "both"] = "both",
+    gradpath: Literal['input', 'both'] = 'both',
 ) -> Tensor:
     """
     Correlation normalisation activation function.
@@ -317,7 +317,7 @@ def corrnorm(
         return input / factor
     elif factor is not None:
         factor = jnp.outer(factor[0], factor[1]) + jnp.finfo(input.dtype).eps
-    elif gradpath == "input":
+    elif gradpath == 'input':
         factor = jax.lax.stop_gradient(_corrnorm_factor(input))
     else:
         factor = _corrnorm_factor(input)

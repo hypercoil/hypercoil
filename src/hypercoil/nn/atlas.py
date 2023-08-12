@@ -113,9 +113,9 @@ class AtlasLinear(eqx.Module):
     limits: Dict[str, Tuple[int, int]]
     decoder: Optional[Dict[str, Tensor]]
     normalisation: (
-        Optional[Literal["mean", "absmean", "zscore", "psc"]]
+        Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
     ) = None
-    forward_mode: Literal["map", "project"] = "map"
+    forward_mode: Literal['map', 'project'] = 'map'
     concatenate: bool = True
 
     def __init__(
@@ -125,17 +125,17 @@ class AtlasLinear(eqx.Module):
         limits: Dict[str, Tuple[int, int]] = None,
         decoder: Optional[Dict[str, Tensor]] = None,
         normalisation: (
-            Optional[Literal["mean", "absmean", "zscore", "psc"]]
-        ) = "mean",
-        forward_mode: Literal["map", "project"] = "map",
+            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
+        ) = 'mean',
+        forward_mode: Literal['map', 'project'] = 'map',
         concatenate: bool = True,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         compartments = set(n_locations.keys())
         if compartments != set(n_labels.keys()):
             raise ValueError(
-                "n_locations and n_labels must have the same keys"
+                'n_locations and n_labels must have the same keys'
             )
         keys = jax.random.split(key, len(compartments))
 
@@ -181,9 +181,9 @@ class AtlasLinear(eqx.Module):
         cls,
         atlas: BaseAtlas,
         normalisation: (
-            Optional[Literal["mean", "absmean", "zscore", "psc"]]
-        ) = "mean",
-        forward_mode: Literal["map", "project"] = "map",
+            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
+        ) = 'mean',
+        forward_mode: Literal['map', 'project'] = 'map',
         concatenate: bool = True,
         *,
         mapper: Optional[Type[MappedParameter]] = None,
@@ -193,8 +193,8 @@ class AtlasLinear(eqx.Module):
         truncate: Optional[float] = None,
         kernel_sigma: Optional[float] = None,
         noise_sigma: Optional[float] = None,
-        where: str = "weight",
-        key: "jax.random.PRNGKey",
+        where: str = 'weight',
+        key: 'jax.random.PRNGKey',
         **params,
     ) -> PyTree:
         """
@@ -252,12 +252,12 @@ class AtlasLinear(eqx.Module):
         self,
         input: Tensor,
         normalisation: (
-            Optional[Literal["mean", "absmean", "zscore", "psc"]]
+            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
         ) = None,
-        forward_mode: Optional[Literal["map", "project"]] = None,
+        forward_mode: Optional[Literal['map', 'project']] = None,
         concatenate: Optional[bool] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         if normalisation is None:
             normalisation = self.normalisation

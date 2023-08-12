@@ -229,7 +229,7 @@ def synthesise_matched(
     reference: Tensor,
     use_mean: bool = False,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tensor:
     """
     Create a synthetic signal matched in spectrum and covariance to a
@@ -276,7 +276,7 @@ def synthesise_from_cov_and_spectrum(
     spectrum: Tensor,
     cov: Tensor,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tensor:
     """
     Create a synthetic signal matched in spectrum and covariance to

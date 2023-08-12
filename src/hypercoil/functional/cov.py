@@ -178,7 +178,7 @@ def cov(
     X0 = X - avg
     if weight is None:
         sigma = X0 @ X0.swapaxes(-1, -2) / fact
-    elif w_type == "vector":
+    elif w_type == 'vector':
         sigma = (X0 * weight) @ X0.swapaxes(-1, -2) / fact
     else:
         sigma = X0 @ weight @ X0.swapaxes(-1, -2) / fact
@@ -346,7 +346,7 @@ def pairedcov(
     Y0 = Y - Yavg
     if weight is None:
         sigma = X0 @ Y0.swapaxes(-1, -2) / fact
-    elif w_type == "vector":
+    elif w_type == 'vector':
         sigma = (X0 * weight) @ Y0.swapaxes(-1, -2) / fact
     else:
         sigma = X0 @ weight @ Y0.swapaxes(-1, -2) / fact
@@ -583,7 +583,7 @@ def _prepare_weight_and_avg(
     weight: Optional[Tensor] = None,
 ) -> Tuple[
     Optional[Tensor],
-    Optional[Literal["vector", "matrix"]],
+    Optional[Literal['vector', 'matrix']],
     Union[float, int],
     Sequence[Tensor],
 ]:
@@ -595,12 +595,12 @@ def _prepare_weight_and_avg(
     """
     if weight is not None:
         if weight.ndim == 1 or weight.shape[-1] != weight.shape[-2]:
-            w_type = "vector"
+            w_type = 'vector'
             weight = _conform_vector_weight(weight)
             w_sum = weight.sum(-1, keepdims=True)
             avg = [(V * (weight / w_sum)).sum(-1, keepdims=True) for V in vars]
         else:
-            w_type = "matrix"
+            w_type = 'matrix'
             w_sum = weight.sum((-1, -2), keepdims=True)
             # TODO
             # We'll need to ensure that this is correct
@@ -615,7 +615,7 @@ def _prepare_weight_and_avg(
 
 def _prepare_denomfact(
     w_sum: Union[float, int],
-    w_type: Optional[Literal["vector", "matrix"]] = "matrix",
+    w_type: Optional[Literal['vector', 'matrix']] = 'matrix',
     ddof: Optional[int] = None,
     bias: bool = False,
     weight: Optional[Tensor] = None,
@@ -630,7 +630,7 @@ def _prepare_denomfact(
         fact = w_sum - ddof
     elif ddof == 0:
         fact = w_sum
-    elif w_type == "vector":
+    elif w_type == 'vector':
         fact = w_sum - ddof * (weight**2).sum(-1, keepdims=True) / w_sum
     else:
         # TODO

@@ -155,7 +155,7 @@ def spspmm(
     indices: Optional[Tensor] = None,
     n_blocks: int = 1,
 ):
-    """
+    r"""
     Sparse-sparse matrix multiplication of top-k format sparse matrices.
 
     This function is a wrapper around the JAX sparse matrix multiplication
@@ -223,7 +223,7 @@ def spspmm_full(
     lhs: TopKTensor,
     rhs: TopKTensor,
 ) -> Tensor:
-    """
+    r"""
     Matrix multiplication of a top-k format sparse matrix with another sparse
     matrix in the top-k format. Returns a full matrix.
 
@@ -246,7 +246,7 @@ def dspdmm(
     input: TopKTensor,
     diag: Tensor,
 ) -> TopKTensor:
-    """
+    r"""
     Left and right matrix multiplication of a top-k format sparse matrix with
     a diagonal matrix. Returns a sparse matrix in the top-k format. For a
     sparse matrix X and a diagonal matrix D, the result is
@@ -260,9 +260,9 @@ def dspdmm(
 def select_indices(
     tensor: Tensor,
     threshold: float = 0.0,
-    threshold_type: Literal["abs>", "abs<" ">", "<"] = "abs>",
+    threshold_type: Literal['abs>', 'abs<' '>', '<'] = 'abs>',
     top_k: bool = True,
-    top_k_reduction: Optional[Literal["mean"]] = "mean",
+    top_k_reduction: Optional[Literal['mean']] = 'mean',
     fix_indices_over_channel_dims: bool = True,
 ) -> Tensor:
     """
@@ -307,35 +307,35 @@ def select_indices(
     else:
         fixed_axes = (0,)
     if tensor.dtype == jnp.bool_:
-        data = tensor.any(axis=fixed_axes)
+        tensor.any(axis=fixed_axes)
         return jnp.stack(jnp.where(tensor), axis=-1)
     elif not top_k:
-        if threshold_type == "abs>":
+        if threshold_type == 'abs>':
             tensor = jnp.abs(tensor) > threshold
-        elif threshold_type == "abs<":
+        elif threshold_type == 'abs<':
             tensor = jnp.abs(tensor) < threshold
-        elif threshold_type == ">":
+        elif threshold_type == '>':
             tensor = tensor > threshold
-        elif threshold_type == "<":
+        elif threshold_type == '<':
             tensor = tensor < threshold
         tensor = tensor.any(axis=fixed_axes)
         return jnp.stack(jnp.where(tensor), axis=-1)
     else:
-        if top_k_reduction == "mean":
+        if top_k_reduction == 'mean':
             tensor = tensor.mean(axis=fixed_axes)
         if not isinstance(threshold, int):
             raise ValueError(
-                "If topk is True, then the threshold value must be an integer."
+                'If topk is True, then the threshold value must be an integer.'
             )
-        if threshold_type == "abs>":
+        if threshold_type == 'abs>':
             descending = True
             tensor = jnp.abs(tensor)
-        elif threshold_type == "abs<":
+        elif threshold_type == 'abs<':
             descending = False
             tensor = jnp.abs(tensor)
-        elif threshold_type == ">":
+        elif threshold_type == '>':
             descending = True
-        elif threshold_type == "<":
+        elif threshold_type == '<':
             descending = False
         return topk(
             tensor,
@@ -349,9 +349,9 @@ def trace_spspmm(
     lhs: TopKTensor,
     rhs: TopKTensor,
     threshold: float = 0.0,
-    threshold_type: Literal["abs>", "abs<" ">", "<"] = "abs>",
+    threshold_type: Literal['abs>', 'abs<' '>', '<'] = 'abs>',
     top_k: bool = True,
-    top_k_reduction: Optional[Literal["mean"]] = "mean",
+    top_k_reduction: Optional[Literal['mean']] = 'mean',
     fix_indices_over_channel_dims: bool = True,
 ) -> Tensor:
     """
@@ -554,7 +554,7 @@ def sp_block_serialise(
                 retnum += 2
 
     if sp_retshapes == () and sp_retnums != ():
-        raise ValueError("Must specify shapes of any sparse outputs")
+        raise ValueError('Must specify shapes of any sparse outputs')
     retnums, out_axes = zip(*_cfg_return())
     retnums, out_axes = tuple(retnums), tuple(out_axes)
     # print(retnums, out_axes)
@@ -583,7 +583,7 @@ def sp_block_serialise(
                 # yield _mk_bcoo(retvals, indices, shapes[s])
                 yield BCOO((retval, indices), shape=shapes[s])
                 s += 1
-            elif not (i - 1) in sp_retnums:
+            elif i - 1 not in sp_retnums:
                 yield retval
 
     def _package_as_topk(pparams, addresses):
@@ -669,8 +669,8 @@ def _serialised_spspmm(
 ) -> TopKTensor:
     if lhs.shape[-2] % n_blocks != 0:
         raise ValueError(
-            "The number of blocks must divide the number of rows in the "
-            "left-hand side matrix."
+            'The number of blocks must divide the number of rows in the '
+            'left-hand side matrix.'
         )
     lhs_data = fold_and_promote(lhs.data, axis=-2, n_folds=n_blocks)
     lhs_indices = fold_and_promote(lhs.indices, axis=-3, n_folds=n_blocks)
@@ -707,7 +707,7 @@ def topkx(
     *,
     retnums: Sequence[int] = (0,),
     auto_index: bool = False,
-    threshold_type: Literal["abs>", "abs<" ">", "<"] = "abs>",
+    threshold_type: Literal['abs>', 'abs<' '>', '<'] = 'abs>',
     fix_indices_over_channel_dims: bool = True,
 ) -> TopKTensor:
     """
@@ -956,7 +956,7 @@ def spsymv(
     lhs: TopKTensor,
     rhs: Tensor,
 ) -> Tensor:
-    """
+    r"""
     Matrix-vector product between a top-k formatted sparse tensor and a
     vector. The top-k tensor is implicitly symmetrised.
 

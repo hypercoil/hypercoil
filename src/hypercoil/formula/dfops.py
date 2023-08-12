@@ -36,14 +36,14 @@ from .grammar import (
 
 def confound_formula_shorthand():
     return {
-        "wm": "white_matter",
-        "gsr": "global_signal",
-        "rps": "trans_x + trans_y + trans_z + rot_x + rot_y + rot_z",
-        "fd": "framewise_displacement",
-        "dv": "std_dvars",
-        "acc": "a_comp_cor",
-        "wcc": "w_comp_cor",
-        "ccc": "c_comp_cor",
+        'wm': 'white_matter',
+        'gsr': 'global_signal',
+        'rps': 'trans_x + trans_y + trans_z + rot_x + rot_y + rot_z',
+        'fd': 'framewise_displacement',
+        'dv': 'std_dvars',
+        'acc': 'a_comp_cor',
+        'wcc': 'w_comp_cor',
+        'ccc': 'c_comp_cor',
     }
 
 
@@ -57,7 +57,7 @@ def collate_metadata(meta: Sequence[Optional[Dict]]) -> Any:
 
 class ConfoundFormulaGrammar(Grammar):
     groupings: GroupingPool = GroupingPool(
-        Grouping(open="(", close=")"),
+        Grouping(open='(', close=')'),
     )
     transforms: TransformPool = field(
         default_factory=lambda: TransformPool(
@@ -102,7 +102,7 @@ class ColumnSelectInterpreter(LeafInterpreter):
 class DeduplicateRootNode(TransformPrimitive):
     min_arity: int = 1
     max_arity: int = 1
-    priority: float = float("inf")
+    priority: float = float('inf')
     associative: bool = False
     commutative: bool = False
     literals: Sequence[Literalisation] = ()
@@ -125,16 +125,16 @@ class DeduplicateRootNode(TransformPrimitive):
 
 
 class ConcatenateInfixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "infix"
-    regex: str = r"\+"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
+    regex: str = r'\+'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
 
 
 class ConcatenatePrefixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "prefix"
-    regex: str = r"\+\{[^\{^\}]+\}"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
+    regex: str = r'\+\{[^\{^\}]+\}'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -142,7 +142,7 @@ class ConcatenatePrefixLiteralisation(Literalisation):
 
 class ConcatenateNode(TransformPrimitive):
     min_arity: int = 2
-    max_arity: int = float("inf")
+    max_arity: int = float('inf')
     priority: int = 3
     associative: bool = True
     commutative: bool = True
@@ -166,39 +166,39 @@ class ConcatenateNode(TransformPrimitive):
 
 
 class BackwardDifferencePrefixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "prefix"
-    regex: str = r"d(?P<order>[0-9]+)"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
+    regex: str = r'd(?P<order>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["order"] = (int(params["order"]),)
+        params['order'] = (int(params['order']),)
         return params
 
 
 class BackwardDifferenceInclPrefixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "prefix"
-    regex: str = r"dd(?P<order>[0-9]+)"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
+    regex: str = r'dd(?P<order>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["order"] = tuple(range(int(params["order"]) + 1))
+        params['order'] = tuple(range(int(params['order']) + 1))
         return params
 
 
 class BackwardDifferenceRangePrefixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "prefix"
-    regex: str = r"d(?P<order>[0-9]+\-[0-9]+)"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
+    regex: str = r'd(?P<order>[0-9]+\-[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        lim = [int(z) for z in params["order"].split("-")]
-        params["order"] = tuple(range(lim[0], lim[1] + 1))
+        lim = [int(z) for z in params['order'].split('-')]
+        params['order'] = tuple(range(lim[0], lim[1] + 1))
         return params
 
 
 class BackwardDifferenceEnumPrefixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "prefix"
-    regex: str = r"d\{(?P<order>[0-9\,]+)\}"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
+    regex: str = r'd\{(?P<order>[0-9\,]+)\}'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["order"] = tuple(int(z) for z in params["order"].split(","))
+        params['order'] = tuple(int(z) for z in params['order'].split(','))
         return params
 
 
@@ -224,15 +224,15 @@ class BackwardDifferenceNode(TransformPrimitive):
             arg, meta = f(arg, meta)
             orig = arg
             acc = []
-            for o in range(1, max(params["order"]) + 1):
+            for o in range(1, max(params['order']) + 1):
                 arg = arg.diff()
-                if o in params["order"]:
+                if o in params['order']:
                     arg.columns = [
-                        f"{c}_derivative{o}" if o != 0 else c
+                        f'{c}_derivative{o}' if o != 0 else c
                         for c in arg.columns
                     ]
                     acc.append(arg)
-            if 0 in params["order"]:
+            if 0 in params['order']:
                 acc = [orig] + acc
             return pd.concat(acc, axis=1), meta
 
@@ -243,39 +243,39 @@ class BackwardDifferenceNode(TransformPrimitive):
 
 
 class PowerSuffixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "suffix"
-    regex: str = r"\^(?P<order>[0-9]+)"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
+    regex: str = r'\^(?P<order>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["order"] = (int(params["order"]),)
+        params['order'] = (int(params['order']),)
         return params
 
 
 class PowerInclSuffixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "suffix"
-    regex: str = r"\^\^(?P<order>[0-9]+)"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
+    regex: str = r'\^\^(?P<order>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["order"] = tuple(range(1, int(params["order"]) + 1))
+        params['order'] = tuple(range(1, int(params['order']) + 1))
         return params
 
 
 class PowerRangeSuffixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "suffix"
-    regex: str = r"\^(?P<order>[0-9]+\-[0-9]+)"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
+    regex: str = r'\^(?P<order>[0-9]+\-[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        lim = [int(z) for z in params["order"].split("-")]
-        params["order"] = tuple(range(lim[0], lim[1] + 1))
+        lim = [int(z) for z in params['order'].split('-')]
+        params['order'] = tuple(range(lim[0], lim[1] + 1))
         return params
 
 
 class PowerEnumSuffixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "suffix"
-    regex: str = r"\^\{(?P<order>[0-9\,]+)\}"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
+    regex: str = r'\^\{(?P<order>[0-9\,]+)\}'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["order"] = tuple(int(z) for z in params["order"].split(","))
+        params['order'] = tuple(int(z) for z in params['order'].split(','))
         return params
 
 
@@ -299,10 +299,10 @@ class PowerNode(TransformPrimitive):
             meta: Optional[Any] = None,
         ) -> Tuple[pd.DataFrame, Any]:
             arg, meta = f(arg, meta)
-            acc = [arg**o for o in params["order"]]
-            for df, o in zip(acc, params["order"]):
+            acc = [arg**o for o in params['order']]
+            for df, o in zip(acc, params['order']):
                 df.columns = [
-                    f"{c}_power{o}" if o != 1 else c for c in df.columns
+                    f'{c}_power{o}' if o != 1 else c for c in df.columns
                 ]
             return pd.concat(acc, axis=1), meta
 
@@ -313,32 +313,32 @@ class PowerNode(TransformPrimitive):
 
 
 class IndicatorPrefixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "prefix"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = (
-        r"1_\[(?P<compare>[\>\<\=\!]+)" r"(?P<threshold>[0-9]+[\.]?[0-9]*)\]"
+        r'1_\[(?P<compare>[\>\<\=\!]+)' r'(?P<threshold>[0-9]+[\.]?[0-9]*)\]'
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        threshold = float(params["threshold"])
-        compare = params["compare"]
-        if compare == ">":
-            params["indicator"] = lambda x: x > threshold
-            params["name"] = f"gt_{threshold}"
-        elif compare == ">=":
-            params["indicator"] = lambda x: x >= threshold
-            params["name"] = f"ge_{threshold}"
-        elif compare == "<":
-            params["indicator"] = lambda x: x < threshold
-            params["name"] = f"lt_{threshold}"
-        elif compare == "<=":
-            params["indicator"] = lambda x: x <= threshold
-            params["name"] = f"le_{threshold}"
-        elif compare == "==":
-            params["indicator"] = lambda x: x == threshold
-            params["name"] = f"eq_{threshold}"
-        elif compare == "!=":
-            params["indicator"] = lambda x: x != threshold
-            params["name"] = f"ne_{threshold}"
+        threshold = float(params['threshold'])
+        compare = params['compare']
+        if compare == '>':
+            params['indicator'] = lambda x: x > threshold
+            params['name'] = f'gt_{threshold}'
+        elif compare == '>=':
+            params['indicator'] = lambda x: x >= threshold
+            params['name'] = f'ge_{threshold}'
+        elif compare == '<':
+            params['indicator'] = lambda x: x < threshold
+            params['name'] = f'lt_{threshold}'
+        elif compare == '<=':
+            params['indicator'] = lambda x: x <= threshold
+            params['name'] = f'le_{threshold}'
+        elif compare == '==':
+            params['indicator'] = lambda x: x == threshold
+            params['name'] = f'eq_{threshold}'
+        elif compare == '!=':
+            params['indicator'] = lambda x: x != threshold
+            params['name'] = f'ne_{threshold}'
         return params
 
 
@@ -357,7 +357,7 @@ class IndicatorNode(TransformPrimitive):
             meta: Optional[Any] = None,
         ) -> Tuple[pd.DataFrame, Any]:
             arg, meta = f(arg, meta)
-            df = params["indicator"](arg)
+            df = params['indicator'](arg)
             df.columns = [f'{c}_{params["name"]}' for c in df.columns]
             return df, meta
 
@@ -368,8 +368,8 @@ class IndicatorNode(TransformPrimitive):
 
 
 class UnionPrefixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "prefix"
-    regex: str = r"\[OR\]"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
+    regex: str = r'\[OR\]'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -392,8 +392,8 @@ class UnionNode(TransformPrimitive):
         ) -> Tuple[pd.DataFrame, Any]:
             arg, meta = f(arg, meta)
             values = reduce((lambda x, y: x | y), arg.values.T)
-            column = "_or_".join(arg.columns)
-            df = pd.DataFrame({f"union_{column}": values})
+            column = '_or_'.join(arg.columns)
+            df = pd.DataFrame({f'union_{column}': values})
             return df, meta
 
         return union
@@ -403,8 +403,8 @@ class UnionNode(TransformPrimitive):
 
 
 class IntersectionPrefixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "prefix"
-    regex: str = r"\[AND\]"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
+    regex: str = r'\[AND\]'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -427,8 +427,8 @@ class IntersectionNode(TransformPrimitive):
         ) -> Tuple[pd.DataFrame, Any]:
             arg, meta = f(arg, meta)
             values = reduce((lambda x, y: x & y), arg.values.T)
-            column = "_and_".join(arg.columns)
-            df = pd.DataFrame({f"intersection_{column}": values})
+            column = '_and_'.join(arg.columns)
+            df = pd.DataFrame({f'intersection_{column}': values})
             return df, meta
 
         return intersection
@@ -438,8 +438,8 @@ class IntersectionNode(TransformPrimitive):
 
 
 class NegationPrefixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "prefix"
-    regex: str = r"\[NOT\]"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
+    regex: str = r'\[NOT\]'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -461,7 +461,7 @@ class NegationNode(TransformPrimitive):
         ) -> Tuple[pd.DataFrame, Any]:
             arg, meta = f(arg, meta)
             values = ~arg.values
-            column = [f"negation_{c}" for c in arg.columns]
+            column = [f'negation_{c}' for c in arg.columns]
             df = pd.DataFrame({c: v for c, v in zip(column, values.T)})
             return df, meta
 
@@ -477,8 +477,8 @@ class LhsRhs(eqx.Module):
 
 
 class LhsRhsInfixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "infix"
-    regex: str = r"\~"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
+    regex: str = r'\~'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -519,8 +519,8 @@ class LhsRhsNode(TransformPrimitive):
 
 
 class InteractionInfixLiteralisation(Literalisation):
-    affix: Literal["prefix", "suffix", "infix", "leaf"] = "infix"
-    regex: str = r"\:"
+    affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
+    regex: str = r'\:'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -528,7 +528,7 @@ class InteractionInfixLiteralisation(Literalisation):
 
 class InteractionNode(TransformPrimitive):
     min_arity: int = 2
-    max_arity: int = float("inf")
+    max_arity: int = float('inf')
     priority: int = 2
     literals: Sequence[Literalisation] = (InteractionInfixLiteralisation(),)
     associative: bool = True
@@ -541,8 +541,8 @@ class InteractionNode(TransformPrimitive):
         ) -> Tuple[pd.DataFrame, Any]:
             arg, meta = zip(*(f(arg, meta) for f in pparams))
             values = reduce((lambda x, y: x.values * y.values), arg)
-            column = "_by_".join(arg.columns)
-            df = pd.DataFrame({f"interaction_{column}": values})
+            column = '_by_'.join(arg.columns)
+            df = pd.DataFrame({f'interaction_{column}': values})
             return df, collate_metadata(meta)
 
         return interaction
@@ -560,17 +560,17 @@ class InteractionNode(TransformPrimitive):
 #       of confound regression, unlike CumulVar, so changing this is probably
 #       a good idea here.
 class FirstNLeafLiteralisation(Literalisation):
-    affix: str = "leaf"
+    affix: str = 'leaf'
     regex: str = (
-        r"n_\{\{(?P<count>[0-9]+);(?P<variable>[a-zA-Z0-9_]+)"
-        r"(;)?(Mask=(?P<mask>[A-Za-z,]*))?\}\}"
+        r'n_\{\{(?P<count>[0-9]+);(?P<variable>[a-zA-Z0-9_]+)'
+        r'(;)?(Mask=(?P<mask>[A-Za-z,]*))?\}\}'
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         shorthand = confound_formula_shorthand()
-        params["count"] = int(params["count"])
+        params['count'] = int(params['count'])
         for k, v in shorthand.items():
-            params["variable"] = re.sub(k, v, params["variable"])
+            params['variable'] = re.sub(k, v, params['variable'])
         return params
 
 
@@ -584,21 +584,21 @@ class FirstNNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
         def first_n(
-            df: "pd.DataFrame",
+            df: 'pd.DataFrame',
             meta: Optional[Dict] = None,
         ) -> Tuple[pd.DataFrame, Any]:
-            n = params["count"]
-            pattern = re.compile(r"^{}_[0-9]+".format(params["variable"]))
+            n = params['count']
+            pattern = re.compile(r'^{}_[0-9]+'.format(params['variable']))
             matches = match_metadata(pattern, meta)
             matches.sort(key=numbered_string)
 
-            if params.get("mask", None) is None:
+            if params.get('mask', None) is None:
                 matches = matches[:n]
             else:
                 matches_mask = []
-                masks = params["mask"].split(",")
+                masks = params['mask'].split(',')
                 for mask in masks:
-                    filt = [m for m in matches if meta[m].get("Mask") == mask]
+                    filt = [m for m in matches if meta[m].get('Mask') == mask]
                     matches_mask += filt[:n]
                 matches_mask.sort(key=numbered_string)
                 matches = matches_mask
@@ -613,17 +613,17 @@ class FirstNNode(TransformPrimitive):
 
 
 class CumulativeVarianceLeafLiteralisation(Literalisation):
-    affix: str = "leaf"
+    affix: str = 'leaf'
     regex: str = (
-        r"v_\{\{(?P<variance>[0-9\.]+);(?P<variable>[a-zA-Z0-9_]+)"
-        r"(;)?(Mask=(?P<mask>[A-Za-z,]*))?\}\}"
+        r'v_\{\{(?P<variance>[0-9\.]+);(?P<variable>[a-zA-Z0-9_]+)'
+        r'(;)?(Mask=(?P<mask>[A-Za-z,]*))?\}\}'
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         shorthand = confound_formula_shorthand()
-        params["variance"] = float(params["variance"]) / 100
+        params['variance'] = float(params['variance']) / 100
         for k, v in shorthand.items():
-            params["variable"] = re.sub(k, v, params["variable"])
+            params['variable'] = re.sub(k, v, params['variable'])
         return params
 
 
@@ -639,18 +639,18 @@ class CumulativeVarianceNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
         def cumulative_variance(
-            df: "pd.DataFrame",
+            df: 'pd.DataFrame',
             meta: Optional[Dict] = None,
         ) -> Tuple[pd.DataFrame, Any]:
-            v = params["variance"]
-            pattern = re.compile(r"^{}_[0-9]+".format(params["variable"]))
+            v = params['variance']
+            pattern = re.compile(r'^{}_[0-9]+'.format(params['variable']))
             matches = match_metadata(pattern, meta)
 
-            if params.get("mask", None) is not None:
+            if params.get('mask', None) is not None:
                 matches_mask = []
-                masks = params["mask"].split(",")
+                masks = params['mask'].split(',')
                 for mask in masks:
-                    filt = [m for m in matches if meta[m].get("Mask") == mask]
+                    filt = [m for m in matches if meta[m].get('Mask') == mask]
                     matches_mask += filt
                 matches = matches_mask
 
@@ -660,10 +660,10 @@ class CumulativeVarianceNode(TransformPrimitive):
             for m in matches:
                 item = meta[m]
                 if done:
-                    done = item["CumulativeVarianceExplained"] > v
+                    done = item['CumulativeVarianceExplained'] > v
                     if done:
                         continue
-                done = item["CumulativeVarianceExplained"] > v
+                done = item['CumulativeVarianceExplained'] > v
                 out += [m]
 
             columns = tuple(successive_pad_search(df, o) for o in out)
@@ -678,17 +678,17 @@ class CumulativeVarianceNode(TransformPrimitive):
 # TODO: add simple logical composition (AND, OR, NOT) to filters.
 #       Currently everything is AND, which isn't always what we want.
 class MetadataFilterLeafLiteralisation(Literalisation):
-    affix: str = "leaf"
+    affix: str = 'leaf'
     regex: str = (
-        r"\{\{(?P<variable>[a-zA-Z0-9_]+)"
-        r"(;)?(?P<filters>[a-zA-Z0-9_=;]+)\}\}"
+        r'\{\{(?P<variable>[a-zA-Z0-9_]+)'
+        r'(;)?(?P<filters>[a-zA-Z0-9_=;]+)\}\}'
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        params["filters"] = [
-            s.split("=") for s in params["filters"].split(";")
+        params['filters'] = [
+            s.split('=') for s in params['filters'].split(';')
         ]
-        for filter in params["filters"]:
+        for filter in params['filters']:
             try:
                 filter[1] = float(filter[1])
             except ValueError:
@@ -696,7 +696,7 @@ class MetadataFilterLeafLiteralisation(Literalisation):
                     filter[1] = bool(filter[1])
                 except ValueError:
                     pass
-        params["filters"] = tuple(tuple(f) for f in params["filters"])
+        params['filters'] = tuple(tuple(f) for f in params['filters'])
         return params
 
 
@@ -710,17 +710,17 @@ class MetadataFilterNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
         def filter_by_metadata(
-            df: "pd.DataFrame",
+            df: 'pd.DataFrame',
             meta: Optional[Dict] = None,
         ) -> Tuple[pd.DataFrame, Any]:
-            pattern = re.compile(r"^{}.*".format(params["variable"]))
+            pattern = re.compile(r'^{}.*'.format(params['variable']))
             matches = match_metadata(pattern, meta)
 
             out = []
             for m in matches:
                 matched = True
                 item = meta[m]
-                for k, v in params["filters"]:
+                for k, v in params['filters']:
                     if item.get(k) != v:
                         matched = False
                         break
@@ -737,8 +737,8 @@ class MetadataFilterNode(TransformPrimitive):
 
 
 class ScatterPrefixLiteralisation(Literalisation):
-    affix: str = "prefix"
-    regex: str = r"\[SCATTER\]"
+    affix: str = 'prefix'
+    regex: str = r'\[SCATTER\]'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params
@@ -766,7 +766,7 @@ class ScatterNode(TransformPrimitive):
             for col in arg.columns:
                 data = arg[[col]].values
                 nz = data.nonzero()
-                names = [f"{col}_spike{i}" for i in nz[0]]
+                names = [f'{col}_spike{i}' for i in nz[0]]
                 cols = np.zeros((data.shape[0], len(nz)))
                 cols[nz[0], range(len(nz))] = data[nz]
                 scattered += [pd.DataFrame(cols, columns=names)]
@@ -799,8 +799,8 @@ def numbered_string(s):
         Input string split into its initial non-numeric substring and its
         final numeric substring, cast to an int.
     """
-    num = int(re.search("(?P<num>[0-9]+$)", s).groupdict()["num"])
-    string = re.sub("[0-9]+$", "", s)
+    num = int(re.search('(?P<num>[0-9]+$)', s).groupdict()['num'])
+    string = re.sub('[0-9]+$', '', s)
     return (string, num)
 
 
@@ -846,7 +846,7 @@ def successive_pad_search(df, key, pad=0, k=5):
         try:
             return df[[key]]
         except KeyError:
-            p = "{:" + f"{pad}{i + 1}" + "}"
+            p = '{:' + f'{pad}{i + 1}' + '}'
             st, nu = numbered_string(key)
-            key = f"{st}" + p.format(nu)
+            key = f'{st}' + p.format(nu)
     raise KeyError

@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import Any, Union
 
 import jax
-from numpyro.distributions import Distribution as Distr
 import numpy as np
+from numpyro.distributions import Distribution as Distr
 
 
 # TODO: replace with jaxtyping at some point
@@ -23,7 +23,7 @@ Distribution = Distr
 # Working around JAX not always properly respecting __jax_array__ . . .
 # See JAX issue #10065
 def _to_jax_array(param: Tensor) -> Tensor:
-    if hasattr(param, "__jax_array__"):
+    if hasattr(param, '__jax_array__'):
         return param.__jax_array__()
     else:
         return param

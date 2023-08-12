@@ -172,7 +172,7 @@ def symmetric(
 def spd(
     X: Tensor,
     eps: float = 1e-6,
-    method: Literal["eig", "svd"] = "eig",
+    method: Literal['eig', 'svd'] = 'eig',
 ) -> Tensor:
     """
     Impose symmetric positive definiteness on a tensor block.
@@ -220,12 +220,12 @@ def spd(
     output : Tensor
         Input modified so that each slice is symmetric and positive definite.
     """
-    if method == "eig":
+    if method == 'eig':
         L = vmap_over_outer(jnp.linalg.eigvalsh, 2)((symmetric(X),))
         lmin = L.min(axis=-1) - eps
         lmin = jnp.minimum(lmin, 0).squeeze()
         return symmetric(X - lmin[..., None, None] * jnp.eye(X.shape[-1]))
-    elif method == "svd":
+    elif method == 'svd':
         Q, L, _ = vmap_over_outer(jnp.linalg.svd, 2)((symmetric(X),))
         return symmetric(Q @ (L[..., None] * Q.swapaxes(-1, -2)))
 
@@ -234,7 +234,7 @@ def expand_outer(
     L: Tensor,
     R: Optional[Tensor] = None,
     C: Optional[Tensor] = None,
-    symmetry: Optional[Literal["cross", "skew"]] = None,
+    symmetry: Optional[Literal['cross', 'skew']] = None,
 ) -> Tensor:
     r"""
     Multiply out a left and a right generator matrix as an outer product.
@@ -295,8 +295,8 @@ def expand_outer(
     else:
         output = L @ (C * R.swapaxes(-2, -1))
     # TODO: Unit tests are not hitting this conditional...
-    if symmetry == "cross" or symmetry == "skew":
-        return symmetric(output, skew=(symmetry == "skew"))
+    if symmetry == 'cross' or symmetry == 'skew':
+        return symmetric(output, skew=(symmetry == 'skew'))
     return output
 
 

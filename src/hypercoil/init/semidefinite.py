@@ -187,7 +187,7 @@ class TangencyInitialiser(MappedInitialiser):
         init_data: Tensor,
         mean_specs: Sequence[Callable],
         std: float = 0.0,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: Optional[jax.random.PRNGKey] = None,
         **params,
     ) -> PyTree:
@@ -262,7 +262,7 @@ class SPDLogEuclideanMean(_SemidefiniteMean):
             input,
             axis=self.axis,
             psi=self.psi,
-            recondition="convexcombination",
+            recondition='convexcombination',
         )
 
 
@@ -289,5 +289,5 @@ class SPDGeometricMean(_SemidefiniteMean):
             axis=self.axis,
             psi=self.psi,
             max_iter=self.max_iter,
-            recondition="convexcombination",
+            recondition='convexcombination',
         )

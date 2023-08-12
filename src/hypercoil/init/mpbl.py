@@ -13,7 +13,7 @@ from jax.nn import softmax
 from numpyro.distributions import Categorical
 
 from ..engine import Tensor
-from ..functional import delete_diagonal, pairedcorr, sym2vec, vec2sym
+from ..functional import delete_diagonal, pairedcorr, sym2vec
 from .base import MappedInitialiser
 
 
@@ -73,7 +73,7 @@ def _init_select(
     candidates_ids: Tensor,
     potentials: Tensor,
     random_init: bool,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> int:
     """
     Make an initial selection of two input vertices to fuse into a new
@@ -100,7 +100,7 @@ def _select_edge(
     potentials: Tensor,
     asgt: Tensor,
     temperature: float,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> int:
     """
     Select the next input vertex to fuse into the current output vertex.
@@ -136,7 +136,7 @@ def _mpbl_run(
     n_edges_out: int,
     temperature: float,
     attenuation: float,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ):
     """
     Execute a single run of the MPBL algorithm.
@@ -196,7 +196,7 @@ def _mpbl_eval(
     n_edges_in: int,
     n_edges_out: int,
     asgt_u: Tensor,
-    crit_u: float = float("inf"),
+    crit_u: float = float('inf'),
     max_asgt: Tensor = None,
 ):
     """
@@ -228,7 +228,7 @@ def maximum_potential_bipartite_lattice(
     objective: Optional[Tensor] = None,
     criterion: Callable = corr_criterion,
     *,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ) -> Tuple[Union[Tensor, Tuple[Tensor, Tensor]], Tensor, Tensor]:
     r"""
     Estimates the maximum potential bipartite lattice using a greedy Monte
@@ -314,7 +314,7 @@ def maximum_potential_bipartite_lattice(
             jnp.ones((n_out[1], n_in[1])),
         ]
         U_prop = (None, None)
-        crit_u = [float("inf"), float("inf")]
+        crit_u = [float('inf'), float('inf')]
     else:
         symmetric = True
         n_in, _ = potentials.shape
@@ -324,7 +324,7 @@ def maximum_potential_bipartite_lattice(
         n_edges_in = n_edges_allowed // n_in
         max_asgt = None
         U_prop = None
-        crit_u = float("inf")
+        crit_u = float('inf')
     if temperature == 0:
         temperature = jnp.finfo(potentials[0].dtype).tiny
     if objective is None:
@@ -566,7 +566,7 @@ class BipartiteLatticeInit(MappedInitialiser):
         residualise=False,
         svd=False,
         channel_multiplier=1,
-        sign="+",
+        sign='+',
         iters=10,
         temperature=0,
         random_init=True,
@@ -576,7 +576,7 @@ class BipartiteLatticeInit(MappedInitialiser):
         domain=None,
     ):
         raise NotImplementedError(
-            "This initialiser is not yet implemented for public use."
+            'This initialiser is not yet implemented for public use.'
         )
 
     #     self.n_out = n_out

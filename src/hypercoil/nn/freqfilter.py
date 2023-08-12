@@ -13,7 +13,7 @@ import equinox as eqx
 
 from ..engine import Tensor
 from ..engine.paramutil import _to_jax_array
-from ..functional import complex_recompose, product_filtfilt
+from ..functional import product_filtfilt
 from ..init.freqfilter import FreqFilterInitialiser, FreqFilterSpec
 
 
@@ -110,7 +110,7 @@ class FrequencyDomainFilter(eqx.Module):
         time_dim: Optional[int] = None,
         filter: Callable = product_filtfilt,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         self.dim = self._set_dimension(freq_dim, time_dim)
         self.num_channels = num_channels
@@ -137,8 +137,8 @@ class FrequencyDomainFilter(eqx.Module):
         time_dim: Optional[int] = None,
         filter: Callable = product_filtfilt,
         *,
-        key: "jax.random.PRNGKey",
-    ) -> "FrequencyDomainFilter":
+        key: 'jax.random.PRNGKey',
+    ) -> 'FrequencyDomainFilter':
 
         num_channels = sum([len(s.Wn) for s in filter_specs])
         clamp = any([s.clamps is not None for s in filter_specs])
@@ -178,7 +178,7 @@ class FrequencyDomainFilter(eqx.Module):
             model = FreqFilterInitialiser.init(
                 model,
                 filter_specs=filter_specs,
-                clamp_name="clamp",
+                clamp_name='clamp',
                 key=jax.random.PRNGKey(0),
             )
         return model
@@ -188,8 +188,8 @@ class FrequencyDomainFilter(eqx.Module):
         if freq_dim is None:
             if time_dim is None:
                 raise ValueError(
-                    "You must specify the dimension in either "
-                    "the frequency or time domain"
+                    'You must specify the dimension in either '
+                    'the frequency or time domain'
                 )
             else:
                 dim = time_dim // 2 + 1
@@ -209,7 +209,7 @@ class FrequencyDomainFilter(eqx.Module):
         self,
         input: Tensor,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         """
         Transform the input into the frequency domain, filter it, and

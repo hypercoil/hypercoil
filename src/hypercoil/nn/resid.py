@@ -31,7 +31,7 @@ class Residualise(Module):
 
     rowvar: bool = True
     l2: float = 0.0
-    return_mode: Literal["residual", "orthogonal"] = "residual"
+    return_mode: Literal['residual', 'orthogonal'] = 'residual'
 
     def __call__(
         self,
@@ -39,7 +39,7 @@ class Residualise(Module):
         X: Tensor,
         mask: Optional[Tensor] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         if mask is not None:
             Y = mask * Y

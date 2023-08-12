@@ -90,22 +90,20 @@ from typing import (
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from numpyro.distributions import Normal
 import templateflow.api as tflow
+from numpyro.distributions import Normal
 
 from ..engine import PyTree, Tensor
 from ..engine.noise import ScalarIIDAddStochasticTransform
 from ..formula.nnops import retrieve_address
-from ..neuro.const import (
-    CIfTIStructures,
-)
+from ..neuro.const import CIfTIStructures
 from .atlasmixins import (
     Reference,
     _CIfTIOutputMixin,
     _ContinuousLabelMixin,
     _CortexSubcortexCIfTICompartmentMixin,
-    _CortexSubcortexGIfTICompartmentMixin,
     _CortexSubcortexCIfTIMaskMixin,
+    _CortexSubcortexGIfTICompartmentMixin,
     _DirichletLabelMixin,
     _DiscreteLabelMixin,
     _FromNullMaskMixin,
@@ -118,12 +116,10 @@ from .atlasmixins import (
     _PhantomReferenceMixin,
     _SingleCompartmentMixin,
     _SpatialConvMixin,
-    _SurfaceObjectReferenceMixin,
     _SurfaceSingleReferenceMixin,
     _VertexCIfTIMeshMixin,
     _VertexGIfTIMeshMixin,
     _VolumeMultiReferenceMixin,
-    _VolumeObjectReferenceMixin,
     _VolumeSingleReferenceMixin,
     _VolumetricMeshMixin,
 )
@@ -232,7 +228,7 @@ class BaseAtlas(eqx.Module):
         **params,
     ):
         if name is None:
-            name = ""
+            name = ''
         self.name = name
         self.ref_pointer = ref_pointer
         self.ref = self._load_reference(ref_pointer)
@@ -357,7 +353,7 @@ class BaseAtlas(eqx.Module):
         """
         ret = OrderedDict()
         if compartments is False:
-            compartments = ["_all"]
+            compartments = ['_all']
         elif isinstance(compartments, str):
             compartments = [compartments]
         elif compartments is True:
@@ -441,7 +437,7 @@ class DirichletInitBaseAtlas(
         init: Optional[Dict[str, Callable]] = None,
         name: Optional[str] = None,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
         **params,
     ):
         if template_image is None:
@@ -451,7 +447,7 @@ class DirichletInitBaseAtlas(
                 if not _is_path(template_image):
                     template_image = template_image[0]
         if isinstance(compartment_labels, int):
-            compartment_labels = {"all", compartment_labels}
+            compartment_labels = {'all', compartment_labels}
         self.compartment_labels = compartment_labels
         keys = jax.random.split(key, len(compartment_labels))
         if init is None:
@@ -484,18 +480,18 @@ class DirichletInitBaseAtlas(
             for k, v in self.init.items():
                 v.domain = partial(ProbabilitySimplexParameter, axis=-2)
 
-    def _global_compartment_init(self, *, key: "jax.random.PRNGKey") -> None:
-        if self.init.get("_all"):
+    def _global_compartment_init(self, *, key: 'jax.random.PRNGKey') -> None:
+        if self.init.get('_all'):
             return
-        if self.init.get("all"):
-            self.init["_all"] = self.init["all"]
+        if self.init.get('all'):
+            self.init['_all'] = self.init['all']
             return
         concentrations = ()
         for initialiser in self.init.values():
-            conc = initialiser.keywords["concentration"]
-            num_classes = initialiser.keywords["num_classes"]
+            conc = initialiser.keywords['concentration']
+            num_classes = initialiser.keywords['num_classes']
             concentrations = concentrations + conc * num_classes
-        self.init["_all"] = partial(
+        self.init['_all'] = partial(
             DirichletInitialiser.init,
             concentration=concentrations,
             num_classes=len(concentrations),
@@ -927,14 +923,14 @@ class DirichletInitVolumetricAtlas(
         name: Optional[str] = None,
         init: Optional[Dict[str, DirichletInitialiser]] = None,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
         **params,
     ):
         if init is not None:
-            init = {"all": init}
+            init = {'all': init}
         super().__init__(
             mask_source=mask_source,
-            compartment_labels={"all": n_labels},
+            compartment_labels={'all': n_labels},
             conc=conc,
             init=init,
             name=name,
@@ -1043,7 +1039,7 @@ class DirichletInitSurfaceAtlas(
         cortex_L: str = CIfTIStructures.LEFT,
         cortex_R: str = CIfTIStructures.RIGHT,
         *,
-        key: "jax.random.PRNGKey",
+        key: 'jax.random.PRNGKey',
     ):
         self.surf, mask_source = _surface_atlas_common_args(
             mask_L=mask_L,
@@ -1080,38 +1076,38 @@ class _MemeAtlas(
 
     def __init__(self):
         ref_pointer = tflow.get(
-            template="MNI152NLin2009cAsym",
+            template='MNI152NLin2009cAsym',
             resolution=2,
-            desc="100Parcels17Networks",
+            desc='100Parcels17Networks',
         )
         eye = tflow.get(
-            template="MNI152NLin2009cAsym",
+            template='MNI152NLin2009cAsym',
             resolution=2,
-            desc="eye",
-            suffix="mask",
+            desc='eye',
+            suffix='mask',
         )
         face = tflow.get(
-            template="MNI152NLin2009cAsym",
+            template='MNI152NLin2009cAsym',
             resolution=2,
-            desc="face",
-            suffix="mask",
+            desc='face',
+            suffix='mask',
         )
         brain = tflow.get(
-            template="MNI152NLin2009cAsym",
+            template='MNI152NLin2009cAsym',
             resolution=2,
-            desc="brain",
-            suffix="mask",
+            desc='brain',
+            suffix='mask',
         )
-        mask_formula = "((IMGa -bin) -or (IMGb -bin)) -and (IMGc -neg)"
+        mask_formula = '((IMGa -bin) -or (IMGb -bin)) -and (IMGc -neg)'
         mask_source = (eye, face, brain)
         compartments_dict = {
-            "eye": eye,
-            "face": face,
+            'eye': eye,
+            'face': face,
         }
         super().__init__(
             ref_pointer=ref_pointer,
             mask_source=(mask_formula, mask_source),
-            name="Meme",
+            name='Meme',
             **compartments_dict,
         )
 
@@ -1127,7 +1123,7 @@ def atlas_init(
     truncate: Optional[float] = None,
     kernel_sigma: Optional[float] = None,
     noise_sigma: Optional[float] = None,
-    key: "jax.random.PRNGKey",
+    key: 'jax.random.PRNGKey',
 ):
     r"""
     Voxel-to-label mapping initialisation.
@@ -1227,7 +1223,7 @@ class AtlasInitialiser(MappedInitialiser):
         self.noise_sigma = noise_sigma
         if mapper is None:
             try:
-                mapper = atlas.init["_all"].mapper
+                mapper = atlas.init['_all'].mapper
             except (AttributeError, KeyError):
                 pass
         super().__init__(mapper=mapper)
@@ -1236,7 +1232,7 @@ class AtlasInitialiser(MappedInitialiser):
         self,
         model: PyTree,
         *,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ):
@@ -1285,7 +1281,7 @@ class AtlasInitialiser(MappedInitialiser):
         truncate: Optional[float] = None,
         kernel_sigma: Optional[float] = None,
         noise_sigma: Optional[float] = None,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
@@ -1319,33 +1315,33 @@ def _surface_atlas_common_args(
     coor_sub=None,
 ):
     default_mask_query_args = {
-        "template": "fsLR",
-        "density": "32k",
-        "desc": "nomedialwall",
-        "suffix": "dparc",
+        'template': 'fsLR',
+        'density': '32k',
+        'desc': 'nomedialwall',
+        'suffix': 'dparc',
     }
     default_surf_query_args = {
-        "template": "fsLR",
-        "density": "32k",
-        "suffix": "sphere",
-        "space": None,
+        'template': 'fsLR',
+        'density': '32k',
+        'suffix': 'sphere',
+        'space': None,
     }
     if mask_L is None:
-        mask_L = tflow.get(hemi="L", **default_mask_query_args)
+        mask_L = tflow.get(hemi='L', **default_mask_query_args)
     if mask_R is None:
-        mask_R = tflow.get(hemi="R", **default_mask_query_args)
+        mask_R = tflow.get(hemi='R', **default_mask_query_args)
     if surf_L is None:
-        surf_L = tflow.get(hemi="L", **default_surf_query_args)
+        surf_L = tflow.get(hemi='L', **default_surf_query_args)
     if surf_R is None:
-        surf_R = tflow.get(hemi="R", **default_surf_query_args)
+        surf_R = tflow.get(hemi='R', **default_surf_query_args)
     surf = {
-        "cortex_L": surf_L,
-        "cortex_R": surf_R,
-        "subcortex": coor_sub,
+        'cortex_L': surf_L,
+        'cortex_R': surf_R,
+        'subcortex': coor_sub,
     }
     mask_source = {
-        "cortex_L": mask_L,
-        "cortex_R": mask_R,
-        "subcortex": mask_sub,
+        'cortex_L': mask_L,
+        'cortex_R': mask_R,
+        'subcortex': mask_sub,
     }
     return surf, mask_source

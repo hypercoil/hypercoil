@@ -19,23 +19,23 @@ from ..functional import expand_outer, toeplitz
 def cfg_banded_parameter(
     max_lag: Optional[int] = 0,
     min_lag: Optional[int] = 0,
-    mode: Literal["weight", "mask"] = "weight",
+    mode: Literal['weight', 'mask'] = 'weight',
     out_channels: int = 1,
 ):
     mode_fn = {
-        "weight": lambda x: jnp.exp(-jnp.arange(x)),
-        "mask": lambda x: jnp.ones((x,), dtype=jnp.bool_),
+        'weight': lambda x: jnp.exp(-jnp.arange(x)),
+        'mask': lambda x: jnp.ones((x,), dtype=jnp.bool_),
     }
     mode_null = {
-        "weight": 0.0,
-        "mask": False,
+        'weight': 0.0,
+        'mask': False,
     }
     mode_fn = mode_fn[mode]
     null = mode_null[mode]
     if min_lag > max_lag:
         raise ValueError(
-            f"min_lag ({min_lag}) must be less than or equal to "
-            f"max_lag ({max_lag})."
+            f'min_lag ({min_lag}) must be less than or equal to '
+            f'max_lag ({max_lag}).'
         )
     if max_lag >= 0 and min_lag <= 0:
         param_row = mode_fn(max_lag + 1)
@@ -270,7 +270,7 @@ class UnaryCovMixin:
         weight: Optional[Tensor] = None,
         mask: Optional[Tensor] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         if input.ndim > 2 and self.out_channels > 1 and input.shape[-3] > 1:
             input = input[..., None, :, :]
@@ -303,7 +303,7 @@ class BinaryCovMixin:
         weight: Optional[Tensor] = None,
         mask: Optional[Tensor] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
         if self.out_channels > 1:
             if x.ndim > 2 and x.shape[-3] > 1:
@@ -333,7 +333,7 @@ class ParameterisedUnaryCovMixin(UnaryCovMixin):
         input: Tensor,
         mask: Optional[Tensor] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if self.mask is not None and mask is not None:
             mask = self.mask & mask
@@ -359,7 +359,7 @@ class ParameterisedBinaryCovMixin(BinaryCovMixin):
         y: Tensor,
         mask: Optional[Tensor] = None,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         if self.mask is not None and mask is not None:
             mask = self.mask & mask
@@ -400,7 +400,7 @@ class BaseWeightedCovariance(BaseCovariance):
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             dim=dim,
@@ -424,7 +424,7 @@ class BaseWeightedCovariance(BaseCovariance):
             vals_r, vals_c = cfg_banded_parameter(
                 max_lag=max_lag,
                 min_lag=min_lag,
-                mode="weight",
+                mode='weight',
                 out_channels=out_channels,
             )
             weight = toeplitz(
@@ -437,7 +437,7 @@ class BaseWeightedCovariance(BaseCovariance):
                 mask_vals_r, mask_vals_c = cfg_banded_parameter(
                     max_lag=max_lag,
                     min_lag=min_lag,
-                    mode="mask",
+                    mode='mask',
                     out_channels=out_channels,
                 )
                 mask = toeplitz(
@@ -475,7 +475,7 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
         ddof: Optional[int] = None,
         l2: float = 0.0,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             dim=dim,
@@ -497,7 +497,7 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
             mask_row, mask_col = cfg_banded_parameter(
                 max_lag=max_lag,
                 min_lag=min_lag,
-                mode="mask",
+                mode='mask',
                 out_channels=out_channels,
             )
             mask = toeplitz(
@@ -509,7 +509,7 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
         weight_row, weight_col = cfg_banded_parameter(
             max_lag=max_lag,
             min_lag=min_lag,
-            mode="weight",
+            mode='weight',
             out_channels=out_channels,
         )
         self.weight_col = weight_col
@@ -564,7 +564,7 @@ class UnaryCovariance(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -615,7 +615,7 @@ class UnaryCovarianceTW(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -659,7 +659,7 @@ class UnaryCovarianceUW(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -708,7 +708,7 @@ class BinaryCovariance(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -759,7 +759,7 @@ class BinaryCovarianceTW(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             estimator=estimator,
@@ -804,7 +804,7 @@ class BinaryCovarianceUW(
         ddof: Optional[int] = None,
         l2: float = 0,
         *,
-        key: Optional["jax.random.PRNGKey"] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
     ):
         super().__init__(
             estimator=estimator,

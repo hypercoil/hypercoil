@@ -76,7 +76,7 @@ class MappedParameter(eqx.Module):
         cls,
         model: PyTree,
         *pparams,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         **params,
     ):
         """
@@ -104,7 +104,10 @@ class MappedParameter(eqx.Module):
         parameters = retrieve_address(model, where)
         mapped = ()
         for i, _ in enumerate(parameters):
-            where_i = lambda model: retrieve_address(model, where)[i]
+
+            def where_i(model):
+                return retrieve_address(model, where)[i]
+
             mapped += (
                 cls(
                     model=model,
@@ -309,8 +312,8 @@ class DomainMappedParameter(MappedParameter):
         handler: Callable = None,
     ):
         self.handler = handler or Clip()
-        self.image_bound = image_bound or (-float("inf"), float("inf"))
-        self.preimage_bound = preimage_bound or (-float("inf"), float("inf"))
+        self.image_bound = image_bound or (-float('inf'), float('inf'))
+        self.preimage_bound = preimage_bound or (-float('inf'), float('inf'))
         super(DomainMappedParameter, self).__init__(model=model, where=where)
 
     def preimage_map(self, param: Tensor) -> Tensor:
@@ -772,9 +775,9 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
         axis: int = -1,
         minimum: float = 1e-3,
         smoothing: float = 0,
-        temperature: Union[float, Literal["auto"]] = 1.0,
+        temperature: Union[float, Literal['auto']] = 1.0,
     ):
-        if temperature == "auto":
+        if temperature == 'auto':
             temperature = jnp.sqrt(where(model).shape[axis])
         self._image_map_impl = partial(
             paramsoftmax, temperature=temperature, axis=axis
@@ -786,7 +789,7 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
         super().__init__(
             model,
             where=where,
-            image_bound=(minimum, float("inf")),
+            image_bound=(minimum, float('inf')),
             handler=handler,
         )
 
@@ -926,8 +929,8 @@ class IsochoricParameter(DomainMappedParameter):
             model,
             where=where,
             handler=ForcePositiveDefinite(),
-            preimage_bound=(spd_threshold, float("inf")),
-            image_bound=(spd_threshold, float("inf")),
+            preimage_bound=(spd_threshold, float('inf')),
+            image_bound=(spd_threshold, float('inf')),
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:

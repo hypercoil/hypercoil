@@ -41,6 +41,8 @@ from ..engine import (
 from ..engine.paramutil import _to_jax_array
 from ..formula.imops import (
     ImageMathsGrammar as ImageMaths,
+)
+from ..formula.imops import (
     NiftiFileInterpreter,
     NiftiObjectInterpreter,
 )
@@ -61,7 +63,7 @@ class CiftiError(Exception):
 def modelobj_from_dataobj_and_maskobj(
     dataobj: Tensor,
     model_axes: Sequence[int],
-    mask: Optional["Mask"] = None,
+    mask: Optional['Mask'] = None,
     model_axis_out: Optional[int] = None,
 ) -> Tensor:
     dataobj_model_shape = reduce(
@@ -118,9 +120,14 @@ def modelobj_from_dataobj(
 class Reference(eqx.Module):
     pointer: Any
     model_axes: Sequence[int]
-    imobj: Union["nb.Nifti1Image", "nb.Cifti2Image", "nb.GiftiImage"]
-    _imobj_from_pointer: Callable = lambda x: x
-    _dataobj_from_imobj: Callable = lambda x: x.get_fdata()
+    imobj: Union['nb.Nifti1Image', 'nb.Cifti2Image', 'nb.GiftiImage']
+
+    def _imobj_from_pointer(x):
+        return x
+
+    def _dataobj_from_imobj(x):
+        return x.get_fdata()
+
     cached: bool = False
     dataobj: Optional[Tensor] = None
     modelobj: Optional[Tensor] = None
@@ -128,7 +135,7 @@ class Reference(eqx.Module):
     def __init__(
         self,
         pointer: Any,
-        model_axes: Union[Sequence[int], Literal["cifti"]],
+        model_axes: Union[Sequence[int], Literal['cifti']],
         dataobj: Optional[Tensor] = None,
         imobj_from_pointer: Optional[Callable] = None,
         dataobj_from_imobj: Optional[Callable] = None,
@@ -146,7 +153,7 @@ class Reference(eqx.Module):
 
         self.imobj = self.load_imobj()
 
-        if model_axes == "cifti":
+        if model_axes == 'cifti':
             model_axes = self.cifti_model_axes()
         self.model_axes = tuple(
             standard_axis_number(ax, self.ndim) for ax in model_axes
@@ -160,7 +167,7 @@ class Reference(eqx.Module):
         self.modelobj = None
 
     @staticmethod
-    def cache_dataobj(ref, dataobj_from_imobj: Callable) -> "Reference":
+    def cache_dataobj(ref, dataobj_from_imobj: Callable) -> 'Reference':
         dataobj = dataobj_from_imobj(ref.imobj)
         return eqx.tree_at(
             where=lambda r: (r.dataobj, r._dataobj_from_imobj, r.cached),
@@ -175,7 +182,7 @@ class Reference(eqx.Module):
         modelobj_from_dataobj: Callable = modelobj_from_dataobj_and_maskobj,
         mask: Optional[Any] = None,
         model_axis_out: Optional[int] = None,
-    ) -> "Reference":
+    ) -> 'Reference':
         modelobj = modelobj_from_dataobj(
             dataobj=ref.dataobj,
             model_axes=ref.model_axes,
@@ -190,7 +197,7 @@ class Reference(eqx.Module):
         )
 
     @staticmethod
-    def purge_cache(ref) -> "Reference":
+    def purge_cache(ref) -> 'Reference':
         return eqx.tree_at(
             where=lambda r: (r.dataobj, r.modelobj, r.cached),
             pytree=ref,
@@ -223,7 +230,7 @@ class Reference(eqx.Module):
             return tuple(hdr.get_axis(i) for i in range(self.ndim))
         except AttributeError:
             raise CiftiError(
-                "The reference image might not have a CIFTI header."
+                'The reference image might not have a CIFTI header.'
             )
 
     @property
@@ -236,7 +243,7 @@ class Reference(eqx.Module):
             )[0]
         except IndexError:
             raise ValueError(
-                "No BrainModelAxis found in axes of reference image."
+                'No BrainModelAxis found in axes of reference image.'
             )
 
     @property
@@ -321,7 +328,7 @@ class Mask(eqx.Module):
         mask_array: Tensor,
         model_axes: Sequence[int] = (-2,),
         model_axis_out: Optional[int] = None,
-        out_mode: Literal["index", "zero"] = "index",
+        out_mode: Literal['index', 'zero'] = 'index',
     ) -> Callable:
         def default_out_axis():
             return model_axis_out if model_axis_out is not None else 0
@@ -363,8 +370,8 @@ class Mask(eqx.Module):
             return jnp.where(mask[index], data, 0.0)
 
         out_mode_fn = {
-            "index": apply_mask_index,
-            "zero": apply_mask_zero,
+            'index': apply_mask_index,
+            'zero': apply_mask_zero,
         }
         return lambda data: out_mode_fn[out_mode](*prepare_mask(data))
 
@@ -372,7 +379,7 @@ class Mask(eqx.Module):
         self,
         model_axes: Sequence[int] = (-2,),
         model_axis_out: Optional[int] = None,
-        out_mode: Literal["index", "zero"] = "index",
+        out_mode: Literal['index', 'zero'] = 'index',
     ) -> Callable:
         mask_array = _to_jax_array(self.mask_array)
         return self._map_to_masked_impl(
@@ -417,7 +424,7 @@ class Compartment(eqx.Module):
         self,
         model_axes: Sequence[int] = (-2,),
         model_axis_out: Optional[int] = None,
-        out_mode: Literal["index", "zero"] = "index",
+        out_mode: Literal['index', 'zero'] = 'index',
     ) -> Callable:
         mask_array = _to_jax_array(self.mask_array)
         return Mask._map_to_masked_impl(
@@ -484,8 +491,8 @@ class CompartmentSet(eqx.Module):
             for compartment in self.compartments.values():
                 compartment_data += (
                     compartment.map_to_masked(
-                        in_mode="timeseries",
-                        out_mode="index",
+                        in_mode='timeseries',
+                        out_mode='index',
                     ),
                 )
             return jnp.concatenate(compartment_data, axis=-2)
@@ -515,8 +522,8 @@ class _VolumeObjectReferenceMixin:
 
     def _load_reference(
         self,
-        ref_pointer: "nb.nifti1.Nifti1Image",
-    ) -> "Reference":
+        ref_pointer: 'nb.nifti1.Nifti1Image',
+    ) -> 'Reference':
         return Reference(
             pointer=ref_pointer,
             model_axes=(0, 1, 2),
@@ -533,11 +540,11 @@ class _SurfaceObjectReferenceMixin:
 
     def _load_reference(
         self,
-        ref_pointer: "nb.cifti2.Cifti2Image",
-    ) -> "Reference":
+        ref_pointer: 'nb.cifti2.Cifti2Image',
+    ) -> 'Reference':
         return Reference(
             pointer=ref_pointer,
-            model_axes="cifti",
+            model_axes='cifti',
         )
 
 
@@ -552,7 +559,7 @@ class _VolumeSingleReferenceMixin:
     def _load_reference(
         self,
         ref_pointer: Union[str, Path],
-    ) -> "Reference":
+    ) -> 'Reference':
         return Reference(
             pointer=ref_pointer,
             model_axes=(0, 1, 2),
@@ -571,10 +578,10 @@ class _SurfaceSingleReferenceMixin:
     def _load_reference(
         self,
         ref_pointer: Union[str, Path],
-    ) -> "Reference":
+    ) -> 'Reference':
         return Reference(
             pointer=ref_pointer,
-            model_axes="cifti",
+            model_axes='cifti',
             imobj_from_pointer=lambda x: nb.load(x),
         )
 
@@ -586,11 +593,11 @@ class _GIfTIReferenceMixin:
     For use when the ``ref_pointer`` object references a dictionary of
     paths to compartment-level surface datasets on disk.
     """
+
     def _load_reference(
         self,
         ref_pointer: Tuple[Tensor],
-    ) -> "Reference":
-
+    ) -> 'Reference':
         class GIfTIImobj(Mapping):
             def __init__(self, imobj: Tuple):
                 self._imobj = imobj
@@ -623,7 +630,8 @@ class _GIfTIReferenceMixin:
             def ndim(self) -> int:
                 _ndims = tuple(
                     tuple(e.data.ndim for e in v.darrays)
-                    for v in self._imobj if v is not None
+                    for v in self._imobj
+                    if v is not None
                 )
                 _ndims = tuple(chain(*_ndims))
                 return _ndims[0] if len(set(_ndims)) == 1 else None
@@ -632,7 +640,8 @@ class _GIfTIReferenceMixin:
             def _shapes(self) -> Tuple[Tuple[int, ...]]:
                 _shapes = tuple(
                     tuple(e.data.shape for e in v.darrays)
-                    for v in self._imobj if v is not None
+                    for v in self._imobj
+                    if v is not None
                 )
                 return tuple(chain(*_shapes))
 
@@ -640,7 +649,7 @@ class _GIfTIReferenceMixin:
             def shapes(self) -> Tuple[Tuple[int, ...]]:
                 return self._shapes
 
-            #TODO: we'll want to broadcast the shapes first and then sum the
+            # TODO: we'll want to broadcast the shapes first and then sum the
             #      last axis. Currently we're just summing the last axis.
             @property
             def shape(self) -> Tuple[int, ...]:
@@ -683,7 +692,7 @@ class _VolumeMultiReferenceMixin:
     def _load_reference(
         self,
         ref_pointer: Sequence[Union[str, Path]],
-    ) -> "Reference":
+    ) -> 'Reference':
         # TODO: We should at least check that the affine matrices are
         #       compatible.
         ref = tuple(nb.load(path) for path in ref_pointer)
@@ -713,7 +722,7 @@ class _PhantomReferenceMixin:
     def _load_reference(
         self,
         ref_pointer: Union[str, Path],
-    ) -> "Reference":
+    ) -> 'Reference':
         try:
             ref = nb.load(ref_pointer)
         except TypeError:
@@ -727,7 +736,7 @@ class _PhantomReferenceMixin:
             model_axes = (0, 1, 2)
         except AttributeError:  # No affine: Surface/CIfTI
             ref = nb.load(ref_pointer)
-            model_axes = "cifti"
+            model_axes = 'cifti'
         return Reference(
             pointer=ref,
             model_axes=model_axes,
@@ -771,10 +780,10 @@ def _dict_to_gifti_label_table(
     labeltable = nb.gifti.GiftiLabelTable()
     for k, v in dictionary.items():
         v = {
-            'red': 0x100 - ((v >> 24) & 0xff),
-            'green': 0x100 - ((v >> 16) & 0xff),
-            'blue': 0x100 - ((v >> 8) & 0xff),
-            'alpha': 0x100 - (v & 0xff),
+            'red': 0x100 - ((v >> 24) & 0xFF),
+            'green': 0x100 - ((v >> 16) & 0xFF),
+            'blue': 0x100 - ((v >> 8) & 0xFF),
+            'alpha': 0x100 - (v & 0xFF),
         }
         label = nb.gifti.GiftiLabel(key=int(k), **v)
         label.label = str(v)
@@ -786,32 +795,31 @@ class _GIfTIOutputMixin:
     """
     This mixin adds the capacity to save an atlas as a GIfTI image.
     """
+
     def to_gifti(
         self,
         save: Optional[str] = None,
         maps: Optional[Dict[str, Tensor]] = None,
         discretise: bool = True,
-    ) -> Optional["nb.GiftiImage"]:
+    ) -> Optional['nb.GiftiImage']:
         offset = 1
         if maps is None:
             maps = self.maps
         images = {}
 
         if discretise:
-            datatype = "NIFTI_TYPE_INT32"
-            intent = "NIFTI_INTENT_LABEL"
+            datatype = 'NIFTI_TYPE_INT32'
+            intent = 'NIFTI_INTENT_LABEL'
         else:
-            datatype = "NIFTI_TYPE_FLOAT32"
-            intent = "NIFTI_INTENT_VECTOR"
+            datatype = 'NIFTI_TYPE_FLOAT32'
+            intent = 'NIFTI_INTENT_VECTOR'
 
         for k, v in maps.items():
             if v.size == 0:
                 continue
             if discretise:
                 dataobj = v.argmax(0) + offset
-                labeltable = {
-                    i + 1: i + offset for i in range(v.shape[0])
-                }
+                labeltable = {i + 1: i + offset for i in range(v.shape[0])}
                 labeltable = _dict_to_gifti_label_table(labeltable)
                 additional_args = {'labeltable': labeltable}
             else:
@@ -827,7 +835,9 @@ class _GIfTIOutputMixin:
                 **additional_args,
             )
             if save is not None:
-                save_path = f"{save}_{k}.gii" if len(maps) > 1 else f"{save}.gii"
+                save_path = (
+                    f'{save}_{k}.gii' if len(maps) > 1 else f'{save}.gii'
+                )
                 nb.save(new_gifti, save_path)
             else:
                 images[k] = new_gifti
@@ -840,12 +850,13 @@ class _NIfTIOutputMixin:
     """
     This mixin adds the capacity to save an atlas as a NIfTI image.
     """
+
     def to_nifti(
         self,
         save: Optional[str] = None,
         maps: Optional[Dict[str, Tensor]] = None,
         discretise: bool = True,
-    ) -> Optional["nb.Nifti1Image"]:
+    ) -> Optional['nb.Nifti1Image']:
         offset = 1
         if maps is None:
             maps = self.maps
@@ -871,7 +882,9 @@ class _NIfTIOutputMixin:
                 data = v.argmax(0) + offset
                 dataobj[np.array(mask)] = data
             else:
-                dataobj[np.array(mask), offset - 1 : offset + n_labels - 1] = v.T
+                dataobj[
+                    np.array(mask), offset - 1 : offset + n_labels - 1
+                ] = v.T
             offset += n_labels
         new_nifti = nb.Nifti1Image(
             dataobj,
@@ -887,11 +900,12 @@ class _CIfTIOutputMixin:
     """
     This mixin adds the capacity to save an atlas as a CIfTI image.
     """
+
     def to_cifti(
         self,
         save: Optional[str] = None,
         maps: Optional[Dict[str, Tensor]] = None,
-    ) -> Optional["nb.Cifti2Image"]:
+    ) -> Optional['nb.Cifti2Image']:
         if maps is None:
             maps = self.maps
         offset = 1
@@ -928,7 +942,7 @@ class _LogicMaskMixin:
     def _create_mask(
         self,
         source: Union[str, Sequence[str]],
-    ) -> "Mask":
+    ) -> 'Mask':
         if isinstance(source, str):
             formula = None
             if _is_path(source):
@@ -972,7 +986,7 @@ class _CortexSubcortexCIfTIMaskMixin:
     def _create_mask(
         self,
         source: Dict[str, Union[str, Path]],
-    ) -> "Mask":
+    ) -> 'Mask':
         init = ()
         for k, v in source.items():
             if v is not None:
@@ -990,8 +1004,8 @@ class _CortexSubcortexCIfTIMaskMixin:
                     # reference is not a CIfTI object. Currently, we assume
                     # that the mask for this source should be omitted
                     # altogether in this case.
-                    #TODO: Is there a default configuration for this?
-                    #init += (np.ones(self.ref.shape).astype(bool),)
+                    # TODO: Is there a default configuration for this?
+                    # init += (np.ones(self.ref.shape).astype(bool),)
                     continue
         return Mask(jnp.asarray(np.concatenate(init)))
 
@@ -1013,7 +1027,7 @@ class _FromNullMaskMixin:
     def _create_mask(
         self,
         source: float = 0.0,
-    ) -> "Mask":
+    ) -> 'Mask':
         if self.ref.ndim <= 3:
             init = self.ref.dataobj.round() != source
         else:
@@ -1039,9 +1053,9 @@ class _SingleCompartmentMixin:
     def _create_compartments(
         self,
         names_dict: Dict[str, Tensor] = None,
-    ) -> "CompartmentSet":
+    ) -> 'CompartmentSet':
         compartments = OrderedDict(
-            (("all", jnp.ones((self.mask.size,), dtype=bool)),)
+            (('all', jnp.ones((self.mask.size,), dtype=bool)),)
         )
         return CompartmentSet(compartment_dict=compartments)
 
@@ -1066,7 +1080,7 @@ class _MultiCompartmentMixin:
     def _create_compartments(
         self,
         names_dict: Dict[Union[str, Tuple[str]], Tensor],
-    ) -> "CompartmentSet":
+    ) -> 'CompartmentSet':
 
         apply_mask = self.mask.map_to_masked(
             model_axes=self.ref.model_axes,
@@ -1105,12 +1119,12 @@ class _CortexSubcortexSurfaceCompartmentMixin:
     def _create_compartments(
         self,
         names_dict: Dict[Union[str, Tuple[str]], Tensor],
-    ) -> "CompartmentSet":
+    ) -> 'CompartmentSet':
         compartments = OrderedDict(
             (
-                ("cortex_L", jnp.zeros(self.mask.size, dtype=bool)),
-                ("cortex_R", jnp.zeros(self.mask.size, dtype=bool)),
-                ("subcortex", jnp.zeros(self.mask.size, dtype=bool)),
+                ('cortex_L', jnp.zeros(self.mask.size, dtype=bool)),
+                ('cortex_R', jnp.zeros(self.mask.size, dtype=bool)),
+                ('subcortex', jnp.zeros(self.mask.size, dtype=bool)),
             )
         )
 
@@ -1134,7 +1148,9 @@ class _CortexSubcortexSurfaceCompartmentMixin:
         return CompartmentSet(compartment_dict=compartments)
 
 
-class _CortexSubcortexCIfTICompartmentMixin(_CortexSubcortexSurfaceCompartmentMixin):
+class _CortexSubcortexCIfTICompartmentMixin(
+    _CortexSubcortexSurfaceCompartmentMixin
+):
     """
     Use to isolate spatial subcompartments of the overall atlas such that each
     has separate label sets.
@@ -1169,7 +1185,7 @@ class _CortexSubcortexCIfTICompartmentMixin(_CortexSubcortexSurfaceCompartmentMi
             # TODO: If it's not contiguous, this will fail.
             vol_mask = np.where(model_axis.volume_mask)[0]
             start, stop = vol_mask.min(), vol_mask.max() + 1
-            compartments["subcortex"] = jnp.logical_and(
+            compartments['subcortex'] = jnp.logical_and(
                 src >= start,
                 src < stop,
             )
@@ -1179,7 +1195,9 @@ class _CortexSubcortexCIfTICompartmentMixin(_CortexSubcortexSurfaceCompartmentMi
         return compartments
 
 
-class _CortexSubcortexGIfTICompartmentMixin(_CortexSubcortexSurfaceCompartmentMixin):
+class _CortexSubcortexGIfTICompartmentMixin(
+    _CortexSubcortexSurfaceCompartmentMixin
+):
     """
     Use to isolate spatial subcompartments of the overall atlas such that each
     has separate label sets.
@@ -1369,12 +1387,13 @@ class _VolumetricMeshMixin:
         shape = self.ref.model_shape
         coors = np.where(np.ones(shape, dtype=bool))
         coors = np.stack(coors, axis=0)
-        coors = (self.ref.affine @ np.concatenate(
-            (coors, np.ones((1, coors.shape[-1])))
-        ))[:3]
+        coors = (
+            self.ref.affine
+            @ np.concatenate((coors, np.ones((1, coors.shape[-1]))))
+        )[:3]
         self.coors = jnp.asarray(coors.T)
         self.topology = OrderedDict(
-            (c, "euclidean") for c in self.compartments.keys()
+            (c, 'euclidean') for c in self.compartments.keys()
         )
 
 
@@ -1421,9 +1440,9 @@ class _VertexCIfTIMeshMixin:
             if mask.shape != euc_mask.shape:
                 mask = mask[self.mask.data]
             if (mask * euc_mask).sum() == 0:
-                self.topology[c] = "spherical"
+                self.topology[c] = 'spherical'
             else:
-                self.topology[c] = "euclidean"
+                self.topology[c] = 'euclidean'
 
 
 class _VertexGIfTIMeshMixin:
@@ -1443,12 +1462,9 @@ class _VertexGIfTIMeshMixin:
         names_dict: Optional[Any] = None,
     ) -> None:
         coor = np.empty((self.ref.modelobj.shape[-1], 3))
-        euc_mask = np.zeros((self.ref.modelobj.shape[-1], 3))
-        names2surf = {
-            k: (v, source[k]) for k, v in self.surf.items()
-        }
+        np.zeros((self.ref.modelobj.shape[-1], 3))
+        names2surf = {k: (v, source[k]) for k, v in self.surf.items()}
 
-        shapes = self.ref.imobj.shapes
         ix = 0
 
         for name, (surf, mask) in names2surf.items():
@@ -1467,7 +1483,7 @@ class _VertexGIfTIMeshMixin:
         #       compartments and masks.
         # TODO: Add actual subcortical support for GIfTI meshes.
         for c, compartment in self.compartments.items():
-            self.topology[c] = "spherical"
+            self.topology[c] = 'spherical'
 
 
 class _EvenlySampledConvMixin:
@@ -1528,7 +1544,7 @@ class _SpatialConvMixin:
         compartment_mask = self.compartments[compartment].data
         if len(self.coors) < len(compartment_mask):
             compartment_mask = compartment_mask[self.mask.data]
-        if self.topology[compartment] == "euclidean":
+        if self.topology[compartment] == 'euclidean':
             map = euclidean_conv(
                 data=map.T,
                 coor=self.coors[compartment_mask],
@@ -1536,7 +1552,7 @@ class _SpatialConvMixin:
                 max_bin=max_bin,
                 truncate=truncate,
             ).T
-        elif self.topology[compartment] == "spherical":
+        elif self.topology[compartment] == 'spherical':
             map = spherical_conv(
                 data=map.T,
                 coor=self.coors[compartment_mask],

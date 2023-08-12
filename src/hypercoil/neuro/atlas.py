@@ -20,19 +20,19 @@ class fsLRAtlas(CortexSubcortexCIfTIAtlas):
     ):
         surf_L = tflow.get(
             **fsLR.TFLOW_COOR_QUERY,
-            **fsLR.TFLOW_COMPARTMENTS["L"],
+            **fsLR.TFLOW_COMPARTMENTS['L'],
         )
         surf_R = tflow.get(
             **fsLR.TFLOW_COOR_QUERY,
-            **fsLR.TFLOW_COMPARTMENTS["R"],
+            **fsLR.TFLOW_COMPARTMENTS['R'],
         )
         mask_L = tflow.get(
             **fsLR.TFLOW_MASK_QUERY,
-            **fsLR.TFLOW_COMPARTMENTS["L"],
+            **fsLR.TFLOW_COMPARTMENTS['L'],
         )
         mask_R = tflow.get(
             **fsLR.TFLOW_MASK_QUERY,
-            **fsLR.TFLOW_COMPARTMENTS["R"],
+            **fsLR.TFLOW_COMPARTMENTS['R'],
         )
         super(fsLRAtlas, self).__init__(
             ref_pointer=ref_pointer,
@@ -41,8 +41,8 @@ class fsLRAtlas(CortexSubcortexCIfTIAtlas):
             mask_L=mask_L,
             mask_R=mask_R,
             name=name,
-            cortex_L="CIFTI_STRUCTURE_CORTEX_LEFT",
-            cortex_R="CIFTI_STRUCTURE_CORTEX_RIGHT",
+            cortex_L='CIFTI_STRUCTURE_CORTEX_LEFT',
+            cortex_R='CIFTI_STRUCTURE_CORTEX_RIGHT',
             dtype=dtype,
             device=device,
         )

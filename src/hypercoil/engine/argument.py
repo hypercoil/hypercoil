@@ -49,7 +49,7 @@ class ModelArgument(Mapping, eqx.Module):
     def __iter__(self) -> iter:
         return iter(self._arg_dict)
 
-    def __add__(self, other) -> "ModelArgument":
+    def __add__(self, other) -> 'ModelArgument':
         """
         If there's a clash, the other argument wins.
         Also, if either argument subclasses but doesn't override __add__,
@@ -63,16 +63,16 @@ class ModelArgument(Mapping, eqx.Module):
         return left and right
 
     @classmethod
-    def add(cls, arg: "ModelArgument", **params) -> "ModelArgument":
+    def add(cls, arg: 'ModelArgument', **params) -> 'ModelArgument':
         return arg + cls(**params)
 
     @classmethod
-    def all_except(cls, arg: Mapping, *remove) -> "ModelArgument":
+    def all_except(cls, arg: Mapping, *remove) -> 'ModelArgument':
         arg = {k: v for k, v in arg.items() if k not in remove}
         return cls(**arg)
 
     @classmethod
-    def replaced(cls, arg: Mapping, **replace) -> "ModelArgument":
+    def replaced(cls, arg: Mapping, **replace) -> 'ModelArgument':
         arg = {
             k: (replace[k] if replace.get(k) is not None else v)
             for k, v in arg.items()
@@ -80,7 +80,7 @@ class ModelArgument(Mapping, eqx.Module):
         return cls(**arg)
 
     @classmethod
-    def swap(cls, arg: Mapping, *rm, **new) -> "ModelArgument":
+    def swap(cls, arg: Mapping, *rm, **new) -> 'ModelArgument':
         arg = {k: v for k, v in arg.items() if k not in rm}
         arg.update(**new)
         return cls(**arg)

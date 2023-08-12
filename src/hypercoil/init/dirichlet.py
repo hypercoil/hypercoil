@@ -98,7 +98,7 @@ class DirichletInitialiser(MappedInitialiser):
         concentration: Union[Tensor, float],
         num_classes: Optional[int] = None,
         axis: int = -1,
-        where: Union[str, Callable] = "weight",
+        where: Union[str, Callable] = 'weight',
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
