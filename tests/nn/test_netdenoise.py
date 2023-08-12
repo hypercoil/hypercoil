@@ -8,69 +8,30 @@ Overfitting a simple neural network to test elementary learning capacity for
 the denoising model selection module.
 """
 import pytest
-from hypercoil.examples.synthetic.experiments.run import run_experiment
+from pkg_resources import resource_filename
+from hypercoil_examples.synthetic.experiments.run import run_experiment
 
 
 class TestDenoisingNetwork:
     @pytest.mark.sim
-    def test_denoising_homogeneous(self):
-        run_experiment(
-            layer='denoise',
-            expt='homogeneous'
+    @pytest.mark.parametrize('expt', [
+        'homogeneous',
+        'heterogeneous',
+        'weakcorr',
+        'intercorr',
+        'weakcorrelim',
+        'intercorrelim',
+        'batch50',
+        'batch25',
+        'batch12',
+    ])
+    def test_denoising_homogeneous(self, expt):
+        results = resource_filename(
+            'hypercoil',
+            'results'
         )
-
-    @pytest.mark.sim
-    def test_denoising_heterogeneous(self):
         run_experiment(
             layer='denoise',
-            expt='heterogeneous'
-        )
-
-    @pytest.mark.sim
-    def test_denoising_weakly_correlated(self):
-        run_experiment(
-            layer='denoise',
-            expt='weakcorr'
-        )
-
-    @pytest.mark.sim
-    def test_denoising_intercorrelated(self):
-        run_experiment(
-            layer='denoise',
-            expt='intercorr'
-        )
-
-    @pytest.mark.sim
-    def test_denoising_weakly_correlated_elimination(self):
-        run_experiment(
-            layer='denoise',
-            expt='weakcorrelim'
-        )
-
-    @pytest.mark.sim
-    def test_denoising_intercorrelated_elimination(self):
-        run_experiment(
-            layer='denoise',
-            expt='intercorrelim'
-        )
-
-    @pytest.mark.sim
-    def test_denoising_batch_50(self):
-        run_experiment(
-            layer='denoise',
-            expt='batch50'
-        )
-
-    @pytest.mark.sim
-    def test_denoising_batch_25(self):
-        run_experiment(
-            layer='denoise',
-            expt='batch25'
-        )
-
-    @pytest.mark.sim
-    def test_denoising_batch_12(self):
-        run_experiment(
-            layer='denoise',
-            expt='batch12'
+            expt=expt,
+            results=results,
         )

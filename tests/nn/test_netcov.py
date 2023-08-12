@@ -8,27 +8,24 @@ Overfitting a simple neural network to test elementary learning capacity for
 the covariance module.
 """
 import pytest
-from hypercoil.examples.synthetic.experiments.run import run_experiment
+from pkg_resources import resource_filename
+from hypercoil_examples.synthetic.experiments.run import run_experiment
 
 
 class TestCovarianceNetwork:
     @pytest.mark.sim
-    def test_cov_state_identification(self):
-        run_experiment(
-            layer='corr',
-            expt='stateident'
+    @pytest.mark.parametrize('expt', [
+        'stateident',
+        'parcellationsub',
+        'parcellationgroup',
+    ])
+    def test_cov_state_identification(self, expt):
+        results = resource_filename(
+            'hypercoil',
+            'results'
         )
-
-    @pytest.mark.sim
-    def test_cov_state_parcellation_sub(self):
         run_experiment(
             layer='corr',
-            expt='parcellationsub'
-        )
-
-    @pytest.mark.sim
-    def test_cov_state_parcellation_group(self):
-        run_experiment(
-            layer='corr',
-            expt='parcellationgroup'
+            expt=expt,
+            results=results,
         )

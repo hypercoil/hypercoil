@@ -8,20 +8,23 @@ Overfitting a simple neural network to test elementary learning capacity for
 the sylo module.
 """
 import pytest
-from hypercoil.examples.synthetic.experiments.run import run_experiment
+from pkg_resources import resource_filename
+from hypercoil_examples.synthetic.experiments.run import run_experiment
 
 
 class TestSyloNetwork:
     @pytest.mark.sim
-    def test_sylo_autoencoder_no_regularisation(self):
-        run_experiment(
-            layer='sylo',
-            expt='noreg'
+    @pytest.mark.parametrize('expt', [
+        'noreg',
+        'reg',
+    ])
+    def test_sylo_autoencoder_no_regularisation(self, expt):
+        results = resource_filename(
+            'hypercoil',
+            'results'
         )
-
-    @pytest.mark.sim
-    def test_sylo_autoencoder_regularisation(self):
         run_experiment(
             layer='sylo',
-            expt='reg'
+            expt=expt,
+            results=results,
         )

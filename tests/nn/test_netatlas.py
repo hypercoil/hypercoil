@@ -8,41 +8,26 @@ Overfitting a simple neural network to test elementary learning capacity for
 the atlas module.
 """
 import pytest
-from hypercoil.examples.synthetic.experiments.run import run_experiment
+from pkg_resources import resource_filename
+from hypercoil_examples.synthetic.experiments.run import run_experiment
 
 
 class TestAtlasNetwork:
     @pytest.mark.sim
-    def test_atlas_homology(self):
-        run_experiment(
-            layer='atlas',
-            expt='homology'
+    @pytest.mark.parametrize('expt', [
+        'homology',
+        'unsupervisedhard',
+        'unsupervisedsoft',
+        'hierarchical5',
+        'hierarchical25',
+    ])
+    def test_atlas_homology(self, expt):
+        results = resource_filename(
+            'hypercoil',
+            'results'
         )
-
-    @pytest.mark.sim
-    def test_atlas_unsupervised_hard(self):
         run_experiment(
             layer='atlas',
-            expt='unsupervisedhard'
-        )
-
-    @pytest.mark.sim
-    def test_atlas_unsupervised_soft(self):
-        run_experiment(
-            layer='atlas',
-            expt='unsupervisedsoft'
-        )
-
-    @pytest.mark.sim
-    def test_atlas_hierarchical_5(self):
-        run_experiment(
-            layer='atlas',
-            expt='hierarchical5'
-        )
-
-    @pytest.mark.sim
-    def test_atlas_hierarchical_25(self):
-        run_experiment(
-            layer='atlas',
-            expt='hierarchical25'
+            expt=expt,
+            results=results,
         )

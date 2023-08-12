@@ -13,7 +13,7 @@ from hypercoil.formula.dfops import (
 
 
 def path_from_examples(fname):
-    return pkgrf('hypercoil', f'examples/data/{fname}')
+    return pkgrf('hypercoil_examples', f'data/confounds/{fname}')
 
 
 #TODO: remove this after we upstream the ``data`` submodule.

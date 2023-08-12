@@ -15,7 +15,7 @@ from hypercoil.functional.matrix import sym2vec
 from hypercoil.init.mpbl import (
     maximum_potential_bipartite_lattice
 )
-from hypercoil.examples.synthetic.scripts.sylo import synthesise_lowrank_block
+from hypercoil_examples.synthetic.scripts.sylo import synthesise_lowrank_block
 
 
 class TestMPBL:

@@ -75,8 +75,8 @@ class TestSynthesis:
 
     def get_reference(self, obj='ts'):
         path = pkgrf(
-            'hypercoil',
-            'examples/synthetic/data/synth-regts/'
+            'hypercoil_examples',
+            'data/synthetic/synth-regts/'
             f'atlas-schaefer400_desc-synth_{obj}.tsv'
         )
         data = pd.read_csv(path, sep='\t', header=None).values.T
