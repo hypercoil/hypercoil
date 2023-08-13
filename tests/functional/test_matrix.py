@@ -8,6 +8,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.test_util import check_grads
 from scipy.linalg import toeplitz as toeplitz_ref
 from hypercoil.functional import (
     cholesky_invert,
@@ -201,3 +202,60 @@ class TestMatrix:
         out = squareform(out)
         ref = vec2sym(ref)
         assert np.allclose(out, ref)
+
+
+@pytest.mark.parametrize(
+    'offset, shape',
+    [
+        (1, (3, 4, 10)),
+        (0, (3, 4, 15)),
+    ],
+)
+def test_vec2sym_grad(offset, shape):
+    key = jax.random.PRNGKey(133)
+    v = jax.random.uniform(key=key, shape=shape)
+    B = jax.random.uniform(key=key, shape=(5, 5))
+    #K = symmetric(K)
+    check_grads(
+        lambda v: (vec2sym(v, offset=offset) @ B),
+        (v,),
+        order=1,
+        modes=('rev',),
+        rtol=0.01,
+        atol=0.01,
+    )
+
+    grad = jax.jit(jax.grad(
+        lambda v: vec2sym(v, offset=offset).sum()
+    ))(v)
+    expected = sym2vec(jnp.where(jnp.eye(5), 1, 2), offset=offset)
+    assert np.allclose(grad, expected)
+
+
+@pytest.mark.parametrize(
+    'offset, shape',
+    [
+        (1, 10),
+        (0, 15),
+    ],
+)
+def test_sym2vec_grad(offset, shape):
+    key = jax.random.PRNGKey(133)
+    K = jax.random.uniform(key=key, shape=(3, 4, 5, 5))
+    B = jax.random.uniform(key=key, shape=(5, shape))
+    check_grads(
+        lambda K: (B @ sym2vec(
+            symmetric(K), offset=offset
+        ).swapaxes(-1, -2)),
+        (K,),
+        order=1,
+        modes=('rev',),
+        rtol=0.01,
+        atol=0.01,
+    )
+
+    grad = jax.jit(jax.grad(
+        lambda K: sym2vec(K, offset=offset).sum()
+    ))(K)
+    expected = jnp.triu(jnp.ones((5, 5)), offset)
+    assert np.allclose(grad, expected)
