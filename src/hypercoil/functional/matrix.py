@@ -489,6 +489,7 @@ def toeplitz(
     )((c, r))
 
 
+@partial(jax.custom_vjp, nondiff_argnums=(1,))
 def sym2vec(sym: Tensor, offset: int = 1) -> Tensor:
     """
     Convert a block of symmetric matrices into ravelled vector form.
@@ -521,6 +522,7 @@ def sym2vec(sym: Tensor, offset: int = 1) -> Tensor:
     return vec.reshape(*shape, -1)
 
 
+@partial(jax.custom_vjp, nondiff_argnums=(1,))
 def vec2sym(vec: Tensor, offset: int = 1) -> Tensor:
     """
     Convert a block of ravelled vectors into symmetric matrices.
@@ -553,10 +555,9 @@ def vec2sym(vec: Tensor, offset: int = 1) -> Tensor:
     idx = jnp.triu_indices(m=side, n=side, k=offset)
     sym = jnp.zeros((*shape, side, side))
     sym = sym.at[..., idx[0], idx[1]].set(vec)
-    sym = sym + sym.swapaxes(-1, -2)
-    if offset == 0:
-        mask = jnp.eye(side, dtype=bool)
-        sym = sym.at[..., mask].set(sym[..., mask] / 2)
+    sym = jnp.where(
+        jnp.eye(side, dtype=bool), sym, sym + sym.swapaxes(-1, -2)
+    )
     return sym
 
 
@@ -586,3 +587,27 @@ def squareform(X: Tensor) -> Tensor:
         return sym2vec(X, offset=1)
     else:
         return vec2sym(X, offset=1)
+
+
+def sym2vec_fwd(sym, offset):
+    return sym2vec(sym, offset=offset), None
+
+
+def sym2vec_bwd(offset, res, g):
+    unscaled = vec2sym(g, offset=offset)
+    scalar = jnp.triu(jnp.ones(unscaled.shape[-2:]), offset)
+    return unscaled * scalar,
+
+
+def vec2sym_fwd(vec, offset):
+    return vec2sym(vec, offset=offset), None
+
+
+def vec2sym_bwd(offset, res, g):
+    scalar = jnp.where(jnp.eye(g.shape[-1]), 1, 2)
+    scalar = sym2vec(scalar, offset=offset)
+    return scalar * sym2vec(symmetric(g), offset=offset),
+
+
+sym2vec.defvjp(sym2vec_fwd, sym2vec_bwd)
+vec2sym.defvjp(vec2sym_fwd, vec2sym_bwd)
