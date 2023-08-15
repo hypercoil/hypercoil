@@ -5,13 +5,16 @@
 Unit tests for parameterisation of and approximate integration over metric
 tensor fields.
 """
+import pytest
 from functools import partial
 
 import jax
 import jax.numpy as jnp
 
 from hypercoil.functional import (
+    diag_embed,
     metric_tensor_field_diag_plus_low_rank,
+    quadratic_form_low_rank_plus_diag,
     sample_along_line_segment,
     integrate_along_line_segment,
     # integrate_along_line_segment_adaptive,
@@ -79,7 +82,15 @@ def test_sample_along_line_segment():
     assert samples.shape == (3, 10, 7)
 
 
-def test_integrate_along_line_segment():
+@pytest.mark.parametrize(
+    'extra_args',
+    [
+        {'even_sampling': True, 'include_endpoints': True},
+        {'even_sampling': False, 'weight_by_fraction': True},
+        {'even_sampling': False, 'weight_by_euc_length': True},
+    ]
+)
+def test_integrate_along_line_segment(extra_args):
     key = jax.random.PRNGKey(0)
     key_a, key_b, key_s, key_m = jax.random.split(key, 4)
     a = jax.random.uniform(key_a, (3, 7))
@@ -111,22 +122,8 @@ def test_integrate_along_line_segment():
         b=b,
         metric_tensor_field=metric_tensor_field,
         n_samples=10,
-        even_sampling=True,
-        include_endpoints=True,
         key=key_s,
+        **extra_args,
     )
     assert integral.shape == (3, 1)
     assert jnp.all(integral >= 0) # positive-definite
-
-    integral_w = integrate_along_line_segment(
-        a=a,
-        b=b,
-        metric_tensor_field=metric_tensor_field,
-        n_samples=10,
-        even_sampling=False,
-        weight_by_euc_length=True,
-        key=key_s,
-    )
-    assert integral_w.shape == (3, 1)
-    assert jnp.all(integral_w >= 0) # positive-definite
-    assert 0

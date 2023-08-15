@@ -52,6 +52,31 @@ def metric_tensor_field_diag_plus_low_rank(
     return low_rank @ low_rank.swapaxes(-1, -2) + diag_embed(diag)
 
 
+def _obtain_relative_samples(
+    n_samples: int,
+    *,
+    even_sampling: bool = True,
+    include_endpoints: bool = True,
+    key: 'jax.random.PRNGKey',
+) -> Tensor:
+    if even_sampling:
+        if include_endpoints:
+            rel = jnp.arange(n_samples) / (n_samples - 1)
+        else:
+            rel = jnp.arange(1, n_samples + 1) / (n_samples + 2)
+    else:
+        rel = jax.random.uniform(shape=(n_samples,), key=key)
+    return rel
+
+
+def _obtain_absolute_samples(
+    a: Tensor,
+    b: Tensor,
+    relative_samples: Tensor,
+) -> Tensor:
+    return a[..., None, :] + relative_samples[:, None] * (b - a)[..., None, :]
+
+
 def sample_along_line_segment(
     a: Tensor,
     b: Tensor,
@@ -87,14 +112,13 @@ def sample_along_line_segment(
     Tensor
         Tensor of shape `(*, n_samples, p)` containing the sampled points.
     """
-    if even_sampling:
-        if include_endpoints:
-            gen = jnp.arange(n_samples) / (n_samples - 1)
-        else:
-            gen = jnp.arange(1, n_samples + 1) / (n_samples + 2)
-    else:
-        gen = jax.random.uniform(shape=(n_samples,), key=key)
-    return a[..., None, :] + gen[:, None] * (b - a)[..., None, :]
+    rel = _obtain_relative_samples(
+        n_samples=n_samples,
+        even_sampling=even_sampling,
+        include_endpoints=include_endpoints,
+        key=key,
+    )
+    return _obtain_absolute_samples(a, b, rel)
 
 
 def integrate_along_line_segment(
@@ -105,7 +129,8 @@ def integrate_along_line_segment(
     *,
     even_sampling: bool = True,
     include_endpoints: bool = True,
-    weight_by_euc_length: bool = False,
+    weight_by_euc_length: bool = True,
+    weight_by_fraction: bool = False,
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
     """
@@ -120,38 +145,49 @@ def integrate_along_line_segment(
     Parameters
     ----------
     a : Tensor
-        Tensor of shape `(p,)` containing the coordinates of the start of the
+        Tensor of shape `(*, p)` containing the coordinates of the start of the
         line segment.
     b : Tensor
-        Tensor of shape `(p,)` containing the coordinates of the end of the
+        Tensor of shape `(*, p)` containing the coordinates of the end of the
         line segment.
     metric_tensor_field : callable
-        Callable that takes a tensor of shape `(p,)` and returns a tensor of
-        shape `(p, p)` containing the metric tensor at that point.
+        Callable that takes a tensor of shape `(*, p)` and returns a tensor of
+        shape `(*, p, p)` containing the metric tensor at that point.
     n_samples : int
         Number of samples to take along the line segment.
     even_sampling : bool (default True)
-        Whether to sample evenly along the line segment. If this is False, then
-        samples are drawn from a uniform distribution along the line segment.
+        Whether to sample evenly along the line segment. If this is False,
+        then samples are drawn from a uniform distribution along the line
+        segment.
     include_endpoints : bool (default True)
         Whether to include the endpoints of the line segment in the samples.
     weight_by_euc_length : bool (default False)
-        Whether to weight each sample by the length of the line segment between
-        it and the next sample. This is only relevant if `even_sampling` is
-        False.
+        Whether to weight the estimated norm of each line segment by its
+        Euclidean length.
+    weight_by_fraction : bool (default False)
+        Whether to weight each sample by the length of the line segment
+        between it and the next sample, as a fraction of the total Euclidean
+        length of the line segment. This is only relevant if `even_sampling`
+        is False.
     key : jax.random.PRNGKey
         Key to use for random number generation.
     """
-    samples = sample_along_line_segment(
-        a, b, n_samples,
+    rel = _obtain_relative_samples(
+        n_samples=n_samples,
         even_sampling=even_sampling,
         include_endpoints=include_endpoints,
         key=key,
     )
+    samples = _obtain_absolute_samples(a, b, rel)
     metric_tensor = metric_tensor_field(samples)
     norm = samples[..., None, :] @ metric_tensor @ samples[..., None]
     norm = norm.squeeze(-1)
-    if weight_by_euc_length and not even_sampling:
-        euc_length = jnp.linalg.norm(samples, axis=-1, keepdims=True)
+    if weight_by_fraction and not even_sampling:
+        frac = jnp.diff(jnp.sort(rel), prepend=0, append=1)
+        weight = ((frac[1:] + frac[:-1]) / 2).sum()
+        weight = weight / weight.sum()[..., None]
+        norm = norm * weight
+    if weight_by_euc_length:
+        euc_length = jnp.linalg.norm(b - a, axis=-1, keepdims=True)[..., None]
         norm = norm * euc_length
     return norm.sum(-2) / n_samples
