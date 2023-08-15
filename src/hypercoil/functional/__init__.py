@@ -101,6 +101,7 @@ from .matrix import (
 from .metrictensor import (
     integrate_along_line_segment,
     metric_tensor_field_diag_plus_low_rank,
+    quadratic_form_low_rank_plus_diag,
     sample_along_line_segment,
 )
 from .resid import (

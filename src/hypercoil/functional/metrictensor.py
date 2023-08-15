@@ -8,7 +8,7 @@ We use these operations to parameterise a latent connectopic space as a
 Riemannian manifold. The metric tensor field is a p-dimensional tensor field
 that defines the Riemannian metric at each point in the manifold.
 """
-from typing import Callable
+from typing import Callable, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -50,6 +50,57 @@ def metric_tensor_field_diag_plus_low_rank(
     low_rank = low_rank_model(coor)
     diag = diag_model(coor)
     return low_rank @ low_rank.swapaxes(-1, -2) + diag_embed(diag)
+
+
+def quadratic_form(
+    coor: Tensor,
+    metric_tensor: Tensor,
+):
+    """
+    Compute the quadratic form :math:`x^T A x`.
+
+    Parameters
+    ----------
+    coor : Tensor
+        Tensor of shape `(*, p)` containing the vector to multiply.
+    metric_tensor : Tensor
+        Tensor of shape `(*, p, p)` containing the metric tensor.
+
+    Returns
+    -------
+    Tensor
+        Tensor of shape `(*, 1)` containing the result of the quadratic form.
+    """
+    norm = coor[..., None, :] @ metric_tensor @ coor[..., None]
+    return norm.squeeze(-1)
+
+
+def quadratic_form_low_rank_plus_diag(
+    coor: Tensor,
+    metric_tensor: Tuple[Tensor, Tensor],
+) -> Tensor:
+    """
+    Compute the quadratic form :math:`x^T A x` where :math:`A` is a sum of a
+    diagonal and a low-rank component.
+
+    Parameters
+    ----------
+    coor : Tensor
+        Tensor of shape `(*, p)` containing the vector to multiply.
+    metric_tensor : tuple of Tensors
+        Tuple containing the low-rank and diagonal components of the metric
+        tensor. The low-rank component is a tensor of shape `(*, p, r)` and the
+        diagonal component is a tensor of shape `(*, p)`. The sum of these two
+        tensors is the metric tensor.
+
+    Returns
+    -------
+    Tensor
+        Tensor of shape `(*, 1)` containing the result of the quadratic form.
+    """
+    low_rank, diag = metric_tensor
+    lr = ((low_rank.swapaxes(-1, -2) @ coor[..., None]) ** 2).sum(-2)
+    return lr + (diag * (coor ** 2)).sum(-1, keepdims=True)
 
 
 def _obtain_relative_samples(
@@ -127,6 +178,7 @@ def integrate_along_line_segment(
     metric_tensor_field: Callable[[Tensor], Tensor],
     n_samples: int,
     *,
+    norm: callable = quadratic_form,
     even_sampling: bool = True,
     include_endpoints: bool = True,
     weight_by_euc_length: bool = True,
@@ -155,6 +207,16 @@ def integrate_along_line_segment(
         shape `(*, p, p)` containing the metric tensor at that point.
     n_samples : int
         Number of samples to take along the line segment.
+    norm : callable (default quadratic_form)
+        Callable that takes a tensor of shape `(*, p)` and some representation
+        of the metric tensor of shape `(*, p, p)` and returns a tensor of
+        shape `(*, 1)` containing the norm of the vector under the metric
+        tensor. The default is the quadratic form :math:`x^T A x`.
+
+        .. note::
+            When approximating the metric tensor field as a sum of a diagonal
+            and a low-rank component, the quadratic form can be computed more
+            efficiently using :func:`quadratic_form_low_rank_plus_diag`.
     even_sampling : bool (default True)
         Whether to sample evenly along the line segment. If this is False,
         then samples are drawn from a uniform distribution along the line
@@ -180,14 +242,13 @@ def integrate_along_line_segment(
     )
     samples = _obtain_absolute_samples(a, b, rel)
     metric_tensor = metric_tensor_field(samples)
-    norm = samples[..., None, :] @ metric_tensor @ samples[..., None]
-    norm = norm.squeeze(-1)
+    length = norm(samples, metric_tensor)
     if weight_by_fraction and not even_sampling:
         frac = jnp.diff(jnp.sort(rel), prepend=0, append=1)
         weight = ((frac[1:] + frac[:-1]) / 2).sum()
         weight = weight / weight.sum()[..., None]
-        norm = norm * weight
+        length = length * weight
     if weight_by_euc_length:
         euc_length = jnp.linalg.norm(b - a, axis=-1, keepdims=True)[..., None]
-        norm = norm * euc_length
-    return norm.sum(-2) / n_samples
+        length = length * euc_length
+    return length.sum(-2) / n_samples

@@ -55,6 +55,21 @@ def test_metric_tensor_field_diag_plus_low_rank():
     assert tensors.shape == (3, 10, 7, 7)
 
 
+def test_quadratic_form_low_rank_plus_diag():
+    key = jax.random.PRNGKey(0)
+    key_l, key_d, key_x = jax.random.split(key, 3)
+    low_rank = jax.random.uniform(key_l, (3, 10, 7, 2))
+    diag = jax.random.uniform(key_d, (3, 10, 7))
+    x = jax.random.uniform(key_x, (3, 10, 7))
+    out = quadratic_form_low_rank_plus_diag(x, (low_rank, diag))
+    ref = (
+        x[..., None, :] @
+        (low_rank @ low_rank.swapaxes(-1, -2) + diag_embed(diag)) @
+        x[..., None]
+    ).squeeze(-1)
+    assert jnp.allclose(out, ref)
+
+
 def test_sample_along_line_segment():
     key = jax.random.PRNGKey(0)
     key_a, key_b, key_s = jax.random.split(key, 3)
@@ -123,6 +138,51 @@ def test_integrate_along_line_segment(extra_args):
         metric_tensor_field=metric_tensor_field,
         n_samples=10,
         key=key_s,
+        **extra_args,
+    )
+    assert integral.shape == (3, 1)
+    assert jnp.all(integral >= 0) # positive-definite
+
+
+@pytest.mark.parametrize(
+    'extra_args',
+    [
+        {'even_sampling': True, 'include_endpoints': True},
+        {'even_sampling': False, 'weight_by_fraction': True},
+        {'even_sampling': False, 'weight_by_euc_length': True},
+    ]
+)
+def test_integrate_along_line_segment_decomposition(extra_args):
+    key = jax.random.PRNGKey(0)
+    key_a, key_b, key_s, key_m = jax.random.split(key, 4)
+    a = jax.random.uniform(key_a, (3, 7))
+    b = jax.random.uniform(key_b, (3, 7))
+
+    def low_rank_model():
+        weight = jax.random.uniform(shape=(14, 7), key=key_m)
+
+        def forward(x):
+            batch_shape = x.shape[:-1]
+            return (weight @ x[..., None]).reshape(batch_shape + (7, 2))
+
+        return forward
+
+    def diag_model():
+        def forward(_):
+            return jnp.ones((7,))
+
+        return forward
+
+    def metric_tensor_field(x):
+        return low_rank_model()(x), diag_model()(x)
+
+    integral = integrate_along_line_segment(
+        a=a,
+        b=b,
+        metric_tensor_field=metric_tensor_field,
+        n_samples=10,
+        key=key_s,
+        norm=quadratic_form_low_rank_plus_diag,
         **extra_args,
     )
     assert integral.shape == (3, 1)
