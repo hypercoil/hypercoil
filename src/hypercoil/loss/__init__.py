@@ -52,6 +52,7 @@ from .functional import (
     multivariate_kurtosis,
     connectopy,
     modularity,
+    eigenmaps,
 )
 from .nn import (
     Loss,
@@ -86,6 +87,7 @@ from .nn import (
     MultivariateKurtosis,
     ConnectopyLoss,
     ModularityLoss,
+    EigenmapsLoss,
 )
 from .scalarise import (
     sum_scalarise,

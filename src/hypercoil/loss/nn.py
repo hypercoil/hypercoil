@@ -45,6 +45,7 @@ from .functional import (
     document_second_moment,
     document_smoothness,
     document_spatial_loss,
+    eigenmaps,
     entropy,
     entropy_logit,
     equilibrium,
@@ -1872,5 +1873,71 @@ class ModularityLoss(Loss):
             theta=theta,
             gamma=self.gamma,
             exclude_diag=self.exclude_diag,
+            key=key,
+        )
+
+
+@document_connectopy
+@document_loss()
+class EigenmapsLoss(Loss):
+    """
+    Laplacian eigenmaps functional.
+
+    .. warning::
+
+        This function is provided as an illustrative example of how to
+        parameterise the connectopy functional. It is not recommended for
+        practical use, because it is incredibly inefficient and numerically
+        unstable. Instead, use the ``laplacian_eigenmaps`` function from
+        ``hypercoil.functional``.
+    \
+    {param_spec}\
+    {connectopy_spec}\
+    {scalarisation_spec}
+    """
+
+    theta: Optional[Tensor]
+    omega: Optional[Tensor]
+
+    def __init__(
+        self,
+        nu: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        theta: Optional[Tensor] = None,
+        omega: Optional[Tensor] = None,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None:
+            name = 'Eigenmaps'
+        super().__init__(
+            nu=nu,
+            name=name,
+            score=eigenmaps,
+            scalarisation=scalarisation or mean_scalarise(),
+            key=key,
+        )
+        self.theta = theta
+        self.omega = omega
+
+    def __call__(
+        self,
+        Q: Tensor,
+        A: Tensor,
+        theta: Optional[Tensor] = None,
+        omega: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        if theta is None:
+            theta = self.theta
+        if omega is None:
+            omega = self.omega
+        return self.nu * self.loss(
+            Q=Q,
+            A=A,
+            theta=theta,
+            omega=omega,
             key=key,
         )

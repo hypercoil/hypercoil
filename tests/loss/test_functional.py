@@ -418,7 +418,7 @@ class TestLossFunction:
 
         modularity_loss = jax.jit(mean_scalarise()(modularity))
         out = modularity_loss(Q, A, gamma=5) / 2
-        ref = relaxed_modularity(A, Q, gamma=5).mean()
+        ref = -relaxed_modularity(A, Q, gamma=5).mean()
         assert jnp.allclose(out, ref)
 
         jax.jit(mean_scalarise()(eigenmaps))(Q, A)

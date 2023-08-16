@@ -18,7 +18,7 @@ from hypercoil.loss.functional import (
     bregman_divergence, bregman_divergence_logit,
     equilibrium, equilibrium_logit, second_moment, second_moment_centred,
     batch_corr, qcfc, reference_tether, interhemispheric_tether, compactness,
-    dispersion, multivariate_kurtosis, connectopy, modularity,
+    dispersion, multivariate_kurtosis, connectopy, modularity, eigenmaps,
 )
 from hypercoil.loss.scalarise import (
     mean_scalarise, sum_scalarise, meansq_scalarise, vnorm_scalarise,
@@ -32,7 +32,7 @@ from hypercoil.loss.nn import (
     EquilibriumLoss, EquilibriumLogitLoss, SecondMomentLoss,
     SecondMomentCentredLoss, BatchCorrelationLoss, QCFCLoss, ReferenceTetherLoss,
     InterhemisphericTetherLoss, CompactnessLoss, DispersionLoss,
-    MultivariateKurtosis, ConnectopyLoss, ModularityLoss,
+    MultivariateKurtosis, ConnectopyLoss, ModularityLoss, EigenmapsLoss,
 )
 
 
@@ -252,4 +252,8 @@ class TestLossModule:
             theta=theta, gamma=0.13, exclude_diag=True))(Q, A, D)
         ref = mean_scalarise()(modularity)(
             Q, A, D, theta=theta, gamma=0.13, exclude_diag=True)
+        assert jnp.isclose(out, ref)
+
+        out = eqx.filter_jit(EigenmapsLoss(theta=theta, omega=omega))(Q, A)
+        ref = mean_scalarise()(eigenmaps)(Q, A, theta=theta, omega=omega)
         assert jnp.isclose(out, ref)

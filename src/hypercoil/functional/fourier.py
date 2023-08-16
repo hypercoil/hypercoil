@@ -385,8 +385,15 @@ def env_inst(
     {analytic_signal_base_spec}\
     {analytic_signal_period}\
     {analytic_signal_sampling_frequency}
-    \
-    {analytic_signal_return_spec}
+
+    Returns
+    -------
+    Tensor
+        Envelope of the analytic signal.
+    Tensor
+        Instantaneous frequency of the analytic signal.
+    Tensor
+        Instantaneous phase of the analytic signal.
     \
     {analytic_signal_see_also}
     """

@@ -1975,7 +1975,7 @@ def modularity(
     """
 
     def dissimilarity(Q, theta):
-        return coaffiliation(
+        return -coaffiliation(
             Q,
             L=theta,
             normalise_coaffiliation=True,
@@ -2006,8 +2006,8 @@ def eigenmaps(
     Q: Tensor,
     A: Tensor,
     theta: Optional[Tensor] = None,
+    omega: Optional[Tensor] = None,
     *,
-    normalise: bool = True,
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
@@ -2030,18 +2030,21 @@ def eigenmaps(
     \
     {return_spec}
     """
-
     def dissimilarity(Q, theta):
-        return linear_distance(Q, theta=theta)
+        Q = Q - Q.mean(-2, keepdims=True)
+        Qproj = Q / jnp.linalg.norm(Q, axis=-2, keepdims=True)
+        return linear_distance(Qproj, theta=theta)
 
     def affinity(A, omega):
-        return graph_laplacian(A, normalise=omega)
+        A = jax.nn.relu(corr_kernel(A, theta=omega))
+        D = A.sum(-1, keepdims=True) ** -1
+        return (D @ D.swapaxes(-1, -2)) * A
 
     return connectopy(
         Q=Q,
         A=A,
         theta=theta,
-        omega=normalise,
+        omega=omega,
         dissimilarity=dissimilarity,
         affinity=affinity,
         key=key,
