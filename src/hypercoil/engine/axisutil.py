@@ -355,8 +355,9 @@ def fold_and_promote(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     Fold the specified axis into the specified number of folds, and promote
     the new axis across the number of folds to the outermost dimension.
     """
+    axis = standard_axis_number(axis, tensor.ndim)
     folded = fold_axis(tensor, axis, n_folds)
-    return jnp.transpose(folded, promote_axis(folded.ndim, axis))
+    return jnp.transpose(folded, promote_axis(folded.ndim, axis + 1))
 
 
 @partial(jax.jit, static_argnames=('target_address', 'axes'))
