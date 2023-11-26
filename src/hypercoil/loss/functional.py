@@ -1372,6 +1372,87 @@ def point_homogeneity(
     return fh
 
 
+def point_similarity(
+    weight: Tensor,
+    neighbourhood: Tensor,
+    reference: Optional[Tensor] = None,
+    *,
+    rectify_at: Union[float, Literal['auto']] = 'auto',
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Compute the local similarity of a weight assignment at a set of points.
+
+    This loss primarily exists as an ablation for the ``point_agreement``
+    function. It is equivalent to the agreement loss with the functional
+    homogeneity term removed (i.e., ``kappa=1``).
+    """
+    if rectify_at == 'auto':
+        # This blocks penalisation when the similarity kernel is any better
+        # than random.
+        rectify_at = 1 / weight.shape[-1]
+    if reference is not None:
+        ref_weight = weight[..., reference, :]
+    else:
+        ref_weight = weight
+    wpt = _point_weights(weight, ref_weight, neighbourhood)
+    return jax.nn.relu(rectify_at - wpt)
+
+
+def point_agreement(
+    X: Tensor,
+    weight: Tensor,
+    neighbourhood: Tensor,
+    reference: Optional[Tensor] = None,
+    *,
+    kappa: Union[float, Literal['auto']] = 'auto',
+    rectify_agreement: float = 1.,
+    rectify_boundaries: Union[float, Literal['auto']] = 'auto',
+    standardise: bool = False,
+    rescale_result: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Compute a homogeneity-derived measure of agreement for a dataset at a set
+    of points, penalising boundaries.
+    """
+    X, _ = _homogeneity_prepare_args(
+        X,
+        weight,
+        standardise=standardise,
+        skip_normalise=True,
+        use_geom_mean=False,
+    )
+    if rectify_boundaries == 'auto':
+        # This blocks penalisation when the similarity kernel is any better
+        # than random.
+        rectify_boundaries = 1 / weight.shape[-1]
+    if kappa == 'auto':
+        kappa = rectify_agreement / (rectify_agreement + rectify_boundaries)
+    if reference is not None:
+        ref_X = X[..., reference, :]
+        ref_weight = weight[..., reference, :]
+    else:
+        ref_X = X
+        ref_weight = weight
+    wpt = _point_weights(weight, ref_weight, neighbourhood)
+    fh = jnp.einsum(
+        '...na,...nt,...nat->...na',
+        wpt,
+        ref_X,
+        X[..., neighbourhood, :],
+    ) / X.shape[-1] / wpt.sum((-2, -1))
+    result = (
+        kappa * jax.nn.relu(rectify_boundaries - wpt) +
+        (1 - kappa) * jax.nn.relu(rectify_agreement - fh)
+    )
+    if rescale_result:
+        result = result / (
+            kappa * rectify_boundaries + (1 - kappa) * rectify_agreement
+        )
+    return result
+
+
 # Batch correlation ----------------------------------------------------------
 
 

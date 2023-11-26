@@ -489,6 +489,42 @@ class TestLossFunction:
         )
         assert jnp.allclose(out, fh, rtol=1e-4)
 
+    def test_point_agreement(self):
+        #TODO: test point losses. Deferring everything except smoke tests
+        #      for now.
+        N_INSTANCES = 3
+        N_PARCELS = 3
+        N_VOXELS = 100
+        N_TIMEPOINTS = 50
+        NH_SIZE = 5
+
+        parcellation = jax.random.randint(
+            jax.random.PRNGKey(0),
+            shape=(N_VOXELS,),
+            minval=0,
+            maxval=N_PARCELS,
+        )
+        parcellation = jnp.eye(N_PARCELS)[parcellation].astype(bool)
+        ts = jax.random.normal(
+            jax.random.PRNGKey(1),
+            shape=(N_INSTANCES, N_VOXELS, N_TIMEPOINTS),
+        )
+        nh = jax.random.randint(
+            jax.random.PRNGKey(2),
+            shape=(N_VOXELS, NH_SIZE),
+            minval=0,
+            maxval=N_VOXELS,
+        )
+        point_similarity(
+            parcellation, nh[:, 1:], nh[:, 0]
+        )
+        point_agreement(
+            ts, parcellation, nh[:, 1:], nh[:, 0]
+        )
+        jax.jit(mean_scalarise()(point_agreement))(
+            ts, parcellation, nh[:, 1:], nh[:, 0]
+        )
+
     def test_batch_corr(self):
         n_batch = (100, 1000)
         gt_shared = (0.1, 0.5, 0.9)
