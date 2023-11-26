@@ -332,6 +332,45 @@ class TestLossFunction:
         out = loss1(data, weight, mu)
         assert jnp.allclose(out, ref)
 
+    def test_functional_homogeneity(self):
+        N_INSTANCES = 3
+        N_PARCELS = 10
+        N_VOXELS = 100
+        N_TIMEPOINTS = 50
+        def corrcoef_triu(x):
+            return jnp.corrcoef(x)[jnp.triu_indices(x.shape[0], k=1)]
+
+        parcellation = jax.random.randint(
+            jax.random.PRNGKey(0),
+            shape=(N_VOXELS,),
+            minval=0,
+            maxval=N_PARCELS,
+        )
+        ts = jax.random.normal(
+            jax.random.PRNGKey(1),
+            shape=(N_INSTANCES, N_VOXELS, N_TIMEPOINTS),
+        )
+        parcellation = jnp.eye(N_PARCELS)[parcellation].astype(bool)
+        fh = jnp.asarray([
+            jax.vmap(corrcoef_triu)(ts[..., parcel, :]).mean(-1)
+            for parcel in parcellation.T
+        ]).T
+        out = functional_homogeneity(
+            ts,
+            parcellation.astype(float),
+            standardise=True,
+        )
+        assert jnp.allclose(out, fh, rtol=1e-4)
+        w = parcellation.sum(0)
+        ref = (w * fh).sum(-1) / w.sum(-1)
+        out = functional_homogeneity(
+            ts,
+            parcellation.astype(float),
+            standardise=True,
+            use_schaefer=True,
+        )
+        assert jnp.allclose(out, ref)
+
     def test_batch_corr(self):
         n_batch = (100, 1000)
         gt_shared = (0.1, 0.5, 0.9)

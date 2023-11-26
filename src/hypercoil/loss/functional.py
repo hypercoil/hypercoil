@@ -1239,6 +1239,65 @@ def second_moment_centred(
     )
 
 
+# Functional homogeneity -----------------------------------------------------
+
+
+def _homogeneity_prepare_args(
+    X: Tensor,
+    weight: Tensor,
+    *,
+    standardise: bool = False,
+    skip_normalise: bool = False,
+    use_geom_mean: bool = False,
+) -> Tuple[Tensor, Tensor]:
+    """
+    Prepare arguments for functional homogeneity computation.
+    """
+    if standardise:
+        X = (X - X.mean(-1, keepdims=True)) / X.std(-1, keepdims=True)
+    if use_geom_mean:
+        weight = jnp.sqrt(weight)
+    if not skip_normalise:
+        weight = weight / (
+            weight.sum(-2, keepdims=True) + jnp.finfo(weight.dtype).eps
+        )
+    return X, weight
+
+
+def functional_homogeneity(
+    X: Tensor,
+    weight: Tensor,
+    *,
+    standardise: bool = False,
+    skip_normalise: bool = False,
+    use_geom_mean: bool = False,
+    use_schaefer: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Compute the functional homogeneity of a dataset.
+    """
+    orig_weight = weight
+    X, weight = _homogeneity_prepare_args(
+        X,
+        weight,
+        standardise=standardise,
+        skip_normalise=skip_normalise,
+        use_geom_mean=use_geom_mean,
+    )
+    fh = jnp.einsum(
+        '...ap,...bp,...at,...bt->...p',
+        weight, weight, X, X
+    ) / X.shape[-1]
+    # Correct for the diagonal: we shouldn't count the self-correlation
+    parcel_size = orig_weight.sum(-2)
+    fh = (fh - (weight ** 2).sum(-2)) * parcel_size / (parcel_size - 1)
+    if use_schaefer:
+        w = orig_weight.sum(-2)
+        fh = (fh * w).sum(-1) / w.sum(-1)
+    return fh
+
+
 # Batch correlation ----------------------------------------------------------
 
 
