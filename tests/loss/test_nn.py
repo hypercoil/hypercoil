@@ -17,6 +17,8 @@ from hypercoil.loss.functional import (
     js_divergence, js_divergence_logit,
     bregman_divergence, bregman_divergence_logit,
     equilibrium, equilibrium_logit, second_moment, second_moment_centred,
+    functional_homogeneity, point_homogeneity,
+    point_agreement, point_similarity,
     batch_corr, qcfc, reference_tether, interhemispheric_tether, compactness,
     dispersion, multivariate_kurtosis, connectopy, modularity, eigenmaps,
 )
@@ -30,7 +32,9 @@ from hypercoil.loss.nn import (
     KLDivergenceLoss, KLDivergenceLogitLoss, JSDivergenceLoss,
     JSDivergenceLogitLoss, BregmanDivergenceLoss, BregmanDivergenceLogitLoss,
     EquilibriumLoss, EquilibriumLogitLoss, SecondMomentLoss,
-    SecondMomentCentredLoss, BatchCorrelationLoss, QCFCLoss, ReferenceTetherLoss,
+    SecondMomentCentredLoss, FunctionalHomogeneityLoss, PointHomogeneityLoss,
+    PointAgreementLoss, PointSimilarityLoss,
+    BatchCorrelationLoss, QCFCLoss, ReferenceTetherLoss,
     InterhemisphericTetherLoss, CompactnessLoss, DispersionLoss,
     MultivariateKurtosis, ConnectopyLoss, ModularityLoss, EigenmapsLoss,
 )
@@ -50,6 +54,8 @@ class TestLossModule:
         X = jax.random.normal(key_x, (10, 10))
         key_y = jax.random.split(key_x, 1)[0]
         Y = jax.random.normal(key_y, (10, 10))
+        key_nh = jax.random.split(key_y, 1)[0]
+        NH = jax.random.randint(key_nh, (10, 10), 0, 10)
 
         out = eqx.filter_jit(MSELoss())(X, Y)
         ref = meansq_scalarise()(difference)(X, Y)

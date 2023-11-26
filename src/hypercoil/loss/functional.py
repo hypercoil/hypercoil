@@ -2219,7 +2219,6 @@ def connectopy(
 
     if D is not None:
         A = D @ A @ D.swapaxes(-2, -1)
-    H = dissimilarity(Q, theta=theta)
     return (H * A).sum((-2, -1))
 
 
@@ -2270,6 +2269,7 @@ def modularity(
         omega=gamma,
         dissimilarity=dissimilarity,
         affinity=affinity,
+        negative_affinity=None,
         key=key,
     )
 
@@ -2320,5 +2320,6 @@ def eigenmaps(
         omega=omega,
         dissimilarity=dissimilarity,
         affinity=affinity,
+        negative_affinity='rectify',
         key=key,
     )
