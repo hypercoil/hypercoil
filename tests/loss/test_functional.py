@@ -371,6 +371,124 @@ class TestLossFunction:
         )
         assert jnp.allclose(out, ref)
 
+    # def test_local_homogeneity(self):
+    #     N_INSTANCES = 3
+    #     N_PARCELS = 10
+    #     N_VOXELS = 100
+    #     N_TIMEPOINTS = 50
+    #     NH_SIZE = 5
+    #     def corrcoef_triu(x):
+    #         return jnp.corrcoef(x)[jnp.triu_indices(x.shape[0], k=1)]
+
+    #     parcellation = jax.random.randint(
+    #         jax.random.PRNGKey(0),
+    #         shape=(N_VOXELS,),
+    #         minval=0,
+    #         maxval=N_PARCELS,
+    #     )
+    #     parcellation = jnp.eye(N_PARCELS)[parcellation].astype(bool)
+    #     ts = jax.random.normal(
+    #         jax.random.PRNGKey(1),
+    #         shape=(N_INSTANCES, N_VOXELS, N_TIMEPOINTS),
+    #     )
+    #     nh = jax.random.randint(
+    #         jax.random.PRNGKey(2),
+    #         shape=(N_VOXELS, NH_SIZE),
+    #         minval=0,
+    #         maxval=N_VOXELS,
+    #     )
+    #     ts_local = ts[..., nh, :]
+    #     parcellation_local = parcellation[..., nh, :]
+
+    #     fh = jnp.zeros((N_INSTANCES, N_PARCELS))
+    #     occurrences = jnp.zeros((N_PARCELS,))
+    #     for ts_nh, parcel_nh in zip(
+    #         ts_local.swapaxes(0, 1),
+    #         parcellation_local
+    #     ):
+    #         mask = (parcel_nh.sum(0) > 1)
+    #         if mask.sum() == 0:
+    #             continue
+    #         parcel_nh = parcel_nh[..., mask]
+
+    #         new = jnp.asarray([
+    #             jax.vmap(corrcoef_triu)(ts_nh[..., parcel, :]).mean(-1)
+    #             for parcel in parcel_nh.T
+    #         ]).T
+
+    #         fh = fh.at[..., mask].add(new)
+    #         occurrences = occurrences.at[mask].add(1)
+    #     fh = fh / occurrences
+    #     out = local_homogeneity(
+    #         ts,
+    #         parcellation.astype(float),
+    #         nh,
+    #         standardise=True,
+    #     )
+    #     assert 0
+
+    #     for parcel in parcellation_local.transpose(2, 0, 1):
+    #         mask = parcel.sum(-1).astype(bool)
+    #         tsp = ts_local[..., mask, :, :]
+    #         parcel = parcel[..., mask, :]
+    #         fh = [
+    #             jax.vmap(jnp.corrcoef)(ts_nh[..., parcel_nh, :]).mean((-1, -2))
+    #             for ts_nh, parcel_nh in zip(tsp.swapaxes(0, 1), parcel)
+    #         ]
+    #         assert 0
+    #     fh = jnp.asarray([
+    #         jax.vmap(jnp.corrcoef)(ts_local[..., parcel, :]).mean((-1, -2))
+    #         for parcel in parcellation_local.transpose(2, 0, 1)
+    #     ]).T
+    #     assert 0
+
+    def test_point_homogeneity(self):
+        N_INSTANCES = 3
+        N_PARCELS = 3
+        N_VOXELS = 100
+        N_TIMEPOINTS = 50
+        NH_SIZE = 5
+
+        parcellation = jax.random.randint(
+            jax.random.PRNGKey(0),
+            shape=(N_VOXELS,),
+            minval=0,
+            maxval=N_PARCELS,
+        )
+        parcellation = jnp.eye(N_PARCELS)[parcellation].astype(bool)
+        ts = jax.random.normal(
+            jax.random.PRNGKey(1),
+            shape=(N_INSTANCES, N_VOXELS, N_TIMEPOINTS),
+        )
+        nh = jax.random.randint(
+            jax.random.PRNGKey(2),
+            shape=(N_VOXELS, NH_SIZE),
+            minval=0,
+            maxval=N_VOXELS,
+        )
+        nh = nh.at[:, 0].set(jnp.arange(N_VOXELS))
+        ts_ref = ts[..., nh[:, :1], :]
+        parcellation_ref = parcellation[..., nh[:, :1], :]
+        ts_local = ts[..., nh[:, 1:], :]
+        parcellation_local = parcellation[..., nh[:, 1:], :]
+
+        weights = (
+            parcellation_ref @ parcellation_local.swapaxes(-2, -1)
+        ).squeeze()
+        corrs = jax.vmap(jax.vmap(jnp.corrcoef))(
+            ts_ref, ts_local
+        )[..., 0, 1:]
+        fh = (weights * corrs).sum((-2, -1)) / weights.sum((-2, -1))
+
+        out = point_homogeneity(
+            ts,
+            parcellation,
+            nh[:, 1:],
+            nh[:, 0],
+            standardise=True,
+        )
+        assert jnp.allclose(out, fh, rtol=1e-4)
+
     def test_batch_corr(self):
         n_batch = (100, 1000)
         gt_shared = (0.1, 0.5, 0.9)

@@ -1298,6 +1298,80 @@ def functional_homogeneity(
     return fh
 
 
+# def local_homogeneity(
+#     X: Tensor,
+#     weight: Tensor,
+#     neighbourhood: Tensor,
+#     *,
+#     standardise: bool = False,
+#     skip_normalise: bool = False,
+#     use_geom_mean: bool = False,
+#     use_schaefer: bool = False,
+#     key: Optional['jax.random.PRNGKey'] = None,
+# ) -> Tensor:
+#     """
+#     Compute the functional homogeneity of a dataset within a local
+#     neighbourhood.
+#     """
+#     orig_weight = weight
+#     X = X[..., neighbourhood, :]
+#     weight = weight[..., neighbourhood, :]
+#     unn_weight = weight
+#     X, weight = _homogeneity_prepare_args(
+#         X,
+#         weight,
+#         standardise=standardise,
+#         skip_normalise=skip_normalise,
+#         use_geom_mean=use_geom_mean,
+#     )
+#     fh = jnp.einsum(
+#         '...nap,...nbp,...nat,...nbt->...p',
+#         weight, weight, X, X
+#     ) / X.shape[-1]
+#     # Correct for the diagonal: we shouldn't count the self-correlation
+#     parcel_size = unn_weight.sum((-3, -2))
+#     fh = (fh - (weight ** 2).sum((-3, -2))) * parcel_size / (parcel_size - 1)
+#     if use_schaefer:
+#         w = orig_weight.sum(-2)
+#         fh = (fh * w).sum(-1) / w.sum(-1)
+#     return fh
+
+
+def point_homogeneity(
+    X: Tensor,
+    weight: Tensor,
+    neighbourhood: Tensor,
+    reference: Optional[Tensor] = None,
+    *,
+    standardise: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Compute the functional homogeneity of a dataset at a set of points.
+    """
+    X, _ = _homogeneity_prepare_args(
+        X,
+        weight,
+        standardise=standardise,
+        skip_normalise=True,
+        use_geom_mean=False,
+    )
+    if reference is not None:
+        Xref = X[..., reference, :]
+        wref = weight[..., reference, :]
+    else:
+        Xref = X
+        wref = weight
+    wpt = _point_weights(weight, wref, neighbourhood)
+    fh = jnp.einsum(
+        '...na,...nt,...nat->...',
+        wpt,
+        Xref,
+        X[..., neighbourhood, :],
+    ) / X.shape[-1] / wpt.sum((-2, -1))
+    return fh
+
+
 # Batch correlation ----------------------------------------------------------
 
 
