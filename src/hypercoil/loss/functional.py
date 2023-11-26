@@ -1922,6 +1922,12 @@ def connectopy(
     *,
     dissimilarity: Optional[Callable] = None,
     affinity: Optional[Callable] = None,
+    negative_affinity: Optional[Literal[
+        'abs',
+        'rectify',
+        'reciprocal',
+        'complement',
+    ]] = 'complement',
     progressive_theta: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ):
@@ -1944,6 +1950,26 @@ def connectopy(
         dissimilarity = linear_distance
     if affinity is not None:
         A = affinity(A, omega=omega)
+    H = dissimilarity(Q, theta=theta)
+
+    match negative_affinity:
+        case 'abs':
+            A = jnp.abs(A)
+        case 'rectify':
+            A = jnp.maximum(A, 0)
+        case 'reciprocal':
+            neg_idx = A < 0
+            A = jnp.where(neg_idx, -A, A)
+            H = jnp.where(neg_idx, 1 / (H + jnp.finfo(H.dtype).eps), H)
+        case 'complement':
+            neg_idx = A < 0
+            Hmax = jnp.maximum(
+                H.max((-2, -1), keepdims=True),
+                1.0,
+            )
+            A = jnp.where(neg_idx, -A, A)
+            H = jnp.where(neg_idx, Hmax - H, H)
+
     if D is not None:
         A = D @ A @ D.swapaxes(-2, -1)
     H = dissimilarity(Q, theta=theta)

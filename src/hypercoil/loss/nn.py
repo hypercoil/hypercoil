@@ -1758,6 +1758,12 @@ class ConnectopyLoss(Loss):
     omega: Optional[Any]
     dissimilarity: Callable
     affinity: Optional[Callable]
+    negative_affinity: Optional[Literal[
+        'abs',
+        'rectify',
+        'reciprocal',
+        'complement',
+    ]]
     progressive_theta: bool
 
     def __init__(
@@ -1769,6 +1775,12 @@ class ConnectopyLoss(Loss):
         omega: Optional[Any] = None,
         dissimilarity: Optional[Callable] = None,
         affinity: Optional[Callable] = None,
+        negative_affinity: Optional[Literal[
+            'abs',
+            'rectify',
+            'reciprocal',
+            'complement',
+        ]] = 'reciprocal',
         scalarisation: Optional[Callable] = None,
         progressive_theta: bool = False,
         key: Optional['jax.random.PRNGKey'] = None,
@@ -1786,6 +1798,7 @@ class ConnectopyLoss(Loss):
         self.omega = omega
         self.dissimilarity = dissimilarity or linear_distance
         self.affinity = affinity
+        self.negative_affinity = negative_affinity
         self.progressive_theta = progressive_theta
 
     def __call__(
@@ -1810,6 +1823,7 @@ class ConnectopyLoss(Loss):
             omega=omega,
             dissimilarity=self.dissimilarity,
             affinity=self.affinity,
+            negative_affinity=self.negative_affinity,
             progressive_theta=self.progressive_theta,
             key=key,
         )
