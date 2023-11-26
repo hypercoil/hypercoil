@@ -167,6 +167,30 @@ class TestLossModule:
         )
         assert jnp.isclose(out, ref)
 
+        out = eqx.filter_jit(FunctionalHomogeneityLoss(
+            skip_normalise=True, use_geom_mean=True
+        ))(X, jnp.abs(Y))
+        ref = mean_scalarise()(functional_homogeneity)(
+            X, jnp.abs(Y), skip_normalise=True, use_geom_mean=True
+        )
+        assert jnp.isclose(out, ref)
+
+        out = eqx.filter_jit(PointHomogeneityLoss())(X, jnp.abs(Y), NH)
+        ref = mean_scalarise()(point_homogeneity)(X, jnp.abs(Y), NH)
+        assert jnp.isclose(out, ref)
+
+        out = eqx.filter_jit(PointSimilarityLoss())(jnp.abs(Y), NH)
+        ref = mean_scalarise()(point_similarity)(jnp.abs(Y), NH)
+        assert jnp.isclose(out, ref)
+
+        out = eqx.filter_jit(PointAgreementLoss(
+            rescale_result=True
+        ))(X, jnp.abs(Y), NH)
+        ref = mean_scalarise()(point_agreement)(
+            X, jnp.abs(Y), NH, rescale_result=True
+        )
+        assert jnp.isclose(out, ref)
+
         N = Y.sum(-1)
         out = eqx.filter_jit(
             BatchCorrelationLoss(tol='auto', tol_sig=0.1, abs=True))(X, N)

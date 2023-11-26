@@ -50,6 +50,7 @@ from .functional import (
     entropy_logit,
     equilibrium,
     equilibrium_logit,
+    functional_homogeneity,
     hinge_loss,
     identity,
     interhemispheric_tether,
@@ -60,6 +61,9 @@ from .functional import (
     log_det_gram,
     modularity,
     multivariate_kurtosis,
+    point_agreement,
+    point_homogeneity,
+    point_similarity,
     reference_tether,
     second_moment,
     second_moment_centred,
@@ -1369,6 +1373,212 @@ class SecondMomentCentredLoss(Loss):
             standardise_data=self.standardise_data,
             standardise_mu=self.standardise_mu,
             skip_normalise=self.skip_normalise,
+            key=key,
+        )
+
+
+class FunctionalHomogeneityLoss(Loss):
+    """
+    Global functional homogeneity loss.
+    """
+
+    standardise: bool
+    skip_normalise: bool
+    use_geom_mean: bool
+    use_schaefer: bool
+
+    def __init__(
+        self,
+        nu: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        standardise: bool = False,
+        skip_normalise: bool = False,
+        use_geom_mean: bool = False,
+        use_schaefer: bool = False,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None:
+            name = 'FunctionalHomogeneity'
+        super().__init__(
+            nu=nu,
+            name=name,
+            score=functional_homogeneity,
+            scalarisation=scalarisation or mean_scalarise(),
+            key=key,
+        )
+        self.standardise = standardise
+        self.skip_normalise = skip_normalise
+        self.use_geom_mean = use_geom_mean
+        self.use_schaefer = use_schaefer
+
+    def __call__(
+        self,
+        X: Tensor,
+        weight: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.nu * self.loss(
+            X,
+            weight,
+            standardise=self.standardise,
+            skip_normalise=self.skip_normalise,
+            use_geom_mean=self.use_geom_mean,
+            use_schaefer=self.use_schaefer,
+            key=key,
+        )
+
+
+class PointHomogeneityLoss(Loss):
+    """
+    Local point homogeneity loss.
+    """
+
+    standardise: bool
+
+    def __init__(
+        self,
+        nu: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        standardise: bool = False,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None:
+            name = 'PointHomogeneity'
+        super().__init__(
+            nu=nu,
+            name=name,
+            score=point_homogeneity,
+            scalarisation=scalarisation or mean_scalarise(),
+            key=key,
+        )
+        self.standardise = standardise
+
+    def __call__(
+        self,
+        X: Tensor,
+        weight: Tensor,
+        neighbourhood: Tensor,
+        reference: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.nu * self.loss(
+            X,
+            weight,
+            neighbourhood,
+            reference=reference,
+            standardise=self.standardise,
+            key=key,
+        )
+
+
+class PointSimilarityLoss(Loss):
+    """
+    Local point similarity loss.
+    """
+
+    rectify_at: Union[float, Literal['auto']]
+
+    def __init__(
+        self,
+        nu: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        rectify_at: Union[float, Literal['auto']] = 'auto',
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None:
+            name = 'PointSimilarity'
+        super().__init__(
+            nu=nu,
+            name=name,
+            score=point_similarity,
+            scalarisation=scalarisation or mean_scalarise(),
+            key=key,
+        )
+        self.rectify_at = rectify_at
+
+    def __call__(
+        self,
+        weight: Tensor,
+        neighbourhood: Tensor,
+        reference: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.nu * self.loss(
+            weight,
+            neighbourhood,
+            reference=reference,
+            rectify_at=self.rectify_at,
+            key=key,
+        )
+
+
+class PointAgreementLoss(Loss):
+    """
+    Local point agreement loss.
+    """
+
+    kappa: Union[float, Literal['auto']]
+    rectify_agreement: float
+    rectify_boundaries: Union[float, Literal['auto']]
+    standardise: bool
+    rescale_result: bool
+
+    def __init__(
+        self,
+        nu: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        kappa: Union[float, Literal['auto']] = 'auto',
+        rectify_agreement: float = 1.,
+        rectify_boundaries: Union[float, Literal['auto']] = 'auto',
+        standardise: bool = False,
+        rescale_result: bool = False,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None:
+            name = 'PointAgreement'
+        super().__init__(
+            nu=nu,
+            name=name,
+            score=point_agreement,
+            scalarisation=scalarisation or mean_scalarise(),
+            key=key,
+        )
+        self.kappa = kappa
+        self.rectify_agreement = rectify_agreement
+        self.rectify_boundaries = rectify_boundaries
+        self.standardise = standardise
+        self.rescale_result = rescale_result
+
+    def __call__(
+        self,
+        X: Tensor,
+        weight: Tensor,
+        neighbourhood: Tensor,
+        reference: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.nu * self.loss(
+            X,
+            weight,
+            neighbourhood,
+            reference=reference,
+            kappa=self.kappa,
+            rectify_agreement=self.rectify_agreement,
+            rectify_boundaries=self.rectify_boundaries,
+            standardise=self.standardise,
+            rescale_result=self.rescale_result,
             key=key,
         )
 

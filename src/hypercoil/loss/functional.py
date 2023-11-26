@@ -1264,6 +1264,18 @@ def _homogeneity_prepare_args(
     return X, weight
 
 
+def _point_weights(
+    weight: Tensor,
+    ref_weight: Tensor,
+    neighbourhood: Tensor,
+) -> Tensor:
+    """
+    Compute point weights for a local neighbourhood.
+    """
+    cmp_weight = weight[..., neighbourhood, :]
+    return jnp.einsum('...p,...dp->...d', ref_weight, cmp_weight)
+
+
 def functional_homogeneity(
     X: Tensor,
     weight: Tensor,
