@@ -1163,6 +1163,27 @@ def _second_moment_impl(
     return sigma
 
 
+def _second_moment_lowmem_impl(
+    X: Tensor,
+    weight: Tensor,
+    mu: Tensor,
+    *,
+    skip_normalise: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Core computation for second-moment loss, with memory-efficient
+    implementation.
+    """
+    weight = jnp.abs(weight)
+    if not skip_normalise:
+        weight = weight / weight.sum(-1, keepdims=True)
+    Xsq = jnp.einsum('...jt,...ij->...it', X**2, weight)
+    musq = jnp.einsum('...it,...ij->...it', mu**2, weight)
+    Xmu = jnp.einsum('...it,...jt,...ij->...it', mu, X, weight)
+    return Xsq - 2 * Xmu + musq
+
+
 @document_second_moment
 def second_moment(
     X: Tensor,

@@ -309,6 +309,10 @@ class TestLossFunction:
         ))
         assert jnp.allclose(out, ref)
 
+        out = _second_moment_lowmem_impl(data, weight, mu).squeeze()
+        ref = _second_moment_impl(data, weight, mu).squeeze()
+        assert jnp.allclose(out, ref)
+
     def test_second_moment_centre_equivalence(self):
         n_groups = 3
         n_channels = 10
