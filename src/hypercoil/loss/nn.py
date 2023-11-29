@@ -122,6 +122,23 @@ def document_loss(default_scalarise: str = 'mean'):
     return _doc_transform
 
 
+class _ScheduleContainer:
+    """
+    A dumb container for a schedule. This is used to make the schedule
+    *not* be a PyTree, so that we don't have to use a hacky `is_leaf` call
+    in the `eqx.filter` function. The container is mutable, but it doesn't
+    really matter since it's only used internally.
+    """
+    def __init__(self, schedule: Tuple[Callable[[int], float], int]):
+        self.schedule = schedule
+
+    def __getitem__(self, idx):
+        return self.schedule[idx]
+
+    def __repr__(self):
+        return repr(self.schedule)
+
+
 @document_loss()
 class Loss(eqx.Module):
     """
@@ -143,7 +160,11 @@ class Loss(eqx.Module):
     """
 
     name: str
-    nu: float
+    _nu: Union[
+        float,
+        Callable[[int], float],
+        Tuple[Callable[[int], float], int],
+    ]
     score: Callable
     scalarisation: Callable
     loss: Callable
@@ -165,7 +186,12 @@ class Loss(eqx.Module):
 
         self.score = score
         self.scalarisation = scalarisation
-        self.nu = nu
+        if isinstance(nu, Callable):
+            self._nu = _ScheduleContainer((nu, 0))
+        elif isinstance(nu, tuple):
+            self._nu = _ScheduleContainer(nu)
+        else:
+            self._nu = nu
         self.loss = self.scalarisation(self.score)
 
     def __call__(
@@ -183,6 +209,37 @@ class Loss(eqx.Module):
         import jax._src.pretty_printer as pp
 
         return pp.text(repr(self))
+
+    @property
+    def nu(self) -> float:
+        if isinstance(self._nu, _ScheduleContainer): # it's a schedule
+            return self._nu[0](self._nu[1])
+        return self._nu
+
+    def cfg(self, value: Any, where: str = '_nu') -> Loss:
+        """
+        Return a copy of the loss function with the specified attribute
+        modified. By default, this modifies the loss multiplier (``nu``), but
+        this can be changed by specifying the ``where`` argument.
+        """
+        return eqx.filter(
+            self,
+            filter_spec=lambda x: x is getattr(self, where),
+            inverse=True,
+            replace=value,
+        )
+
+    def step(self, count: Optional[int] = None) -> Loss:
+        """
+        If the loss multiplier is a schedule, this will advance the schedule
+        by one step.
+        """
+        if not isinstance(self._nu, _ScheduleContainer):
+            return self
+        if count is None:
+            count = self._nu[1] + 1
+        schedule = self._nu[0]
+        return self.cfg(_ScheduleContainer((schedule, count)))
 
 
 @document_loss()

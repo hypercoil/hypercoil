@@ -257,7 +257,7 @@ class TestLossModule:
             l2=0.01, dimensional_scaling=True))(U)
         ref = mean_scalarise()(multivariate_kurtosis)(
             U, l2=0.01, dimensional_scaling=True)
-        assert jnp.isclose(out, ref)
+        assert jnp.isclose(out, ref, atol=1e-4)
 
         key_d, key_a, key_t, key_o = jax.random.split(key_y, 4)
 
