@@ -119,3 +119,6 @@ from .sylo import (
 from .toeplitz import (
     ToeplitzInitialiser
 )
+from .vmf import (
+    VonMisesFisher
+)
