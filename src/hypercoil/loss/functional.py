@@ -1163,6 +1163,27 @@ def _second_moment_impl(
     return sigma
 
 
+def _second_moment_lowmem_impl(
+    X: Tensor,
+    weight: Tensor,
+    mu: Tensor,
+    *,
+    skip_normalise: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Core computation for second-moment loss, with memory-efficient
+    implementation.
+    """
+    weight = jnp.abs(weight)
+    if not skip_normalise:
+        weight = weight / weight.sum(-1, keepdims=True)
+    Xsq = jnp.einsum('...jt,...ij->...it', X**2, weight)
+    musq = jnp.einsum('...it,...ij->...it', mu**2, weight)
+    Xmu = jnp.einsum('...it,...jt,...ij->...it', mu, X, weight)
+    return Xsq - 2 * Xmu + musq
+
+
 @document_second_moment
 def second_moment(
     X: Tensor,
@@ -1216,6 +1237,232 @@ def second_moment_centred(
     return _second_moment_impl(
         X, weight, mu, skip_normalise=skip_normalise, key=key
     )
+
+
+# Functional homogeneity -----------------------------------------------------
+
+
+def _homogeneity_prepare_args(
+    X: Tensor,
+    weight: Tensor,
+    *,
+    standardise: bool = False,
+    skip_normalise: bool = False,
+    use_geom_mean: bool = False,
+) -> Tuple[Tensor, Tensor]:
+    """
+    Prepare arguments for functional homogeneity computation.
+    """
+    if standardise:
+        X = (X - X.mean(-1, keepdims=True)) / X.std(-1, keepdims=True)
+    if use_geom_mean:
+        weight = jnp.sqrt(weight)
+    if not skip_normalise:
+        weight = weight / (
+            weight.sum(-2, keepdims=True) + jnp.finfo(weight.dtype).eps
+        )
+    return X, weight
+
+
+def _point_weights(
+    weight: Tensor,
+    ref_weight: Tensor,
+    neighbourhood: Tensor,
+) -> Tensor:
+    """
+    Compute point weights for a local neighbourhood.
+    """
+    cmp_weight = weight[..., neighbourhood, :]
+    return jnp.einsum('...p,...dp->...d', ref_weight, cmp_weight)
+
+
+def functional_homogeneity(
+    X: Tensor,
+    weight: Tensor,
+    *,
+    standardise: bool = False,
+    skip_normalise: bool = False,
+    use_geom_mean: bool = False,
+    use_schaefer: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Compute the functional homogeneity of a dataset.
+    """
+    orig_weight = weight
+    X, weight = _homogeneity_prepare_args(
+        X,
+        weight,
+        standardise=standardise,
+        skip_normalise=skip_normalise,
+        use_geom_mean=use_geom_mean,
+    )
+    fh = jnp.einsum(
+        '...ap,...bp,...at,...bt->...p',
+        weight, weight, X, X
+    ) / X.shape[-1]
+    # Correct for the diagonal: we shouldn't count the self-correlation
+    parcel_size = orig_weight.sum(-2)
+    fh = (fh - (weight ** 2).sum(-2)) * parcel_size / (parcel_size - 1)
+    if use_schaefer:
+        w = orig_weight.sum(-2)
+        fh = (fh * w).sum(-1) / w.sum(-1)
+    return fh
+
+
+# def local_homogeneity(
+#     X: Tensor,
+#     weight: Tensor,
+#     neighbourhood: Tensor,
+#     *,
+#     standardise: bool = False,
+#     skip_normalise: bool = False,
+#     use_geom_mean: bool = False,
+#     use_schaefer: bool = False,
+#     key: Optional['jax.random.PRNGKey'] = None,
+# ) -> Tensor:
+#     """
+#     Compute the functional homogeneity of a dataset within a local
+#     neighbourhood.
+#     """
+#     orig_weight = weight
+#     X = X[..., neighbourhood, :]
+#     weight = weight[..., neighbourhood, :]
+#     unn_weight = weight
+#     X, weight = _homogeneity_prepare_args(
+#         X,
+#         weight,
+#         standardise=standardise,
+#         skip_normalise=skip_normalise,
+#         use_geom_mean=use_geom_mean,
+#     )
+#     fh = jnp.einsum(
+#         '...nap,...nbp,...nat,...nbt->...p',
+#         weight, weight, X, X
+#     ) / X.shape[-1]
+#     # Correct for the diagonal: we shouldn't count the self-correlation
+#     parcel_size = unn_weight.sum((-3, -2))
+#     fh = (fh - (weight ** 2).sum((-3, -2))) * parcel_size / (parcel_size - 1)
+#     if use_schaefer:
+#         w = orig_weight.sum(-2)
+#         fh = (fh * w).sum(-1) / w.sum(-1)
+#     return fh
+
+
+def point_homogeneity(
+    X: Tensor,
+    weight: Tensor,
+    neighbourhood: Tensor,
+    reference: Optional[Tensor] = None,
+    *,
+    standardise: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Compute the functional homogeneity of a dataset at a set of points.
+    """
+    X, _ = _homogeneity_prepare_args(
+        X,
+        weight,
+        standardise=standardise,
+        skip_normalise=True,
+        use_geom_mean=False,
+    )
+    if reference is not None:
+        Xref = X[..., reference, :]
+        wref = weight[..., reference, :]
+    else:
+        Xref = X
+        wref = weight
+    wpt = _point_weights(weight, wref, neighbourhood)
+    fh = jnp.einsum(
+        '...na,...nt,...nat->...',
+        wpt,
+        Xref,
+        X[..., neighbourhood, :],
+    ) / X.shape[-1] / wpt.sum((-2, -1))
+    return fh
+
+
+def point_similarity(
+    weight: Tensor,
+    neighbourhood: Tensor,
+    reference: Optional[Tensor] = None,
+    *,
+    rectify_at: Union[float, Literal['auto']] = 'auto',
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Compute the local similarity of a weight assignment at a set of points.
+
+    This loss primarily exists as an ablation for the ``point_agreement``
+    function. It is equivalent to the agreement loss with the functional
+    homogeneity term removed (i.e., ``kappa=1``).
+    """
+    if rectify_at == 'auto':
+        # This blocks penalisation when the similarity kernel is any better
+        # than random.
+        rectify_at = 1 / weight.shape[-1]
+    if reference is not None:
+        ref_weight = weight[..., reference, :]
+    else:
+        ref_weight = weight
+    wpt = _point_weights(weight, ref_weight, neighbourhood)
+    return jax.nn.relu(rectify_at - wpt)
+
+
+def point_agreement(
+    X: Tensor,
+    weight: Tensor,
+    neighbourhood: Tensor,
+    reference: Optional[Tensor] = None,
+    *,
+    kappa: Union[float, Literal['auto']] = 'auto',
+    rectify_agreement: float = 1.,
+    rectify_boundaries: Union[float, Literal['auto']] = 'auto',
+    standardise: bool = False,
+    rescale_result: bool = False,
+    key: Optional['jax.random.PRNGKey'] = None,
+) -> Tensor:
+    """
+    Compute a homogeneity-derived measure of agreement for a dataset at a set
+    of points, penalising boundaries.
+    """
+    X, _ = _homogeneity_prepare_args(
+        X,
+        weight,
+        standardise=standardise,
+        skip_normalise=True,
+        use_geom_mean=False,
+    )
+    if rectify_boundaries == 'auto':
+        # This blocks penalisation when the similarity kernel is any better
+        # than random.
+        rectify_boundaries = 1 / weight.shape[-1]
+    if kappa == 'auto':
+        kappa = rectify_agreement / (rectify_agreement + rectify_boundaries)
+    if reference is not None:
+        ref_X = X[..., reference, :]
+        ref_weight = weight[..., reference, :]
+    else:
+        ref_X = X
+        ref_weight = weight
+    wpt = _point_weights(weight, ref_weight, neighbourhood)
+    fh = jnp.einsum(
+        '...na,...nt,...nat->...na',
+        wpt,
+        ref_X,
+        X[..., neighbourhood, :],
+    ) / X.shape[-1] / wpt.sum((-2, -1))
+    result = (
+        kappa * jax.nn.relu(rectify_boundaries - wpt) +
+        (1 - kappa) * jax.nn.relu(rectify_agreement - fh)
+    )
+    if rescale_result:
+        result = result / (
+            kappa * rectify_boundaries + (1 - kappa) * rectify_agreement
+        )
+    return result
 
 
 # Batch correlation ----------------------------------------------------------
@@ -1922,6 +2169,12 @@ def connectopy(
     *,
     dissimilarity: Optional[Callable] = None,
     affinity: Optional[Callable] = None,
+    negative_affinity: Optional[Literal[
+        'abs',
+        'rectify',
+        'reciprocal',
+        'complement',
+    ]] = 'complement',
     progressive_theta: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ):
@@ -1944,9 +2197,28 @@ def connectopy(
         dissimilarity = linear_distance
     if affinity is not None:
         A = affinity(A, omega=omega)
+    H = dissimilarity(Q, theta=theta)
+
+    match negative_affinity:
+        case 'abs':
+            A = jnp.abs(A)
+        case 'rectify':
+            A = jnp.maximum(A, 0)
+        case 'reciprocal':
+            neg_idx = A < 0
+            A = jnp.where(neg_idx, -A, A)
+            H = jnp.where(neg_idx, 1 / (H + jnp.finfo(H.dtype).eps), H)
+        case 'complement':
+            neg_idx = A < 0
+            Hmax = jnp.maximum(
+                H.max((-2, -1), keepdims=True),
+                1.0,
+            )
+            A = jnp.where(neg_idx, -A, A)
+            H = jnp.where(neg_idx, Hmax - H, H)
+
     if D is not None:
         A = D @ A @ D.swapaxes(-2, -1)
-    H = dissimilarity(Q, theta=theta)
     return (H * A).sum((-2, -1))
 
 
@@ -1997,6 +2269,7 @@ def modularity(
         omega=gamma,
         dissimilarity=dissimilarity,
         affinity=affinity,
+        negative_affinity=None,
         key=key,
     )
 
@@ -2047,5 +2320,6 @@ def eigenmaps(
         omega=omega,
         dissimilarity=dissimilarity,
         affinity=affinity,
+        negative_affinity='rectify',
         key=key,
     )

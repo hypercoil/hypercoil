@@ -50,6 +50,7 @@ from .functional import (
     entropy_logit,
     equilibrium,
     equilibrium_logit,
+    functional_homogeneity,
     hinge_loss,
     identity,
     interhemispheric_tether,
@@ -60,6 +61,9 @@ from .functional import (
     log_det_gram,
     modularity,
     multivariate_kurtosis,
+    point_agreement,
+    point_homogeneity,
+    point_similarity,
     reference_tether,
     second_moment,
     second_moment_centred,
@@ -118,6 +122,23 @@ def document_loss(default_scalarise: str = 'mean'):
     return _doc_transform
 
 
+class _ScheduleContainer:
+    """
+    A dumb container for a schedule. This is used to make the schedule
+    *not* be a PyTree, so that we don't have to use a hacky `is_leaf` call
+    in the `eqx.filter` function. The container is mutable, but it doesn't
+    really matter since it's only used internally.
+    """
+    def __init__(self, schedule: Tuple[Callable[[int], float], int]):
+        self.schedule = schedule
+
+    def __getitem__(self, idx):
+        return self.schedule[idx]
+
+    def __repr__(self):
+        return repr(self.schedule)
+
+
 @document_loss()
 class Loss(eqx.Module):
     """
@@ -139,7 +160,11 @@ class Loss(eqx.Module):
     """
 
     name: str
-    nu: float
+    _nu: Union[
+        float,
+        Callable[[int], float],
+        Tuple[Callable[[int], float], int],
+    ]
     score: Callable
     scalarisation: Callable
     loss: Callable
@@ -161,7 +186,12 @@ class Loss(eqx.Module):
 
         self.score = score
         self.scalarisation = scalarisation
-        self.nu = nu
+        if isinstance(nu, Callable):
+            self._nu = _ScheduleContainer((nu, 0))
+        elif isinstance(nu, tuple):
+            self._nu = _ScheduleContainer(nu)
+        else:
+            self._nu = nu
         self.loss = self.scalarisation(self.score)
 
     def __call__(
@@ -179,6 +209,37 @@ class Loss(eqx.Module):
         import jax._src.pretty_printer as pp
 
         return pp.text(repr(self))
+
+    @property
+    def nu(self) -> float:
+        if isinstance(self._nu, _ScheduleContainer): # it's a schedule
+            return self._nu[0](self._nu[1])
+        return self._nu
+
+    def cfg(self, value: Any, where: str = '_nu') -> Loss:
+        """
+        Return a copy of the loss function with the specified attribute
+        modified. By default, this modifies the loss multiplier (``nu``), but
+        this can be changed by specifying the ``where`` argument.
+        """
+        return eqx.filter(
+            self,
+            filter_spec=lambda x: x is getattr(self, where),
+            inverse=True,
+            replace=value,
+        )
+
+    def step(self, count: Optional[int] = None) -> Loss:
+        """
+        If the loss multiplier is a schedule, this will advance the schedule
+        by one step.
+        """
+        if not isinstance(self._nu, _ScheduleContainer):
+            return self
+        if count is None:
+            count = self._nu[1] + 1
+        schedule = self._nu[0]
+        return self.cfg(_ScheduleContainer((schedule, count)))
 
 
 @document_loss()
@@ -1373,6 +1434,212 @@ class SecondMomentCentredLoss(Loss):
         )
 
 
+class FunctionalHomogeneityLoss(Loss):
+    """
+    Global functional homogeneity loss.
+    """
+
+    standardise: bool
+    skip_normalise: bool
+    use_geom_mean: bool
+    use_schaefer: bool
+
+    def __init__(
+        self,
+        nu: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        standardise: bool = False,
+        skip_normalise: bool = False,
+        use_geom_mean: bool = False,
+        use_schaefer: bool = False,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None:
+            name = 'FunctionalHomogeneity'
+        super().__init__(
+            nu=nu,
+            name=name,
+            score=functional_homogeneity,
+            scalarisation=scalarisation or mean_scalarise(),
+            key=key,
+        )
+        self.standardise = standardise
+        self.skip_normalise = skip_normalise
+        self.use_geom_mean = use_geom_mean
+        self.use_schaefer = use_schaefer
+
+    def __call__(
+        self,
+        X: Tensor,
+        weight: Tensor,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.nu * self.loss(
+            X,
+            weight,
+            standardise=self.standardise,
+            skip_normalise=self.skip_normalise,
+            use_geom_mean=self.use_geom_mean,
+            use_schaefer=self.use_schaefer,
+            key=key,
+        )
+
+
+class PointHomogeneityLoss(Loss):
+    """
+    Local point homogeneity loss.
+    """
+
+    standardise: bool
+
+    def __init__(
+        self,
+        nu: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        standardise: bool = False,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None:
+            name = 'PointHomogeneity'
+        super().__init__(
+            nu=nu,
+            name=name,
+            score=point_homogeneity,
+            scalarisation=scalarisation or mean_scalarise(),
+            key=key,
+        )
+        self.standardise = standardise
+
+    def __call__(
+        self,
+        X: Tensor,
+        weight: Tensor,
+        neighbourhood: Tensor,
+        reference: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.nu * self.loss(
+            X,
+            weight,
+            neighbourhood,
+            reference=reference,
+            standardise=self.standardise,
+            key=key,
+        )
+
+
+class PointSimilarityLoss(Loss):
+    """
+    Local point similarity loss.
+    """
+
+    rectify_at: Union[float, Literal['auto']]
+
+    def __init__(
+        self,
+        nu: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        rectify_at: Union[float, Literal['auto']] = 'auto',
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None:
+            name = 'PointSimilarity'
+        super().__init__(
+            nu=nu,
+            name=name,
+            score=point_similarity,
+            scalarisation=scalarisation or mean_scalarise(),
+            key=key,
+        )
+        self.rectify_at = rectify_at
+
+    def __call__(
+        self,
+        weight: Tensor,
+        neighbourhood: Tensor,
+        reference: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.nu * self.loss(
+            weight,
+            neighbourhood,
+            reference=reference,
+            rectify_at=self.rectify_at,
+            key=key,
+        )
+
+
+class PointAgreementLoss(Loss):
+    """
+    Local point agreement loss.
+    """
+
+    kappa: Union[float, Literal['auto']]
+    rectify_agreement: float
+    rectify_boundaries: Union[float, Literal['auto']]
+    standardise: bool
+    rescale_result: bool
+
+    def __init__(
+        self,
+        nu: float = 1.0,
+        name: Optional[str] = None,
+        *,
+        kappa: Union[float, Literal['auto']] = 'auto',
+        rectify_agreement: float = 1.,
+        rectify_boundaries: Union[float, Literal['auto']] = 'auto',
+        standardise: bool = False,
+        rescale_result: bool = False,
+        scalarisation: Optional[Callable] = None,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        if name is None:
+            name = 'PointAgreement'
+        super().__init__(
+            nu=nu,
+            name=name,
+            score=point_agreement,
+            scalarisation=scalarisation or mean_scalarise(),
+            key=key,
+        )
+        self.kappa = kappa
+        self.rectify_agreement = rectify_agreement
+        self.rectify_boundaries = rectify_boundaries
+        self.standardise = standardise
+        self.rescale_result = rescale_result
+
+    def __call__(
+        self,
+        X: Tensor,
+        weight: Tensor,
+        neighbourhood: Tensor,
+        reference: Optional[Tensor] = None,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ) -> float:
+        return self.nu * self.loss(
+            X,
+            weight,
+            neighbourhood,
+            reference=reference,
+            kappa=self.kappa,
+            rectify_agreement=self.rectify_agreement,
+            rectify_boundaries=self.rectify_boundaries,
+            standardise=self.standardise,
+            rescale_result=self.rescale_result,
+            key=key,
+        )
+
+
 @document_batch_correlation
 @document_loss()
 class BatchCorrelationLoss(Loss):
@@ -1758,6 +2025,12 @@ class ConnectopyLoss(Loss):
     omega: Optional[Any]
     dissimilarity: Callable
     affinity: Optional[Callable]
+    negative_affinity: Optional[Literal[
+        'abs',
+        'rectify',
+        'reciprocal',
+        'complement',
+    ]]
     progressive_theta: bool
 
     def __init__(
@@ -1769,6 +2042,12 @@ class ConnectopyLoss(Loss):
         omega: Optional[Any] = None,
         dissimilarity: Optional[Callable] = None,
         affinity: Optional[Callable] = None,
+        negative_affinity: Optional[Literal[
+            'abs',
+            'rectify',
+            'reciprocal',
+            'complement',
+        ]] = 'reciprocal',
         scalarisation: Optional[Callable] = None,
         progressive_theta: bool = False,
         key: Optional['jax.random.PRNGKey'] = None,
@@ -1786,6 +2065,7 @@ class ConnectopyLoss(Loss):
         self.omega = omega
         self.dissimilarity = dissimilarity or linear_distance
         self.affinity = affinity
+        self.negative_affinity = negative_affinity
         self.progressive_theta = progressive_theta
 
     def __call__(
@@ -1810,6 +2090,7 @@ class ConnectopyLoss(Loss):
             omega=omega,
             dissimilarity=self.dissimilarity,
             affinity=self.affinity,
+            negative_affinity=self.negative_affinity,
             progressive_theta=self.progressive_theta,
             key=key,
         )

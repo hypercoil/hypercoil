@@ -11,13 +11,41 @@ from scipy.stats import entropy as entropy_ref
 from scipy.spatial.distance import jensenshannon as js_ref
 from hypercoil.functional import diag_embed, linear_kernel, relaxed_modularity
 from hypercoil.loss.functional import (
-    identity, constraint_violation, unilateral_loss, hinge_loss,
-    det_gram, log_det_gram, smoothness, bimodal_symmetric,
-    entropy, entropy_logit, equilibrium, equilibrium_logit, bregman_divergence,
-    kl_divergence, kl_divergence_logit, js_divergence, js_divergence_logit,
-    second_moment, _second_moment_impl, second_moment_centred, batch_corr, qcfc,
-    reference_tether, interhemispheric_tether, compactness, dispersion,
-    multivariate_kurtosis, modularity, eigenmaps,
+    identity,
+    constraint_violation,
+    unilateral_loss,
+    hinge_loss,
+    det_gram,
+    log_det_gram,
+    smoothness,
+    bimodal_symmetric,
+    entropy,
+    entropy_logit,
+    equilibrium,
+    equilibrium_logit,
+    bregman_divergence,
+    kl_divergence,
+    kl_divergence_logit,
+    js_divergence,
+    js_divergence_logit,
+    second_moment,
+    _second_moment_impl,
+    _second_moment_lowmem_impl,
+    second_moment_centred,
+    functional_homogeneity,
+    # local_homogeneity,
+    point_homogeneity,
+    point_similarity,
+    point_agreement,
+    batch_corr,
+    qcfc,
+    reference_tether,
+    interhemispheric_tether,
+    compactness,
+    dispersion,
+    multivariate_kurtosis,
+    modularity,
+    eigenmaps,
 )
 from hypercoil.loss.scalarise import (
     sum_scalarise, mean_scalarise, meansq_scalarise,
@@ -309,6 +337,10 @@ class TestLossFunction:
         ))
         assert jnp.allclose(out, ref)
 
+        out = _second_moment_lowmem_impl(data, weight, mu).squeeze()
+        ref = _second_moment_impl(data, weight, mu).squeeze()
+        assert jnp.allclose(out, ref)
+
     def test_second_moment_centre_equivalence(self):
         n_groups = 3
         n_channels = 10
@@ -327,6 +359,199 @@ class TestLossFunction:
         ref = loss0(data, weight)
         out = loss1(data, weight, mu)
         assert jnp.allclose(out, ref)
+
+    def test_functional_homogeneity(self):
+        N_INSTANCES = 3
+        N_PARCELS = 10
+        N_VOXELS = 100
+        N_TIMEPOINTS = 50
+        def corrcoef_triu(x):
+            return jnp.corrcoef(x)[jnp.triu_indices(x.shape[0], k=1)]
+
+        parcellation = jax.random.randint(
+            jax.random.PRNGKey(0),
+            shape=(N_VOXELS,),
+            minval=0,
+            maxval=N_PARCELS,
+        )
+        ts = jax.random.normal(
+            jax.random.PRNGKey(1),
+            shape=(N_INSTANCES, N_VOXELS, N_TIMEPOINTS),
+        )
+        parcellation = jnp.eye(N_PARCELS)[parcellation].astype(bool)
+        fh = jnp.asarray([
+            jax.vmap(corrcoef_triu)(ts[..., parcel, :]).mean(-1)
+            for parcel in parcellation.T
+        ]).T
+        out = functional_homogeneity(
+            ts,
+            parcellation.astype(float),
+            standardise=True,
+        )
+        assert jnp.allclose(out, fh, rtol=1e-4)
+        w = parcellation.sum(0)
+        ref = (w * fh).sum(-1) / w.sum(-1)
+        out = functional_homogeneity(
+            ts,
+            parcellation.astype(float),
+            standardise=True,
+            use_schaefer=True,
+        )
+        assert jnp.allclose(out, ref)
+
+    # def test_local_homogeneity(self):
+    #     N_INSTANCES = 3
+    #     N_PARCELS = 10
+    #     N_VOXELS = 100
+    #     N_TIMEPOINTS = 50
+    #     NH_SIZE = 5
+    #     def corrcoef_triu(x):
+    #         return jnp.corrcoef(x)[jnp.triu_indices(x.shape[0], k=1)]
+
+    #     parcellation = jax.random.randint(
+    #         jax.random.PRNGKey(0),
+    #         shape=(N_VOXELS,),
+    #         minval=0,
+    #         maxval=N_PARCELS,
+    #     )
+    #     parcellation = jnp.eye(N_PARCELS)[parcellation].astype(bool)
+    #     ts = jax.random.normal(
+    #         jax.random.PRNGKey(1),
+    #         shape=(N_INSTANCES, N_VOXELS, N_TIMEPOINTS),
+    #     )
+    #     nh = jax.random.randint(
+    #         jax.random.PRNGKey(2),
+    #         shape=(N_VOXELS, NH_SIZE),
+    #         minval=0,
+    #         maxval=N_VOXELS,
+    #     )
+    #     ts_local = ts[..., nh, :]
+    #     parcellation_local = parcellation[..., nh, :]
+
+    #     fh = jnp.zeros((N_INSTANCES, N_PARCELS))
+    #     occurrences = jnp.zeros((N_PARCELS,))
+    #     for ts_nh, parcel_nh in zip(
+    #         ts_local.swapaxes(0, 1),
+    #         parcellation_local
+    #     ):
+    #         mask = (parcel_nh.sum(0) > 1)
+    #         if mask.sum() == 0:
+    #             continue
+    #         parcel_nh = parcel_nh[..., mask]
+
+    #         new = jnp.asarray([
+    #             jax.vmap(corrcoef_triu)(ts_nh[..., parcel, :]).mean(-1)
+    #             for parcel in parcel_nh.T
+    #         ]).T
+
+    #         fh = fh.at[..., mask].add(new)
+    #         occurrences = occurrences.at[mask].add(1)
+    #     fh = fh / occurrences
+    #     out = local_homogeneity(
+    #         ts,
+    #         parcellation.astype(float),
+    #         nh,
+    #         standardise=True,
+    #     )
+    #     assert 0
+
+    #     for parcel in parcellation_local.transpose(2, 0, 1):
+    #         mask = parcel.sum(-1).astype(bool)
+    #         tsp = ts_local[..., mask, :, :]
+    #         parcel = parcel[..., mask, :]
+    #         fh = [
+    #             jax.vmap(jnp.corrcoef)(ts_nh[..., parcel_nh, :]).mean((-1, -2))
+    #             for ts_nh, parcel_nh in zip(tsp.swapaxes(0, 1), parcel)
+    #         ]
+    #         assert 0
+    #     fh = jnp.asarray([
+    #         jax.vmap(jnp.corrcoef)(ts_local[..., parcel, :]).mean((-1, -2))
+    #         for parcel in parcellation_local.transpose(2, 0, 1)
+    #     ]).T
+    #     assert 0
+
+    def test_point_homogeneity(self):
+        N_INSTANCES = 3
+        N_PARCELS = 3
+        N_VOXELS = 100
+        N_TIMEPOINTS = 50
+        NH_SIZE = 5
+
+        parcellation = jax.random.randint(
+            jax.random.PRNGKey(0),
+            shape=(N_VOXELS,),
+            minval=0,
+            maxval=N_PARCELS,
+        )
+        parcellation = jnp.eye(N_PARCELS)[parcellation].astype(bool)
+        ts = jax.random.normal(
+            jax.random.PRNGKey(1),
+            shape=(N_INSTANCES, N_VOXELS, N_TIMEPOINTS),
+        )
+        nh = jax.random.randint(
+            jax.random.PRNGKey(2),
+            shape=(N_VOXELS, NH_SIZE),
+            minval=0,
+            maxval=N_VOXELS,
+        )
+        nh = nh.at[:, 0].set(jnp.arange(N_VOXELS))
+        ts_ref = ts[..., nh[:, :1], :]
+        parcellation_ref = parcellation[..., nh[:, :1], :]
+        ts_local = ts[..., nh[:, 1:], :]
+        parcellation_local = parcellation[..., nh[:, 1:], :]
+
+        weights = (
+            parcellation_ref @ parcellation_local.swapaxes(-2, -1)
+        ).squeeze()
+        corrs = jax.vmap(jax.vmap(jnp.corrcoef))(
+            ts_ref, ts_local
+        )[..., 0, 1:]
+        fh = (weights * corrs).sum((-2, -1)) / weights.sum((-2, -1))
+
+        out = point_homogeneity(
+            ts,
+            parcellation,
+            nh[:, 1:],
+            nh[:, 0],
+            standardise=True,
+        )
+        assert jnp.allclose(out, fh, rtol=1e-4)
+
+    def test_point_agreement(self):
+        #TODO: test point losses. Deferring everything except smoke tests
+        #      for now.
+        N_INSTANCES = 3
+        N_PARCELS = 3
+        N_VOXELS = 100
+        N_TIMEPOINTS = 50
+        NH_SIZE = 5
+
+        parcellation = jax.random.randint(
+            jax.random.PRNGKey(0),
+            shape=(N_VOXELS,),
+            minval=0,
+            maxval=N_PARCELS,
+        )
+        parcellation = jnp.eye(N_PARCELS)[parcellation].astype(bool)
+        ts = jax.random.normal(
+            jax.random.PRNGKey(1),
+            shape=(N_INSTANCES, N_VOXELS, N_TIMEPOINTS),
+        )
+        nh = jax.random.randint(
+            jax.random.PRNGKey(2),
+            shape=(N_VOXELS, NH_SIZE),
+            minval=0,
+            maxval=N_VOXELS,
+        )
+        point_similarity(
+            parcellation, nh[:, 1:], nh[:, 0]
+        )
+        point_agreement(
+            ts, parcellation, nh[:, 1:], nh[:, 0]
+        )
+        jax.jit(mean_scalarise()(point_agreement))(
+            ts, parcellation, nh[:, 1:], nh[:, 0]
+        )
 
     def test_batch_corr(self):
         n_batch = (100, 1000)

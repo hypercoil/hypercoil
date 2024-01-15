@@ -425,9 +425,11 @@ def block_serialise(
     f: Callable,
     *,
     n_blocks: int = 1,
+    block_size: int = None,
     retnums: Sequence[int] = (0,),
     in_axes: Sequence[int] = (-1,),
     out_axes: Sequence[int] = (-1,),
+    pad_value: Any = 0.,
     carrier_fn: Optional[Callable] = None,
     carry_init: Any = None,
     return_carry: bool = False,
@@ -460,8 +462,29 @@ def block_serialise(
 
     def _f_serialised(*pparams, **params):
         pparams = list(pparams)
+        pparams_orig = pparams
         for i, (pparam, ax) in enumerate(zip(pparams, cycle(in_axes))):
-            pparams[i] = fold_and_promote(pparam, axis=ax, n_folds=n_blocks)
+            if block_size is not None:
+                ax = standard_axis_number(ax, pparam.ndim)
+                _n_blocks = pparam.shape[ax] // block_size
+                required_length = _n_blocks * block_size
+                if pparam.shape[ax] != required_length:
+                    _n_blocks += 1
+                    required_length = _n_blocks * block_size
+                    padding = (
+                        [(0, 0, 0)] * ax +
+                        [(0, required_length - pparam.shape[ax], 0)] +
+                        [(0, 0, 0)] * (pparam.ndim - ax - 1)
+                    )
+                    pparam = jax.lax.pad(
+                        pparam,
+                        padding_value=pad_value,
+                        padding_config=padding,
+                    )
+            else:
+                _n_blocks = n_blocks
+            pparams_orig[i] = pparam
+            pparams[i] = fold_and_promote(pparam, axis=ax, n_folds=_n_blocks)
         carry, out = jax.lax.scan(
             partial(_f_scan_compat, **params),
             carry_init,

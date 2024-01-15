@@ -7,7 +7,7 @@ regularisations to a set of inputs.
 """
 from __future__ import annotations
 from collections import namedtuple
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import jax
 import equinox as eqx
@@ -66,7 +66,6 @@ class LossApply(eqx.Module):
     loss: Callable
     apply: Callable = unpack_or_noop
     name: str
-    nu: float
 
     def __init__(
         self,
@@ -76,10 +75,6 @@ class LossApply(eqx.Module):
         self.loss = loss
         self.apply = apply
         self.name = loss.name
-        try:
-            self.nu = loss.nu
-        except AttributeError:
-            self.nu = None
 
     def __repr__(self):
         return self.loss.__repr__()
@@ -95,6 +90,56 @@ class LossApply(eqx.Module):
         """
         applied = self.apply(*pparams, **params)
         return apply_and_evaluate(self.loss, applied, key=key)
+
+    @property
+    def nu(self) -> float:
+        return getattr(self.loss, 'nu', None)
+
+    def losses(self) -> Tuple[Callable, ...]:
+        if not (
+            isinstance(self.loss, LossScheme) or
+            isinstance(self.loss, LossApply)
+        ):
+            return (self.loss,)
+        return self.loss.losses()
+
+    def get_loss(self, name: Optional[str] = None) -> Callable:
+        if name is None:
+            loss = self.loss
+        else:
+            cname = getattr(self.loss, 'name', None)
+            if name == cname:
+                loss = self.loss
+            else:
+                loss = self.loss.get_loss(name)
+        return loss
+
+    def cfg(
+        self,
+        value: Any,
+        where: str = '_nu',
+        loss: Optional[str] = None,
+    ) -> LossApply:
+        loss = self.get_loss(loss)
+        return eqx.filter(
+            self,
+            filter_spec=lambda x: x is getattr(loss, where),
+            inverse=True,
+            replace=value,
+        )
+
+    def step(self, count: Optional[int] = None) -> LossApply:
+        new = self
+        for loss in self.losses():
+            repl = loss.step(count=count)
+            new = eqx.filter(
+                new,
+                filter_spec=lambda x: x is loss,
+                inverse=True,
+                replace=repl,
+                is_leaf=lambda x: (x in new.losses()),
+            )
+        return new
 
 
 class LossScheme(eqx.Module):
@@ -142,3 +187,50 @@ class LossScheme(eqx.Module):
             total_loss += acc
             all_items.update(items)
         return total_loss, all_items
+
+    @staticmethod
+    def _unnest(seq: Tuple[Any]) -> Tuple[Any]:
+        for item in seq:
+            if isinstance(item, tuple):
+                yield from LossScheme._unnest(item)
+            else:
+                yield item
+
+    def losses(self) -> Tuple[Callable, ...]:
+        return tuple(LossScheme._unnest(tuple(
+            loss if not (
+                isinstance(self.loss, LossScheme) or
+                isinstance(self.loss, LossApply)
+            ) else loss.losses()
+            for loss in self.loss
+        )))
+
+    def get_loss(self, name: str) -> Callable:
+        return [loss for loss in self.losses() if loss.name == name][0]
+
+    def cfg(
+        self,
+        value: Any,
+        loss: str,
+        where: str = '_nu',
+    ) -> LossApply:
+        loss = self.get_loss(loss)
+        return eqx.filter(
+            self,
+            filter_spec=lambda x: x is getattr(loss, where),
+            inverse=True,
+            replace=value,
+        )
+
+    def step(self, count: Optional[int] = None) -> LossApply:
+        new = self
+        for loss in self.losses():
+            repl = loss.step(count=count)
+            new = eqx.filter(
+                new,
+                filter_spec=lambda x: x is loss,
+                inverse=True,
+                replace=repl,
+                is_leaf=lambda x: (x in new.losses()),
+            )
+        return new

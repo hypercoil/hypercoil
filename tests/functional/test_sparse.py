@@ -24,7 +24,7 @@ class TestSparse:
         X = np.random.rand(2, 3, 100, 100)
         def f(X, Y): return X.swapaxes(-2, -1) @ Y
         ref = f(X, X)
-        f_blk = jax.jit(block_serialise(f, n_blocks=10, out_axes=(-2,)))
+        f_blk = jax.jit(block_serialise(f, n_blocks=5, out_axes=(-2,)))
         out = f_blk(X, Y=X)
         assert np.allclose(out, ref)
 
@@ -42,6 +42,15 @@ class TestSparse:
             ))
         out = h_blk_grad(X, Y)
         assert np.all(out == Y)
+
+        X = np.random.rand(2, 3, 100, 100)
+        Xpadded = np.zeros((2, 3, 100, 120))
+        Xpadded[..., :100, :100] = X
+        def f(X, Y): return X.swapaxes(-2, -1) @ Y
+        ref = f(Xpadded, X)
+        f_blk = jax.jit(block_serialise(f, block_size=30, out_axes=(-2,)))
+        out = f_blk(X, Y=X)
+        assert np.allclose(out, ref)
 
     def test_sparse_topk(self):
         out = random_sparse(
