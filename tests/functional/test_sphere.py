@@ -6,11 +6,13 @@ Unit tests for spatial convolution on certain manifold-y things.
 """
 import pytest
 import numpy as np
+import matplotlib.pyplot as plt
 import jax.numpy as jnp
 from functools import partial
 from numpyro.distributions import Normal
 from scipy.ndimage import gaussian_filter1d
 from sklearn.metrics.pairwise import haversine_distances
+from pkg_resources import resource_filename
 from hypercoil.functional.sphere import *
 
 
@@ -132,3 +134,33 @@ class TestSpherical:
             out + self.truncated,
             np.ones((self.n, self.n))
         )
+
+    def test_icosphere(self):
+        icosphere3 = icosphere(3)
+        icosphere5 = icosphere(5)
+        r_icosphere5 = icosphere(
+            5,
+            target=jnp.array((0., 0., 1.)),
+            secondary=jnp.array((0., 1., 0.)),
+        )
+        assert jnp.allclose(r_icosphere5[0], jnp.array((0., 0., 1.)), atol=1e-6)
+        assert jnp.allclose(
+            r_icosphere5[1], jnp.array((0., 8.94427191e-01,  4.47213595e-01)), atol=1e-6
+        )
+
+        results = resource_filename(
+            'hypercoil',
+            'results/'
+        )
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(*icosphere3.T, c=np.arange(len(icosphere3)), cmap='jet')
+        fig.savefig(f'{results}/icosphere_3.png', bbox_inches='tight')
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(*icosphere5.T, c=np.arange(len(icosphere5)), cmap='jet')
+        fig.savefig(f'{results}/icosphere_5.png', bbox_inches='tight')
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(*r_icosphere5.T, c=np.arange(len(r_icosphere5)), cmap='jet')
+        fig.savefig(f'{results}/icosphere_5_r.png', bbox_inches='tight')
