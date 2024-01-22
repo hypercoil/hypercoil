@@ -310,3 +310,169 @@ def euclidean_conv(
         max_bin=max_bin,
         truncate=truncate,
     )
+
+
+def rotation_matrix(axis: Tensor, angle: Tensor) -> Tensor:
+    cpix = jnp.asarray((
+        (
+            (0, 0, 0),
+            (0, 0, -1),
+            (0, 1, 0),
+        ),
+        (
+            (0, 0, 1),
+            (0, 0, 0),
+            (-1, 0, 0),
+        ),
+        (
+            (0, -1, 0),
+            (1, 0, 0),
+            (0, 0, 0),
+        ),
+    ))
+    cpax = cpix @ axis
+    return (
+        jnp.eye(3) +
+        jnp.sin(angle) * cpax +
+        (1 - jnp.cos(angle)) * cpax @ cpax
+    )
+
+
+def rotate_axis_angle(src: Tensor, axis: Tensor, angle: Tensor) -> Tensor:
+    rmat = rotation_matrix(axis, angle)
+    return src @ rmat.T
+
+
+def icosphere(
+    subdivisions: int = 0,
+    target: Optional[Tensor] = None,
+    secondary: Optional[Tensor] = None,
+) -> Tensor:
+    """
+    Return coordinates for vertices of a unit icosphere.
+
+    :Dimension: **Output :** :math:`(N, 3)`
+
+    Parameters
+    ----------
+    subdivisions : int
+        Number of subdivisions to perform. For example, a value of 1 will
+        return the coordinates for a 12-vertex icosphere.
+    target : Tensor or None (default None)
+        If provided, the coordinates of the first vertex of the icosphere will be
+        rotated to align with the provided target coordinate.
+    secondary : Tensor or None (default None)
+        If provided, the coordinates of the second vertex of the icosphere will
+        be rotated to align with the provided secondary coordinate.
+
+    Returns
+    -------
+    coor : Tensor
+        Tensor containing the coordinates of the vertices of the icosphere.
+    """
+    # 1. Define icosahedron vertices, edges, and faces
+    phi = (1 + 5 ** 0.5) / 2
+    vertices = jnp.asarray((
+        (1, phi, 0),
+        (-1, phi, 0),
+        (1, -phi, 0),
+        (-1, -phi, 0),
+        (phi, 0, 1),
+        (phi, 0, -1),
+        (-phi, 0, 1),
+        (-phi, 0, -1),
+        (0, 1, phi),
+        (0, -1, phi),
+        (0, 1, -phi),
+        (0, -1, -phi),
+    ))
+    edges = jnp.asarray((
+        (0, 1), (0, 4), (0, 5),
+        (0, 8), (0, 10), (1, 6),
+        (1, 7), (1, 8), (1, 10),
+        (2, 3), (2, 4), (2, 5),
+        (2, 9), (2, 11), (3, 6),
+        (3, 7), (3, 9), (3, 11),
+        (4, 5), (4, 8), (4, 9),
+        (5, 10), (5, 11), (6, 7),
+        (6, 8), (6, 9), (7, 10),
+        (7, 11), (8, 9), (10, 11),
+    ))
+    faces = jnp.asarray((
+        (0, 1, 8),
+        (0, 1, 10),
+        (0, 4, 5),
+        (0, 4, 8),
+        (0, 5, 10),
+        (1, 6, 7),
+        (1, 6, 8),
+        (1, 7, 10),
+        (2, 3, 9),
+        (2, 3, 11),
+        (2, 4, 5),
+        (2, 4, 9),
+        (2, 5, 11),
+        (3, 6, 7),
+        (3, 6, 9),
+        (3, 7, 11),
+        (4, 8, 9),
+        (6, 8, 9),
+        (5, 10, 11),
+        (7, 10, 11),
+    ))
+    # 2. Obtain unique convex combinations
+    K = jnp.eye(3, dtype=int)
+    for _ in range(subdivisions):
+        K = (K + jnp.eye(3, dtype=int)[:, None, :]).reshape(-1, 3)
+    K = jnp.unique(K, axis=0)
+    K = K / (subdivisions + 1)
+
+    # 3. Compute interior points and edge points
+    interior_mask = (K * (K - 1)).all(axis=-1)
+    key = jnp.arange(1, subdivisions + 1) / (subdivisions + 1)
+    edge_points = jnp.einsum(
+        'is,eid->esd',
+        jnp.stack((key, 1 - key)),
+        vertices[edges],
+    ).reshape(-1, 3)
+    interior_points = jnp.einsum(
+        'sf,ifd->isd',
+        K[interior_mask, ...],
+        vertices[faces],
+    ).reshape(-1, 3)
+
+    # 4. Extrude onto sphere
+    icosphere = jnp.concatenate((vertices, edge_points, interior_points))
+    icosphere = icosphere / jnp.linalg.norm(icosphere, axis=-1, keepdims=True)
+
+    # 5. Rotate into alignment
+    if target is not None:
+        axis = jnp.cross(icosphere[0], target)
+        angle = jnp.arctan2(
+            jnp.linalg.norm(axis),
+            icosphere[0] @ target,
+        )
+        icosphere = rotate_axis_angle(icosphere, axis=axis, angle=angle)
+        if secondary is not None:
+            axis = target
+            icosangle = jnp.arctan(2)
+            secondary = secondary / jnp.linalg.norm(secondary, keepdims=True)
+            secondary = rotate_axis_angle(
+                secondary,
+                axis=jnp.cross(axis, secondary),
+                angle=icosangle - jnp.arccos(axis @ secondary)
+            )
+            src = icosphere[1] - axis * (icosphere[1] @ axis)
+            tgt = secondary - axis * (secondary @ axis)
+            src = src / jnp.linalg.norm(src, keepdims=True)
+            tgt = tgt / jnp.linalg.norm(tgt, keepdims=True)
+            icosphere = rotate_axis_angle(
+                icosphere,
+                axis=axis,
+                angle=-jnp.arctan2(
+                    jnp.linalg.norm(jnp.cross(src, tgt)),
+                    src @ tgt,
+                ),
+            )
+
+    return icosphere
