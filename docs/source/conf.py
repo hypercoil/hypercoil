@@ -36,7 +36,8 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.graphviz',
     'sphinx.ext.linkcode',
-    'numpydoc'
+    'sphinx_design',
+    'numpydoc',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -67,6 +68,18 @@ html_theme = 'pydata_sphinx_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+html_logo = "_static/logo.png"
+html_theme_options = {
+    "show_prev_next": False,
+}
+html_context = {
+   "default_mode": "dark",
+}
+
+html_sidebars = {
+    "hypercoil/index": [],
+}
+
 autodoc_type_aliases = {
     'Tensor': 'Tensor',
     'PyTree': 'PyTree',
@@ -77,14 +90,6 @@ autodoc_type_aliases = {
 
 #numpydoc_show_class_members = False
 numpydoc_show_inherited_class_members = False
-
-html_logo = "_static/logo.png"
-html_theme_options = {
-    "show_prev_next": False,
-}
-html_context = {
-   "default_mode": "dark",
-}
 
 def linkcode_resolve(domain, info):
     """

@@ -25,17 +25,13 @@ jobs:
       run: |
         sudo apt install pandoc
         python -m pip install --upgrade pip
-        python -m pip install numpydoc
-        python -m pip install pydata_sphinx_theme
         pushd hypercoil/
-        python -m pip install .
-        python -m pip install --upgrade --force-reinstall --no-deps https://github.com/deepmind/distrax/archive/4787902ae49ccfccb1c903e759d15bc61e6a20b4.tar.gz
+        python -m pip install .[doc]
         popd
 
     - name: Make HTML
       run: |
         pushd hypercoil/docs/
-        python -m pip install -r requirements.txt
         make html
         popd
 

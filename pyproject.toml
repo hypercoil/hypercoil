@@ -63,7 +63,12 @@ test = [
 viz = [
     "hyve >= 0.0.2.dev1",
 ]
-doc = ["sphinx"]
+doc = [
+    "sphinx",
+    "sphinx-design",
+    "numpydoc",
+    "pydata_sphinx_theme",
+]
 
 [tool.blue]
 line-length = 79
