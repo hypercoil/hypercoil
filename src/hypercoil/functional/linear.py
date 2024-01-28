@@ -135,6 +135,7 @@ def compartmentalised_linear(
     ) = None,
     forward_mode: Literal['map', 'project'] = 'map',
     concatenate: bool = True,
+    encode: bool = False,
 ) -> Tensor:
     """
     Linear mapping with compartment-specific weights.
@@ -153,7 +154,7 @@ def compartmentalised_linear(
         Bias term.
     normalisation : Optional[Literal['mean', 'absmean', 'zscore', 'psc']] (default: None)
         Normalisation approach for output.
-    forward_mode : Literal['map', 'project'] (default: 'map')
+    forward_mode : Literal['map', 'project', 'encode'] (default: 'map')
         Forward mode for linear mapping.
 
     Returns
@@ -183,6 +184,20 @@ def compartmentalised_linear(
         shape=out_shape,
         concatenate=concatenate,
     )
-    if bias is not None:
-        out = out + bias[..., None]
+    if isinstance(out, Mapping):
+        if encode:
+            from .cov import pairedcorr
+            out = {k: pairedcorr(
+                select_compartment(input, limits[k]), v
+            ) for k, v in out.items()}
+        if bias is not None:
+            out = {k: out[k] + bias[k][..., None] for k in out}
+    else:
+        if encode:
+            from .cov import pairedcorr
+            out = {k: pairedcorr(
+                select_compartment(input, limits[k]), out
+            ) for k in weight}
+        if bias is not None:
+            out = out + bias[..., None]
     return out

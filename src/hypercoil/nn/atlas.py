@@ -117,6 +117,7 @@ class AtlasLinear(eqx.Module):
     ) = None
     forward_mode: Literal['map', 'project'] = 'map'
     concatenate: bool = True
+    encode: bool = False
 
     def __init__(
         self,
@@ -129,6 +130,7 @@ class AtlasLinear(eqx.Module):
         ) = 'mean',
         forward_mode: Literal['map', 'project'] = 'map',
         concatenate: bool = True,
+        encode: bool = False,
         *,
         key: 'jax.random.PRNGKey',
     ):
@@ -163,6 +165,7 @@ class AtlasLinear(eqx.Module):
         self.normalisation = normalisation
         self.forward_mode = forward_mode
         self.concatenate = concatenate
+        self.encode = encode
 
     @staticmethod
     def set_default_limits(
@@ -185,6 +188,7 @@ class AtlasLinear(eqx.Module):
         ) = 'mean',
         forward_mode: Literal['map', 'project'] = 'map',
         concatenate: bool = True,
+        encode: bool = False,
         *,
         mapper: Optional[Type[MappedParameter]] = None,
         normalise: bool = False,
@@ -230,6 +234,7 @@ class AtlasLinear(eqx.Module):
             normalisation=normalisation,
             forward_mode=forward_mode,
             concatenate=concatenate,
+            encode=encode,
             key=m_key,
         )
         model = AtlasInitialiser.init(
@@ -256,6 +261,7 @@ class AtlasLinear(eqx.Module):
         ) = None,
         forward_mode: Optional[Literal['map', 'project']] = None,
         concatenate: Optional[bool] = None,
+        encode: Optional[bool] = None,
         *,
         key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
@@ -265,6 +271,8 @@ class AtlasLinear(eqx.Module):
             forward_mode = self.forward_mode
         if concatenate is None:
             concatenate = self.concatenate
+        if encode is None:
+            encode = self.encode
         weight = OrderedDict(
             ((k, _to_jax_array(v)) for k, v in self.weight.items())
         )
@@ -276,6 +284,7 @@ class AtlasLinear(eqx.Module):
             normalisation=normalisation,
             forward_mode=forward_mode,
             concatenate=concatenate,
+            encode=encode,
         )
 
 
