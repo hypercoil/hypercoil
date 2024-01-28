@@ -47,7 +47,7 @@ from ..formula.imops import (
     NiftiObjectInterpreter,
 )
 from ..functional.linear import form_dynamic_slice
-from ..functional.sphere import euclidean_conv, spherical_conv
+from ..functional.sphere import euclidean_conv, icosphere, spherical_conv
 from ..functional.utils import conform_mask
 
 
@@ -678,6 +678,155 @@ class _GIfTIReferenceMixin:
 
         return Reference(
             pointer=ref_pointer,
+            model_axes=(0,),
+            imobj_from_pointer=imobj_from_pointer,
+            dataobj_from_imobj=dataobj_from_imobj,
+        )
+
+
+class _IcosphereReferenceMixin:
+    """
+    Use to load a reference into an atlas class.
+
+    For use when the ``ref_pointer`` object contains instructions for
+    constructing a set of labels that are approximately evenly spaced discs
+    on a spherical surface homeomorphic to the cortical sheet.
+    """
+
+    #TODO: We're doing this in a really hacky way at the moment -- creating
+    #      a temporary GIfTI image in memory. Deferring this until we refactor
+    #      functionals into a dedicated tensor library separate from
+    #      hypercoil.
+    def _load_reference(
+        self,
+        ref_pointer: Mapping[str, Any],
+    ) -> 'Reference':
+        n_subdivisions = ref_pointer['n_subdivisions']
+        rotation_target = ref_pointer['rotation_target']
+        rotation_secondary = ref_pointer['rotation_secondary']
+        disc_scale = ref_pointer['disc_scale']
+        surf_L = ref_pointer['surf_L']
+        surf_R = ref_pointer['surf_R']
+        mask_L = ref_pointer['mask_L']
+        mask_R = ref_pointer['mask_R']
+        locus_coords = icosphere(
+            subdivisions=n_subdivisions,
+            target=rotation_target,
+            secondary=rotation_secondary,
+        )
+        point_coords = {
+            'cortex_L': nb.load(surf_L).darrays[0].data,
+            'cortex_R': nb.load(surf_R).darrays[0].data,
+        }
+        point_coords = {
+            k: (v / np.linalg.norm(v, axis=-1, keepdims=True))
+            for k, v in point_coords.items()
+        }
+        distance = {
+            k: np.arctan2(
+                np.linalg.norm(
+                    np.cross(
+                        v[..., None, :],
+                        locus_coords[None, ...],
+                    ),
+                    axis=-1,
+                ),
+                v @ locus_coords.T,
+            )
+            for k, v in point_coords.items()
+        }
+        point_mask = {
+            'cortex_L': nb.load(mask_L).darrays[0].data.astype(bool),
+            'cortex_R': nb.load(mask_R).darrays[0].data.astype(bool),
+        }
+        valid = {k: v[distance[k].argmin(0)] for k, v in point_mask.items()}
+        distance = {k: v[..., valid[k]] for k, v in distance.items()}
+        encoding = {
+            k: jnp.where(
+                v < (disc_scale * np.arctan(2) / 2 / (n_subdivisions + 1)),
+                1.,
+                0.,
+            )
+            for k, v in distance.items()
+        }
+
+        class TensorImobj(Mapping):
+            def __init__(self, imobj: Tuple):
+                self._imobj = imobj
+
+            def __getitem__(self, idx: int) -> Tensor:
+                return self._imobj[idx]
+
+            def __setitem__(self, idx: int, value: Tensor) -> None:
+                self._imobj[idx] = value
+
+            def __delitem__(self, idx: int) -> None:
+                del self._imobj[idx]
+
+            def __iter__(self) -> Iterator[str]:
+                return iter(self._imobj)
+
+            def __next__(self) -> str:
+                return next(self._imobj)
+
+            def __len__(self) -> int:
+                return len(self._imobj)
+
+            def __contains__(self, idx: int) -> bool:
+                try:
+                    return self._imobj[idx] is not None
+                except IndexError:
+                    return False
+
+            @property
+            def ndim(self) -> int:
+                _ndims = tuple(
+                    e.ndim
+                    for e in self._imobj
+                    if e is not None
+                )
+                return _ndims[0] if len(set(_ndims)) == 1 else None
+
+            @property
+            def _shapes(self) -> Tuple[Tuple[int, ...]]:
+                return tuple(
+                    e.shape for e in self._imobj
+                    if e is not None
+                )
+
+            @property
+            def shapes(self) -> Tuple[Tuple[int, ...]]:
+                return self._shapes
+
+            # TODO: we'll want to broadcast the shapes first and then sum the
+            #      last axis. Currently we're just summing the last axis.
+            @property
+            def shape(self) -> Tuple[int, ...]:
+                shape = self._shapes[0]
+                final = sum([s[-1] for s in self._shapes])
+                return shape[:-1] + (final,) if len(shape) > 1 else (final,)
+
+            @property
+            def header(self) -> Dict:
+                return tuple(None for _ in self._imobj)
+
+        def imobj_from_pointer(pointer):
+            return TensorImobj(tuple(e for e in pointer))
+
+        def dataobj_from_imobj(imobj):
+            return np.concatenate(
+                tuple(e for e in imobj if e is not None)
+            )
+
+        #TODO: Must allow overlapping labels.
+        encoding_L = (
+            encoding['cortex_L'].argmax(-1) + 1
+        ) * encoding['cortex_L'].max(-1)
+        encoding_R = (
+            encoding['cortex_R'].argmax(-1) + 1
+        ) * encoding['cortex_R'].max(-1) + encoding_L.max() + 1
+        return Reference(
+            pointer=(encoding_L, encoding_R),
             model_axes=(0,),
             imobj_from_pointer=imobj_from_pointer,
             dataobj_from_imobj=dataobj_from_imobj,

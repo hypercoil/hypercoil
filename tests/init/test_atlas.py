@@ -26,6 +26,7 @@ from hypercoil.init.atlas import (
     MultifileVolumetricAtlas,
     DirichletInitVolumetricAtlas,
     DirichletInitSurfaceAtlas,
+    IcosphereAtlas,
     _MemeAtlas,
 )
 from hypercoil.engine.noise import (
@@ -405,6 +406,16 @@ class TestAtlasInit:
         # On a sphere of radius 100
         assert np.all(
             np.linalg.norm(atlas.coors[:59412], axis=1).round() == 100)
+
+    def test_icosphere_atlas(self):
+        # Smoke test only here -- correctness is tested in hypercoil_examples
+        atlas = IcosphereAtlas(
+            name='Icosphere',
+            n_subdivisions=5,
+            rotation_target=np.array((0., 0., 1.)),
+            rotation_secondary=np.array((0., 1., 0.)),
+            disc_scale=0.5,
+        )
 
     def test_atlas_empty_compartment(self):
         cifti_template = get_null400_cifti()

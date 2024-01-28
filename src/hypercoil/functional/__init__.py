@@ -83,6 +83,9 @@ from .kernel import (
     rbf_kernel,
     sigmoid_kernel,
 )
+from .linear import (
+    compartmentalised_linear,
+)
 from .matrix import (
     cholesky_invert,
     delete_diagonal,
@@ -139,6 +142,7 @@ from .sparse import (
 )
 from .sphere import (
     euclidean_conv,
+    icosphere,
     spatial_conv,
     sphere_to_latlong,
     sphere_to_normals,

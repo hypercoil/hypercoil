@@ -58,6 +58,7 @@ from .atlas import (
     CortexSubcortexCIfTIAtlas,
     DirichletInitVolumetricAtlas,
     DirichletInitSurfaceAtlas,
+    IcosphereAtlas,
     AtlasInitialiser,
 )
 from .base import (

@@ -109,6 +109,7 @@ from .atlasmixins import (
     _FromNullMaskMixin,
     _GIfTIOutputMixin,
     _GIfTIReferenceMixin,
+    _IcosphereReferenceMixin,
     _is_path,
     _LogicMaskMixin,
     _MultiCompartmentMixin,
@@ -984,7 +985,7 @@ class DirichletInitSurfaceAtlas(
         Path to a GIfTI file containing the mesh of the surface of the left
         cortical hemisphere. If none is provided, the 32K-vertex spherical
         fsLR surface is used by default.
-    surf_L
+    surf_R
         Path to a GIfTI file containing the mesh of the surface of the right
         cortical hemisphere. If none is provided, the 32K-vertex spherical
         fsLR surface is used by default.
@@ -992,15 +993,10 @@ class DirichletInitSurfaceAtlas(
         Names of brain model axis objects corresponding to cortex in the CIfTI
         reference. Default to 'CIFTI_STRUCTURE_CORTEX_LEFT' and
         'CIFTI_STRUCTURE_CORTEX_RIGHT'.
-    dtype
-        Datatype for non-Boolean (non-mask) and non-Long (non-label) tensors
-        created as part of the atlas.
-    device
-        Device on which all tensors created as part of the atlas reside.
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref : nb.CiftiImage
         The reference whose pointer was provided at construction time.
     mask : bool tensor
         Boolean tensor indicating the inclusion status of each spatial
@@ -1057,6 +1053,96 @@ class DirichletInitSurfaceAtlas(
             cortex_L=cortex_L,
             cortex_R=cortex_R,
             key=key,
+        )
+
+
+class IcosphereAtlas(
+    _IcosphereReferenceMixin,
+    _CortexSubcortexCIfTIMaskMixin,
+    _CortexSubcortexGIfTICompartmentMixin,
+    _DiscreteLabelMixin,
+    _VertexGIfTIMeshMixin,
+    _SpatialConvMixin,
+    _GIfTIOutputMixin,
+    BaseAtlas,
+):
+    """
+    Approximately geometrically uniform atlas container object. Use to create
+    atlases whose labels are approximately evenly spaced discs on a spherical
+    surface homeomorphic to the cortical sheet. The disc centres are defined
+    by a subdivision of an icosahedron.
+
+    Parameters
+    ----------
+    n_subdivisions : int
+        Number of subdivisions of the icosahedron used to define disc centres.
+        The default number of labels per hemisphere follows the formula
+        ``12 + 10 * (n_subdivisions**2 -1)``. Then, the coordinates of each
+        label are compared against the mask coordinates using a 1-nearest
+        neighbour search to determine the inclusion status of each label.
+    rotation_target : Tensor or None (default None)
+        If provided, the coordinates of the first vertex of the icosphere will be
+        rotated to align with the provided target coordinate.
+    rotation_secondary : Tensor or None (default None)
+        If provided, the coordinates of the second vertex of the icosphere will
+        be rotated to align with the provided secondary coordinate.
+    mask_L
+        Path to a GIfTI file containing an atlas mask for the left cortical
+        hemisphere. If none is provided, the 32K fsLR mask excluding medial
+        wall vertices is used by default.
+    mask_R
+        Path to a GIfTI file containing an atlas mask for the right cortical
+        hemisphere. If none is provided, the 32K-vertex fsLR mask excluding
+        medial wall vertices is used by default.
+    surf_L
+        Path to a GIfTI file containing the mesh of the surface of the left
+        cortical hemisphere. If none is provided, the 32K-vertex spherical
+        fsLR surface is used by default.
+    surf_R
+        Path to a GIfTI file containing the mesh of the surface of the right
+        cortical hemisphere. If none is provided, the 32K-vertex spherical
+        fsLR surface is used by default.
+    """
+
+    surf: Dict[str, str]
+
+    def __init__(
+        self,
+        n_subdivisions: int,
+        rotation_target: Optional[Tensor] = None,
+        rotation_secondary: Optional[Tensor] = None,
+        disc_scale: float = 0.5,
+        name: Optional[str] = None,
+        mask_L: Optional[str] = None,
+        mask_R: Optional[str] = None,
+        surf_L: Optional[str] = None,
+        surf_R: Optional[str] = None,
+        clear_cache: bool = True,
+        *,
+        key: Optional['jax.random.PRNGKey'] = None,
+    ):
+        self.surf, mask_source = _surface_atlas_common_args(
+            mask_L=mask_L,
+            mask_R=mask_R,
+            surf_L=surf_L,
+            surf_R=surf_R,
+        )
+        ref_pointer = {
+            'n_subdivisions': n_subdivisions,
+            'rotation_target': rotation_target,
+            'rotation_secondary': rotation_secondary,
+            'disc_scale': disc_scale,
+            'mask_L': mask_source['cortex_L'],
+            'mask_R': mask_source['cortex_R'],
+            'surf_L': self.surf['cortex_L'],
+            'surf_R': self.surf['cortex_R'],
+        }
+
+        super().__init__(
+            ref_pointer=ref_pointer,
+            mask_source=mask_source,
+            clear_cache=clear_cache,
+            name=name,
         )
 
 
