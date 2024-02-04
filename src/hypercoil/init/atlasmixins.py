@@ -741,6 +741,7 @@ class _IcosphereReferenceMixin:
         }
         valid = {k: v[distance[k].argmin(0)] for k, v in point_mask.items()}
         distance = {k: v[..., valid[k]] for k, v in distance.items()}
+        self.vertices = {k: locus_coords[valid[k]] for k in valid}
         encoding = {
             k: jnp.where(
                 v < (disc_scale * np.arctan(2) / 2 / (n_subdivisions + 1)),
@@ -824,7 +825,12 @@ class _IcosphereReferenceMixin:
         ) * encoding['cortex_L'].max(-1)
         encoding_R = (
             encoding['cortex_R'].argmax(-1) + 1
-        ) * encoding['cortex_R'].max(-1) + encoding_L.max() + 1
+        ) * encoding['cortex_R'].max(-1)
+        encoding_R = jnp.where(
+            encoding_R != 0,
+            encoding_R + encoding_L.max(),
+            encoding_R,
+        )
         return Reference(
             pointer=(encoding_L, encoding_R),
             model_axes=(0,),
@@ -1378,7 +1384,7 @@ class _CortexSubcortexGIfTICompartmentMixin(
                 src >= start,
                 src < stop,
             )
-            ix += s[-1]
+            ix = stop
 
         return compartments
 
@@ -1395,7 +1401,12 @@ class _DiscreteLabelMixin:
     def _configure_decoders(
         self,
         null_label: int = 0,
+        allow_multicompartment: bool = True,
     ) -> Dict[str, Tensor]:
+        # TODO: Switch to automatic renumbering of unique values, like we do
+        #       in hyve. In fact, best to use a common underlying util for
+        #       both.
+        offset = 0
 
         modelobj = self.ref.modelobj
 
@@ -1405,8 +1416,10 @@ class _DiscreteLabelMixin:
             compartment_data = select_compartment(modelobj)
             labels_in_compartment = jnp.unique(compartment_data)
             label_mask = labels_in_compartment != null_label
-            labels_in_compartment = labels_in_compartment[label_mask]
+            labels_in_compartment = labels_in_compartment[label_mask] + offset
             decoder[c] = jnp.asarray(labels_in_compartment, dtype=int)
+            if len(labels_in_compartment) and not allow_multicompartment:
+                offset += labels_in_compartment.max()
         return decoder
 
     def _populate_map_from_ref(
@@ -1629,6 +1642,7 @@ class _VertexGIfTIMeshMixin:
                 surf = surf[mask]
             start, stop = ix, ix + surf.shape[0]
             coor[start:stop] = surf
+            ix += surf.shape[0]
         self.coors = jnp.asarray(coor)
         self.topology = OrderedDict()
         # TODO: Use functions instead of attributes below to interact with

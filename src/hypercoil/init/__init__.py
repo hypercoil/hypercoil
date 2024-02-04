@@ -56,6 +56,7 @@ from .atlas import (
     MultiVolumetricAtlas,
     MultifileVolumetricAtlas,
     CortexSubcortexCIfTIAtlas,
+    CortexSubcortexGIfTIAtlas,
     DirichletInitVolumetricAtlas,
     DirichletInitSurfaceAtlas,
     IcosphereAtlas,

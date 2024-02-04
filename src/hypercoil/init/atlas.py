@@ -1105,6 +1105,7 @@ class IcosphereAtlas(
     """
 
     surf: Dict[str, str]
+    vertices: Dict[str, Tensor]
 
     def __init__(
         self,
