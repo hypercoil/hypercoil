@@ -34,6 +34,7 @@ def random_VMF(
     key_radial, key_angular = jax.random.split(key, 2)
 
     # parse input parameters
+    mu = jnp.atleast_2d(mu)
     batch_size = 1 if shape is None else prod(shape)
     d = mu.shape[-1]
     batch_shape = shape or ()
@@ -135,7 +136,10 @@ def log_prob_vmf(X: Tensor, mu: Tensor, kappa: Tensor) -> Tensor:
     )
     #return kappa * mu @ X.swapaxes(-2, -1) + log_norm
     return jnp.einsum(
-        '...ld,...nd,...l->...nl', mu, X, jnp.atleast_1d(kappa)
+        '...ld,...nd,...l->...nl',
+        jnp.atleast_2d(mu),
+        X,
+        jnp.atleast_1d(kappa),
     ) + log_norm
 
 
