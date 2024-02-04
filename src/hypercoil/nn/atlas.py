@@ -6,7 +6,7 @@ Modules that map voxelwise signals to labelwise signals.
 """
 from __future__ import annotations
 from collections import OrderedDict
-from typing import Callable, Dict, Literal, Optional, Tuple, Type
+from typing import Callable, Dict, Literal, Mapping, Optional, Tuple, Type
 
 import jax
 import jax.numpy as jnp
@@ -15,7 +15,7 @@ from numpyro.distributions import Dirichlet
 
 from ..engine import NestedDocParse, PyTree, Tensor
 from ..engine.paramutil import _to_jax_array
-from ..functional.linear import compartmentalised_linear
+from ..functional.linear import compartmentalised_linear, encode_and_bias
 from ..init.atlas import AtlasInitialiser, BaseAtlas
 from ..init.mapparam import MappedParameter
 
@@ -229,8 +229,7 @@ class AtlasLinear(eqx.Module):
             n_locations=n_locations,
             n_labels=n_labels,
             limits=limits,
-            decoder=atlas.decoder,  # TODO: we're maintaining a reference to
-            #      the atlas here. Is this a problem?
+            decoder={**atlas.decoder},
             normalisation=normalisation,
             forward_mode=forward_mode,
             concatenate=concatenate,
@@ -253,6 +252,40 @@ class AtlasLinear(eqx.Module):
         )
         return model
 
+    def enc(
+        self,
+        input: Tensor,
+        ref: Tensor,
+        normalisation: (
+            Optional[Literal['mean', 'absmean', 'zscore', 'psc']]
+        ) = None,
+        forward_mode: Optional[Literal['map', 'project']] = None,
+        decode_labels: bool = True,
+        concatenate: Optional[bool] = None,
+    ) -> Mapping[str, Tensor]:
+        """
+        Encode the input time series into the atlas's connectivity space.
+
+        If you wish to encode the reference time series, use the instance as
+        a callable instead with ``encode=True``.
+        """
+        basis = self(
+            ref,
+            normalisation=normalisation,
+            forward_mode=forward_mode,
+            concatenate=concatenate,
+            decode_labels=decode_labels,
+            encode=False,
+        )
+        return encode_and_bias(
+            basis=basis,
+            input=input,
+            limits=None,
+            weight=None,
+            bias=None,
+            encode=True,
+        )
+
     def __call__(
         self,
         input: Tensor,
@@ -262,6 +295,7 @@ class AtlasLinear(eqx.Module):
         forward_mode: Optional[Literal['map', 'project']] = None,
         concatenate: Optional[bool] = None,
         encode: Optional[bool] = None,
+        decode_labels: bool = True,
         *,
         key: Optional['jax.random.PRNGKey'] = None,
     ) -> Tensor:
@@ -280,7 +314,7 @@ class AtlasLinear(eqx.Module):
             input=input,
             weight=weight,
             limits=self.limits,
-            decoder=self.decoder,
+            decoder=self.decoder if decode_labels else None,
             normalisation=normalisation,
             forward_mode=forward_mode,
             concatenate=concatenate,

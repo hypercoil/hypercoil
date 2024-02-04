@@ -14,6 +14,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Union,
 )
 
 import jax
@@ -124,6 +125,35 @@ def concatenate_and_decode(
     return out
 
 
+def encode_and_bias(
+    basis: Union[Tensor, Mapping[str, Tensor]],
+    input: Tensor,
+    limits: Optional[Mapping[str, Tuple[int, int]]] = None,
+    weight: Optional[Mapping[str, Tensor]] = None,
+    bias: Optional[Tensor] = None,
+    encode: bool = False,
+) -> Tensor:
+    out = basis
+    if encode:
+        from .cov import pairedcorr
+        if isinstance(basis, Mapping):
+            out = {k: pairedcorr(
+                select_compartment(input, limits[k]), v
+            ) for k, v in out.items()}
+        elif limits is not None:
+            out = {k: pairedcorr(
+                select_compartment(input, limits[k]), out
+            ) for k in weight}
+        else:
+            out = pairedcorr(input, out)
+    if bias is not None:
+        if isinstance(out, Mapping):
+            out = {k: out[k] + bias[k][..., None] for k in out}
+        else:
+            out = out + bias[..., None]
+    return out
+
+
 def compartmentalised_linear(
     input: Tensor,
     weight: Mapping[str, Tensor],
@@ -184,20 +214,11 @@ def compartmentalised_linear(
         shape=out_shape,
         concatenate=concatenate,
     )
-    if isinstance(out, Mapping):
-        if encode:
-            from .cov import pairedcorr
-            out = {k: pairedcorr(
-                select_compartment(input, limits[k]), v
-            ) for k, v in out.items()}
-        if bias is not None:
-            out = {k: out[k] + bias[k][..., None] for k in out}
-    else:
-        if encode:
-            from .cov import pairedcorr
-            out = {k: pairedcorr(
-                select_compartment(input, limits[k]), out
-            ) for k in weight}
-        if bias is not None:
-            out = out + bias[..., None]
-    return out
+    return encode_and_bias(
+        basis=out,
+        input=input,
+        limits=limits,
+        weight=weight,
+        bias=bias,
+        encode=encode,
+    )
