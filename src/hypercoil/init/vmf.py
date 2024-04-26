@@ -107,24 +107,30 @@ def random_VMF_angle(
 
 def log_bessel(order: int, kappa: Tensor) -> Tensor:
     """
-    Approximation to the logarithm of a modified Bessel function
-    of the first kind. We use this to normalise the vMF
-    distribution.
+    Approximation to the logarithm of a modified Bessel function of the first
+    kind. We use this to normalise the vMF distribution.
 
-    Adapted from source:
+    See Appendix B of:
+    Fröhlich J and Spencer T (1981) "The Kosterlitz-Thouless Transition in
+    Two-Dimensional Abelian Spin Systems and the Coulomb Gas".
+    Commun. Math. Phys. 81, 527-602.
+    The notation in this paper is a bit different, but the approximation is
+    for large values of kappa. We should run some Monte Carlo integration
+    simulations to assess this approximation in practice for the range of
+    values of kappa we expect to encounter.
+
+    This asymptotic approximation returns results approximately equivalent to
+    the implementation in the HierarchBayesParcel package:
     https://github.com/DiedrichsenLab/HierarchBayesParcel/blob/main/emissions.py#L1473
-
-    This looks like it's an asymptotic approximation for large
-    order and kappa. We should verify that this is the case and
-    that it's accurate for the range of values we expect.
     """
-    frac = kappa / order
-    square = 1 + frac**2
-    root = jnp.sqrt(square)
-    eta = root + jnp.log(frac) - jnp.log(1 + root)
-    return -jnp.log(
-        jnp.sqrt(2 * jnp.pi * order)
-    ) + order * eta - 0.25 * jnp.log(square)
+    ratio = order / kappa
+    radicand = 1 + ratio**2
+    root = jnp.sqrt(radicand)
+    return (
+        -0.5 * (jnp.log(2 * jnp.pi * kappa) + 0.5 * jnp.log(radicand))
+        + kappa * root
+        - order * jnp.arcsinh(ratio)
+    )
 
 
 def log_prob_vmf(X: Tensor, mu: Tensor, kappa: Tensor) -> Tensor:
@@ -151,7 +157,12 @@ def vmf_logpdf(mu: Tensor, kappa: Tensor) -> callable:
 
 class VonMisesFisher(Distribution):
     support = constraints.sphere
-    pytree_aux_fields = ('sample_max_iter', 'sample_return_valid')
+    pytree_data_fields = ('mu', 'kappa')
+    pytree_aux_fields = (
+        'sample_max_iter',
+        'sample_return_valid',
+        'explicit_normalisation',
+    )
 
     def __init__(
         self,
@@ -160,14 +171,17 @@ class VonMisesFisher(Distribution):
         sample_max_iter: int = 5,
         sample_return_valid: bool = False,
         explicit_normalisation: bool = True,
+        parameterise: bool = True,
     ):
         event_shape = mu.shape[-1]
         batch_shape = mu.shape[:-1]
-        self.mu = NormSphereParameter(
-            model=mu,
-            where=lambda x: x,
-            norm=2,
-        )
+        if parameterise:
+            mu = NormSphereParameter(
+                model=mu,
+                where=lambda x: x,
+                norm=2,
+            )
+        self.mu = mu
         self.kappa = kappa
         self.sample_max_iter = sample_max_iter
         self.sample_return_valid = sample_return_valid
