@@ -42,9 +42,10 @@ from .semidefinite import(
 from .spdnoise import (
     SPDNoise
 )
-from .svm import (
-    SVM
-)
+# It's not practical, and CVXPY breaks too easily
+#from .svm import (
+#    SVM
+#)
 from .sylo import (
     Sylo
 )
