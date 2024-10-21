@@ -1,0 +1,16 @@
+hypercoil:
+  description: "Differentiable programming for mapping brain function"
+hyve:
+  description: "Compositional visualisation engine for neuroimaging data"
+entense:
+  description: "Compositional data-to-tensor workflow assembler"
+paranox:
+  description: "Parameterisations for `equinox` modules"
+nitrix:
+  description: "Neuroimaging transforms in XLA"
+conveyant:
+  description: "Abstractions for compositional functional programming"
+gramform:
+  description: "String-to-function grammars"
+lytemaps:
+  description: "Lightweight fork of `neuromaps`"

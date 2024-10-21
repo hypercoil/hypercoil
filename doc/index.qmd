@@ -1,0 +1,219 @@
+---
+pagetitle: Differentiable programming for mapping brain function
+page-layout: custom
+section-divs: false
+toc: false
+---
+
+
+::: {.hero-banner .text-center}
+
+<h3>
+`hypercoil` ecosystem
+</h3>
+<h1 class="text-center hero-title">
+Differentiable, accelerated,
+<br>
+and compositional programming
+<br>
+for mapping brain function
+</h1>
+
+
+<!-- <ul class="hero-github-links list-inline">
+  <li class="list-inline-item">
+    <a class="github-button" href="https://github.com/hypercoil/hypercoil" data-size="large" data-show-count="false" aria-label="Star repository">Star</a>
+  </li>
+  <li class="list-inline-item">
+    <a class="github-button" href="https://github.com/hypercoil/hypercoil/fork" data-size="large" data-show-count="false" aria-label="Fork repository">Fork</a>
+  </li>
+</ul> -->
+
+:::
+
+
+:::::: {.content-block .padding-left-20px}
+
+
+::: {.list .grid}
+
+:::: {.card .border-secondary .rounded-3 .g-col-12 .g-col-md-6 .g-col-lg-4 .mb-2}
+::::: {.card-header .text-center}
+<h3>`hypercoil`</h3>
+:::::
+::::: {.card-body}
+
+<br>
+Write differentiable programs for mapping the function of the brain.
+<br>
+
+::: {.d-flex .justify-content-center }
+
+[View documentation](./hypercoil){.btn .btn-action .btn-primary .btn-action-primary .justify-content-center }
+
+:::
+
+:::::
+::::
+
+
+
+
+
+:::: {.card .border-secondary .rounded-3 .g-col-12 .g-col-md-6 .g-col-lg-4 .mb-2}
+::::: {.card-header .text-center}
+<h3>`hyve`</h3>
+:::::
+::::: {.card-body}
+
+<br>
+Compose visualisation protocols for neuroimaging datasets.
+<br>
+
+::: {.d-flex .justify-content-center }
+
+[View documentation](./hyve){.btn .btn-action .btn-primary .btn-action-primary .justify-content-center }
+
+:::
+
+:::::
+::::
+
+
+
+
+:::: {.card .border-secondary .rounded-3 .g-col-12 .g-col-md-6 .g-col-lg-4 .mb-2}
+::::: {.card-header .text-center}
+<h3>`entense`</h3>
+:::::
+::::: {.card-body}
+
+<br>
+Assemble workflows for neuroimaging data engineering.
+<br>
+
+::: {.d-flex .justify-content-center }
+
+[View documentation](./entense){.btn .btn-action .btn-primary .btn-action-primary .justify-content-center }
+
+:::
+
+:::::
+::::
+
+
+
+
+:::: {.card .border-secondary .rounded-3 .g-col-12 .g-col-md-6 .g-col-lg-4 .mb-2}
+::::: {.card-header .text-center}
+<h3>`nitrix`</h3>
+:::::
+::::: {.card-body}
+
+<br>
+Use XLA to perform neuroimaging transformations on a hardware accelerator.
+<br>
+
+::: {.d-flex .justify-content-center }
+
+[View documentation](./nitrix){.btn .btn-action .btn-primary .btn-action-primary .justify-content-center }
+
+:::
+
+:::::
+::::
+
+
+
+
+:::: {.card .border-secondary .rounded-3 .g-col-12 .g-col-md-6 .g-col-lg-4 .mb-2}
+::::: {.card-header .text-center}
+<h3>`paranox`</h3>
+:::::
+::::: {.card-body}
+
+<br>
+Parameterise `equinox` modules using domain mappers, initialisers, and stochastic parameters.
+<br>
+
+::: {.d-flex .justify-content-center }
+
+[View documentation](./paranox){.btn .btn-action .btn-primary .btn-action-primary .justify-content-center }
+
+:::
+
+:::::
+::::
+
+
+
+
+:::: {.card .border-secondary .rounded-3 .g-col-12 .g-col-md-6 .g-col-lg-4 .mb-2}
+::::: {.card-header .text-center}
+<h3>`gramform`</h3>
+:::::
+::::: {.card-body}
+
+<br>
+Define grammars to build strings into functions.
+<br>
+
+::: {.d-flex .justify-content-center }
+
+[View documentation](./gramform){.btn .btn-action .btn-primary .btn-action-primary .justify-content-center }
+
+:::
+
+:::::
+::::
+
+
+
+
+:::: {.card .border-secondary .rounded-3 .g-col-12 .g-col-md-6 .g-col-lg-4 .mb-2}
+::::: {.card-header .text-center}
+<h3>`conveyant`</h3>
+:::::
+::::: {.card-body}
+
+<br>
+Abstractions for compositional functional programming.
+<br>
+
+::: {.d-flex .justify-content-center }
+
+[View documentation](./conveyant){.btn .btn-action .btn-primary .btn-action-primary .justify-content-center }
+
+:::
+
+:::::
+::::
+
+
+
+
+:::: {.card .border-secondary .rounded-3 .g-col-12 .g-col-md-6 .g-col-lg-4 .mb-2}
+::::: {.card-header .text-center}
+<h3>`lytemaps`</h3>
+:::::
+::::: {.card-body}
+
+<br>
+Lightweight fork of `neuromaps` for accessing datasets not yet available in `templateflow`.
+<br>
+
+::: {.d-flex .justify-content-center }
+
+[View documentation](./lytemaps){.btn .btn-action .btn-primary .btn-action-primary .justify-content-center }
+
+:::
+
+:::::
+::::
+
+
+
+:::
+
+
+::::::

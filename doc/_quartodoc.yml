@@ -1,0 +1,60 @@
+project:
+  type: website
+  output-dir: ../_build/{__PKGNAME__}
+
+metadata-files:
+  - api/_sidebar.yml
+
+interlinks:
+  fast: true
+  sources:
+    python:
+      url: https://docs.python.org/3/
+    jax:
+      url: https://jax.readthedocs.io
+    equinox:
+      url: https://docs.kidger.site/equinox/
+    pyvista:
+      url: https://docs.pyvista.org/
+
+website:
+  title: "{__PKGNAME__}: {__PKGDESC__}"
+  page-navigation: true
+  navbar:
+    background: dark
+    title: false
+    logo: _static/logo-{__PKGNAME__}.png
+    left:
+      - file: examples/
+        text: Examples
+      - file: tutorials/
+        text: Tutorials
+      - href: spec/
+        text: Spec
+      - href: api/
+        text: API
+      - href: ../
+        text: Ecosystem
+
+    right:
+      - icon: github
+        href: https://github.com/hypercoil/{__PKGNAME__}
+
+format:
+  html:
+    theme: ../vapormod.scss
+    css:
+      - api/_styles-quartodoc.css
+    toc: true
+    backgroundcolor: "#110022"
+
+quartodoc:
+  package: null
+  dir: api
+  title: API reference
+  out_index: index.qmd
+  sidebar: api/_sidebar.yml
+  css: api/_styles-quartodoc.css
+
+  sections:
+{__PKGSPEC__}

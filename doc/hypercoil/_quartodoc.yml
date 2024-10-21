@@ -1,0 +1,12 @@
+    - title: {__PKGNAME__}
+      desc: {__PKGDESC__}
+      package: {__PKGNAME__}
+      options:
+        dynamic: true
+      contents:
+        - functional.corr
+        - functional.partialcorr
+        - loss.nn.EntropyLoss
+
+static-resources:
+  - logo-hypercoil.png

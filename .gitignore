@@ -71,6 +71,15 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+# Quarto documentation
+doc/_build/
+doc/**/.gitignore
+doc/**/objects.txt
+doc/**/api/
+doc/objects.json
+doc/_style.css
+doc/*/_static/
+
 # PyBuilder
 .pybuilder/
 target/

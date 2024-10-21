@@ -1,0 +1,125 @@
+project:
+  type: website
+  output-dir: _build
+  render:
+    - index.qmd
+
+# tell quarto to read the generated sidebar
+metadata-files:
+  - api/_sidebar.yml
+
+# filters:
+#   - "interlinks"
+
+interlinks:
+  fast: true
+  sources:
+    python:
+      url: https://docs.python.org/3/
+    jax:
+      url: https://jax.readthedocs.io
+    equinox:
+      url: https://docs.kidger.site/equinox/
+    pyvista:
+      url: https://docs.pyvista.org/
+
+website:
+  title: "hypercoil"
+  page-navigation: true
+  navbar:
+    background: dark
+    title: false
+    logo: _static/logo-hypercoil.png
+    left:
+      - file: get-started/overview.qmd
+        text: Get Started
+      - file: examples/
+        text: Examples
+      - file: tutorials/
+        text: Tutorials
+      - href: spec/
+        text: Spec
+      - href: api/
+        text: API
+
+    right:
+      - icon: github
+        href: https://github.com/hypercoil/
+
+# tell quarto to read the generated styles
+format:
+  html:
+    theme: vapormod.scss
+    toc: true
+    backgroundcolor: "#110022"
+
+# quartodoc:
+#   package: null
+#   dir: api
+#   title: API reference
+#   out_index: index.qmd
+#   sidebar: api/_sidebar.yml
+#   css: api/_styles-quartodoc.css
+
+#   # code-links:
+#   #   - text: Source code
+#   #     icon: file-code
+#   #     href: https://www.github.com/hypercoil/nitrix/blob/main/src/nitrix/resid.py
+#   #   - text: Documentation source
+#   #     icon: book
+#   #     href: https://www.github.com/hypercoil/nitrix/blob/main/doc/reference/residualise.qmd
+
+#   sections:
+#     - title: nitrix
+#       desc: Neuroimaging transforms in XLA
+#       package: nitrix
+#       options:
+#         dynamic: true
+#       contents:
+#         - residualise
+
+#     - title: hypercoil
+#       desc: Differentiable programming for mapping brain function
+#       package: hypercoil
+#       options:
+#         dynamic: true
+#       contents:
+#         - functional.corr
+#         - functional.partialcorr
+#         - loss.nn.EntropyLoss
+
+#     - title: paranox
+#       desc: Parameterisations for Equinox modules
+#       package: paranox
+#       contents:
+#         - DistributionInitialiser
+
+#     - title: hyve
+#       desc: Compositional visualisation engine for neuroimaging
+#       package: hyve
+#       contents:
+#         - plotdef
+
+#     - title: entense
+#       desc: Compositional data-to-tensor workflow assembler
+#       package: entense
+#       contents:
+#         - Assembler
+
+#     - title: gramform
+#       desc: Grammar for compiling string formulae to functions
+#       package: gramform
+#       contents:
+#         - Grammar
+
+#     - title: conveyant
+#       desc: Abstractions for compositional functional programming
+#       package: conveyant
+#       contents:
+#         - Primitive
+
+#     - title: lytemaps
+#       desc: Lightweight fork of neuromaps
+#       package: lytemaps
+#       contents:
+#         - resample_images
