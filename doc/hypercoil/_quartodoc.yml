@@ -9,4 +9,4 @@
         - loss.nn.EntropyLoss
 
 static-resources:
-  - logo-hypercoil.png
+  - logo-hypercoil.svg

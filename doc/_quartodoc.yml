@@ -23,7 +23,7 @@ website:
   navbar:
     background: dark
     title: false
-    logo: _static/logo-{__PKGNAME__}.png
+    logo: _static/logo-{__PKGNAME__}.svg
     left:
       - file: examples/
         text: Examples

@@ -29,7 +29,7 @@ website:
   navbar:
     background: dark
     title: false
-    logo: _static/logo-hypercoil.png
+    logo: _static/logo-hypercoil.svg
     left:
       - file: get-started/overview.qmd
         text: Get Started

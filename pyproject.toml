@@ -63,11 +63,20 @@ test = [
 viz = [
     "hyve >= 0.0.2.dev1",
 ]
+data = [
+    "entense",
+]
 doc = [
-    "sphinx",
-    "sphinx-design",
-    "numpydoc",
-    "pydata_sphinx_theme",
+    "quartodoc",
+]
+full = [
+    "hyve >= 0.0.2.dev1",
+    "entense",
+    "hypercoil-examples",
+    "hyve-examples",
+    "gramform",
+    "nitrix",
+    "paranox",
 ]
 
 [tool.blue]
