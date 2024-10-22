@@ -19,16 +19,16 @@ def main():
     # Clean rendered files
     rmtree(root / '_build', ignore_errors=True)
     # Read the file containing the library names
-    with open(root / '_pkgidx.yml') as f:
+    with open(root / '_scripts' / '_pkgidx.yml') as f:
         libraries = yaml.safe_load(f)
     # Read the YAML config template
-    with open(root / '_quartodoc.yml') as f:
+    with open(root / '_source' / '_quartodoc.yml') as f:
         template = f.read()
     # Iterate over each library
     for library, libmeta in libraries.items():
-        rmtree(root / library / '.quarto', ignore_errors=True)
+        rmtree(root / '_source' / library / '.quarto', ignore_errors=True)
         # Create a YAML config for the library
-        with open(root / library / '_quartodoc.yml') as f:
+        with open(root / '_source' / library / '_quartodoc.yml') as f:
             libspec = f.read()
         libspec = libspec.format(
             __PKGNAME__=library,
@@ -45,7 +45,7 @@ def main():
         libspec = yaml.safe_load(_libspec)
         if libspec.get('static-resources'):
             static_src = root / '_static'
-            static_dst = root / library / '_static'
+            static_dst = root / '_source' / library / '_static'
             Path(static_dst).mkdir(exist_ok=True)
             for src in libspec['static-resources']:
                 (static_dst / src).parent.mkdir(exist_ok=True, parents=True)
@@ -54,7 +54,7 @@ def main():
                 copy(src, dst)
             del libspec['static-resources']
         if not (
-            root / library / libspec['website']['navbar']['logo']
+            root / '_source' / library / libspec['website']['navbar']['logo']
         ).exists():
             libspec['website']['navbar']['title'] = library
             del libspec['website']['navbar']['logo']
@@ -64,15 +64,18 @@ def main():
         # builder = quartodoc.Builder.from_quarto_config(libspec)
         # breakpoint()
         # builder.build()
-        with open(root / library / '_quarto.yml', 'w+') as f:
+        with open(root / '_source' / library / '_quarto.yml', 'w+') as f:
             yaml.dump(libspec, f, sort_keys=False)
-        run(['quartodoc', 'build'], cwd=root / library)
+        run(['quartodoc', 'build'], cwd=root / '_source' / library)
         run(
             ['quarto', 'render', '--cache-refresh', '--no-clean'],
-            cwd=root / library,
+            cwd=root / '_source' / library,
         )
-        (root / library / '_quarto.yml').unlink()
-    run(['quarto', 'render', '--cache-refresh', '--no-clean'], cwd=root)
+        (root / '_source' / library / '_quarto.yml').unlink()
+    run(
+        ['quarto', 'render', '--cache-refresh', '--no-clean'],
+        cwd=root / '_source',
+    )
 
 
 if __name__ == "__main__":

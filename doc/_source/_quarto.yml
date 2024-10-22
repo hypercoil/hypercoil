@@ -1,6 +1,6 @@
 project:
   type: website
-  output-dir: _build
+  output-dir: ../_build
   render:
     - index.qmd
 
@@ -26,6 +26,7 @@ interlinks:
 website:
   title: "hypercoil"
   page-navigation: true
+  favicon: _static/icon-hypercoil.png
   navbar:
     background: dark
     title: false

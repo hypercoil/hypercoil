@@ -3,3 +3,6 @@
       package: {__PKGNAME__}
       contents:
         - Primitive
+
+static-resources:
+  - icon-hypercoil.png

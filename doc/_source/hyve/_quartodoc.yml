@@ -1,0 +1,11 @@
+    - title: {__PKGNAME__}
+      desc: {__PKGDESC__}
+      package: {__PKGNAME__}
+      options:
+        dynamic: true
+      contents:
+        - plotdef
+        - surf_from_archive
+
+static-resources:
+  - icon-hypercoil.png

@@ -2,4 +2,7 @@
       desc: {__PKGDESC__}
       package: {__PKGNAME__}
       contents:
-        - resample_images
+        - DistributionInitialiser
+
+static-resources:
+  - icon-hypercoil.png

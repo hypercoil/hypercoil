@@ -1,5 +1,0 @@
-    - title: {__PKGNAME__}
-      desc: {__PKGDESC__}
-      package: {__PKGNAME__}
-      contents:
-        - Assembler

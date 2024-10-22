@@ -2,4 +2,7 @@
       desc: {__PKGDESC__}
       package: {__PKGNAME__}
       contents:
-        - DistributionInitialiser
+        - Grammar
+
+static-resources:
+  - icon-hypercoil.png

@@ -1,6 +1,6 @@
 project:
   type: website
-  output-dir: ../_build/{__PKGNAME__}
+  output-dir: ../../_build/{__PKGNAME__}
 
 metadata-files:
   - api/_sidebar.yml
@@ -20,6 +20,7 @@ interlinks:
 website:
   title: "{__PKGNAME__}: {__PKGDESC__}"
   page-navigation: true
+  favicon: _static/icon-hypercoil.png
   navbar:
     background: dark
     title: false
