@@ -1,12 +1,44 @@
-    - title: {__PKGNAME__}
-      desc: {__PKGDESC__}
-      package: {__PKGNAME__}
+    - title: "`functional`: Functions and functionals"
+      desc: Functional interfaces for differentiable programming.
+      package: {__PKGNAME__}.functional
       options:
         dynamic: true
+        children: separate
       contents:
-        - functional.corr
-        - functional.partialcorr
-        - loss.nn.EntropyLoss
+        - name: activation
+        # - name: cmass
+        # - name: connectopy
+        # - name: cov
+        # - kind: page
+        #   summary: "`cov`: Covariances and correlations"
+        #   path: functional.cov
+        #   package: {__PKGNAME__}.functional.cov
+        #   contents:
+        #     - name: cov
+        #     - name: corr
+        #     - name: partialcorr
+        # - name: fourier
+        # - name: graph
+        # - name: interpolate
+        # - name: kernel
+        # - name: matrix
+        # - name: semidefinite
+        # - name: sparse
+        # - name: sphere
+        # - name: sylo
+        # - name: symmap
+        # - name: tsconv
+        # - name: utils
+        # - name: window
+
+    - title: "`loss`: Loss and regularisation"
+      desc: Functional and module interfaces for common loss functions.
+      package: {__PKGNAME__}.loss
+      options:
+        dynamic: true
+        children: separate
+      contents:
+        - name: nn
 
 static-resources:
   - icon-hypercoil.png

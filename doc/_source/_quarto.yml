@@ -26,11 +26,11 @@ interlinks:
 website:
   title: "hypercoil"
   page-navigation: true
-  favicon: _static/icon-hypercoil.png
+  favicon: hypercoil/_static/icon-hypercoil.png
   navbar:
     background: dark
     title: false
-    logo: _static/logo-hypercoil.svg
+    logo: hypercoil/_static/logo-hypercoil.svg
     left:
       - file: get-started/overview.qmd
         text: Get Started

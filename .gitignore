@@ -78,7 +78,7 @@ doc/**/objects.txt
 doc/**/api/
 doc/objects.json
 doc/_style.css
-doc/*/_static/
+doc/_source/*/_static/
 
 # PyBuilder
 .pybuilder/
