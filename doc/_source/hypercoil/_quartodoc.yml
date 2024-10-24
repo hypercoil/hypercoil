@@ -6,9 +6,9 @@
         children: separate
       contents:
         - name: activation
-        # - name: cmass
-        # - name: connectopy
-        # - name: cov
+        - name: cmass
+        - name: connectopy
+        - name: cov
         # - kind: page
         #   summary: "`cov`: Covariances and correlations"
         #   path: functional.cov
@@ -31,14 +31,17 @@
         # - name: utils
         # - name: window
 
-    - title: "`loss`: Loss and regularisation"
-      desc: Functional and module interfaces for common loss functions.
-      package: {__PKGNAME__}.loss
-      options:
-        dynamic: true
-        children: separate
-      contents:
-        - name: nn
+    # - title: "`loss`: Loss and regularisation"
+    #   desc: Functional and module interfaces for common loss functions.
+    #   package: {__PKGNAME__}.loss
+    #   options:
+    #     dynamic: true
+    #     children: separate
+    #   contents:
+    #     - name: functional
+    #     - name: nn
+    #     - name: scalarise
+    #     - name: scheme
 
 static-resources:
   - icon-hypercoil.png

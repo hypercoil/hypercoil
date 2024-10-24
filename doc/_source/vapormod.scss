@@ -47,13 +47,18 @@ $min-contrast-ratio:   1.2 !default;
 
 // Body
 
-$body-bg:                   #1a0933 !default;
+// $body-bg:                   #1a0933 !default;
 // $body-color:                $cyan !default;
-$body-color:                #fff8aa !default; // MODIFIED
+// $body-color:                #fffcd6 !default; // MODIFIED
+$body-bg:                   #05000b !default; // MODIFIED
+$body-color:                #f5d6ff !default; // MODIFIED
 
 // Links
 
-$link-color:                              $body-color !default;
+// $link-color:                              $body-color !default;
+$link-color:                #ff006a !default; // MODIFIED
+$link-decoration:           none !default; // MODIFIED
+$link-hover-decoration:     underline overline !default; // MODIFIED
 
 // Components
 
@@ -362,7 +367,7 @@ table,
   }
 }
 .navbar-logo {
-    max-height: 40px;
+    max-height: 50px;
 } // MODIFIED
 
 // Navs
@@ -411,6 +416,38 @@ table,
     margin-left: 30px;
     margin-right: 30px;
 } // MODIFIED
+
+//TODO: This doesn't seem like great practice. I should probably take a
+// closer look at the reference material and see if there's a better way
+// to do this. I clearly do not know SCSS well enough to be doing this.
+.quarto-container {
+    background-color: #0a090c;
+} // MODIFIED
+
+.navbar {
+    background-color: #2f2431;
+    padding-top: 3px;
+    padding-bottom: 3px;
+} // MODIFIED
+
+// .content {
+//     background-color: coral;
+// } // MODIFIED
+
+// Doc section
+
+// .doc-section dt code {
+//   background: none;
+// }
+
+// .doc-section dt {
+//   background-color: #161419;
+//   display: block;
+// }
+
+// .doc-section dl dd {
+//     margin-left: 3rem;
+// }
 
 // Forms
 

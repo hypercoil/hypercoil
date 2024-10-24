@@ -28,7 +28,7 @@ website:
   page-navigation: true
   favicon: hypercoil/_static/icon-hypercoil.png
   navbar:
-    background: dark
+    background: "#31242b"
     title: false
     logo: hypercoil/_static/logo-hypercoil.svg
     left:

@@ -22,7 +22,6 @@ website:
   page-navigation: true
   favicon: _static/icon-hypercoil.png
   navbar:
-    background: dark
     title: false
     logo: _static/logo-{__PKGNAME__}.svg
     left:

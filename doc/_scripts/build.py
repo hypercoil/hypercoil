@@ -21,8 +21,11 @@ from griffe import (
     Alias,
     Class,
     DocstringSectionText,
+    ExprName,
     Function,
     Object,
+    ParameterKind,
+    Parameters,
 )
 from plum import dispatch
 from quartodoc.__main__ import chdir
@@ -141,8 +144,12 @@ class HRenderer(quartodoc.MdRenderer):
             parts = el.anchor.split('.')
             root = Path(importlib.import_module(parts[0]).__file__).parent
             mod = importlib.import_module('.'.join(parts[:-1]))
-            srcfile = inspect.getsourcefile(getattr(mod, parts[-1]))
-            srcfile = Path(srcfile).relative_to(root)
+            try: # Try to get the source file of the object
+                srcfile = inspect.getsourcefile(getattr(mod, parts[-1]))
+                srcfile = Path(srcfile).relative_to(root)
+            except (ValueError, TypeError): # Fall back to the module file
+                srcfile = mod.__file__
+                srcfile = Path(srcfile).relative_to(root)
             code_url = SRCREPO.format(lib=parts[0])
             src_link = self._fmt_src_link(
                 f'{code_url}/{srcfile}#L{start}-L{end}'
@@ -207,6 +214,7 @@ class HRenderer(quartodoc.MdRenderer):
             # method summary table ----
             if raw_meths:
                 _summary_table = "\n".join(map(self.summarize, raw_meths))
+                _summary_table = _summary_table + '\n: {tbl-colwidths="[1,2]"}'
                 section_name = (
                     "Methods"
                     if isinstance(el, quartodoc.layout.DocClass)
@@ -251,7 +259,7 @@ class HRenderer(quartodoc.MdRenderer):
         str_sig = self.signature(el)
         sig_part = [str_sig] if self.show_signature else []
 
-        if isinstance(el.obj, Function):
+        if isinstance(el.obj, (Function, Alias)):
             src_link = self._src_link(el)
             title = title + src_link
 
@@ -259,6 +267,38 @@ class HRenderer(quartodoc.MdRenderer):
             body = self.render(el.obj)
 
         return "\n\n".join([title, *sig_part, body])
+
+    @staticmethod
+    def bind_annot_default(
+        name: str,
+        annot: str | None,
+        default: str | None,
+    ) -> str:
+        if annot is None:
+            if default is None:
+                return name
+            return f'{name} = {default}'
+        if default is None:
+            return f'{name}: {annot}'
+        return f'{name}: {annot} = {default}'
+
+    @staticmethod
+    def param_annot(queries: List[str], params: Parameters):
+        for query in queries:
+            default = None
+            if '=' in query:
+                query, default = query.split('=')
+            if query not in params:
+                yield HRenderer.bind_annot_default(query, None, default)
+                continue
+            param = params[query]
+            annot = str(param.annotation)
+            yield HRenderer.bind_annot_default(query, annot, default)
+
+    @dispatch
+    def render(self, el: Parameters) -> "list":
+        pars = super().render(el)
+        return list(HRenderer.param_annot(pars, el))
 
 
 def main():
