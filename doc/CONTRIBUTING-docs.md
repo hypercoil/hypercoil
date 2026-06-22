@@ -105,9 +105,30 @@ another library already cites. Additions are additive and must stay deduplicated
 
 ### 4.6 API reference (SPEC §6.5)
 Reference pages are **authored** `.qmd`, living in your repo next to the code to
-minimise drift. An autodoc generator may seed *stubs* (signatures + skeletons) for
-you to fill — but autodoc output is never the final reference, and it does not
-replace the hand-authored textbook reference. (The stub generator lands in Phase 3.)
+minimise drift. A generator seeds *stubs* (signatures + skeletons) you then fill;
+autodoc output is never the final reference and never replaces the textbook layer.
+
+Seed fillable stubs for a library (static/AST-based — no import, JAX-safe):
+
+```bash
+python3 doc/build/gen_reference_stubs.py <lib> [--modules <lib>.subpkg]
+```
+
+It writes one `.qmd` per public module into `<lib>/docs/reference/`, each with a
+`signature-hash` in its front matter. It is **non-destructive** — it never
+overwrites a stub you've started filling (use `--force` to regenerate). Aliases
+and re-exports it can't read from source become clearly-marked TODO stubs.
+
+Fill the stubs by hand/LLM, then add the pages to your `_quarto.yml` `render:`
+list. Check for drift (e.g. in CI) and re-bless after you've updated prose:
+
+```bash
+python3 doc/build/check_reference_staleness.py <lib>            # flags drift; exit 1 if any
+python3 doc/build/check_reference_staleness.py <lib> --update   # re-bless stored hashes
+```
+
+There is no mechanical freshness guarantee (SPEC §7.7) — the hash is a drift
+*signal* for human attention, not an auto-fixer.
 
 ## 5. The rules that keep the hub coherent
 
