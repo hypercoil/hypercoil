@@ -1,22 +1,25 @@
 /*-- scss:defaults --*/
 // ── Federation theme: black base, ONE accent ──────────────────────────────
 // Every library-distinguishing visual derives from $accent. A library's
-// brand.scss sets $accent (one line) and MUST be listed before this file in
-// the theme list so the !default below picks it up. No other per-library knob.
+// brand.scss sets $accent (one line) — that is the only per-library knob. The
+// scss:rules below restate the accent-derived Bootstrap vars (link/primary/etc.)
+// so the library hue applies regardless of theme-file ordering (Quarto compiles
+// scss:defaults in reverse file order, which otherwise leaks the fallback).
 $accent: #b388ff !default;            // fallback accent (used by the hub itself)
 
 // Black base palette.
 $body-bg:        #0a0a0b !default;
 $body-color:     #e8e8ea !default;
 $body-secondary: #a8a8ad !default;
-$surface-1:      #141417 !default;    // cards, callout bodies, code blocks
+$surface-1:      #141417 !default;    // cards, callout bodies, inline code
 $surface-2:      #1d1d22 !default;    // hover, table stripes
 $border-color:   #2a2a31 !default;
+$code-block-bg:  #0c0c0f !default;    // code BLOCKS: deep, low-glare (darker than body)
 
 // Bootstrap/Quarto variable wiring — all chromatic emphasis flows from $accent.
 $primary:        $accent;
-$link-color:     $accent;
-$link-hover-color: lighten($accent, 12%);
+$link-color:     lighten($accent, 8%);   // hyperlinks: the accent, lifted for contrast on black
+$link-hover-color: lighten($accent, 22%);
 $code-color:     lighten($accent, 6%);
 $navbar-bg:      #060607;
 $navbar-fg:      $body-color;
@@ -30,6 +33,25 @@ $toc-active-border: $accent;
 $headings-color: lighten($accent, 22%);
 
 /*-- scss:rules --*/
+// Accent-derived emphasis colours must track the FINAL $accent (a library's
+// brand.scss). Quarto compiles scss:defaults in REVERSE file order, so emphasis
+// vars derived from $accent in the defaults layer can capture the #b388ff hub
+// fallback before brand.scss sets the real per-library accent. Restating them
+// here — in the rules layer, where $accent is final — pins links/primary/code/
+// headings to the library's own hue regardless of theme-file ordering.
+$fed-link:       lighten($accent, 8%);
+$fed-link-hover: lighten($accent, 22%);
+:root {
+  --bs-primary: #{$accent};
+  --bs-primary-rgb: #{red($accent)}, #{green($accent)}, #{blue($accent)};
+  --bs-link-color: #{$fed-link};
+  --bs-link-color-rgb: #{red($fed-link)}, #{green($fed-link)}, #{blue($fed-link)};
+  --bs-link-hover-color: #{$fed-link-hover};
+  --bs-link-hover-color-rgb: #{red($fed-link-hover)}, #{green($fed-link-hover)}, #{blue($fed-link-hover)};
+  --bs-code-color: #{lighten($accent, 6%)};
+  --bs-heading-color: #{$fed-link-hover};
+}
+
 // Active navigation + table of contents location signal.
 .navbar .nav-link.active,
 .navbar .navbar-brand { color: $accent !important; }
@@ -51,9 +73,32 @@ div.callout-tldr .callout-title { color: lighten($accent, 18%); }
 .quarto-section-identifier { color: $accent; }
 span.math .mjx-mn { color: inherit; }
 
-// Code: dark surface, accent annotations.
-pre, code:not(.sourceCode) { background-color: $surface-1; }
+// Inline / plain code: a subtle dark chip, distinct from the page.
+code:not(.sourceCode) { background-color: $surface-1; }
+// Highlighted code BLOCKS: a deep, low-glare surface; the syntax theme
+// (highlight-style) supplies the light token colours on top of it.
+pre, div.sourceCode, pre.sourceCode { background-color: $code-block-bg; }
+div.sourceCode { border: 1px solid $border-color; border-radius: .3rem; }
 .code-annotation-anchor { color: $accent; border-color: $accent; }
+
+// ── Print / PDF: the dark screen theme is unreadable on paper (backgrounds
+// drop out, light text vanishes). Flip to dark-on-light for print only. ──
+@media print {
+  html, body { background: #fff !important; color: #161616 !important; }
+  .navbar, #quarto-sidebar, #TOC, .quarto-secondary-nav, .sidebar { display: none !important; }
+  h1, h2, h3, h4, h5, h6 { color: #111 !important; }
+  .header-section-number, .quarto-section-identifier { color: #444 !important; }
+  a { color: #006b5e !important; }                       // dark teal, legible on white
+  // Code blocks: light surface + dark text/tokens so source is readable in print.
+  pre, code, div.sourceCode, pre.sourceCode,
+  pre.sourceCode code, pre.sourceCode code span {
+    background: #f4f4f5 !important;
+    color: #1b1b1b !important;
+  }
+  div.sourceCode { border-color: #cfcfcf !important; }
+  .callout { background: #f7f7f8 !important; }
+  #title-block-header .quarto-title { border-bottom-color: #006b5e !important; }
+}
 
 // Algorithm listings (crossref custom kind `alg`) read as framed pseudocode.
 .algorithm {

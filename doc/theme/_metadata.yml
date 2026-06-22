@@ -8,7 +8,15 @@ number-sections: true
 code-copy: true
 code-overflow: wrap
 code-annotations: hover
+# Dark syntax theme: light token colours on the deep code-block surface set in
+# federation.scss ($code-block-bg). Keeps source legible on the black base.
+highlight-style: atom-one-dark
 link-external-newwindow: true
+
+# Executable figures: keep runtime warnings out of the rendered page — they are
+# author-facing noise (e.g. platform BLAS FP warnings), not reader content.
+execute:
+  warning: false
 
 # LaTeX math.
 html-math-method: mathjax
