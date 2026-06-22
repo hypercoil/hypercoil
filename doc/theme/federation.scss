@@ -1,0 +1,68 @@
+/*-- scss:defaults --*/
+// ── Federation theme: black base, ONE accent ──────────────────────────────
+// Every library-distinguishing visual derives from $accent. A library's
+// brand.scss sets $accent (one line) and MUST be listed before this file in
+// the theme list so the !default below picks it up. No other per-library knob.
+$accent: #b388ff !default;            // fallback accent (used by the hub itself)
+
+// Black base palette.
+$body-bg:        #0a0a0b !default;
+$body-color:     #e8e8ea !default;
+$body-secondary: #a8a8ad !default;
+$surface-1:      #141417 !default;    // cards, callout bodies, code blocks
+$surface-2:      #1d1d22 !default;    // hover, table stripes
+$border-color:   #2a2a31 !default;
+
+// Bootstrap/Quarto variable wiring — all chromatic emphasis flows from $accent.
+$primary:        $accent;
+$link-color:     $accent;
+$link-hover-color: lighten($accent, 12%);
+$code-color:     lighten($accent, 6%);
+$navbar-bg:      #060607;
+$navbar-fg:      $body-color;
+$card-bg:        $surface-1;
+$table-bg:       transparent;
+$table-striped-bg: $surface-2;
+$toc-color:      $body-secondary;
+$toc-active-border: $accent;
+
+// Headings tinted toward the accent for a unified-but-distinct feel.
+$headings-color: lighten($accent, 22%);
+
+/*-- scss:rules --*/
+// Active navigation + table of contents location signal.
+.navbar .nav-link.active,
+.navbar .navbar-brand { color: $accent !important; }
+.sidebar nav ul li a.active,
+#TOC a.active { color: $accent !important; border-left-color: $accent; }
+
+// Callouts: accent the left edge; the fast-path/TL;DR callout is bolder.
+.callout { background-color: $surface-1; border-left-color: $accent; }
+.callout.callout-style-simple { border-left-color: $accent; }
+div.callout-tldr.callout {
+  border-left-width: .4rem;
+  border-left-color: $accent;
+  background-color: rgba($accent, .07);
+}
+div.callout-tldr .callout-title { color: lighten($accent, 18%); }
+
+// Section + equation numbers carry the accent.
+.header-section-number { color: $accent; }
+.quarto-section-identifier { color: $accent; }
+span.math .mjx-mn { color: inherit; }
+
+// Code: dark surface, accent annotations.
+pre, code:not(.sourceCode) { background-color: $surface-1; }
+.code-annotation-anchor { color: $accent; border-color: $accent; }
+
+// Algorithm listings (crossref custom kind `alg`) read as framed pseudocode.
+.algorithm {
+  border: 1px solid $border-color;
+  border-top: 3px solid $accent;
+  background-color: $surface-1;
+  border-radius: .25rem;
+  padding: .75rem 1rem;
+}
+
+// Accent rule under the page title to localise the reader.
+#title-block-header .quarto-title { border-bottom: 2px solid $accent; padding-bottom: .4rem; }

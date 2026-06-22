@@ -1,0 +1,41 @@
+---
+title: "The hypercoil federation"
+subtitle: "Differentiable, accelerated, compositional programming for mapping brain function"
+toc: false
+number-sections: false
+---
+
+A federation of JAX/XLA libraries for neuroimaging — from GPU numerics up to
+dataset-aware workflows — documented as one hub with a shared black theme and a
+single bold accent per library that tells you where you are.
+
+::: {.callout-tldr title="Fast path"}
+New here and want the shortest route to understanding? Each library's
+**Explanation** section opens with a fast-path block. Start with
+{{< xref nitrix:fellner-schall "nitrix · Fellner–Schall" >}} for the textbook
+layer, or {{< xref tensorbids:architecture "tensorbids · architecture" >}} for
+the on-disk data model.
+:::
+
+## Libraries
+
+The accent colour beside each library is how you know which part of the
+federation you are reading. This legend is generated from `libraries.yml`, so it
+cannot drift from the build.
+
+{{< include federation/_legend.md >}}
+
+## How the federation is layered
+
+- **Substrate numerics** — `nitrix` (pure JAX/XLA numerics), `niffi` (FFI to
+  community C/C++ kernels), `ilex` (local ML inference + training).
+- **Glue** — `thrux` (in-memory dispatch + graph assembly), `bitsjax`
+  (dataset-level awareness over the on-disk structure).
+- **On-disk reference** — `tensorbids` (the BITS data structure).
+- **High-level** — `hyve` (visualisation), `entense` (ETL/workflows).
+- **DSL & composition utilities** — `gramform`, `conveyant`.
+
+This Phase-1 hub builds two of them end to end (`nitrix`, `tensorbids`) to prove
+the federation plumbing: shared theme, cross-library references
+({{< xref tensorbids:architecture "see tensorbids" >}}), a validating build, and
+unified search.

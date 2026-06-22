@@ -1,0 +1,14 @@
+---
+title: "Explanation"
+---
+
+::: {.callout-tldr title="What lives here"}
+**Understanding-oriented** material: the *why*. Mathematical theory, design
+rationale, algorithms, trade-offs, extension paths. This is the textbook layer —
+the primary product. Each chapter opens with a fast path.
+:::
+
+Scaffolded — the `@@LIB@@` textbook is being written. The
+[example chapter](example-chapter.qmd) is a copy-me skeleton showing the full
+authoring stack (math, theorem/proof, algorithm, citation, executable figure,
+cross-references); duplicate it to start a real chapter, then delete it.

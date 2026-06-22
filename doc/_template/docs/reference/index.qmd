@@ -1,0 +1,12 @@
+---
+title: "Reference"
+---
+
+::: {.callout-tldr title="What lives here"}
+**Information-oriented** API reference, authored for full layout control. An
+autodoc generator may seed *stubs* (signatures + section skeletons) which humans
+then fill; autodoc output is never the final reference (SPEC §6.5).
+:::
+
+Scaffolded — the `@@LIB@@` API reference is being written. Reference pages live
+in this repo, next to the code, to minimise drift.

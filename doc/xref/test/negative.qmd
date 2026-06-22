@@ -1,0 +1,14 @@
+---
+title: "Negative xref test (this build is SUPPOSED to fail)"
+xref-mode: composed
+xref-namespaces:
+  nitrix:
+    base_path: /nitrix/
+    hub_url: https://hypercoil.github.io/nitrix/
+    anchors:
+      fellner-schall: explanation/fellner-schall.qmd#fellner-schall
+---
+
+Rendering this file must abort the build: the anchor below is not registered.
+
+{{< xref nitrix:does-not-exist >}}

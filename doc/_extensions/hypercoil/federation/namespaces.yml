@@ -1,0 +1,67 @@
+# Federation cross-reference registry (SPEC §5.2). Single source of truth for
+# which libraries are addressable and which anchors are *curated*, public,
+# cross-library targets. Consumed as document metadata by xref.lua.
+#
+# `xref-mode` defaults to standalone (a lone library preview links out to the
+# published hub). The composed umbrella build overrides it to `composed`
+# (same-origin relative links) via `-M xref-mode:composed`.
+#
+# An anchor's value is "<relative-page>.qmd" or "<relative-page>.qmd#fragment".
+# When the fragment is omitted it defaults to the anchor key. Only headings you
+# deliberately expose belong here — not every heading is a public anchor.
+#
+# Mode is NOT set here: xref.lua defaults to standalone, and the composed
+# umbrella build passes `-M xref-mode:composed` (no precedence fight).
+xref-namespaces:
+  nitrix:
+    base_path: /nitrix/
+    hub_url: https://hypercoil.github.io/nitrix/
+    repo: https://github.com/hypercoil/nitrix
+    anchors:
+      fellner-schall: explanation/fellner-schall.qmd#fellner-schall
+  tensorbids:
+    base_path: /tensorbids/
+    hub_url: https://hypercoil.github.io/tensorbids/
+    repo: https://github.com/hypercoil/tensorbids
+    anchors:
+      architecture: explanation/architecture.qmd#the-three-pillars
+  niffi:
+    base_path: /niffi/
+    hub_url: https://hypercoil.github.io/niffi/
+    repo: https://github.com/hypercoil/niffi
+    anchors: {}
+  ilex:
+    base_path: /ilex/
+    hub_url: https://hypercoil.github.io/ilex/
+    repo: https://github.com/hypercoil/ilex
+    anchors: {}
+  thrux:
+    base_path: /thrux/
+    hub_url: https://hypercoil.github.io/thrux/
+    repo: https://github.com/hypercoil/thrux
+    anchors: {}
+  bitsjax:
+    base_path: /bitsjax/
+    hub_url: https://hypercoil.github.io/bitsjax/
+    repo: https://github.com/hypercoil/bitsjax
+    anchors: {}
+  entense:
+    base_path: /entense/
+    hub_url: https://hypercoil.github.io/entense/
+    repo: https://github.com/hypercoil/entense
+    anchors: {}
+  gramform:
+    base_path: /gramform/
+    hub_url: https://hypercoil.github.io/gramform/
+    repo: https://github.com/hypercoil/gramform
+    anchors: {}
+  conveyant:
+    base_path: /conveyant/
+    hub_url: https://hypercoil.github.io/conveyant/
+    repo: https://github.com/hypercoil/conveyant
+    anchors: {}
+  hyve:
+    base_path: /hyve/
+    hub_url: https://hypercoil.github.io/hyve/
+    repo: https://github.com/hypercoil/hyve
+    anchors: {}

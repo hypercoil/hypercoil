@@ -1,0 +1,3 @@
+# Cached outputs of expensive / HPC / non-CI-reproducible computations (SPEC
+# §6.4). Compute offline, commit the artifact here, and embed it as a static
+# asset instead of executing at doc-build time. This is the "freeze" workflow.

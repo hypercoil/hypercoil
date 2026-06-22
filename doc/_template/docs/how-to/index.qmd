@@ -1,0 +1,11 @@
+---
+title: "How-to guides"
+---
+
+::: {.callout-tldr title="What lives here"}
+**Task-oriented** recipes: "how do I X?" Assumes competence; gets to the point.
+A how-to may live in a higher-level library while cross-referencing concepts in a
+lower one via `{{{< xref ns:anchor >}}}`.
+:::
+
+Scaffolded — how-to guides for `@@LIB@@` are being written.

@@ -1,0 +1,85 @@
+# Federation registry (SPEC §3.3). Drives: the colour-key legend (generated, so
+# it cannot drift), the umbrella build's clone/render list, and per-library
+# accents. Phase-1 slice = nitrix + tensorbids; remaining libraries are listed
+# but not yet built (status: scaffold/aspirational) and are added incrementally.
+libraries:
+  nitrix:
+    blurb: "GPU-accelerated pure numerics for neuroimaging (statistics, geometry, registration) in JAX/XLA."
+    repo: https://github.com/hypercoil/nitrix
+    ref: main
+    base_path: /nitrix/
+    accent: "#00e0c6"          # teal
+    docs_subdir: docs
+    status: active
+  tensorbids:
+    blurb: "Reference implementation of the BITS on-disk data structure (BIDS-compatible, tensor-native)."
+    repo: https://github.com/hypercoil/tensorbids
+    ref: main
+    base_path: /tensorbids/
+    accent: "#ff7a45"          # orange
+    docs_subdir: docs
+    status: active
+  niffi:
+    blurb: "Foreign-function interfaces to community C/C++ neuroimaging kernels, in JAX."
+    repo: https://github.com/hypercoil/niffi
+    ref: main
+    base_path: /niffi/
+    accent: "#ffd23f"
+    docs_subdir: docs
+    status: scaffold
+  ilex:
+    blurb: "Local inference of discipline-specific ML models, plus model-training utilities, in JAX/Equinox."
+    repo: https://github.com/hypercoil/ilex
+    ref: main
+    base_path: /ilex/
+    accent: "#6ee787"
+    docs_subdir: docs
+    status: scaffold
+  thrux:
+    blurb: "In-memory dispatch and graph assembly over the substrate numerics; the raise/lower bridge to neuroimaging containers."
+    repo: https://github.com/hypercoil/thrux
+    ref: main
+    base_path: /thrux/
+    accent: "#4d9dff"
+    docs_subdir: docs
+    status: scaffold
+  bitsjax:
+    blurb: "Dataset-level awareness over the on-disk BITS structure, bridging it to the dataset-agnostic glue."
+    repo: https://github.com/hypercoil/bitsjax
+    ref: main
+    base_path: /bitsjax/
+    accent: "#a371f7"
+    docs_subdir: docs
+    status: scaffold
+  entense:
+    blurb: "ETL and workflow orchestration into the accelerated on-disk data structure."
+    repo: https://github.com/hypercoil/entense
+    ref: main
+    base_path: /entense/
+    accent: "#ff6ac1"
+    docs_subdir: docs
+    status: scaffold
+  gramform:
+    blurb: "Grammars compiling string formulae (Wilkinson-style models, fslmaths-style commands) into functions."
+    repo: https://github.com/hypercoil/gramform
+    ref: main
+    base_path: /gramform/
+    accent: "#ff5c5c"
+    docs_subdir: docs
+    status: scaffold
+  conveyant:
+    blurb: "Compositional function orchestration with semantic typing."
+    repo: https://github.com/hypercoil/conveyant
+    ref: main
+    base_path: /conveyant/
+    accent: "#56d4dd"
+    docs_subdir: docs
+    status: scaffold
+  hyve:
+    blurb: "Compositional visualisation for neuroimaging datasets."
+    repo: https://github.com/hypercoil/hyve
+    ref: main
+    base_path: /hyve/
+    accent: "#c8a2ff"
+    docs_subdir: docs
+    status: aspirational

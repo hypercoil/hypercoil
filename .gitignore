@@ -156,3 +156,12 @@ cython_debug/
 src/hypercoil/examples/synthetic/results
 src/hypercoil/results
 src/hypercoil/neuro/datasets
+
+# ---- Federation documentation hub (doc/) ----
+# Keep the doc build scripts tracked despite the `build/` rule above.
+!doc/build/
+# Build outputs and local toolchain — never committed.
+doc/_site/
+doc/**/*_files/
+doc/_tooling/.tooling/
+doc/_tooling/pip-cache/

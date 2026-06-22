@@ -1,0 +1,27 @@
+# Shared format defaults consumed by every library and the hub (SPEC §4.4).
+# Library _quarto.yml files must NOT redeclare anything here — doing so is a
+# config-drift bug. Distributed via the federation extension; merged through
+# `metadata-files`.
+toc: true
+toc-depth: 3
+number-sections: true
+code-copy: true
+code-overflow: wrap
+code-annotations: hover
+link-external-newwindow: true
+
+# LaTeX math.
+html-math-method: mathjax
+
+# Theorem/proof-family environments are Quarto built-ins (thm/lem/cor/def/exm/
+# exr + proof). Algorithm listings get a custom crossref kind so `@alg-…` works.
+crossref:
+  custom:
+    - kind: float
+      key: alg
+      reference-prefix: Algorithm
+      caption-prefix: Algorithm
+      latex-env: algorithm
+
+# Citation style: numeric, against the shared federation bibliography.
+citations-hover: true

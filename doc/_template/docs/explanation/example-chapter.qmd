@@ -1,0 +1,95 @@
+---
+title: "Example chapter — copy me, then replace"
+---
+
+::: {.callout-tldr title="Fast path"}
+Open every explanation chapter with a short, self-contained fast path: the
+minimal working understanding a reader needs before the full treatment. Keep it
+to a paragraph or two; assume only "knows linear algebra" / "can code".
+:::
+
+> **This is a template chapter** demonstrating the full authoring stack for
+> `@@LIB@@`. Duplicate it to start a real chapter, replace each block below, and
+> delete this note. Every element here is wired to the shared theme and build.
+
+## Numbered, cross-referenceable equations
+
+Write display math in LaTeX and label it for cross-reference:
+
+$$
+y = X\beta + \varepsilon, \qquad \varepsilon \sim \mathcal{N}(0, \sigma^2 I).
+$$ {#eq-example}
+
+Refer back to it as @eq-example.
+
+## Theorems, lemmas, and proofs
+
+Use Quarto's built-in theorem environments (consistent styling comes from the
+shared theme):
+
+::: {#thm-example}
+## Example theorem
+State the result precisely. Reference it elsewhere as @thm-example.
+:::
+
+::: {.proof}
+Give the argument. End with ∎.
+:::
+
+## Algorithm listings
+
+Present pseudocode in a framed `.algorithm` block:
+
+::: {.algorithm}
+**Algorithm 1 — descriptive name**
+
+```
+input:  ...
+init:   ...
+repeat:
+    step ...
+return  ...
+```
+:::
+
+## Citations
+
+Cite against the shared bibliography — one canonical entry per work
+[@wood2017gam]. Add new works to `xref`/`_bibliography/federation.bib` in the
+umbrella (additive, deduplicated).
+
+## Executable figures (lightweight, CI-safe)
+
+Lightweight figures execute at build time using numpy/matplotlib only — never
+JAX, native FFI, or GPU (SPEC §6.4):
+
+```{python}
+#| label: fig-example
+#| fig-cap: "Replace with a figure that illustrates a real idea."
+import numpy as np
+import matplotlib.pyplot as plt
+
+x = np.linspace(0, 2 * np.pi, 200)
+plt.figure(figsize=(6, 3))
+plt.plot(x, np.sin(x))
+plt.title("placeholder — replace me")
+plt.tight_layout()
+plt.show()
+```
+
+For anything heavy, HPC-only, or not reproducible in CI, **freeze** it: compute
+offline, commit the artifact under `_resources/generated/`, and embed it as a
+static image instead of executing here.
+
+## Cross-library references
+
+Link a *curated* anchor in another library with the federation shortcode (shown
+escaped; remove one brace layer to use it):
+`{{{< xref nitrix:fellner-schall "the Fellner–Schall chapter" >}}}`.
+Register the target in `xref/namespaces.yml` first — only deliberately exposed
+anchors are cross-referenceable.
+
+## See also
+
+- Related chapters in `@@LIB@@`.
+- Concepts in other libraries (via `xref`).

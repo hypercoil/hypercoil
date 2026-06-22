@@ -1,0 +1,62 @@
+name: federation-docs
+
+# Builds the federation documentation hub with the SAME script used locally
+# (doc/build/build.sh) on the SAME pinned toolchain (doc/_tooling/bootstrap.sh).
+# Builds only (uploads an artifact); deployment is intentionally a separate,
+# deliberate act. The legacy doc.yml pipeline is superseded by this.
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DOC_TOOLING_PREFIX: ${{ github.workspace }}/.doc-tooling
+      # A token with read access to the federation library repos. Falls back to
+      # the workflow token (sufficient if the libraries live in this org and the
+      # workflow has read scope).
+      GH_TOKEN: ${{ secrets.FED_DOCS_TOKEN || github.token }}
+    steps:
+      - name: Checkout umbrella (hypercoil)
+        uses: actions/checkout@v4
+        with:
+          path: hypercoil
+
+      - name: Bootstrap pinned toolchain (Quarto + Pagefind + figure venv)
+        run: bash hypercoil/doc/_tooling/bootstrap.sh
+
+      - name: Clone active libraries at pinned refs (siblings of hypercoil)
+        run: |
+          PY="${DOC_TOOLING_PREFIX}/venv/bin/python"
+          cd "${GITHUB_WORKSPACE}"
+          for lib in $("$PY" hypercoil/doc/build/_active_libs.py); do
+            ref="$("$PY" - "$lib" <<'PY'
+import sys, yaml
+libs = yaml.safe_load(open("hypercoil/doc/libraries.yml"))["libraries"]
+print(libs[sys.argv[1]].get("ref", "main"))
+PY
+)"
+            echo "cloning $lib @ $ref"
+            git clone --depth 1 --branch "$ref" \
+              "https://x-access-token:${GH_TOKEN}@github.com/hypercoil/${lib}.git" "$lib"
+          done
+
+      - name: Build federation docs (tests → render → pagefind → negative test)
+        run: bash hypercoil/doc/build/build.sh
+
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: federation-site
+          path: hypercoil/doc/_site
+
+      # Deployment (uncomment to publish; deliberate, reviewable act — SPEC §3.4):
+      # - name: Deploy to GitHub Pages
+      #   uses: peaceiris/actions-gh-pages@v4
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     publish_dir: hypercoil/doc/_site

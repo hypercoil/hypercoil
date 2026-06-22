@@ -1,0 +1,4 @@
+/*-- scss:defaults --*/
+// @@LIB@@ accent — the ONE library-specific visual knob. Must be listed before
+// federation.scss in the theme list so its $accent !default is overridden.
+$accent: @@ACCENT@@;

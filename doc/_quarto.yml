@@ -1,0 +1,37 @@
+project:
+  type: website
+  output-dir: _site
+  # Render only the umbrella's own pages. Underscore-prefixed dirs (_source,
+  # _scripts, _static, _extensions, _tooling, _bibliography) are ignored by
+  # Quarto automatically; the spec/plan markdown at doc/ root is excluded by
+  # this explicit render list.
+  render:
+    - index.qmd
+
+website:
+  title: "hypercoil federation"
+  search: false              # federation-wide search is Pagefind over _site/
+  navbar:
+    background: "#060607"
+    title: "hypercoil federation"
+    left:
+      - href: index.qmd
+        text: Home
+    right:
+      - icon: github
+        href: https://github.com/hypercoil
+
+# Shared format defaults + the xref registry (canonical copies; the umbrella
+# always has the full tree). The xref *shortcode* comes from the installed
+# federation extension.
+metadata-files:
+  - theme/_metadata.yml
+  - xref/namespaces.yml
+
+bibliography: _bibliography/federation.bib
+
+format:
+  html:
+    theme:
+      - theme/brand-hub.scss
+      - theme/federation.scss

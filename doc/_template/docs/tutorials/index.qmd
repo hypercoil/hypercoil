@@ -1,0 +1,12 @@
+---
+title: "Tutorials"
+---
+
+::: {.callout-tldr title="What lives here"}
+**Learning-oriented** lessons: a beginner follows one end to end and arrives
+somewhere. Concrete, repeatable, no digressions into *why* (that is Explanation).
+:::
+
+Scaffolded — tutorials for `@@LIB@@` are being written. A first
+"getting started" tutorial belongs here; add it to the `render:` list in
+`_quarto.yml` as you write it.

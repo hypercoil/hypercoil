@@ -1,0 +1,21 @@
+---
+title: "@@LIB@@"
+subtitle: "@@BLURB@@"
+toc: false
+number-sections: false
+---
+
+::: {.callout-tldr title="Fast path"}
+Replace this with a one-paragraph orientation to `@@LIB@@`: what it is, where it
+sits in the federation, and the single most useful page to read next.
+:::
+
+`@@LIB@@` is part of the [hypercoil federation](../). This documentation is
+**scaffolded** — the structure is in place and the content is being written.
+
+## Diátaxis sections
+
+- [Tutorials](tutorials/index.qmd) — learning-oriented, start-to-finish.
+- [How-to guides](how-to/index.qmd) — task-oriented recipes.
+- [Explanation](explanation/index.qmd) — understanding-oriented; the textbook layer.
+- [Reference](reference/index.qmd) — information-oriented; authored API reference.

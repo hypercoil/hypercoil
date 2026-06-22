@@ -1,0 +1,49 @@
+project:
+  type: website
+  output-dir: _site
+  # Explicit render list (NOT a glob): only frame pages render until real content
+  # is written. Add each new page here as you author it. This keeps half-written
+  # or legacy pages out of the published site. Switch to globs once a section's
+  # legacy content is fully cleared.
+  render:
+    - index.qmd
+    - tutorials/index.qmd
+    - how-to/index.qmd
+    - explanation/index.qmd
+    - explanation/example-chapter.qmd
+    - reference/index.qmd
+
+website:
+  title: "@@LIB@@"
+  description: "@@BLURB@@"
+  search: false                 # unified search is Pagefind over the merged hub
+  navbar:
+    background: "#060607"
+    left:
+      - href: index.qmd
+        text: Home
+      - href: tutorials/index.qmd
+        text: Tutorials
+      - href: how-to/index.qmd
+        text: How-to
+      - href: explanation/index.qmd
+        text: Explanation
+      - href: reference/index.qmd
+        text: Reference
+      - href: ../
+        text: Federation
+
+# Shared format defaults + xref registry from the pinned federation extension,
+# so a standalone `quarto preview docs/` is fully themed (SPEC §4.3). Do NOT add
+# format/visual keys here — they belong in the shared layer (SPEC §4.4).
+metadata-files:
+  - _extensions/hypercoil/federation/_metadata.yml
+  - _extensions/hypercoil/federation/namespaces.yml
+
+bibliography: _extensions/hypercoil/federation/federation.bib
+
+format:
+  html:
+    theme:
+      - brand.scss
+      - _extensions/hypercoil/federation/federation.scss
