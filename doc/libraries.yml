@@ -38,7 +38,7 @@ libraries:
   thrux:
     blurb: "In-memory dispatch and graph assembly over the substrate numerics; the raise/lower bridge to neuroimaging containers."
     repo: https://github.com/hypercoil/thrux
-    ref: main
+    ref: docs/federation-scaffold   # TEMP: op-substrate in flight; flip to main when feature + docs land
     base_path: /thrux/
     accent: "#4d9dff"
     docs_subdir: docs
@@ -54,7 +54,7 @@ libraries:
   entense:
     blurb: "ETL and workflow orchestration into the accelerated on-disk data structure."
     repo: https://github.com/hypercoil/entense
-    ref: main
+    ref: docs/federation-scaffold   # TEMP: recore in flight; flip to main when feature + docs land
     base_path: /entense/
     accent: "#ff6ac1"
     docs_subdir: docs
@@ -62,7 +62,7 @@ libraries:
   gramform:
     blurb: "Grammars compiling string formulae (Wilkinson-style models, fslmaths-style commands) into functions."
     repo: https://github.com/hypercoil/gramform
-    ref: main
+    ref: docs/federation-scaffold   # TEMP: nwx in flight; flip to main when feature + docs land
     base_path: /gramform/
     accent: "#ff5c5c"
     docs_subdir: docs
@@ -70,7 +70,7 @@ libraries:
   conveyant:
     blurb: "Compositional function orchestration with semantic typing."
     repo: https://github.com/hypercoil/conveyant
-    ref: main
+    ref: docs/federation-scaffold   # TEMP: pipeline in flight; flip to main when feature + docs land
     base_path: /conveyant/
     accent: "#56d4dd"
     docs_subdir: docs
