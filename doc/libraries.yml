@@ -35,10 +35,18 @@ libraries:
     accent: "#6ee787"
     docs_subdir: docs
     status: scaffold
+  nimox:
+    blurb: "JAX/Equinox neural-network modules for neuroimaging: the equinox.Module building blocks (architectures, losses, schedulers) the model zoo composes."
+    repo: https://github.com/hypercoil/nimox
+    ref: main
+    base_path: /nimox/
+    accent: "#43d675"          # spring green (kin to ilex, its origin)
+    docs_subdir: docs
+    status: scaffold
   thrux:
     blurb: "In-memory dispatch and graph assembly over the substrate numerics; the raise/lower bridge to neuroimaging containers."
     repo: https://github.com/hypercoil/thrux
-    ref: docs/federation-scaffold   # TEMP: op-substrate in flight; flip to main when feature + docs land
+    ref: main
     base_path: /thrux/
     accent: "#4d9dff"
     docs_subdir: docs
