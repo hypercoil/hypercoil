@@ -18,7 +18,7 @@ xref-namespaces:
     hub_url: https://hypercoil.github.io/nitrix/
     repo: https://github.com/hypercoil/nitrix
     anchors:
-      fellner-schall: explanation/fellner-schall.qmd#fellner-schall
+      fellner-schall: explanation/statistics/fellner-schall.qmd#fellner-schall
   tensorbids:
     base_path: /tensorbids/
     hub_url: https://hypercoil.github.io/tensorbids/

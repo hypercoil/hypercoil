@@ -16,18 +16,28 @@ for name, m in libs.items():
     blurb = m["blurb"]
     base = m.get("base_path", "#")
     status = m.get("status", "scaffold")
-    swatch = (
-        f'<span style="display:inline-block;width:0.9em;height:0.9em;'
-        f'border-radius:50%;background:{accent};vertical-align:middle;'
-        f'margin-right:0.45em;border:1px solid #2a2a31;"></span>'
-    )
     if status == "active":
-        label = f"[`{name}`]({base})"
+        href = base
+        status_label = "active"
     elif status == "scaffold":
-        label = f"[`{name}`]({base}) *(scaffold)*"
+        href = base
+        status_label = "scaffold"
     else:  # aspirational — no built site yet
-        label = f"`{name}` *(planned)*"
-    lines.append(f"- {swatch} {label} — {blurb}")
+        href = ""
+        status_label = "planned"
+
+    tag = f'<span class="fed-card-status">{status_label}</span>'
+    body = (
+        f'<span class="fed-card-kicker" style="--lib-accent:{accent}"></span>'
+        f'<span class="fed-card-name">{name}</span>'
+        f'{tag}'
+        f'<span class="fed-card-blurb">{blurb}</span>'
+    )
+    attrs = f' class="fed-card" style="--lib-accent:{accent}"'
+    if href:
+        lines.append(f'<a href="{href}"{attrs}>{body}</a>')
+    else:
+        lines.append(f'<span{attrs}>{body}</span>')
 lines += ["", ":::", ""]
 
 out = DOC / "federation" / "_legend.md"

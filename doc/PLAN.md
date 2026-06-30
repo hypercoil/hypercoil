@@ -38,7 +38,7 @@ Write decisions + one-line rationale into `DECISIONS.md`:
 ### 1.1 Stand up the umbrella skeleton
 Create (per DECISIONS.md):
 - `_quarto.yml` (umbrella: global nav placeholder, search via Pagefind, shared theme).
-- `theme/federation.scss` — black base; define `$accent` and derive **all** library-distinguishing visuals from it (links, active nav, callout edges, eq/section number accents, code-annotation marks). No other per-library visual knobs.
+- `theme/federation.scss` — graphite base; define `$accent` and derive **all** library-distinguishing visuals from it (links, active nav, callout edges, eq/section number accents, code-annotation marks). No other per-library visual knobs.
 - `theme/_metadata.yml` — shared format defaults: math config, theorem/proof/definition/algorithm environment styling, callout styles (incl. the fast-path/TL;DR callout, SPEC §6.3), citation style, cross-ref label formats.
 - `_bibliography/federation.bib` — seed with the handful of works the slice cites (e.g. Fellner–Schall).
 - `libraries.yml` — `nitrix` and `thrux` entries (repo, accent, base_path).
@@ -69,7 +69,7 @@ Wire the same script into CI (GitHub Actions) and confirm it runs identically on
 
 ### 1.6 Deploy and verify the slice
 Deploy `_site/`. Verify end to end:
-- Black theme unified; `nitrix` and `thrux` visibly distinct by accent.
+- Graphite theme unified; `nitrix` and `thrux` visibly distinct by accent.
 - Cross-library link from `thrux` → `nitrix` works in the composed site.
 - Standalone `thrux` preview resolves the same xref to the hub URL (not a dead link).
 - Unified Pagefind search returns hits across both libraries.

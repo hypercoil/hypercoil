@@ -43,7 +43,7 @@ and these artifacts already live here. Keep the hub here rather than a separate
 `hypercoil-docs` repo, unless a separate repo is wanted for access/release
 reasons. *Confirm.*
 
-### D-7 · Theme — **DECIDED: black base + single `$accent` per library**
+### D-7 · Theme — **DECIDED: graphite base + single `$accent` per library**
 Per SPEC §4. All library-distinguishing visuals derive from one `$accent` SCSS
 variable. The legacy `vapormod.scss` vaporwave theme is **not** carried forward.
 

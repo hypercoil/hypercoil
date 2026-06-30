@@ -12,7 +12,7 @@
 
 ### 1.1 Goals
 
-1. **One federation, many libraries, unified feel.** A single documentation hub spanning all federation libraries, sharing a black theme and global navigation/search, while each library is visually distinguishable by a single bold accent colour that signals location.
+1. **One federation, many libraries, unified feel.** A single documentation hub spanning all federation libraries, sharing a graphite theme and global navigation/search, while each library is visually distinguishable by a single bold accent colour that signals location.
 2. **Textbook-grade explanation as a first-class deliverable.** LaTeX math, proofs, derivations, algorithm listings, citations, and executable figures are core, not bolted on. The explanatory layer is the primary product; it must read like a textbook with a "fast path" to minimal working understanding.
 3. **Full Diátaxis coverage per library.** Tutorials, how-to guides, explanation, and reference, each as a distinct mode, with explanation/tutorial being today's focus.
 4. **Authored (not autodoc-dependent) API reference.** API reference is important but is authored with full layout control. Autodoc, if used at all, produces *scaffolding* only, never final content.
@@ -87,7 +87,7 @@ A federation documentation repo — `hypercoil-docs`, or a `docs/` hub inside th
 hypercoil-docs/
   _quarto.yml            # umbrella site config: global nav, search, shared theme
   theme/
-    federation.scss      # black base; ALL shared visual structure; the accent contract
+    federation.scss      # graphite base; ALL shared visual structure; the accent contract
     _metadata.yml        # shared format defaults consumed by every library
   _bibliography/
     federation.bib       # single source of truth for citations
@@ -123,9 +123,9 @@ Exactly three artifacts are shared and mutable; everything else is library-local
 
 ## 4. Theming contract
 
-### 4.1 Black base, one accent variable
+### 4.1 Graphite base, one accent variable
 
-`theme/federation.scss` defines the entire black-themed visual structure. Every library-distinguishing visual (link colour, active nav highlight, callout edge, equation/section number accent, code-annotation marks) **must derive from a single SCSS variable `$accent`.** No library overrides anything else visual.
+`theme/federation.scss` defines the entire graphite-themed visual structure. Every library-distinguishing visual (link colour, active nav highlight, callout edge, equation/section number accent, code-annotation marks) **must derive from a single SCSS variable `$accent`.** No library overrides anything else visual.
 
 ### 4.2 Per-library brand
 

@@ -1,7 +1,7 @@
 # Federation documentation hub — running it locally
 
 This directory (`hypercoil/doc/`) is the **umbrella** that composes every
-federation library's `docs/` into one site with a shared black/`$accent` theme,
+federation library's `docs/` into one site with a shared graphite/`$accent` theme,
 cross-library links, and unified search. This README is the practical "get it
 running on my laptop" guide. For the *why*, see `SPEC.md` / `DECISIONS.md`; for
 *authoring*, see `CONTRIBUTING-docs.md`.

@@ -1,6 +1,9 @@
 project:
   type: website
   output-dir: _site
+  resources:
+    - assets/brand/federation-hero.png
+    - assets/fonts/*.woff2
   # Render only the umbrella's own pages. Underscore-prefixed dirs (_source,
   # _scripts, _static, _extensions, _tooling, _bibliography) are ignored by
   # Quarto automatically; the spec/plan markdown at doc/ root is excluded by
@@ -12,7 +15,7 @@ website:
   title: "hypercoil federation"
   search: false              # federation-wide search is Pagefind over _site/
   navbar:
-    background: "#060607"
+    background: "#303236"
     title: "hypercoil federation"
     left:
       - href: index.qmd

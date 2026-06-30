@@ -8,7 +8,7 @@ libraries:
     repo: https://github.com/hypercoil/nitrix
     ref: main
     base_path: /nitrix/
-    accent: "#00e0c6"          # teal
+    accent: "#00A59B"          # brand teal
     docs_subdir: docs
     status: active
   tensorbids:
@@ -16,7 +16,7 @@ libraries:
     repo: https://github.com/hypercoil/tensorbids
     ref: main
     base_path: /tensorbids/
-    accent: "#ff7a45"          # orange
+    accent: "#FF6E00"          # brand orange
     docs_subdir: docs
     status: active
   niffi:
@@ -24,7 +24,7 @@ libraries:
     repo: https://github.com/hypercoil/niffi
     ref: main
     base_path: /niffi/
-    accent: "#ffd23f"
+    accent: "#FFEB23"          # brand yellow
     docs_subdir: docs
     status: scaffold
   ilex:
@@ -32,7 +32,7 @@ libraries:
     repo: https://github.com/hypercoil/ilex
     ref: main
     base_path: /ilex/
-    accent: "#6ee787"
+    accent: "#6464FF"          # brand blue
     docs_subdir: docs
     status: scaffold
   nimox:
@@ -40,7 +40,7 @@ libraries:
     repo: https://github.com/hypercoil/nimox
     ref: main
     base_path: /nimox/
-    accent: "#43d675"          # spring green (kin to ilex, its origin)
+    accent: "#8246E1"          # brand violet
     docs_subdir: docs
     status: scaffold
   thrux:
@@ -48,7 +48,7 @@ libraries:
     repo: https://github.com/hypercoil/thrux
     ref: main
     base_path: /thrux/
-    accent: "#4d9dff"
+    accent: "#CDEB05"          # brand green
     docs_subdir: docs
     status: scaffold
   bitsjax:
@@ -56,7 +56,7 @@ libraries:
     repo: https://github.com/hypercoil/bitsjax
     ref: main
     base_path: /bitsjax/
-    accent: "#a371f7"
+    accent: "#CD0F55"          # brand maroon
     docs_subdir: docs
     status: scaffold
   entense:
@@ -64,7 +64,7 @@ libraries:
     repo: https://github.com/hypercoil/entense
     ref: docs/federation-scaffold   # TEMP: recore in flight; flip to main when feature + docs land
     base_path: /entense/
-    accent: "#ff6ac1"
+    accent: "#FF00FF"          # brand rose
     docs_subdir: docs
     status: scaffold
   gramform:
@@ -72,7 +72,7 @@ libraries:
     repo: https://github.com/hypercoil/gramform
     ref: docs/federation-scaffold   # TEMP: nwx in flight; flip to main when feature + docs land
     base_path: /gramform/
-    accent: "#ff5c5c"
+    accent: "#FF3B30"          # brand-derived coral
     docs_subdir: docs
     status: scaffold
   conveyant:
@@ -80,7 +80,7 @@ libraries:
     repo: https://github.com/hypercoil/conveyant
     ref: docs/federation-scaffold   # TEMP: pipeline in flight; flip to main when feature + docs land
     base_path: /conveyant/
-    accent: "#56d4dd"
+    accent: "#00D6C8"          # brand-derived aqua
     docs_subdir: docs
     status: scaffold
   hyve:
@@ -88,6 +88,6 @@ libraries:
     repo: https://github.com/hypercoil/hyve
     ref: main
     base_path: /hyve/
-    accent: "#c8a2ff"
+    accent: "#B586FF"          # brand-derived violet tint
     docs_subdir: docs
     status: aspirational

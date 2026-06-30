@@ -9,7 +9,7 @@ code-copy: true
 code-overflow: wrap
 code-annotations: hover
 # Dark syntax theme: light token colours on the deep code-block surface set in
-# federation.scss ($code-block-bg). Keeps source legible on the black base.
+# federation.scss ($code-block-bg). Keeps source legible on the graphite base.
 highlight-style: atom-one-dark
 link-external-newwindow: true
 

@@ -18,7 +18,7 @@ website:
   description: "@@BLURB@@"
   search: false                 # unified search is Pagefind over the merged hub
   navbar:
-    background: "#060607"
+    background: "#303236"
     left:
       - href: index.qmd
         text: Home

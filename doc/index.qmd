@@ -5,37 +5,69 @@ toc: false
 number-sections: false
 ---
 
-A federation of JAX/XLA libraries for neuroimaging — from GPU numerics up to
-dataset-aware workflows — documented as one hub with a shared black theme and a
-single bold accent per library that tells you where you are.
+<style>
+#title-block-header {
+  display: none;
+}
+</style>
+
+::: {.fed-landing}
+::: {.fed-hero}
+<div class="fed-hero-copy">
+<p class="fed-eyebrow">Differentiable neuroimaging, accelerated end to end</p>
+<h1>The hypercoil federation</h1>
+<p class="fed-deck">A software ecosystem for composing brain data, tensor-native datasets, XLA kernels, model inference, workflow graphs, and scientific explanation into one documented programming surface.</p>
+<div class="fed-hero-actions">
+<a href="#libraries" class="fed-button fed-button-primary">Explore libraries</a>
+<a href="#layers" class="fed-button fed-button-secondary">See the stack</a>
+</div>
+</div>
+:::
 
 ::: {.callout-tldr title="Fast path"}
-New here and want the shortest route to understanding? Each library's
-**Explanation** section opens with a fast-path block. Start with
+Start with
 {{< xref nitrix:fellner-schall "nitrix · Fellner–Schall" >}} for the textbook
 layer, or {{< xref tensorbids:architecture "tensorbids · architecture" >}} for
 the on-disk data model.
 :::
 
-## Libraries
+## Libraries {#libraries}
 
-The accent colour beside each library is how you know which part of the
-federation you are reading. This legend is generated from `libraries.yml`, so it
-cannot drift from the build.
+Each tile is keyed by the library's federation accent.
 
 {{< include federation/_legend.md >}}
 
-## How the federation is layered
+## Layers {#layers}
 
-- **Substrate numerics** — `nitrix` (pure JAX/XLA numerics), `niffi` (FFI to
-  community C/C++ kernels), `ilex` (local ML inference + training).
-- **Glue** — `thrux` (in-memory dispatch + graph assembly), `bitsjax`
-  (dataset-level awareness over the on-disk structure).
-- **On-disk reference** — `tensorbids` (the BITS data structure).
-- **High-level** — `hyve` (visualisation), `entense` (ETL/workflows).
-- **DSL & composition utilities** — `gramform`, `conveyant`.
+::: {.fed-layer-grid}
+::: {.fed-layer}
+<span>01</span>
+### Substrate numerics
+`nitrix` supplies pure JAX/XLA statistics, geometry, and registration. `niffi` connects community C/C++ kernels. `ilex` and `nimox` carry model inference, training, and neural-network modules.
+:::
 
-This Phase-1 hub builds two of them end to end (`nitrix`, `tensorbids`) to prove
-the federation plumbing: shared theme, cross-library references
-({{< xref tensorbids:architecture "see tensorbids" >}}), a validating build, and
-unified search.
+::: {.fed-layer}
+<span>02</span>
+### Data and dispatch
+`tensorbids` defines the tensor-native on-disk reference. `bitsjax` gives datasets programmatic awareness, while `thrux` assembles in-memory dispatch graphs over neuroimaging containers.
+:::
+
+::: {.fed-layer}
+<span>03</span>
+### Composition
+`entense` builds ETL and workflow paths into accelerated storage. `gramform` and `conveyant` turn formulas, commands, and typed composition into executable functions.
+:::
+
+::: {.fed-layer}
+<span>04</span>
+### Experience
+`hyve` sits at the visualisation edge, turning composed neuroimaging data products into interpretable figures and scenes.
+:::
+:::
+
+## Build Focus
+
+This hub currently proves the full documentation loop through `nitrix` and
+`tensorbids`, then scaffolds the surrounding libraries so the shared theme,
+cross-library references, and federation palette can grow without fragmenting.
+:::
