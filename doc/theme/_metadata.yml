@@ -33,3 +33,11 @@ crossref:
 
 # Citation style: numeric, against the shared federation bibliography.
 citations-hover: true
+
+# Brand typeface: the @font-face rules in federation.scss reference these by the
+# absolute site-root path /_extensions/hypercoil/federation/fonts/. Declaring them
+# as resources makes every consuming render (standalone library OR the composed hub)
+# copy them under its own root, so the path resolves in both — no dependency on a
+# shared /assets/ root.
+resources:
+  - _extensions/hypercoil/federation/fonts/*.woff2

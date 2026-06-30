@@ -15,4 +15,11 @@ cp "$DOC/theme/federation.scss"       "$EXT/federation.scss"
 cp "$DOC/theme/_metadata.yml"         "$EXT/_metadata.yml"
 cp "$DOC/_bibliography/federation.bib" "$EXT/federation.bib"
 
+# Brand typeface: bundle the woff2 inside the extension so every consumer (each
+# library's standalone preview AND the composed hub) serves them from its own
+# /_extensions/hypercoil/federation/fonts/ root. federation.scss's @font-face rules
+# point there, and _metadata.yml declares them as resources.
+mkdir -p "$EXT/fonts"
+cp "$DOC/assets/fonts/"*.woff2 "$EXT/fonts/"
+
 echo "Packaged federation extension -> $EXT"

@@ -76,6 +76,16 @@ Notes:
 - Preview needs the shared theme/extension present in that library's
   `docs/_extensions/` — see [Composition & branches](#composition--branches)
   if a library's `docs/` isn't in your working tree yet.
+- **Brand typeface in standalone preview.** The org typeface (Allen Institute
+  Plus) ships *inside* the extension at `_extensions/hypercoil/federation/fonts/`
+  and is declared as a resource in its `_metadata.yml`, so a standalone
+  `quarto preview <lib>/docs` serves it from the library's own
+  `/_extensions/hypercoil/federation/fonts/` root and renders fully themed — no
+  dependency on the hub's `/assets/`. If a preview shows a *system* font instead,
+  the library's vendored extension predates the font bundling; refresh it (see the
+  Troubleshooting note below). The hub-only landing hero (`/assets/brand/…`) lives
+  in `theme/brand-hub.scss`, not the shared theme, so it never affects a library
+  preview.
 
 To preview just the hub landing page:
 
@@ -158,6 +168,15 @@ Only `active` and `scaffold` libraries are built; `aspirational` ones (e.g.
 - **A cross-reference fails the build** (`ERROR [xref] …`) — the namespace/anchor
   isn't registered in `doc/xref/namespaces.yml`. That's by design: broken xrefs
   are build errors, not 404s.
+- **Preview falls back to a system font (no brand typeface)** — the library's
+  vendored `_extensions/hypercoil/federation/` predates the font bundling (it has
+  no `fonts/` dir, or its `federation.scss` still points `@font-face` at
+  `/assets/fonts/`). Refresh the extension: `quarto update hypercoil/quarto-federation`
+  (or, while the repo is private, `bash doc/build/sync-extension.sh <lib>/docs`),
+  then commit the updated `_extensions/` tree. The fonts are served from
+  `/_extensions/hypercoil/federation/fonts/`, so a hard-refresh check is that
+  `<preview-url>/_extensions/hypercoil/federation/fonts/AllenInstitutePlusText-Regular.woff2`
+  returns 200, not 404.
 - **Re-bootstrap from clean** — delete the prefix (default `doc/_tooling/.tooling/`)
   and re-run `bootstrap.sh`.
 

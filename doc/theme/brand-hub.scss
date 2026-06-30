@@ -2,3 +2,13 @@
 // The hub's own accent (federation-neutral silver-violet). Library pages set
 // their own $accent via brand.scss; this is only for the umbrella/landing site.
 $accent: #b586ff;
+
+/*-- scss:rules --*/
+// Hub-landing hero background. This is the one brand asset that lives only at the
+// hub (served from the umbrella's /assets/brand/), so its rule belongs here rather
+// than in the shared federation.scss — keeping it out of the shared theme means a
+// standalone library preview never tries to copy this hub-only image. The .fed-hero
+// layout itself stays in federation.scss (inert in libraries, which have no hero).
+.fed-hero {
+  background-image: url("/assets/brand/federation-hero.png");
+}

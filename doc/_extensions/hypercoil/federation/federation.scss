@@ -54,7 +54,7 @@ $fed-link-hover: lighten($accent, 22%);
 @font-face {
   font-family: "Allen Institute Plus Text";
   src: local("Allen Institute Plus Text"),
-       url("/assets/fonts/AllenInstitutePlusText-Regular.woff2") format("woff2");
+       url("/_extensions/hypercoil/federation/fonts/AllenInstitutePlusText-Regular.woff2") format("woff2");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -63,7 +63,7 @@ $fed-link-hover: lighten($accent, 22%);
 @font-face {
   font-family: "Allen Institute Plus Text";
   src: local("Allen Institute Plus Text Italic"),
-       url("/assets/fonts/AllenInstitutePlusText-Italic.woff2") format("woff2");
+       url("/_extensions/hypercoil/federation/fonts/AllenInstitutePlusText-Italic.woff2") format("woff2");
   font-style: italic;
   font-weight: 400;
   font-display: swap;
@@ -72,7 +72,7 @@ $fed-link-hover: lighten($accent, 22%);
 @font-face {
   font-family: "Allen Institute Plus Text";
   src: local("Allen Institute Plus Text Semibold"),
-       url("/assets/fonts/AllenInstitutePlusText-Semibold.woff2") format("woff2");
+       url("/_extensions/hypercoil/federation/fonts/AllenInstitutePlusText-Semibold.woff2") format("woff2");
   font-style: normal;
   font-weight: 600;
   font-display: swap;
@@ -81,7 +81,7 @@ $fed-link-hover: lighten($accent, 22%);
 @font-face {
   font-family: "Allen Institute Plus Text";
   src: local("Allen Institute Plus Text Bold"),
-       url("/assets/fonts/AllenInstitutePlusText-Bold.woff2") format("woff2");
+       url("/_extensions/hypercoil/federation/fonts/AllenInstitutePlusText-Bold.woff2") format("woff2");
   font-style: normal;
   font-weight: 700;
   font-display: swap;
@@ -90,7 +90,7 @@ $fed-link-hover: lighten($accent, 22%);
 @font-face {
   font-family: "Allen Institute Plus Headline";
   src: local("Allen Institute Plus Headline"),
-       url("/assets/fonts/AllenInstitutePlusHeadline-Regular.woff2") format("woff2");
+       url("/_extensions/hypercoil/federation/fonts/AllenInstitutePlusHeadline-Regular.woff2") format("woff2");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -99,7 +99,7 @@ $fed-link-hover: lighten($accent, 22%);
 @font-face {
   font-family: "Allen Institute Plus Headline";
   src: local("Allen Institute Plus Headline Semibold"),
-       url("/assets/fonts/AllenInstitutePlusHeadline-Semibold.woff2") format("woff2");
+       url("/_extensions/hypercoil/federation/fonts/AllenInstitutePlusHeadline-Semibold.woff2") format("woff2");
   font-style: normal;
   font-weight: 600;
   font-display: swap;
@@ -108,7 +108,7 @@ $fed-link-hover: lighten($accent, 22%);
 @font-face {
   font-family: "Allen Institute Plus Headline";
   src: local("Allen Institute Plus Headline Bold"),
-       url("/assets/fonts/AllenInstitutePlusHeadline-Bold.woff2") format("woff2");
+       url("/_extensions/hypercoil/federation/fonts/AllenInstitutePlusHeadline-Bold.woff2") format("woff2");
   font-style: normal;
   font-weight: 700;
   font-display: swap;
@@ -253,7 +253,6 @@ div.sourceCode { border: 1px solid $border-color; border-radius: .45rem; }
 .fed-hero {
   align-items: center;
   background-color: #191a1d;
-  background-image: url("/assets/brand/federation-hero.png");
   background-position: center right;
   background-repeat: no-repeat;
   background-size: cover;
