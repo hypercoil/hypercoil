@@ -320,6 +320,24 @@ def scan(pkg, ctx):
                 "issues": issues,
             })
 
+    def add_attribute(obj, public):
+        text = obj.docstring.value if getattr(obj, "docstring", None) else ""
+        val = str(getattr(obj, "value", None) or "").strip()
+        issues = []
+        if not text.strip():
+            # Flag docstring-less public constants; skip bare-name aliases (which
+            # the generator documents as "alias for X"), and dunders.
+            if public and not re.fullmatch(r"\w+", val) and not obj.name.startswith("_"):
+                issues.append({"type": "missing_docstring"})
+        else:
+            issues += text_issues(text, obj.name, ctx)
+        if issues:
+            records.append({
+                "path": obj.path, "name": obj.name, "kind": "attribute", "public": public,
+                "file": rel(getattr(obj, "filepath", "")),
+                "line": getattr(obj, "lineno", None), "issues": issues,
+            })
+
     def add_module(mod):
         text = mod.docstring.value if getattr(mod, "docstring", None) else ""
         if not text.strip():
@@ -349,6 +367,8 @@ def scan(pkg, ctx):
                     if meth.name != "__init__" and meth.name.startswith("_"):
                         continue
                     add(meth, "method", cls_public)
+            elif k == "attribute":
+                add_attribute(m, m.path in ctx["public"])
     return records
 
 

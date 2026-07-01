@@ -23,15 +23,18 @@ import subprocess
 import sys
 
 
+def _is_str_expr(stmt):
+    """A bare string-literal statement — a docstring (leading) or a PEP 224
+    attribute docstring. Always a no-op, so removing it can't change behaviour."""
+    return (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)
+            and isinstance(stmt.value.value, str))
+
+
 def strip_docstrings(tree):
     for node in ast.walk(tree):
         if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
                              ast.ClassDef)):
-            body = node.body
-            if (body and isinstance(body[0], ast.Expr)
-                    and isinstance(body[0].value, ast.Constant)
-                    and isinstance(body[0].value.value, str)):
-                node.body = body[1:] or [ast.Pass()]
+            node.body = [s for s in node.body if not _is_str_expr(s)] or [ast.Pass()]
     return tree
 
 
@@ -50,15 +53,11 @@ _CORRUPTING = {"\x07": r"\a", "\x08": r"\b", "\x09": r"\t", "\x0b": r"\v",
 def corrupted_docstrings(src):
     hits = []
     for node in ast.walk(ast.parse(src)):
-        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
-                             ast.ClassDef)):
-            doc = ast.get_docstring(node, clean=False)
-            if not doc:
-                continue
-            bad = {_CORRUPTING[c] for c in doc if c in _CORRUPTING}
+        if _is_str_expr(node):   # docstrings AND PEP 224 attribute docstrings
+            bad = {_CORRUPTING[c] for c in node.value.value if c in _CORRUPTING}
             if bad:
-                name = getattr(node, "name", "<module>")
-                hits.append(f"{name} (likely un-raw LaTeX: {', '.join(sorted(bad))})")
+                hits.append(f"line {node.lineno} (likely un-raw LaTeX: "
+                            f"{', '.join(sorted(bad))})")
     return hits
 
 
