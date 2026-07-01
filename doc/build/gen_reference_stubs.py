@@ -620,6 +620,61 @@ def refresh(old, new):
     return merged
 
 
+def read_page_meta(qmd):
+    """Front-matter title/description/generated/signature-hash of a stub page."""
+    m = FRONT_RE.match(qmd.read_text())
+    meta = {}
+    if not m:
+        return meta
+    for line in m.group(0).splitlines():
+        if not line.startswith(" ") and ":" in line:   # top-level keys only
+            k, _, v = line.partition(":")
+            meta[k.strip()] = v.strip().strip('"')
+    return meta
+
+
+def build_index_tree(out, library):
+    """A hierarchical index of module pages, grouped by import path.
+
+    Leaf-module pages (``generated: true`` with a signature hash) are grouped
+    under their parent package as headings, so the top reference index reflects
+    the package tree and names each import path — rather than a flat A→Z list.
+    """
+    mods = []
+    for qmd in sorted(out.glob("*.qmd")):
+        meta = read_page_meta(qmd)
+        if meta.get("generated") == "true" and "signature-hash" in meta:
+            mods.append((meta.get("title", qmd.stem), qmd.stem, meta.get("description", "")))
+    groups = {}
+    for dotted, stem, desc in mods:
+        parent = dotted.rsplit(".", 1)[0] if "." in dotted else library
+        groups.setdefault(parent, []).append((dotted, stem, desc))
+    lines = []
+    for parent in sorted(groups):
+        level = min(parent.count(".") + 2, 6)       # nitrix.stats -> h3, .inference -> h4
+        lines.append(f"{'#' * level} `{parent}`\n")
+        for dotted, stem, desc in sorted(groups[parent]):
+            leaf = dotted.rsplit(".", 1)[-1]
+            tail = f" — {desc}" if desc else ""
+            lines.append(f"- [`{leaf}`]({stem}.qmd){tail}")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def refresh_index_tree(out, library):
+    """Rewrite the ``index-tree`` marker block in reference/index.qmd, if present."""
+    index_path = out / "index.qmd"
+    if not index_path.is_file():
+        return False
+    text = index_path.read_text()
+    if "nitrix:gen index-tree" not in text:
+        return False
+    block = gen_block("index-tree", build_index_tree(out, library))
+    index_path.write_text(
+        GEN_RE.sub(lambda m: block if m.group("tag") == "index-tree" else m.group(0), text))
+    return True
+
+
 # ---------------------------------------------------------------- module walk
 
 def load_package(library, src_root):
@@ -723,6 +778,11 @@ def main():
         skipped += n_kept
         verb = "~" if (n_ref and not n_new) else "+" if n_new else "="
         print(f"  {verb} {slug}  ({len(mod.exports)} symbols → {len(pages)} pages)")
+
+    # Refresh the hierarchical module index from *all* pages present (not just
+    # this run's --modules subset), so it stays complete as coverage grows.
+    if refresh_index_tree(out, a.library):
+        print("  = index.qmd  (refreshed hierarchical module index)")
 
     perf_note = f"perf={perf_reports.relative_to(CODE)}" if perf_reports else "perf=none"
     print(f"pages: {created} written, {refreshed} refreshed, {skipped} kept. "
