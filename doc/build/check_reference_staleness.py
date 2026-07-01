@@ -41,12 +41,13 @@ def front_matter(text):
     return fm
 
 
-def current_hash(pkg, modname):
+def current_hash(pkg, modname, claims):
     mod = g.module_by_name(pkg, modname)
     if mod is None or not getattr(mod, "exports", None):
         return None
-    # perf/repo do not affect the signature hash (built from per-symbol sigs).
-    return g.module_hash(mod)
+    # Hash the symbols this module *owns* (claimed as deepest public exporter);
+    # perf/repo do not affect it (built from per-symbol signatures).
+    return g.module_hash(mod, only_names=claims.get(modname, []))
 
 
 def main():
@@ -61,6 +62,7 @@ def main():
     ref = pathlib.Path(a.reference) if a.reference else CODE / a.library / "docs" / "reference"
     src_root = pathlib.Path(a.src) if a.src else CODE / a.library / "src" / a.library
     _, pkg = g.load_package(a.library, src_root)
+    claims = g.compute_claims(g.pageable_modules(pkg, a.library))
 
     ok = drift = missing = blessed = 0
     for qmd in sorted(ref.glob("*.qmd")):
@@ -70,7 +72,7 @@ def main():
             continue
         modname = fm.get("title", "")
         stored = fm["signature-hash"]
-        cur = current_hash(pkg, modname)
+        cur = current_hash(pkg, modname, claims)
         if cur is None:
             print(f"  ? {qmd.name}: source module '{modname}' gone or no __all__ — REVIEW")
             missing += 1

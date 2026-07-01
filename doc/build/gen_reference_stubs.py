@@ -728,9 +728,21 @@ def build_symbol(name, member, perf_reports, repo_url, local_names, filemap):
             "sig_hash": sh, "dims": dims, "desc": desc}
 
 
-def build_records(mod, perf_reports, repo_url):
-    names = list(mod.exports or [])
-    local = set(names)
+def def_path(member):
+    """The definition path a member resolves to (for once-only claiming)."""
+    if member is None:
+        return None
+    try:
+        return member.final_target.path if getattr(member, "is_alias", False) else member.path
+    except Exception:
+        return None
+
+
+def build_records(mod, perf_reports, repo_url, only_names=None):
+    """Records for a module's exports; ``only_names`` restricts to the subset
+    this module owns (claimed as the deepest public exporter of each symbol)."""
+    local = set(mod.exports or [])
+    names = [n for n in (mod.exports or []) if only_names is None or n in only_names]
     filemap = assign_filenames(names)
     recs = []
     for name in names:
@@ -746,9 +758,9 @@ def build_records(mod, perf_reports, repo_url):
     return recs
 
 
-def module_hash(mod, perf_reports=None, repo_url=""):
-    """Signature hash over a module's whole public surface (drift signal)."""
-    recs = build_records(mod, perf_reports, repo_url)
+def module_hash(mod, perf_reports=None, repo_url="", only_names=None):
+    """Signature hash over the module's owned public surface (drift signal)."""
+    recs = build_records(mod, perf_reports, repo_url, only_names)
     blob = "\n".join(r["sig_hash"] for r in recs)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
@@ -817,11 +829,11 @@ def module_index_page(modname, mod, records, glossary):
     return "\n".join(parts) + "\n", sig_hash
 
 
-def pages_for_module(modname, mod, glossary, perf_reports, repo_url):
+def pages_for_module(modname, mod, glossary, perf_reports, repo_url, only_names=None):
     """[(relative_path, content)] — the module index page and one page per symbol."""
     slug = modname.replace(".", "-")
     _CUR_DIR[0] = slug                       # symbol bodies live one level deep
-    records = build_records(mod, perf_reports, repo_url)
+    records = build_records(mod, perf_reports, repo_url, only_names)
     _CUR_DIR[0] = ""                         # the module index page sits at the root
     index_content, _ = module_index_page(modname, mod, records, glossary)
     pages = [(f"{slug}.qmd", index_content)]
@@ -929,6 +941,47 @@ def iter_modules(mod):
             yield from iter_modules(m)
 
 
+def pageable_modules(pkg, library, prefixes=None):
+    """Public modules that get a reference page — leaf modules AND package
+    ``__init__`` surfaces (so an __init__-centric package like register is
+    covered), excluding the top package and private modules."""
+    out = []
+    for mod in iter_modules(pkg):
+        modname = mod.path
+        if modname == library:
+            continue
+        if any(part.startswith("_") for part in modname.split(".")[1:]):
+            continue
+        if not mod.exports:
+            continue
+        if prefixes and not any(modname == pre or modname.startswith(pre + ".")
+                                or pre.startswith(modname + ".") for pre in prefixes):
+            continue
+        out.append(mod)
+    return out
+
+
+def compute_claims(modules):
+    """Assign each exported symbol to the deepest public module that exports it.
+
+    Returns ``{modname: [owned names]}``. Processing deepest-first means leaf
+    modules claim their symbols before the enclosing package __init__, so a
+    package page documents only the *orphans* — symbols defined privately and
+    re-exported solely through the package (which otherwise get no page)."""
+    ordered = sorted(modules, key=lambda m: (-m.path.count("."), m.path))
+    claimed, claims = set(), {}
+    for mod in ordered:
+        owned = []
+        for name in (mod.exports or []):
+            dp = def_path(mod.members.get(name)) or f"{mod.path}::{name}"
+            if dp in claimed:
+                continue
+            claimed.add(dp)
+            owned.append(name)
+        claims[mod.path] = owned
+    return claims
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -961,28 +1014,23 @@ def main():
 
     _, pkg = load_package(a.library, src_root)
 
+    # Claim each symbol to its deepest public exporter over the WHOLE package
+    # (not just the --modules subset), so claiming — and thus each page's
+    # signature hash — is independent of what subset is being (re)generated.
+    claims = compute_claims(pageable_modules(pkg, a.library))
+
     created = skipped = refreshed = 0
-    for mod in iter_modules(pkg):
-        modname = mod.path
-        if any(part.startswith("_") for part in modname.split(".")[1:]):
-            continue
-        # Page leaf modules, not package __init__ surfaces — the public symbols a
-        # package re-exports are documented on their defining submodule's page.
-        fp = getattr(mod, "filepath", None)
-        if getattr(fp, "name", "") == "__init__.py":
-            continue
-        if prefixes and not any(modname == pre or modname.startswith(pre + ".")
-                                or pre.startswith(modname + ".") for pre in prefixes):
-            continue
-        if not mod.exports:
-            continue
-        slug = modname.replace(".", "-")
+    for mod in pageable_modules(pkg, a.library, prefixes):
+        owned = claims.get(mod.path, [])
+        if not owned:
+            continue                         # every symbol documented on a deeper page
+        slug = mod.path.replace(".", "-")
         subdir = out / slug
         # On a wholesale rewrite, drop stale per-symbol pages (removed symbols).
         if a.force and subdir.is_dir():
             for old in subdir.glob("*.qmd"):
                 old.unlink()
-        pages = pages_for_module(modname, mod, glossary, perf_reports, repo_url)
+        pages = pages_for_module(mod.path, mod, glossary, perf_reports, repo_url, owned)
         n_new = n_ref = n_kept = 0
         for relpath, content in pages:
             dst = out / relpath
@@ -999,7 +1047,7 @@ def main():
         refreshed += n_ref
         skipped += n_kept
         verb = "~" if (n_ref and not n_new) else "+" if n_new else "="
-        print(f"  {verb} {slug}  ({len(mod.exports)} symbols → {len(pages)} pages)")
+        print(f"  {verb} {slug}  ({len(owned)} symbols → {len(pages)} pages)")
 
     # Refresh the hierarchical module index from *all* pages present (not just
     # this run's --modules subset), so it stays complete as coverage grows.
