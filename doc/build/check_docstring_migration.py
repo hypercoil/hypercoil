@@ -21,6 +21,7 @@ import ast
 import pathlib
 import subprocess
 import sys
+import warnings
 
 
 def _is_str_expr(stmt):
@@ -73,8 +74,16 @@ def main():
         print(f"FAIL: not a file: {path}", file=sys.stderr)
         return 2
     new_src = path.read_text()
+    # SyntaxWarning-as-error catches *invalid* escape sequences (\log -> '\l',
+    # \sigma -> '\s') from un-raw LaTeX — which produce no control char, so the
+    # corrupted_docstrings scan below (valid escapes: \t, \r, …) would miss them.
     try:
-        compile(new_src, str(path), "exec")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", SyntaxWarning)
+            compile(new_src, str(path), "exec")
+    except SyntaxWarning as e:
+        print(f"FAIL: {path.name} — invalid escape (un-raw LaTeX?): {e}")
+        return 1
     except SyntaxError as e:
         print(f"FAIL: {path.name} does not compile: {e}")
         return 1
