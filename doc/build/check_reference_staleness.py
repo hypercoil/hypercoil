@@ -23,7 +23,8 @@ import pathlib
 import re
 import sys
 
-import gen_reference_stubs as g   # sibling module: shared hashing logic
+import gen_reference_stubs as g  # sibling module: shared hashing logic
+
 
 CODE = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 
@@ -44,9 +45,8 @@ def current_hash(pkg, modname):
     mod = g.module_by_name(pkg, modname)
     if mod is None or not getattr(mod, "exports", None):
         return None
-    # glossary/perf/repo do not affect the signature hash (built from sig_blob).
-    _, sig_hash = g.page_for_module(modname, mod, {}, None, "")
-    return sig_hash
+    # perf/repo do not affect the signature hash (built from per-symbol sigs).
+    return g.module_hash(mod)
 
 
 def main():

@@ -48,6 +48,7 @@ import sys
 import griffe
 from griffe import ParameterKind, Parser
 
+
 logging.getLogger("griffe").setLevel(logging.ERROR)
 
 DOC = pathlib.Path(__file__).resolve().parent.parent
@@ -311,22 +312,36 @@ def perf_block(symbol, perf_reports, repo_url):
 
 
 # ---------------------------------------------------------------- rendering
+#
+# Every public symbol becomes its own page under a per-module subdirectory, and
+# the module page is a listing that links them (numpy/scipy style). Body builders
+# emit everything *below* the page title (Quarto renders the front-matter title
+# as the H1) and return (body, sig_for_hash, dims_used, one-line summary).
 
-def heading(name):
-    return f"## `{name}` {{#{name}}}\n"
+def summary_line(text):
+    """First paragraph of an overview, flattened for a listing description."""
+    if not text:
+        return ""
+    return " ".join(text.strip().split("\n\n", 1)[0].split())
 
 
-def render_function(name, obj, perf_reports, repo_url, dim_acc, note):
+def function_body(name, obj, perf_reports, repo_url):
     overview, pdescs, ret_desc = parsed_doc(obj)
     rows = param_rows(obj, pdescs)
+    dims, seen = [], set()
+
+    def acc(found):
+        for d in found:
+            if d not in seen:
+                seen.add(d)
+                dims.append(d)
+
     for r in rows:
-        dim_acc(r["dims"])
+        acc(r["dims"])
     ret_jt = parse_jaxtype(str(obj.returns)) if obj.returns is not None else None
     if ret_jt:
-        dim_acc(ret_jt[1])
-    parts = [heading(name)]
-    if note:
-        parts.append(note + "\n")
+        acc(ret_jt[1])
+    parts = []
     if obj.decorators:
         decs = ", ".join(f"`@{d.value}`" for d in obj.decorators)
         parts.append(f"*decorated:* {decs}\n")
@@ -349,18 +364,15 @@ def render_function(name, obj, perf_reports, repo_url, dim_acc, note):
     if pb:
         parts.append(gen_block(f"perf:{name}", pb))
         parts.append("")
-    return "\n".join(parts), signature(obj)
+    return "\n".join(parts), signature(obj), dims, summary_line(overview)
 
 
-def render_class(name, obj, perf_reports, repo_url, dim_acc, note):
+def class_body(name, obj, perf_reports, repo_url):
     overview, _, _ = parsed_doc(obj)
     bases = ", ".join(str(b) for b in obj.bases)
     sig = f"class {name}" + (f"({bases})" if bases else "")
-    parts = [heading(name)]
-    if note:
-        parts.append(note + "\n")
-    parts.append(gen_block(f"sig:{name}", "```python\n" + sig + "\n```"))
-    parts.append("")
+    dims, seen = [], set()
+    parts = [gen_block(f"sig:{name}", "```python\n" + sig + "\n```"), ""]
     parts.append(gen_block(f"overview:{name}", overview or "*TODO: write an overview.*"))
     parts.append("")
     sig_for_hash = sig
@@ -374,7 +386,10 @@ def render_class(name, obj, perf_reports, repo_url, dim_acc, note):
         for mn, m in methods:
             mov, mpd, _ = parsed_doc(m)
             for r in param_rows(m, mpd):
-                dim_acc(r["dims"])
+                for d in r["dims"]:
+                    if d not in seen:
+                        seen.add(d)
+                        dims.append(d)
             parts.append(gen_block(f"sig:{name}.{mn}",
                                    "```python\n" + signature(m) + "\n```"))
             parts.append("")
@@ -385,95 +400,189 @@ def render_class(name, obj, perf_reports, repo_url, dim_acc, note):
     if pb:
         parts.append(gen_block(f"perf:{name}", pb))
         parts.append("")
-    return "\n".join(parts), sig_for_hash
+    return "\n".join(parts), sig_for_hash, dims, summary_line(overview)
 
 
-def render_attribute(name, obj, note, local_names):
+def assign_filenames(names):
+    """name -> case-insensitively-unique filename stem (stable across filesystems).
+
+    Two public symbols differing only in case (e.g. a ``TWEEDIE`` family constant
+    and a ``tweedie`` constructor) would collide on a case-insensitive filesystem
+    (macOS), so later collisions get a numeric suffix — deterministically, and
+    identically on macOS and Linux.
+    """
+    used, out = set(), {}
+    for name in names:
+        stem, i = name, 2
+        while stem.casefold() in used:
+            stem, i = f"{name}-{i}", i + 1
+        used.add(stem.casefold())
+        out[name] = stem
+    return out
+
+
+def attribute_body(name, obj, local_names, filemap):
     ann = str(obj.annotation) if obj.annotation is not None else None
     val = str(obj.value) if obj.value is not None else None
-    parts = [heading(name)]
-    if note:
-        parts.append(note + "\n")
-    # A bare-name assignment that points at another public symbol is an alias.
+    # A bare-name assignment that points at another public symbol is an alias;
+    # link to that symbol's sibling page in the same module subdirectory.
     if val and re.fullmatch(r"\w+", val) and val in local_names:
-        parts.append(gen_block(f"sig:{name}",
-                               f"`{name}` is an alias for [`{val}`](#{val})."))
-        parts.append("")
-        return "\n".join(parts), f"{name}=alias:{val}"
+        target = filemap.get(val, val)
+        body = gen_block(f"sig:{name}",
+                         f"`{name}` is an alias for [`{val}`]({target}.qmd).") + "\n"
+        return body, f"{name}=alias:{val}", [], f"Alias for {val}."
     decl = name + (f": {ann}" if ann else "") + (f" = {val}" if val else "")
-    parts.append(gen_block(f"sig:{name}", "```python\n" + decl + "\n```"))
-    parts.append("")
     if obj.docstring:
         ov = rst_to_md(obj.docstring.value)
+        desc = summary_line(obj.docstring.value)
     else:
-        ov = "*TODO: describe this type alias / constant.*"
-    parts.append(gen_block(f"overview:{name}", ov))
-    parts.append("")
-    return "\n".join(parts), f"{name}::{decl}"
+        ov, desc = "*TODO: describe this type alias / constant.*", ""
+    parts = [gen_block(f"sig:{name}", "```python\n" + decl + "\n```"), "",
+             gen_block(f"overview:{name}", ov), ""]
+    return "\n".join(parts), f"{name}::{decl}", [], desc
 
 
-def warn_stub(name, message):
-    md = (heading(name) + "\n"
-          "::: {.callout-warning title=\"TODO — could not introspect\"}\n"
-          f"{message}\n:::\n")
-    return md, f"{name}::TODO"
+def warn_body(message):
+    return ("::: {.callout-warning title=\"TODO — could not introspect\"}\n"
+            f"{message}\n:::\n")
 
 
-def render_member(name, member, perf_reports, repo_url, dim_acc, local_names):
-    """Render one public member, resolving re-export aliases to their target."""
+def resolve_member(name, member):
+    """(obj, note) with re-export aliases resolved; obj is None if unresolvable."""
+    if not getattr(member, "is_alias", False):
+        return member, None
+    try:
+        obj = member.final_target
+    except Exception:
+        return None, None
+    home = getattr(getattr(obj, "module", None), "path", None)
     note = None
-    obj = member
-    if getattr(member, "is_alias", False):
-        try:
-            obj = member.final_target
-        except Exception:
-            return warn_stub(name, "Unresolved re-export alias. Document by hand.")
-        home = getattr(getattr(obj, "module", None), "path", None)
-        if home and home != getattr(member.parent, "path", None):
-            note = f"*Re-exported here; defined in `{home}`.*"
+    if home and home != getattr(member.parent, "path", None):
+        note = f"*Re-exported here; defined in `{home}`.*"
+    return obj, note
+
+
+def build_symbol(name, member, perf_reports, repo_url, local_names, filemap):
+    """One record {name, note, body, sig_hash, dims, desc}; body has no title."""
+    obj, note = resolve_member(name, member)
+    if obj is None:
+        return {"name": name, "note": None,
+                "body": warn_body("Unresolved re-export alias. Document by hand."),
+                "sig_hash": f"{name}::TODO", "dims": [], "desc": ""}
     kind = obj.kind.value
     if kind == "function":
-        return render_function(name, obj, perf_reports, repo_url, dim_acc, note)
-    if kind == "class":
-        return render_class(name, obj, perf_reports, repo_url, dim_acc, note)
-    if kind == "attribute":
-        return render_attribute(name, obj, note, local_names)
-    if kind == "module":
-        return warn_stub(name, "Re-exported submodule — see its own page.")
-    return warn_stub(name, "Object whose kind has no renderer. Document by hand.")
+        body, sh, dims, desc = function_body(name, obj, perf_reports, repo_url)
+    elif kind == "class":
+        body, sh, dims, desc = class_body(name, obj, perf_reports, repo_url)
+    elif kind == "attribute":
+        body, sh, dims, desc = attribute_body(name, obj, local_names, filemap)
+    elif kind == "module":
+        body, sh, dims, desc = (
+            warn_body("Re-exported submodule — see its own page."),
+            f"{name}::module", [], "")
+    else:
+        body, sh, dims, desc = (
+            warn_body("Object whose kind has no renderer. Document by hand."),
+            f"{name}::TODO", [], "")
+    return {"name": name, "note": note, "body": body,
+            "sig_hash": sh, "dims": dims, "desc": desc}
 
 
-def page_for_module(modname, mod, glossary, perf_reports, repo_url):
+def build_records(mod, perf_reports, repo_url):
     names = list(mod.exports or [])
-    local_names = set(names)
-    dims, seen = [], set()
-
-    def dim_acc(found):
-        for d in found:
-            if d not in seen:
-                seen.add(d)
-                dims.append(d)
-
-    body, sig_blob = [], []
+    local = set(names)
+    filemap = assign_filenames(names)
+    recs = []
     for name in names:
         member = mod.members.get(name)
         if member is None:
-            md, sh = warn_stub(name, "Listed in `__all__` but not found in source.")
+            rec = {"name": name, "note": None,
+                   "body": warn_body("Listed in `__all__` but not in source."),
+                   "sig_hash": f"{name}::MISSING", "dims": [], "desc": ""}
         else:
-            md, sh = render_member(name, member, perf_reports, repo_url,
-                                   dim_acc, local_names)
-        body.append(md)
-        sig_blob.append(sh)
-    sig_hash = hashlib.sha256("\n".join(sig_blob).encode()).hexdigest()[:16]
-    front = (f"---\ntitle: \"{modname}\"\ngenerated: true\n"
-             f"signature-hash: {sig_hash}\n---\n\n"
-             "::: {.callout-important title=\"Generated reference stub — fill me\"}\n"
-             f"Auto-generated scaffold for `{modname}`. Fill the prose *outside* the\n"
-             "generated markers; do **not** ship as-is (SPEC §6.5). "
-             "`check_reference_staleness.py` flags signature drift.\n:::\n\n")
-    glossary_block = dims_glossary_block(dims, glossary)
-    pre = gen_block("dims:__page__", glossary_block) + "\n\n" if glossary_block else ""
-    return front + pre + "\n".join(body) + "\n", sig_hash
+            rec = build_symbol(name, member, perf_reports, repo_url, local, filemap)
+        rec["file"] = filemap[name]
+        recs.append(rec)
+    return recs
+
+
+def module_hash(mod, perf_reports=None, repo_url=""):
+    """Signature hash over a module's whole public surface (drift signal)."""
+    recs = build_records(mod, perf_reports, repo_url)
+    blob = "\n".join(r["sig_hash"] for r in recs)
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
+def _fm(value):
+    """A double-quote-safe YAML scalar for front-matter title/description."""
+    return value.replace("\\", " ").replace('"', "'").strip()
+
+
+STUB_CALLOUT = (
+    "::: {.callout-important title=\"Generated reference stub — fill me\"}\n"
+    "Auto-generated scaffold for `{modname}`. Fill the prose *outside* the\n"
+    "generated markers; do **not** ship as-is (SPEC §6.5). "
+    "`check_reference_staleness.py` flags signature drift.\n:::\n"
+)
+
+
+def symbol_page(modname, slug, rec, glossary):
+    fm = [f'title: "{_fm(rec["name"])}"', "generated: true"]
+    if rec["desc"]:
+        fm.append(f'description: "{_fm(rec["desc"])[:200]}"')
+    parts = ["---", *fm, "---", "",
+             f"[‹ back to `{modname}`](../{slug}.qmd)", ""]
+    if rec["note"]:
+        parts.append(rec["note"] + "\n")
+    parts.append(rec["body"])
+    gb = dims_glossary_block(rec["dims"], glossary)
+    if gb:
+        parts.append("")
+        parts.append(gen_block(f"dims:{rec['name']}", gb))
+    return "\n".join(parts) + "\n"
+
+
+def module_index_page(modname, mod, records, glossary):
+    slug = modname.replace(".", "-")
+    all_dims, seen = [], set()
+    for rec in records:
+        for d in rec["dims"]:
+            if d not in seen:
+                seen.add(d)
+                all_dims.append(d)
+    blob = "\n".join(r["sig_hash"] for r in records)
+    sig_hash = hashlib.sha256(blob.encode()).hexdigest()[:16]
+    mod_overview, _, _ = parsed_doc(mod)
+    desc = summary_line(mod_overview)
+    fm = [f'title: "{modname}"', "generated: true", f"signature-hash: {sig_hash}"]
+    if desc:
+        fm.append(f'description: "{_fm(desc)[:200]}"')
+    fm += ["listing:", f"  id: {slug}-symbols", f'  contents: "{slug}/*.qmd"',
+           "  type: table", "  fields: [title, description]",
+           "  sort: \"title\"", "  filter-ui: false", "  page-size: 500"]
+    parts = ["---", *fm, "---", "",
+             STUB_CALLOUT.replace("{modname}", modname)]
+    parts.append(gen_block("overview:__module__",
+                           mod_overview or "*TODO: module overview.*"))
+    parts.append("")
+    gb = dims_glossary_block(all_dims, glossary)
+    if gb:
+        parts.append(gen_block("dims:__page__", gb))
+        parts.append("")
+    parts += ["## Symbols", "", f"::: {{#{slug}-symbols}}", ":::"]
+    return "\n".join(parts) + "\n", sig_hash
+
+
+def pages_for_module(modname, mod, glossary, perf_reports, repo_url):
+    """[(relative_path, content)] — the module index page and one page per symbol."""
+    slug = modname.replace(".", "-")
+    records = build_records(mod, perf_reports, repo_url)
+    index_content, _ = module_index_page(modname, mod, records, glossary)
+    pages = [(f"{slug}.qmd", index_content)]
+    for rec in records:
+        pages.append((f"{slug}/{rec['file']}.qmd",
+                      symbol_page(modname, slug, rec, glossary)))
+    return pages
 
 
 def refresh(old, new):
@@ -565,22 +674,33 @@ def main():
             continue
         if not mod.exports:
             continue
-        content, _ = page_for_module(modname, mod, glossary, perf_reports, repo_url)
-        dst = out / (modname.replace(".", "-") + ".qmd")
-        if dst.exists() and not (a.force or a.refresh):
-            skipped += 1
-            continue
-        if dst.exists() and a.refresh and not a.force:
-            dst.write_text(refresh(dst.read_text(), content))
-            refreshed += 1
-            print(f"  ~ {dst.relative_to(CODE)}  (refreshed generated regions)")
-            continue
-        dst.write_text(content)
-        created += 1
-        print(f"  + {dst.relative_to(CODE)}  ({len(mod.exports)} symbols)")
+        slug = modname.replace(".", "-")
+        subdir = out / slug
+        # On a wholesale rewrite, drop stale per-symbol pages (removed symbols).
+        if a.force and subdir.is_dir():
+            for old in subdir.glob("*.qmd"):
+                old.unlink()
+        pages = pages_for_module(modname, mod, glossary, perf_reports, repo_url)
+        n_new = n_ref = n_kept = 0
+        for relpath, content in pages:
+            dst = out / relpath
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.exists() and not (a.force or a.refresh):
+                n_kept += 1
+            elif dst.exists() and a.refresh and not a.force:
+                dst.write_text(refresh(dst.read_text(), content))
+                n_ref += 1
+            else:
+                dst.write_text(content)
+                n_new += 1
+        created += n_new
+        refreshed += n_ref
+        skipped += n_kept
+        verb = "~" if (n_ref and not n_new) else "+" if n_new else "="
+        print(f"  {verb} {slug}  ({len(mod.exports)} symbols → {len(pages)} pages)")
 
     perf_note = f"perf={perf_reports.relative_to(CODE)}" if perf_reports else "perf=none"
-    print(f"stubs: {created} written, {refreshed} refreshed, {skipped} kept. "
+    print(f"pages: {created} written, {refreshed} refreshed, {skipped} kept. "
           f"out={out.relative_to(CODE)} {perf_note}")
 
 
