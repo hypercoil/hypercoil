@@ -259,6 +259,42 @@ def parsed_doc(obj):
     return overview, pdescs, ret
 
 
+_CALLOUT_KINDS = {"note", "warning", "tip", "caution", "important"}
+
+
+def extra_sections(obj):
+    """Render docstring sections beyond the summary/params/returns.
+
+    NumPy ``Notes`` / ``Warnings`` and custom underlined sections (which griffe
+    parses as admonitions) plus any secondary prose are transcluded — as Quarto
+    callouts for the standard kinds, and as headings for custom titles — so a
+    rich module or function docstring is not truncated to its first paragraph.
+    """
+    if not getattr(obj, "docstring", None):
+        return ""
+    try:
+        sections = obj.docstring.parse(Parser.numpy)
+    except Exception:
+        return ""
+    out, seen_text = [], False
+    for sec in sections:
+        kind = sec.kind.value
+        if kind == "text":
+            if seen_text:
+                out.append(rst_to_md(sec.value))
+            seen_text = True
+        elif kind == "admonition":
+            adm = sec.value
+            akind = (getattr(adm, "kind", "") or "").lower()
+            body = rst_to_md(getattr(adm, "contents", "") or "")
+            if akind in _CALLOUT_KINDS:
+                out.append(f"::: {{.callout-{akind}}}\n{body}\n:::")
+            else:
+                title = getattr(adm, "title", None) or akind.replace("-", " ").capitalize()
+                out.append(f"### {title}\n\n{body}")
+    return "\n\n".join(s for s in out if s.strip())
+
+
 def render_param_decl(p):
     if p.kind == ParameterKind.var_positional:
         name = "*" + p.name
@@ -497,6 +533,10 @@ def function_body(name, obj, perf_reports, repo_url):
     if pb:
         parts.append(gen_block(f"perf:{name}", pb))
         parts.append("")
+    sec = extra_sections(obj)
+    if sec:
+        parts.append(gen_block(f"sections:{name}", sec))
+        parts.append("")
     return "\n".join(parts), signature(obj), dims, summary_line(overview)
 
 
@@ -532,6 +572,10 @@ def class_body(name, obj, perf_reports, repo_url):
     pb = perf_block(name, perf_reports, repo_url)
     if pb:
         parts.append(gen_block(f"perf:{name}", pb))
+        parts.append("")
+    sec = extra_sections(obj)
+    if sec:
+        parts.append(gen_block(f"sections:{name}", sec))
         parts.append("")
     return "\n".join(parts), sig_for_hash, dims, summary_line(overview)
 
@@ -698,6 +742,10 @@ def module_index_page(modname, mod, records, glossary):
     parts.append(gen_block("overview:__module__",
                            mod_overview or "*TODO: module overview.*"))
     parts.append("")
+    sec = extra_sections(mod)
+    if sec:
+        parts.append(gen_block("sections:__module__", sec))
+        parts.append("")
     gb = dims_glossary_block(all_dims, glossary)
     if gb:
         parts.append(gen_block("dims:__page__", gb))
