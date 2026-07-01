@@ -98,13 +98,68 @@ def _xref_sub(m):
     return f"`{target}`"
 
 
+# nitrix docstrings write inline math inside RST literals (``X^T W X``, ``A^{-1}``,
+# ``Σ_i (·)^2``) with informal ASCII/Unicode notation. We render such a literal as
+# LaTeX ($…$) only when it carries an *unambiguous* math signal — a caret or a
+# Unicode math glyph — so a plain code identifier (``cov_unscaled``) is never
+# misread as math. Subscript-only spans (``mu_i``) have no such signal and stay as
+# code; the eventual `:math:`-migration (see the docstring-inventory plan) is the
+# durable fix. Authored `:math:` always wins and is left untouched.
+_UNICODE_MATH = set("ᵀ⁻⁰¹²³⁴⁵⁶⁷⁸⁹½⅓⅔¼¾·×÷√∑∏ΣΔΘΛΞΠΦΨΩ∇∂∈∉≈≠≤≥→↦⟨⟩⊤∘⊗⊙∥±∓∞")
+_UNICODE_MAP = [
+    ("⁻¹", "^{-1}"), ("⁻", "^-"), ("⁰", "^0"), ("¹", "^1"), ("²", "^2"),
+    ("³", "^3"), ("⁴", "^4"), ("⁵", "^5"), ("⁶", "^6"), ("⁷", "^7"),
+    ("⁸", "^8"), ("⁹", "^9"), ("½", r"\tfrac{1}{2}"), ("⅓", r"\tfrac{1}{3}"),
+    ("⅔", r"\tfrac{2}{3}"), ("¼", r"\tfrac{1}{4}"), ("¾", r"\tfrac{3}{4}"),
+    ("ᵀ", r"^{\mathsf{T}}"), ("·", r"\cdot "), ("×", r"\times "), ("÷", r"\div "),
+    ("√", r"\sqrt"), ("∑", r"\sum"), ("∏", r"\prod"), ("Σ", r"\Sigma "),
+    ("Δ", r"\Delta "), ("Θ", r"\Theta "), ("Λ", r"\Lambda "), ("Ξ", r"\Xi "),
+    ("Π", r"\Pi "), ("Φ", r"\Phi "), ("Ψ", r"\Psi "), ("Ω", r"\Omega "),
+    ("∇", r"\nabla "), ("∂", r"\partial "), ("∈", r"\in "), ("∉", r"\notin "),
+    ("≈", r"\approx "), ("≠", r"\neq "), ("≤", r"\le "), ("≥", r"\ge "),
+    ("→", r"\to "), ("↦", r"\mapsto "), ("⟨", r"\langle "), ("⟩", r"\rangle "),
+    ("⊤", r"\top "), ("∘", r"\circ "), ("⊗", r"\otimes "), ("⊙", r"\odot "),
+    ("∥", r"\| "), ("±", r"\pm "), ("∓", r"\mp "), ("∞", r"\infty "),
+]
+_GREEK = ("alpha beta gamma delta epsilon varepsilon zeta eta theta iota kappa "
+          "lambda mu nu xi omicron pi rho sigma tau upsilon phi varphi chi psi "
+          "omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega").split()
+_GREEK_RE = re.compile(r"(?<![\\A-Za-z])(" + "|".join(_GREEK) + r")(?![A-Za-z])")
+_MATHOP = "tr sym diag vec sgn adj rank cov var corr".split()
+_MATHOP_RE = re.compile(r"(?<![\\A-Za-z])(" + "|".join(_MATHOP) + r")(?=\s*\()")
+
+
+def _is_math_literal(s):
+    return "^" in s or any(c in _UNICODE_MATH for c in s)
+
+
+def normalise_math(s):
+    """Best-effort informal-notation → LaTeX for a span already known to be math."""
+    for glyph, tex in _UNICODE_MAP:
+        s = s.replace(glyph, tex)
+    s = _GREEK_RE.sub(r"\\\1", s)                 # spelled-out Greek -> \greek
+    s = _MATHOP_RE.sub(r"\\operatorname{\1}", s)  # tr(, sym(, … -> \operatorname{…}(
+    # Brace multi-character sub/superscripts so they don't render as one glyph
+    # (Σ_axis -> \Sigma_{axis}); already-braced ({…}) and single chars are left.
+    s = re.sub(r"\^([A-Za-z0-9]{2,})", r"^{\1}", s)
+    s = re.sub(r"_([A-Za-z0-9]{2,})", r"_{\1}", s)
+    return s.strip()
+
+
+def _literal_sub(m):
+    inner = m.group(1)
+    if _is_math_literal(inner):
+        return f"${normalise_math(inner)}$"
+    return f"`{inner}`"
+
+
 def rst_to_md(text):
-    """Light RST→Markdown: roles, ``x`` -> `x`, trailing `::` -> `:`. Best-effort."""
+    """Light RST→Markdown: roles, math, ``x`` -> `x`, trailing `::` -> `:`."""
     if not text:
         return ""
-    text = _MATH_ROLE_RE.sub(r"$\1$", text)        # :math:`a` -> $a$ (inline math)
+    text = _MATH_ROLE_RE.sub(r"$\1$", text)        # :math:`a` -> $a$ (authored LaTeX)
     text = _XREF_ROLE_RE.sub(_xref_sub, text)      # :func:`f` etc. -> `f`
-    text = re.sub(r"``([^`]+)``", r"`\1`", text)   # ``x`` -> `x`
+    text = re.sub(r"``([^`]+)``", _literal_sub, text)   # ``x`` -> `x` or $math$
     text = re.sub(r"[ \t]*::\s*$", ":", text, flags=re.M)
     return text.strip()
 
