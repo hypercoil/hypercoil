@@ -82,20 +82,68 @@ _MATH_ROLE_RE = re.compile(r":math:`([^`]+)`")
 _XREF_ROLE_RE = re.compile(r":(?:[a-zA-Z][\w.+-]*:)+`([^`]+)`")
 
 
-def _xref_sub(m):
-    """Render a Sphinx cross-reference role as inline code (no live link yet).
+# Live cross-reference linking. `_XREF` is populated from the reference dir at
+# generation time (see build_xref), so a role only ever links to a page that
+# already exists — partial coverage falls back to inline code, never a 404.
+# `_CUR_DIR` is the current page's directory relative to the reference root
+# (symbol pages sit one level deep), for relative-link computation.
+_XREF = {"paths": {}, "names": {}}   # dotted path -> relpath; bare name -> [relpaths]
+_CUR_DIR = [""]
 
-    Honours the ``~pkg.mod.Name`` (show only the leaf) and ``Text <target>``
-    (show the title) conventions. These don't resolve to pages while reference
-    coverage is partial; a live-link pass needs a global symbol→page index.
-    """
-    target = m.group(1).strip()
-    titled = re.match(r"(.+?)\s*<[^>]+>$", target)
+
+def _link_target(raw):
+    """(display, resolve-key) from a role target, honouring ~leaf and 'Text <t>'."""
+    raw = raw.strip()
+    titled = re.match(r"(.+?)\s*<([^>]+)>$", raw)
     if titled:
-        return f"`{titled.group(1).strip()}`"
-    if target.startswith("~"):
-        target = target[1:].rsplit(".", 1)[-1]
-    return f"`{target}`"
+        return titled.group(1).strip(), titled.group(2).strip().lstrip("~")
+    if raw.startswith("~"):
+        return raw[1:].rsplit(".", 1)[-1], raw[1:]
+    return raw, raw
+
+
+def _resolve_page(key):
+    """Reference-root-relative page path a role target links to, or None."""
+    paths, names = _XREF["paths"], _XREF["names"]
+    if key in paths:
+        return paths[key]
+    if "." in key:                       # dotted: try Class-qualified, then leaf
+        if key.rsplit(".", 1)[0] in paths:      # C.member -> the class's page
+            return paths[key.rsplit(".", 1)[0]]
+        cands = names.get(key.rsplit(".", 1)[-1], [])
+        return cands[0] if len(cands) == 1 else None
+    cands = names.get(key, [])
+    if len(cands) == 1:
+        return cands[0]
+    same = [p for p in cands if _CUR_DIR[0] and p.startswith(_CUR_DIR[0] + "/")]
+    return same[0] if len(same) == 1 else None   # prefer the current module
+
+
+def _xref_sub(m):
+    """Render a Sphinx cross-reference role as a link to its reference page when
+    one exists; otherwise inline code (honours ~leaf / 'Text <target>')."""
+    display, key = _link_target(m.group(1))
+    page = _resolve_page(key)
+    if page:
+        rel = ("../" + page) if _CUR_DIR[0] else page   # symbol pages are 1 deep
+        return f"[`{display}`]({rel})"
+    return f"`{display}`"
+
+
+def build_xref(out):
+    """Map every generated reference page: dotted path / bare name -> relpath."""
+    paths, names = {}, {}
+    for qmd in sorted(out.glob("*.qmd")):
+        meta = read_page_meta(qmd)
+        if meta.get("generated") == "true" and "signature-hash" in meta and meta.get("title"):
+            paths[meta["title"]] = qmd.name          # module index page
+    for qmd in sorted(out.glob("*/*.qmd")):
+        meta = read_page_meta(qmd)
+        if meta.get("generated") == "true" and meta.get("title"):
+            relpath = f"{qmd.parent.name}/{qmd.name}"
+            paths[qmd.parent.name.replace("-", ".") + "." + meta["title"]] = relpath
+            names.setdefault(meta["title"], []).append(relpath)
+    _XREF["paths"], _XREF["names"] = paths, names
 
 
 # nitrix docstrings write inline math inside RST literals (``X^T W X``, ``A^{-1}``,
@@ -613,10 +661,25 @@ def attribute_body(name, obj, local_names, filemap):
         ov = rst_to_md(obj.docstring.value)
         desc = summary_line(obj.docstring.value)
     else:
-        ov, desc = "*TODO: describe this type alias / constant.*", ""
+        ov = "*TODO: describe this type alias / constant.*"
+        desc = _attr_desc(ann, val)   # synthesised so the listing never shows a stub
     parts = [gen_block(f"sig:{name}", "```python\n" + decl + "\n```"), "",
              gen_block(f"overview:{name}", ov), ""]
     return "\n".join(parts), f"{name}::{decl}", [], desc
+
+
+def _attr_desc(ann, val):
+    """A fallback one-line description for a docstring-less constant / alias."""
+    if val:
+        callee = re.match(r"\s*([A-Za-z_][\w.]*)\s*\(", val)
+        named = re.search(r"\bname\s*=\s*'([^']+)'", val)
+        if callee and named:
+            return f"The `{named.group(1)}` `{callee.group(1).split('.')[-1]}`."
+        if callee:
+            return f"A `{callee.group(1).split('.')[-1]}` constant."
+    if ann:
+        return f"A `{ann}` constant."
+    return "A module-level constant."
 
 
 def warn_body(message):
@@ -757,7 +820,9 @@ def module_index_page(modname, mod, records, glossary):
 def pages_for_module(modname, mod, glossary, perf_reports, repo_url):
     """[(relative_path, content)] — the module index page and one page per symbol."""
     slug = modname.replace(".", "-")
+    _CUR_DIR[0] = slug                       # symbol bodies live one level deep
     records = build_records(mod, perf_reports, repo_url)
+    _CUR_DIR[0] = ""                         # the module index page sits at the root
     index_content, _ = module_index_page(modname, mod, records, glossary)
     pages = [(f"{slug}.qmd", index_content)]
     for rec in records:
@@ -892,6 +957,7 @@ def main():
     glossary = load_dimensions(out / "_dimensions.yml")
     prefixes = a.modules.split(",") if a.modules else None
     out.mkdir(parents=True, exist_ok=True)
+    build_xref(out)   # cross-ref roles link to already-generated pages
 
     _, pkg = load_package(a.library, src_root)
 
