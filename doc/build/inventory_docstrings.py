@@ -63,12 +63,19 @@ CITATION_RE = re.compile(
     r"|\b[A-Z][A-Za-z]+ \(?(?:19|20)\d{2}\)?"
     r"|\[\d+\]")
 IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# A Sphinx role, capturing the trailing role word (e.g. func, class, math) so
+# :math:`…` (which is math, not a cross-reference) can be excluded.
+XREF_ROLE_RE = re.compile(r":(?:[a-zA-Z][\w.+-]*:)*(?P<role>[a-zA-Z][\w+-]*):`(?P<t>[^`]+)`")
 # Pytree / protocol plumbing that conventionally carries no docstring.
 BOILERPLATE_METHODS = {"__init__", "tree_flatten", "tree_unflatten",
                        "tree_flatten_with_keys"}
 GREEK_ALT = ("alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|"
              "nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega")
-SUBSCRIPT_MATH_RE = re.compile(r"(?:^|[^A-Za-z0-9_.])(?:[a-zA-Z]|" + GREEK_ALT + r")_[A-Za-z0-9]")
+# A math subscript: a single-letter or Greek base, then a single-char / numeric /
+# Greek subscript — NOT a snake_case identifier (n_groups, p_value stay code).
+SUBSCRIPT_MATH_RE = re.compile(
+    r"(?:^|[^A-Za-z0-9_.])(?:[a-zA-Z]|" + GREEK_ALT + r")"
+    r"_(?:[0-9]+|[a-zA-Z](?![A-Za-z])|" + GREEK_ALT + r")")
 
 
 # --------------------------------------------------------------- symbol index
@@ -191,7 +198,9 @@ def text_issues(text, own_name, ctx):
         issues.append({"type": "math_in_code_unrendered", "count": len(math_sub),
                        "samples": _samples(math_sub)})
 
-    xrefs = re.findall(r":(?:[a-zA-Z][\w.+-]*:)+`([^`]+)`", text)
+    # Cross-reference roles, excluding :math:`…` (that is math, not a reference).
+    roles = [(m.group("role"), m.group("t")) for m in XREF_ROLE_RE.finditer(text)]
+    xrefs = [t for role, t in roles if role != "math"]
     if xrefs:
         issues.append({"type": "sphinx_role", "count": len(xrefs),
                        "samples": _samples(xrefs)})
@@ -201,7 +210,7 @@ def text_issues(text, own_name, ctx):
                            "samples": _samples(unresolved)})
 
     bare = [s for s in literals
-            if IDENT_RE.match(s) and s != own_name and s in ctx["names"]]
+            if IDENT_RE.match(s) and len(s) >= 2 and s != own_name and s in ctx["names"]]
     if bare:
         issues.append({"type": "bare_xref_candidate", "count": len(bare),
                        "samples": _samples(bare)})
@@ -293,7 +302,20 @@ def scan(pkg, ctx):
                 "issues": issues,
             })
 
+    def add_module(mod):
+        text = mod.docstring.value if getattr(mod, "docstring", None) else ""
+        if not text.strip():
+            return  # module docstrings are optional; only flag markup pathology
+        issues = text_issues(text, mod.name.split(".")[-1], ctx)
+        if issues:
+            public = not any(p.startswith("_") for p in mod.path.split(".")[1:])
+            records.append({
+                "path": mod.path, "name": mod.path, "kind": "module", "public": public,
+                "file": rel(getattr(mod, "filepath", "")), "line": 1, "issues": issues,
+            })
+
     for mod in g.iter_modules(pkg):
+        add_module(mod)
         for m in mod.members.values():
             if getattr(m, "is_alias", False):
                 continue
