@@ -153,10 +153,63 @@ def _literal_sub(m):
     return f"`{inner}`"
 
 
+_DIRECTIVE_RE = re.compile(
+    r"^(?P<ind>[ \t]*)\.\.[ \t]+(?P<d>math|code-block|code|note|warning|"
+    r"admonition|tip|caution|important)::(?P<arg>.*)$")
+
+
+def _convert_rst_blocks(text):
+    """RST block directives -> Quarto: .. math:: -> $$…$$, .. code[-block]:: ->
+    fenced code, .. note::/.. warning:: etc. -> callouts. (Inline :math: and
+    roles are handled separately.)"""
+    lines = text.split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        m = _DIRECTIVE_RE.match(lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
+        ind, directive, arg = m.group("ind"), m.group("d"), m.group("arg").strip()
+        i += 1
+        while i < len(lines) and re.match(r"^[ \t]*:\w[\w-]*:", lines[i]):
+            i += 1  # skip directive options (:label:, :name:, …)
+        while i < len(lines) and not lines[i].strip():
+            i += 1
+        body, base = [], None
+        while i < len(lines):
+            ln = lines[i]
+            if not ln.strip():
+                body.append("")
+                i += 1
+                continue
+            cur = len(ln) - len(ln.lstrip())
+            if cur <= len(ind):
+                break
+            base = cur if base is None else min(base, cur)
+            body.append(ln)
+            i += 1
+        while body and not body[-1].strip():
+            body.pop()
+        inner = "\n".join(ln[base:] if ln.strip() else "" for ln in body)
+        if directive == "math":
+            if "&" in inner or "\\\\" in inner:
+                inner = "\\begin{aligned}\n" + inner + "\n\\end{aligned}"
+            out += [ind + "$$", inner, ind + "$$", ""]
+        elif directive in ("code-block", "code"):
+            out += [ind + "```" + (arg or ""), inner, ind + "```", ""]
+        else:
+            kind = directive if directive in ("note", "warning", "tip", "caution",
+                                              "important") else "note"
+            out += [ind + f"::: {{.callout-{kind}}}", inner, ind + ":::", ""]
+    return "\n".join(out)
+
+
 def rst_to_md(text):
-    """Light RST→Markdown: roles, math, ``x`` -> `x`, trailing `::` -> `:`."""
+    """Light RST→Markdown: block directives, roles, math, ``x`` -> `x`, `::`."""
     if not text:
         return ""
+    text = _convert_rst_blocks(text)               # .. math:: / .. code:: blocks
     text = _MATH_ROLE_RE.sub(r"$\1$", text)        # :math:`a` -> $a$ (authored LaTeX)
     text = _XREF_ROLE_RE.sub(_xref_sub, text)      # :func:`f` etc. -> `f`
     text = re.sub(r"``([^`]+)``", _literal_sub, text)   # ``x`` -> `x` or $math$
