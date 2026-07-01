@@ -19,7 +19,6 @@ Usage:
   check_reference_staleness.py nitrix [--reference PATH] [--src PATH] [--update]
 """
 import argparse
-import ast
 import pathlib
 import re
 import sys
@@ -41,16 +40,12 @@ def front_matter(text):
     return fm
 
 
-def current_hash(modname, library, src_root):
-    parts = modname.split(".")[1:]
-    modfile = src_root.joinpath(*parts).with_suffix(".py")
-    if not modfile.exists():
+def current_hash(pkg, modname):
+    mod = g.module_by_name(pkg, modname)
+    if mod is None or not getattr(mod, "exports", None):
         return None
-    tree = ast.parse(modfile.read_text())
-    names = g.literal_all(tree)
-    if not names:
-        return None
-    _, sig_hash = g.page_for_module(modname, names, g.collect(tree))
+    # glossary/perf/repo do not affect the signature hash (built from sig_blob).
+    _, sig_hash = g.page_for_module(modname, mod, {}, None, "")
     return sig_hash
 
 
@@ -65,6 +60,7 @@ def main():
 
     ref = pathlib.Path(a.reference) if a.reference else CODE / a.library / "docs" / "reference"
     src_root = pathlib.Path(a.src) if a.src else CODE / a.library / "src" / a.library
+    _, pkg = g.load_package(a.library, src_root)
 
     ok = drift = missing = blessed = 0
     for qmd in sorted(ref.glob("*.qmd")):
@@ -74,7 +70,7 @@ def main():
             continue
         modname = fm.get("title", "")
         stored = fm["signature-hash"]
-        cur = current_hash(modname, a.library, src_root)
+        cur = current_hash(pkg, modname)
         if cur is None:
             print(f"  ? {qmd.name}: source module '{modname}' gone or no __all__ — REVIEW")
             missing += 1

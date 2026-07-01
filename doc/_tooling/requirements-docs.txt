@@ -4,9 +4,13 @@
 # - jupyter stack + pyyaml + psutil: Quarto's engine for executing {python}
 #   cells (figures); Quarto's bundled jupyter shim imports yaml and psutil.
 # - numpy/matplotlib: lightweight, CI-safe executable figures (no JAX/HPC).
+# - griffe: static (no-import) introspection backend for gen_reference_stubs.py —
+#   parses source for signatures, resolved re-export targets, and structured
+#   docstring sections. Build-tool only; never imported by a library at runtime.
 # Top-level pins; exact transitive versions are frozen to
 # requirements-docs.lock.txt by bootstrap.sh for full reproducibility.
 pagefind[extended]==1.5.2
+griffe==2.1.0
 jupyter-client==8.6.3
 nbclient==0.10.2
 nbformat==5.10.4
