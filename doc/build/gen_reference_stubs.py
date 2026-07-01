@@ -77,11 +77,34 @@ def gen_block(tag, inner):
 
 # ------------------------------------------------------------- text utilities
 
+_MATH_ROLE_RE = re.compile(r":math:`([^`]+)`")
+# Any Sphinx cross-reference role, e.g. :func:`x`, :class:`~pkg.mod.C`, :py:meth:`m`.
+_XREF_ROLE_RE = re.compile(r":(?:[a-zA-Z][\w.+-]*:)+`([^`]+)`")
+
+
+def _xref_sub(m):
+    """Render a Sphinx cross-reference role as inline code (no live link yet).
+
+    Honours the ``~pkg.mod.Name`` (show only the leaf) and ``Text <target>``
+    (show the title) conventions. These don't resolve to pages while reference
+    coverage is partial; a live-link pass needs a global symbol→page index.
+    """
+    target = m.group(1).strip()
+    titled = re.match(r"(.+?)\s*<[^>]+>$", target)
+    if titled:
+        return f"`{titled.group(1).strip()}`"
+    if target.startswith("~"):
+        target = target[1:].rsplit(".", 1)[-1]
+    return f"`{target}`"
+
+
 def rst_to_md(text):
-    """Light RST→Markdown: ``x`` -> `x`, trailing `::` -> `:`. Best-effort."""
+    """Light RST→Markdown: roles, ``x`` -> `x`, trailing `::` -> `:`. Best-effort."""
     if not text:
         return ""
-    text = re.sub(r"``([^`]+)``", r"`\1`", text)
+    text = _MATH_ROLE_RE.sub(r"$\1$", text)        # :math:`a` -> $a$ (inline math)
+    text = _XREF_ROLE_RE.sub(_xref_sub, text)      # :func:`f` etc. -> `f`
+    text = re.sub(r"``([^`]+)``", r"`\1`", text)   # ``x`` -> `x`
     text = re.sub(r"[ \t]*::\s*$", ":", text, flags=re.M)
     return text.strip()
 
@@ -229,8 +252,10 @@ def dims_glossary_block(dims, glossary):
 def params_table(rows):
     if not rows:
         return "*No parameters.*"
-    out = ["| parameter | type | shape | default | description |",
-           "|---|---|---|---|---|"]
+    # Proportional dash counts → relative column widths in the rendered HTML;
+    # give the description (which carries the docstring prose) the bulk of it.
+    sep = "|" + "|".join("-" * w for w in (12, 8, 8, 10, 62)) + "|"
+    out = ["| parameter | type | shape | default | description |", sep]
     for p in rows:
         if p["jdtype"]:
             typ, shp = f"`{p['jdtype']}`", shape_str(p["dims"])
