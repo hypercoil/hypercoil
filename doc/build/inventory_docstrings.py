@@ -51,7 +51,11 @@ INTERNAL_REF_RE = re.compile(
     r"\b(?:SPEC(?:_UPDATE)?|PLAN|RECON|FR)\b\s*§?\s*[\d.]*"
     r"|§\s*\d[\d.]*"
     r"|\bv\d+\s*§\s*[\d.]*")
-RST_DIRECTIVE_RE = re.compile(r"^[ \t]*\.\.[ \t]+[\w-]+::", re.M)
+# Only flag RST directives the reference generator does NOT translate to Quarto;
+# math / code / admonitions are handled (rendered) so they are not pathology.
+RST_DIRECTIVE_RE = re.compile(
+    r"^[ \t]*\.\.[ \t]+(?!(?:math|code-block|code|note|warning|tip|caution|"
+    r"important|admonition)::)[\w-]+::", re.M)
 SPHINX_FIELD_RE = re.compile(r"^[ \t]*:(?:param|parameter|type|returns?|rtype|raises?|yields?|ivar|cvar|var)\b", re.M)
 DOCTEST_RE = re.compile(r"^[ \t]*>>> ", re.M)
 RST_LINK_RE = re.compile(r"`[^`]+<[^>]+>`_")
@@ -94,6 +98,7 @@ def build_index(pkg):
         name_index.setdefault(obj.name, []).append(obj.path)
 
     for mod in g.iter_modules(pkg):
+        paths.add(mod.path)   # module paths resolve :mod:`nitrix.stats.gp`
         for m in mod.members.values():
             if getattr(m, "is_alias", False):
                 continue
@@ -102,8 +107,14 @@ def build_index(pkg):
                 record(m)
                 if k == "class":
                     for meth in m.members.values():
-                        if not getattr(meth, "is_alias", False) and _kind(meth) == "function":
-                            record(meth)
+                        if getattr(meth, "is_alias", False):
+                            continue
+                        mk = _kind(meth)
+                        if mk == "function":
+                            record(meth)          # :meth:`C.m` (by name + path)
+                        elif mk == "attribute":
+                            paths.add(meth.path)  # :attr:`C.field` — path only, so
+                            # common field names don't inflate bare-xref candidates
     return name_index, paths
 
 
@@ -200,7 +211,7 @@ def text_issues(text, own_name, ctx):
 
     # Cross-reference roles, excluding :math:`…` (that is math, not a reference).
     roles = [(m.group("role"), m.group("t")) for m in XREF_ROLE_RE.finditer(text)]
-    xrefs = [t for role, t in roles if role != "math"]
+    xrefs = [t for role, t in roles if role not in ("math", "doi")]
     if xrefs:
         issues.append({"type": "sphinx_role", "count": len(xrefs),
                        "samples": _samples(xrefs)})
@@ -268,6 +279,13 @@ def _resolvable(raw, ctx):
     if raw.startswith("."):
         suffix = raw.lstrip(".")
         return any(p.endswith("." + suffix) for p in ctx["paths"])
+    # A class-qualified ref (GPResult.edf) resolves if some path ends with it.
+    if "." in raw and any(p.endswith("." + raw) for p in ctx["paths"]):
+        return True
+    # A dotted target rooted outside the library is an external reference
+    # (jax.vmap, numpy.…) — legitimate, not a broken in-repo link.
+    if "." in raw and raw.split(".")[0] != ctx["lib"]:
+        return True
     return False
 
 
@@ -403,7 +421,8 @@ def main():
 
     _, pkg = g.load_package(a.library, src_root)
     name_index, paths = build_index(pkg)
-    ctx = {"names": set(name_index), "paths": paths, "public": public_paths(pkg)}
+    ctx = {"names": set(name_index), "paths": paths, "public": public_paths(pkg),
+           "lib": a.library}
 
     n_symbols = n_public = n_modules = 0
     for mod in g.iter_modules(pkg):
