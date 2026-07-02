@@ -15,8 +15,15 @@ link-external-newwindow: true
 
 # Executable figures: keep runtime warnings out of the rendered page — they are
 # author-facing noise (e.g. platform BLAS FP warnings), not reader content.
+#
+# `freeze: auto` re-executes a document's figures only when its source changes,
+# reusing the cached outputs in `_freeze/` otherwise — the local-build cache.
+# `_freeze/` is gitignored (never commit rendered figures — they bloat clones),
+# so a fresh deploy clone has no cache and re-runs everything. `build.sh --clean`
+# wipes the cache to force full re-execution in a persistent workspace.
 execute:
   warning: false
+  freeze: auto
 
 # LaTeX math.
 html-math-method: mathjax

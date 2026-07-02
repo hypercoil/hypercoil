@@ -160,8 +160,10 @@ src/hypercoil/neuro/datasets
 # ---- Federation documentation hub (doc/) ----
 # Keep the doc build scripts tracked despite the `build/` rule above.
 !doc/build/
-# Build outputs and local toolchain — never committed.
+# Build outputs and local toolchain — never committed. `_freeze/` is the local
+# figure cache (execute.freeze:auto); a fresh deploy clone re-runs everything.
 doc/_site/
+doc/_freeze/
 doc/**/*_files/
 doc/_tooling/.tooling/
 doc/_tooling/pip-cache/
