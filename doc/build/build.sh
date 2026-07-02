@@ -90,6 +90,16 @@ ensure_ignored() {   # keep a rendered library's working tree clean of build cru
 
 for name in "${TARGETS[@]}"; do
   libdocs="$CODE/$name/docs"
+  # An active library may be a scaffold with no docs yet (no docs/, or a docs/
+  # with no Quarto project). Skip it — never mkdir into a library that has none —
+  # and drop any stale subtree so a lib that lost its docs vanishes from the site.
+  if [ ! -d "$libdocs" ] || { [ ! -f "$libdocs/_quarto.yml" ] \
+       && [ -z "$(find "$libdocs" -maxdepth 3 -name '*.qmd' 2>/dev/null \
+                    | grep -v '/_site/' | head -1)" ]; }; then
+    echo "   -- library: $name (no renderable docs — skipped)"
+    rm -rf "$SITE/$name"
+    continue
+  fi
   echo "   -- library: $name"
   # Install the umbrella's pinned shared extension (overrides any local copy,
   # guaranteeing hub-wide consistency — SPEC §4.3).
