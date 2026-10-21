@@ -7,14 +7,13 @@ Tools for initialising parameters corresponding to brain atlases.
 Neuroimaging atlases are principally defined and distributed with reference to
 either volumetric or surface-based coordinate spaces. Additionally, atlases
 might be either discrete-valued, hard-label parcellations or continuous-valued
-maps that can overlap with one another. The ``atlas`` initialisation module is
-designed to handle these use cases, together with random or unstructured
-initialisations that do not leverage prior knowledge and are thus unbiased by
-it.
+maps that can overlap with one another. This module handles these cases,
+together with random or unstructured initialisations that use no prior
+knowledge.
 
 The initialisation class itself,
 :doc:`AtlasInit <hypercoil.init.atlas.AtlasInit>`,
-takes as its main, non-optional argument an instance of an ``Atlas`` object.
+takes as its required argument an atlas object.
 All atlas objects subclass the abstract base class
 :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
 and incorporate a combination of
@@ -48,11 +47,8 @@ initialisations). Existing subclasses include
   initialised as random, i.i.d. samples from a Dirichlet distribution.
 
 .. note::
-    For cases not handled by the existing subclasses, we would eventually like
-    the :doc:`atlas mixins <hypercoil.init.atlasmixins>`
-    to be flexible and robust enough so that users can straightforwardly
-    design new atlas subclasses. In reality, we are not currently close to
-    this objective.
+    Composing the :doc:`atlas mixins <hypercoil.init.atlasmixins>` into a new
+    atlas subclass is not currently supported in general.
 
 .. image:: ../_images/atlas_linearmap.svg
   :width: 400

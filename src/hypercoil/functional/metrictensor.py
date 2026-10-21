@@ -188,11 +188,10 @@ def integrate_along_line_segment(
     """
     Approximately integrate a metric tensor field along a line segment.
 
-    It's generally challenging to find the geodesic distance between two
-    points on a Riemannian manifold. Here we use a crude approximation: we
-    sample points along a line segment between the two points, and then
-    approximate the integral of the metric tensor field along the line segment
-    as the average of the metric tensor field at the sampled points.
+    The geodesic distance between two points on a Riemannian manifold is
+    approximated by sampling points on the line segment between them and
+    averaging the norm under the metric tensor field over the samples. The
+    approximation is crude.
 
     Parameters
     ----------

@@ -34,6 +34,40 @@ def laplace_init(
     excl_axis: Optional[Sequence[int]] = None,
     key: jax.random.PRNGKey,
 ) -> Tensor:
+    r"""
+    Sample a tensor from a separable double exponential function.
+
+    Along each included axis the profile is :math:`e^{-|x - l| / w}` for array
+    coordinate :math:`x`, location :math:`l` and width :math:`w`; the
+    profiles are multiplied across axes and broadcast to ``shape``.
+
+    Parameters
+    ----------
+    shape
+        Shape of the output tensor.
+    loc
+        Location of the peak along each of the last ``len(loc)`` axes, in
+        array coordinates. Only those axes receive a profile. None places the
+        peak at the centre of every axis.
+    width
+        Decay length along each axis, aligned with the last axes of
+        ``shape``. None gives 1 for every axis. A large width approximates a
+        constant; a small one, a delta function at ``loc``.
+    normalise
+        ``'max'`` scales the output to a maximum of 1, ``'sum'`` to a sum of
+        1; None leaves the output unscaled. Applied before the noise.
+    var
+        Standard deviation of the additive Gaussian noise; 0 for none.
+    excl_axis
+        Axes that receive no profile; the result is broadcast along them.
+    key
+        Pseudo-random number generator key for the noise.
+
+    Returns
+    -------
+    Tensor
+        Tensor of shape ``shape``.
+    """
     if loc is None:
         loc = [(x - 1) / 2 for x in shape]
     if width is None:
@@ -69,6 +103,9 @@ def laplace_init(
 
 
 class LaplaceInitialiser(MappedInitialiser):
+    """
+    Double exponential initialiser; see :func:`laplace_init`.
+    """
 
     loc: Optional[Sequence[int]]
     width: Optional[Sequence[float]]
@@ -149,64 +186,23 @@ def laplace_init_(
     domain=None,
 ):
     """
-    Laplace initialisation.
+    In-place double exponential initialisation; not currently implemented.
 
-    Initialise a tensor such that its values are interpolated by a
-    multidimensional double exponential function, :math:`e^{-|x|}`.
+    Use :func:`laplace_init` or :class:`LaplaceInitialiser`.
 
-    Parameters
-    ----------
-    tensor : Tensor
-        Tensor to initialise in-place.
-    loc : iterable or None (default None)
-        Origin point of the double exponential, in array coordinates. If None,
-        this will be set to the centre of the array.
-    width : iterable or None (default None)
-        Decay rate of the double exponential along each array axis. If None,
-        this will be set to 1 isotropically. If this is very large, the result
-        will approximate a delta function at the specified ``loc``.
-    norm : ``'max'``, ``'sum'``, or None (default None)
-        Normalisation to apply to the output.
-
-        - ``'max'`` divides the output by its maximum value such that the
-          largest value in the initialised tensor is exactly 1.
-        - ``'sum'`` divides the output by its sum such that all entries in the
-          initialised tensor sum to 1.
-        - None indicates that the output should not be normalised.
-    var : float
-        Variance of the Gaussian distribution from which the random noise is
-        sampled.
-    excl_axis : list or None (default None)
-        List of axes across which a double exponential is not computed. Instead
-        the double exponential computed across the remaining axes is broadcast
-        across the excluded axes.
-    domain : Domain object (default :doc:`Identity <hypercoil.init.domainbase.Identity>`)
-        Used in conjunction with an activation function to constrain or
-        transform the values of the initialised tensor. For instance, using
-        the :doc:`Atanh <hypercoil.init.domain.Atanh>`
-        domain with default scale constrains the tensor as seen by
-        data to the range of the tanh function, (-1, 1). Domain objects can
-        be used with compatible modules and are documented further in
-        :doc:`hypercoil.init.domain <hypercoil.init.domain>`.
-        If no domain is specified, the Identity
-        domain is used, which does not apply any transformations or
-        constraints.
-
-    Returns
-    -------
-    None. The input tensor is initialised in-place.
+    Raises
+    ------
+    NotImplementedError
+        Always.
     """
     raise NotImplementedError
 
 
 class LaplaceInit:
     """
-    Double exponential initialisation.
+    Double exponential initialisation; not currently implemented.
 
-    Initialise a tensor such that its values are interpolated by a
-    multidimensional double exponential function, :math:`e^{-|x|}`.
-
-    See :func:`laplace_init_` for argument details.
+    Use :class:`LaplaceInitialiser`.
     """
 
     def __init__(

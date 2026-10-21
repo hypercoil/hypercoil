@@ -94,10 +94,10 @@ class PolyConv2D(TimeSeriesConv2D):
     r"""
     2D convolution over a polynomial expansion of an input signal.
 
-    In a degree-K polynomial convolution, each channel of the input dataset is
-    mapped across K channels, and raised to the ith power at the ith channel.
-    The convolution kernel's ith input channel thus views the input dataset
-    raised to the ith power.
+    In a degree-K polynomial convolution, each input channel is mapped
+    across K channels, and the ith channel holds the input raised to the ith
+    power. The ith input channel of the kernel thus sees the input raised to
+    the ith power.
 
     :Dimension: **Input :** :math:`(N, *, P, O)`
                     N denotes batch size, ``*`` denotes any number of
@@ -109,36 +109,31 @@ class PolyConv2D(TimeSeriesConv2D):
 
     Parameters
     ----------
-    degree : int (default 2)
-        Maximum degree of the polynomial expansion.
-    out_channels : int (default 1)
-        Number of output channels produced by the convolution.
-    memory : int (default 3)
-        Kernel memory. The number of previous observations viewable by the
-        kernel.
-    kernel_width : int (default 1)
-        Number of adjoining variables simultaneously viewed by the kernel.
-        Unless the variables are ordered and evenly sampled, this should either
-        be 1 or P. Setting this equal to 1 applies the same kernel to all
-        variables, while setting it equal to P applies a unique kernel for
-        each variable.
-    padding : int or None (default None)
-        Number of zero-padding frames added to both sides of the input.
-    bias : bool (default False)
-        Indicates that a learnable bias should be added channel-wise to the
-        output.
-    include_const : bool (default False)
-        Indicates that a constant term should be included in the polynomial
-        expansion. This is almost equivalent to `bias`, and it is advised to
-        use `bias` instead because it both is more efficient and exhibits more
-        appropriate edge behaviours.
-
-    Attributes
-    ----------
-    weight : Tensor
-        Learnable kernel weights for polynomial convolution.
-    bias : Tensor
-        Learnable bias for polynomial convolution.
+    degree
+        Maximum degree K of the polynomial expansion.
+    out_channels
+        Number of output channels, :math:`C_{out}`.
+    memory
+        Number of previous observations seen by the kernel.
+    kernel_width
+        Number of adjoining variables seen by the kernel at once. Unless the
+        variables are ordered and evenly sampled, use 1 (the same kernel for
+        every variable) or P (a separate kernel for each variable).
+    padding
+        ``'initial'`` or ``'final'`` makes the kernel causal (memory only)
+        and pads the start or end of the series; a sequence of
+        ``(before, after)`` pairs pads each of the last two axes explicitly.
+        None pads the time axis symmetrically, by half the kernel duration on
+        each side.
+    use_bias
+        Add a learnable bias for each output channel.
+    include_const
+        Include a constant term in the expansion. Prefer ``use_bias``, which
+        is more efficient and behaves better at the edges.
+    key
+        Pseudo-random number generator key. Weights and bias are initialised
+        from :math:`\mathcal{U}(-l, l)`, with :math:`l` the inverse square
+        root of the kernel's fan-in.
     """
     include_const: bool
 

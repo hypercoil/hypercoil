@@ -136,34 +136,29 @@ class Initialiser(eqx.Module):
 
 class MappedInitialiser(Initialiser):
     """
-    Parameter initialiser base class that also admits an optional
+    Initialiser base class with an optional
     :doc:`parameter map <api/hypercoil.init.mapparam>`.
 
-    This is useful for combining initialisation and re-parameterisation into a
-    single step. The supplied parameter map should not be an instance but a
-    class. If no map is supplied, the initialiser is applied as normal.
+    The map combines initialisation and re-parameterisation in one step. The
+    map is given as a class, not an instance. Without a map, the initialiser
+    is applied as normal.
 
-    This class must be subclassed to be used. Subclasses must implement the
-    ``_init`` method, which takes a desired output shape (``shape``) and a
-    random number generator key (``key``) and returns a tensor of the
-    requested shape.
+    A subclass implements ``_init``, which takes an output shape (``shape``)
+    and a random number generator key (``key``) and returns a tensor of that
+    shape.
 
     .. warning::
-        To use an initialiser, do not instantiate it directly, but instead use
-        the ``init`` method of the module class that uses it. This will apply
-        the initialiser to the model parameter specified by ``where``.
+        Do not call an instance directly. The classmethod ``init`` applies
+        the initialiser to the model parameter at ``where``.
 
     .. note::
-        The initialiser is first used to initialise the requested parameter,
-        and the mapping function is thereafter applied to the resulting
-        tensor. If the initialisation produces out-of-domain values for the
-        mapping function, the tensor that is ultimately instantiated might
-        not reflect the specifications of the initialiser, as the mapping
-        function will automatically apply any out-of-domain handlers.
+        The initialiser fills the parameter first, and the map is then
+        applied to the result. The map applies its out-of-domain handler to
+        any out-of-domain values, so the instantiated tensor might not match
+        the initialiser's specification.
 
     .. note::
-        Any extra keyword arguments to the ``init`` method are passed to the
-        mapping function when it is applied.
+        Extra keyword arguments to ``init`` are passed to the map.
     """
 
     mapper: Optional[Type[MappedParameter]] = None

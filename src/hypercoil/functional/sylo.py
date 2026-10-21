@@ -88,24 +88,23 @@ def sylo(
     symmetry : ``'cross'``, ``'skew'``, or other (default None)
         Symmetry constraint imposed on the generated low-rank template matrix.
 
-        * ``cross`` enforces symmetry by replacing the initial expansion with
-          the average of the initial expansion and its transpose,
+        * ``cross`` replaces the expansion with the mean of the expansion and
+          the transpose of the expansion,
           :math:`\frac{1}{2} \left( L R^\intercal + R L^\intercal \right)`
-        * ``skew`` enforces skew-symmetry by subtracting from the initial
-          expansion its transpose,
+        * ``skew`` subtracts the transpose of the expansion from the
+          expansion,
           :math:`\frac{1}{2} \left( L R^\intercal - R L^\intercal \right)`
-        * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
-          also be enforced by passing None for R or by passing the same input
-          for R and L. (This approach also guarantees that the output is
-          positive semidefinite.)
-        This option will result in an error for nonsquare matrices or bipartite
-        graphs. Note that the parameter count doubles if this is False.
-    similarity : function (default `crosshair_similarity`)
-        Definition of the similarity metric. This must be a function that takes
-        as its first input the input tensor :math:`X` and as its second input
-        the expanded (and potentially symmetrised) weight tensor. Similarity is
-        computed between each of the N matrices in the first input stack and
-        the weight. Uses the :func:`crosshair_similarity` measure by default.
+        * Otherwise, no symmetry constraint is imposed. Passing None for R,
+          or the same tensor as R and L, gives a symmetric positive
+          semidefinite expansion.
+
+        ``cross`` and ``skew`` raise an error for nonsquare matrices or
+        bipartite graphs.
+    similarity
+        Similarity metric. A function of the input tensor :math:`X` and the
+        expanded (and possibly symmetrised) template tensor, which computes
+        the similarity between each of the N input matrices and each
+        template. Default :func:`crosshair_similarity`.
     remove_diagonal : bool (default False)
         If True, the diagonal of the input matrix is removed before computing
         the similarity measure. This is useful for graphs, where the diagonal

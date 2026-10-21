@@ -620,15 +620,11 @@ class MappedLogits(AffineDomainMappedParameter):
 
 class NormSphereParameter(AffineDomainMappedParameter):
     """
-    Parameter whose constituent vectors are projected onto a sphere of some
-    fixed norm.
+    Parameter whose vectors are projected onto a sphere of fixed norm.
 
-    Note that this will only work for proper convex norms. (It will obviously
-    not work for the L0 norm, for example.)
-
-    .. warning::
-        The normalisation procedure is a simple division operation. Thus, it
-        will not work for many matrix norms.
+    The projection divides each vector by its norm (plus machine epsilon).
+    The projection is valid only for proper norms: the L0 pseudo-norm, for
+    instance, does not work, nor do many matrix norms.
 
     Parameters
     ----------
@@ -653,10 +649,9 @@ class NormSphereParameter(AffineDomainMappedParameter):
         Mahalanobis-like ellipse norm is computed using those matrices. (No
         matrix inversion is performed.) By default, the Euclidean norm is
         used.
-    axis : int or tuple(int)
-        Axis or axis tuple over which the norm is computed. Every slice along
-        the specified axis or axis tuple of the mapped tensor is rescaled so
-        that its norm is equal to ``scale`` in the specified ``norm``.
+    axis
+        Axis or axes over which the norm is computed. Every slice of the
+        mapped tensor along ``axis`` is rescaled to norm ``scale``.
     """
 
     normalise_fn: Callable

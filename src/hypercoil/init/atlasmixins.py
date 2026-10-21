@@ -926,15 +926,10 @@ def _dict_to_gifti_label_table(
     dictionary: Dict[str, int]
 ) -> nb.GiftiLabelTable:
     """
-    The GiftiLabelTable is a horribly inconvenient data structure that we're
-    stuck with because it's the only way to store a label table in a GIfTI
-    file. This is in part because it's actually designed to be a colourmap,
-    but we're trying to use it as a label table.
-
-    This function converts a dictionary of labels to a
-    GiftiLabelTable so that we don't have to deal with this inconvenience
-    elsewhere.
+    Convert a dictionary of labels to a GIfTI label table.
     """
+    # GiftiLabelTable is designed as a colourmap, but it is the only way to
+    # store a label table in a GIfTI file.
     labeltable = nb.gifti.GiftiLabelTable()
     for k, v in dictionary.items():
         v = {

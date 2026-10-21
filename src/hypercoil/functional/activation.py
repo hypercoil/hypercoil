@@ -26,10 +26,10 @@ def laplace(
 
     :math:`e^{\frac{-|x - \mu|}{b}}`
 
-    to inputs x with centre :math:`\mu` and width b. It constrains its outputs
-    to the range (0, 1], mapping values closer to its centre to larger outputs.
-    It is Lipschitz continuous over the reals and differentiable except at its
-    centre.
+    to inputs :math:`x` with centre :math:`\mu` and width :math:`b`. Outputs
+    lie in (0, 1]; inputs closer to the centre map to larger outputs. The
+    function is Lipschitz continuous over the reals and differentiable except
+    at :math:`\mu`.
 
     :Dimension: As this activation function is applied elementwise, it
                 conserves dimension; the output will be of the same shape as
@@ -64,9 +64,9 @@ def expbarrier(
 
     :math:`b \sqrt{1 - \exp{\frac{-|x|}{b^2}}}`
 
-    to inputs x with barrier b. It constrains its outputs to the range [0, b).
-    It is Lipschitz continuous over the reals and differentiable except at its
-    centre.
+    to inputs :math:`x` with barrier :math:`b`. Outputs lie in
+    :math:`[0, b)`. The function is Lipschitz continuous over the reals and
+    differentiable except at 0.
 
     :Dimension: As this activation function is applied elementwise, it
                 conserves dimension; the output will be of the same shape as

@@ -150,10 +150,11 @@ def crosshair_dot_gen(
     axes: Tuple[int, int] = (-2, -1),
 ) -> Tensor:
     """
-    A generalised version of the crosshair dot product where the crosshair can
-    be extended over any number of dimensions. As it suffers poor performance
-    relative to the 2-D implementation and as its use cases are likely narrow,
-    its correctness has not been tested.
+    Compute the crosshair dot product over any number of axes.
+
+    .. warning::
+        Experimental and untested. Slower than the 2-D implementation,
+        :func:`crosshair_dot`.
     """
     prod = A * B
     repeats = len(axes) - 1

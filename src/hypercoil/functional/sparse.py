@@ -1102,13 +1102,11 @@ def _get_dense_dim_mm_batchfinal(lhs, rhs):
 
 def spspmm_batchfinal(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
     """
-    Sparse-sparse matrix multiplication with vectorisation over trailing dense
-    dimensions.
+    Multiply sparse matrices, vectorised over trailing dense dimensions.
 
-    .. note::
-        This function is not recommended for use. It is maintained in case
-        it is useful in the future. It is strongly recommended that you use
-        the top-k format instead.
+    .. warning::
+        Not recommended; use top-k format matrices with :func:`spspmm`
+        instead.
     """
     # only support 2D sparse for now
     assert lhs.n_sparse == rhs.n_sparse == 2

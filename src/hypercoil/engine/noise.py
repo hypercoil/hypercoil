@@ -144,17 +144,14 @@ def sample_multivariate(
 
 class StochasticSource(eqx.Module):
     """
-    A wrapper for a pseudo-random number generator key.
+    Pseudo-random number generator key embedded in a stochastic module.
 
-    In general, this is not exposed to the user. It is embedded in other
-    modules, such as ``StochasticTransform`` and its subclasses.
-
-    If your training loop includes stochastic sources, you should use
-    the :func:`refresh`` function to generate a new key for each epoch (or
-    as needed). Each ``StochasticSource`` instance also has a ``code`` field
-    that can be used to selectively refresh only a subset of the sources.
-    In most cases, it is not necessary to change the default value of
-    ``code``.
+    A ``StochasticSource`` is embedded in modules such as
+    :class:`StochasticTransform` and its subclasses. A training loop that
+    includes stochastic sources calls :func:`refresh` on the model to draw a
+    new key for each epoch, or as needed. :func:`refresh` refreshes only the
+    sources whose ``code`` field equals its ``code`` argument; the default,
+    0, is usually adequate.
     """
 
     key: 'jax.random.PRNGKey'
@@ -162,8 +159,9 @@ class StochasticSource(eqx.Module):
 
     def refresh(self):
         """
-        If you are calling this method, you are probably doing something
-        wrong. You should probably use the :func:`refresh` function instead.
+        Return a source with a new key and the default ``code``.
+
+        Use :func:`refresh` on the containing model instead.
         """
         key = jax.random.split(self.key, 1)[0]
         return StochasticSource(key=key)
@@ -231,14 +229,13 @@ class StochasticTransform(eqx.Module):
     - ``inject``: Inject noise into a tensor. Required positional parameter:
                   ``input``. Required keyword parameters: ``key``.
 
-    A stochastic transform on its own can be used as a layer for noise
-    injection, regularisation or dropout (multiplicative noise). Its
-    ``__call__`` (forward) method will sample from the noise distribution and
-    inject it into the input depending on the value of the transform's
-    ``inference`` attribute.
+    A stochastic transform can be used as a layer for noise injection,
+    regularisation or dropout (multiplicative noise). The forward method
+    (``__call__``) samples from the noise distribution and injects the sample
+    into the input unless the ``inference`` attribute is True.
 
-    Alternatively, it can be used to wrap a parameter of a model using the
-    :class:``StochasticParameter`` API.
+    A stochastic transform can also wrap a parameter of a model through
+    :class:`StochasticParameter`.
 
     Parameters
     ----------\

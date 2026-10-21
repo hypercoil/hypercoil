@@ -239,10 +239,9 @@ def expand_outer(
     r"""
     Multiply out a left and a right generator matrix as an outer product.
 
-    The rank of the output is limited according to the inner dimensions of the
-    input generators. This approach can be used to produce a low-rank output
-    or to share the generators' parameters across the rows and columns of the
-    output matrix.
+    The rank of the output is at most the inner dimension (``rank``) of the
+    generators. The expansion produces a low-rank output, or shares the
+    generators' parameters across the rows and columns of the output.
 
     :Dimension: **L :** :math:`(*, H, rank)`
                     H denotes the height of the expanded matrix, and rank
@@ -271,16 +270,15 @@ def expand_outer(
     symmetry : ``'cross'``, ``'skew'``, or None (default None)
         Symmetry constraint imposed on the generated low-rank template matrix.
 
-        * ``cross`` enforces symmetry by replacing the initial expansion with
-          the average of the initial expansion and its transpose,
+        * ``cross`` replaces the expansion with the mean of the expansion and
+          the transpose of the expansion,
           :math:`\frac{1}{2} \left( L R^\intercal + R L^\intercal \right)`
-        * ``skew`` enforces skew-symmetry by subtracting from the initial
-          expansion its transpose,
+        * ``skew`` subtracts the transpose of the expansion from the
+          expansion,
           :math:`\frac{1}{2} \left( L R^\intercal - R L^\intercal \right)`
-        * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
-          also be enforced by passing None for R or by passing the same input
-          for R and L. (This approach also guarantees that the output is
-          positive semidefinite.)
+        * Otherwise, no symmetry constraint is imposed. Passing None for R,
+          or the same tensor as R and L, gives a symmetric positive
+          semidefinite output.
     """
     if L.ndim == 1:
         L = L[..., None]

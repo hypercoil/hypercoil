@@ -779,24 +779,25 @@ class ScatterNode(TransformPrimitive):
 
 def numbered_string(s):
     """
-    Convert a string whose final characters are numeric into a tuple
-    containing all characters except the final numeric ones in the first field
-    and the numeric characters, cast to an int, in the second field. This
-    permits comparison of strings of this form without regard to the number of
-    zeros in the final numeric part. It also permits strings of this form to
-    be sorted in numeric order.
+    Split a string that ends in digits into its prefix and integer suffix.
+
+    The result compares and sorts strings of this form in numeric order,
+    without regard to leading zeros in the numeric suffix.
 
     Parameters
     ----------
-    s : string
-        A string whose first characters are non-numeric and whose final
-        characters are numeric.
+    s
+        String whose final characters are digits.
 
     Returns
     -------
     tuple(str, int)
-        Input string split into its initial non-numeric substring and its
-        final numeric substring, cast to an int.
+        The string without its final digits, and the final digits as an int.
+
+    Raises
+    ------
+    AttributeError
+        If ``s`` does not end in a digit.
     """
     num = int(re.search('(?P<num>[0-9]+$)', s).groupdict()['num'])
     string = re.sub('[0-9]+$', '', s)
