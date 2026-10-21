@@ -57,15 +57,16 @@ def document_semidefinite_projection_module(f: Callable) -> Callable:
                     tangency)."""
 
     tangent_projection_mean_specs_spec = """
-    mean_specs : list(``_SemidefiniteMean`` object)
+    mean_specs
         Objects encoding a measure of central tendency in the positive
         semidefinite cone. Used to initialise the reference points of
         tangency. Selected from
         :doc:`means on the semidefinite cone <hypercoil.init.semidefinite>`."""
 
     tangent_projection_dest_spec = """
-    dest : ``'tangent'`` or ``'cone'``
-        Target space/manifold of the projection operation."""
+    dest
+        Target space/manifold of the projection operation.
+        One of ``'tangent'`` and ``'cone'``."""
 
     fmt = NestedDocParse(
         tangent_projection_long_description=long_description,
@@ -165,7 +166,7 @@ class TangentProject(_TangentProject):
 
     Parameters
     ----------
-    init_data : Tensor
+    init_data
         Data sample whose central tendency initialises the reference point of
         tangency.\
     {tangent_projection_mean_specs_spec}\
@@ -177,9 +178,10 @@ class TangentProject(_TangentProject):
 
     Attributes
     ----------
-    weight : Tensor :math:`(*, C, N, N)`
+    weight
         Reference point of tangency for the projection between the
         semidefinite cone and a tangent subspace.
+        Shape :math:`(*, C, N, N)`.
     """
 
     weight: Tensor
@@ -283,18 +285,20 @@ class BatchTangentProject(_TangentProject):
     ----------\
     {tangent_projection_mean_specs_spec}\
     {semidefinite_mean_psi_spec}
-    inertia : float in [0, 1]
+    inertia
         Parameter :math:`\eta` describing the relative weighting of the
         historical tangencypoint and the current batch mean. Zero inertia
         strictly uses the current batch mean. High inertia prevents the
-        tangency point from skipping by heavily weighting the history.\
+        tangency point from skipping by heavily weighting the history.
+        In [0, 1].\
     {tangent_projection_dest_spec}
 
     Attributes
     ----------
-    weight : Tensor :math:`(*, C, N, N)`
+    weight
         Current reference point of tangency :math:`\Omega` for the projection
         between the semidefinite cone and a tangent subspace.
+        Shape :math:`(*, C, N, N)`.
     """
 
     inertia: float

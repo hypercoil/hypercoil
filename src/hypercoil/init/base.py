@@ -210,12 +210,12 @@ class MappedInitialiser(Initialiser):
         ----------
         model
             Model whose parameter to initialise.
-        mapper : Optional[Type[MappedParameter]] (default: None)
+        mapper
             Mapping function to apply to the initialised parameter. This
             should be a subclass of
             :doc:`MappedParameter <api/hypercoil.init.mapparam.MappedParameter>`.
             If this is ``None``, the initialiser is applied as normal.
-        where : str or callable (default: "weight")
+        where
             Address of the parameter to initialise. This can be a string
             address or a callable that takes a model and returns a
             parameter.

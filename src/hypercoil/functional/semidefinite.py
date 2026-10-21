@@ -57,10 +57,10 @@ def document_semidefinite_projection(f: Callable) -> Callable:
                 **Output :** :math:`(N, *, D, D)`
                     As above."""
     tangency_base_spec = """
-    input : Tensor
+    input
         Batch of symmetric positive definite matrices to project into the
         tangent subspace.
-    reference : Tensor
+    reference
         Point of tangency. This is an element of the positive semidefinite
         cone at which the projection occurs. It should be representative of
         the sample being projected (for instance, some form of mean)."""
@@ -121,18 +121,18 @@ def document_semidefinite_mean(f: Callable) -> Callable:
        been attained."""
 
     semidefinite_mean_input_spec = """
-    input : Tensor
+    input
         Batch of matrices over which the Euclidean mean is to be computed."""
     semidefinite_mean_axis_spec = """
-    axis : int
+    axis
         Axis or axes over which the mean is computed."""
     semidefinite_mean_nonsingular_spec = """
-    require_nonsingular : bool (default True)
+    require_nonsingular
         Indicates that the input matrix must be nonsingular. If this is
         False, then the Moore-Penrose pseudoinverse is computed instead of
         the inverse."""
     semidefinite_mean_psi_spec = r"""
-    psi : float in [0, 1]
+    psi
         Conditioning factor to promote positive definiteness. If this is in
         (0, 1], the original input will be replaced with a convex combination
         of the input and an identity matrix.
@@ -141,11 +141,13 @@ def document_semidefinite_mean(f: Callable) -> Callable:
 
         A suitable value can be used to ensure that all eigenvalues are
         positive and therefore guarantee that the matrix is in the domain of
-        projection operations."""
+        projection operations.
+        In [0, 1]."""
     semidefinite_mean_maxiter_spec = """
-    max_iter : nonnegative int
+    max_iter
         The maximum number of iterations of gradient descent to run before
-        termination."""
+        termination.
+        Nonnegative."""
     semidefinite_mean_return_spec = """
     Returns
     -------

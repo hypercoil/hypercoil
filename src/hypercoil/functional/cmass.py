@@ -44,14 +44,14 @@ def cmass(
     X
         Tensor containing the weights whose centres of mass are to be
         computed.
-    axes : iterable or None (default None)
+    axes
         Axes of the input tensor that together define each slice of the tensor
         within which a single centre-of-mass vector is computed. If this is
         set to None, then the centre of mass is computed across all axes. If
         this is [-3, -2, -1], then the centre of mass is computed separately
         for each 3-dimensional slice spanned by the last three axes of the
         tensor.
-    na_rm : float or False (default False)
+    na_rm
         If any single slice of the input tensor has zero mass, then the centre
         of mass within that slice is undefined and populated with NaN. The
         `na_rm` parameter specified how such undefined values are handled. If
@@ -140,7 +140,7 @@ def cmass_coor(
         Weight whose centre of mass is to be computed.
     coor
         Coordinates corresponding to each column (location/voxel) in X.
-    radius : float or None (default None)
+    radius
         If this is not None, then the computed centre of mass is projected
         onto a sphere with the specified radius.
 
@@ -189,10 +189,10 @@ def diffuse(
         Coordinates corresponding to each column (location/voxel) in X.
     norm
         Indicator of the type of norm to use for the distance function.
-    floor : float (default 0)
+    floor
         Any points closer to the centre of mass than the floor are assigned
         a compactness score of 0.
-    radius : float or None (default None)
+    radius
         If this is not None, then the centre of mass and distances are
         computed on a sphere with the specified radius.
 

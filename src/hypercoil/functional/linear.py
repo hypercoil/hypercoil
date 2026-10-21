@@ -178,13 +178,13 @@ def compartmentalised_linear(
         Compartment-specific weights.
     limits
         Indices denoting the start and size of each compartment.
-    decoder : Optional[Mapping[str, Tensor]] (default: None)
+    decoder
         Decoder for compartment-specific weights.
-    bias : Optional[Tensor] (default: None)
+    bias
         Bias term.
-    normalisation : Optional[Literal['mean', 'absmean', 'zscore', 'psc']] (default: None)
+    normalisation
         Normalisation approach for output.
-    forward_mode : Literal['map', 'project', 'encode'] (default: 'map')
+    forward_mode
         Forward mode for linear mapping.
 
     Returns

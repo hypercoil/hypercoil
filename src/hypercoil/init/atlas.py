@@ -178,7 +178,7 @@ class BaseAtlas(eqx.Module):
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
@@ -189,20 +189,20 @@ class BaseAtlas(eqx.Module):
     mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -308,18 +308,18 @@ class BaseAtlas(eqx.Module):
 
         Parameters
         ----------
-        compartments : iterable, False, or True (default True)
+        compartments
             Compartments for which transformed maps should be computed. If
             this is set to False, then a single transformed map is returned
             for the combined compartment containing all spatial locations. If
             this is set to True, then a transformed map is returned for every
             defined compartment.
-        normalise : bool (default False)
+        normalise
             Indicates that maps should be spatially normalised such that the
             sum over all assignments to a parcel is equal to 1. When the map
             is used as a linear transformation, this option results in
             computation of a weighted average over each parcel.
-        sigma : float or None (default None)
+        sigma
             If this is not None, then spatial smoothing using a Gaussian
             kernel is applied over each parcel's assignments. Distances are
             established by the atlas's coordinate system and the topology of
@@ -330,11 +330,11 @@ class BaseAtlas(eqx.Module):
             to another tensor of the same dimensions. After spatial smoothing
             but before normalisation, this callable is applied to each map
             tensor to inject noise.
-        max_bin : int (default 10000)
+        max_bin
             Because spatial smoothing has substantial memory overhead, this
             flag sets a ceiling on the number of spatial locations to be
             smoothed at a time.
-        spherical_scale : float (default 1)
+        spherical_scale
             During spatial smoothing, the Gaussian kernel is scaled by this
             value for spherical coordinate systems only. This enables the use
             of different kernel widths for spherical and Euclidean
@@ -406,7 +406,7 @@ class DirichletInitBaseAtlas(
     ----------
     mask_source
         Source of data used to create an overall mask for the atlas.
-    compartment_labels : dict(int)
+    compartment_labels
         Number of labels to initialise for each compartment.
     conc
         If this is provided and ``init`` is not, then the Dirichlet
@@ -417,7 +417,7 @@ class DirichletInitBaseAtlas(
         Template used to define the spatial dimensions and coordinates of the
         atlas. If this is not provided explicitly, then the mask source image
         is used by default.
-    init : dict(Dirichlet)
+    init
         Dict mapping from compartment names to the Dirichlet distributions
         used for parcel assignment initialisation in each compartment.
     """
@@ -523,31 +523,31 @@ class DiscreteVolumetricAtlas(
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -592,31 +592,31 @@ class MultiVolumetricAtlas(
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -661,31 +661,31 @@ class MultifileVolumetricAtlas(
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -790,31 +790,31 @@ class CortexSubcortexCIfTIAtlas(
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -868,14 +868,14 @@ class DirichletInitVolumetricAtlas(
     ----------
     mask_source
         Source of data used to create an overall mask for the atlas.
-    n_labels : dict(int)
+    n_labels
         Number of labels to initialise for the atlas.
     conc
         If this is provided and `init` is not, then the Dirichlet
         distributions used to sample assignments of spatial locations to
         parcels are defined with the same concentration parameter, `conc`,
         for each parcel.
-    init : dict(Dirichlet)
+    init
         The Dirichlet distribution used for parcel assignment initialisation.
         If this is not provided, then a distribution with equal concentrations
         will be created using the `conc` parameter.
@@ -887,25 +887,25 @@ class DirichletInitVolumetricAtlas(
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : None
+    cached_ref_data
         Nothing here. The field exists for consistency with other atlas
         classes.
     """
@@ -956,14 +956,14 @@ class DirichletInitSurfaceAtlas(
     ----------
     cifti_template
         Template CIfTI for establishing compartment extents.
-    compartment_labels : dict(int)
+    compartment_labels
         Number of labels to initialise for each compartment.
     conc
         If this is provided and `init` is not, then the Dirichlet
         distributions used to sample assignments of spatial locations to
         parcels are defined with the same concentration parameter, `conc`,
         for each parcel.
-    init : dict(Dirichlet)
+    init
         Dict mapping from compartment names to the Dirichlet distributions
         used for parcel assignment initialisation in each compartment.
     mask_L
@@ -989,25 +989,25 @@ class DirichletInitSurfaceAtlas(
 
     Attributes
     ----------
-    ref : nb.CiftiImage
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -1073,10 +1073,10 @@ class IcosphereAtlas(
         ``12 + 10 * (n_subdivisions**2 -1)``. Then, the coordinates of each
         label are compared against the mask coordinates using a 1-nearest
         neighbour search to determine the inclusion status of each label.
-    rotation_target : Tensor or None (default None)
+    rotation_target
         If provided, the coordinates of the first vertex of the icosphere will be
         rotated to align with the provided target coordinate.
-    rotation_secondary : Tensor or None (default None)
+    rotation_secondary
         If provided, the coordinates of the second vertex of the icosphere will
         be rotated to align with the provided secondary coordinate.
     mask_L
@@ -1221,10 +1221,10 @@ def atlas_init(
     ----------
     atlas
         Atlas object to use for tensor initialisation.
-    kernel_sigma : float or None (default None)
+    kernel_sigma
         If this is a float, then a Gaussian smoothing kernel with the
         specified width is applied to each label after it is extracted.
-    noise_sigma : float or None (default None)
+    noise_sigma
         If this is a float, then Gaussian noise with the specified standard
         deviation is added to the label.
     """
@@ -1260,17 +1260,17 @@ class AtlasInitialiser(MappedInitialiser):
     ----------
     atlas
         Atlas object to use for tensor initialisation.
-    normalise : bool (default False)
+    normalise
         Indicates that maps should be spatially normalised such that the sum
         over all assignments to a parcel is equal to 1. When the map is used
         as a linear transformation, this option results in computation of a
         weighted average over each parcel.
-    kernel_sigma : float or None (default None)
+    kernel_sigma
         If this is not None, then spatial smoothing using a Gaussian kernel is
         applied over each parcel's assignments. Distances are established by
         the atlas's coordinate system and the topology of each compartment.
         The value of sigma establishes the width of the Gaussian kernel.
-    noise_sigma : float or None (default None)
+    noise_sigma
         If this is not None, then Gaussian noise with the specified standard
         deviation is added to each label.
     """

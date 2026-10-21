@@ -22,7 +22,7 @@ from ..init.mapparam import MappedParameter
 
 def document_atlas_lin_init(f: Callable) -> Callable:
     atlas_lin_init_param_spec = r"""
-    normalisation : ``'mean'``, ``'absmean'``, ``'zscore'``, ``'psc'``, or None (default ``'mean'``)
+    normalisation
         Strategy for normalising across voxels and generating a representative
         time series for each label.
 
@@ -35,7 +35,7 @@ def document_atlas_lin_init(f: Callable) -> Callable:
           mean is 0 and its temporal standard deviation is 1.
         * ``psc``: Transform the time series such that its value indicates the
           percent signal change from the mean.
-    forward_mode : ``'map'`` or ``'project'``
+    forward_mode
         Strategy for extracting regional time series from parcels.
 
         * ``'map'``: Simple linear map. Given a compartment atlas
@@ -57,7 +57,7 @@ def document_atlas_lin_init(f: Callable) -> Callable:
 
             &= \left(A A^\intercal\right)^{-1} A T_{in}
             \end{aligned}
-    concatenate : bool, optional (default=True)
+    concatenate
         Whether to concatenate the output time series across compartments."""
 
     fmt = NestedDocParse(
@@ -96,13 +96,13 @@ class AtlasLinear(eqx.Module):
         Number of locations (e.g., voxels or vertices) in each compartment.
     n_labels
         Number of labels in each compartment.
-    limits : Dict[str, Tuple[int, int]], optional (default=None)
+    limits
         Limits of each compartment. The first element of the tuple denotes the
         lower limit and the second element denotes the size, i.e., the number
         of locations in the compartment -- *not* the upper limit. If None, the
         limits are set to the default values, which are defined using the
         cumulative sum of the number of locations in each compartment.
-    decoder : Optional[Dict[str, Tensor]], optional (default=None)
+    decoder
         Decoder for labels in each compartment. The decoder is an
         integer-valued tensor that defines the map from row numbers to label
         numbers. If None, the decoder corresponds to the identity map -- i.e.,

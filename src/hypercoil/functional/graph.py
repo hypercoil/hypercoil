@@ -87,41 +87,43 @@ def document_modularity(f: Callable) -> Callable:
                 **Output :** :math:`(*, I, O)`
                     As above."""
     adjacency_param_spec = """
-    A : Tensor
+    A
         Block of adjacency matrices for which the quantity of interest is to
         be computed."""
     modularity_matrix_param_spec = """
-    gamma : nonnegative float (default 1)
+    gamma
         Resolution parameter for the modularity matrix. A smaller value assigns
         maximum modularity to partitions with large communities, while a larger
         value assigns maximum modularity to partitions with many small
         communities.
-    null : callable(A) (default ``girvan_newman_null``)
+        Nonnegative.
+    null
         Function of ``A`` that returns, for each adjacency matrix in the input
         tensor block, a suitable null model. By default, the
         :doc:`Girvan-Newman null model <hypercoil.functional.graph.girvan_newman_null>`
         is used.
-    normalise_modularity : bool (default False)
+    normalise_modularity
         Indicates that the resulting matrix should be normalised by the total
         matrix degree. This may not be necessary for many use cases -- for
         instance, where the arg max of a function of the modularity matrix is
         desired.
-    sign : ``'+'``, ``'-'``, or None (default ``'+'``)
+    sign
         Sign of connections to be considered in the modularity.
+        One of ``'+'``, ``'-'`` and None.
     **params
         Any additional parameters are passed to the null model."""
     coaffiliation_param_spec = r"""
-    C : Tensor
+    C
         Community affiliation of vertices in the source set. Each slice is a
         matrix :math:`C^{(i)} \in \mathbb{R}^{I \ times C}` that encodes the
         uncertainty in each vertex's community assignment. :math:`C^{(i)}_{jk}`
         denotes the probability that vertex j is assigned to community k. If
         this is binary-valued, then it reflects a deterministic assignment.
-    C_o : Tensor or None (default None)
+    C_o
         Community affiliation of vertices in the sink set. If None, then it is
         assumed that the source and sink sets are the same, and ``C_o`` is set
         equal to ``C_i``.
-    L : Tensor or None (default None)
+    L
         The inter-community coupling matrix :math:`\Omega`, mapping the
         probability of affiliation between communities. Each entry
         :math:`L_{ij}` encodes the probability of a vertex in community i
@@ -129,9 +131,9 @@ def document_modularity(f: Callable) -> Callable:
         assortative structure is assumed (equivalent to L equals identity),
         under which nodes in the same community preferentially coaffiliate
         while nodes in different communities remain disaffiliated.
-    exclude_diag : bool (default True)
+    exclude_diag
         Indicates that self-links are not factored into the coaffiliation.
-    normalise_coaffiliation : bool (default False)
+    normalise_coaffiliation
         Normalise all community assignment weights to max out at 1."""
 
     fmt = NestedDocParse(
@@ -291,7 +293,7 @@ def relaxed_modularity(
     ----------
     {adjacency_param_spec}\
     {coaffiliation_param_spec}
-    directed : bool (default False)
+    directed
         Indicates that the input adjacency matrices should be considered as a
         directed graph.\
     {modularity_matrix_param_spec}
@@ -384,10 +386,10 @@ def graph_laplacian(
         Edge weight tensor. If ``edge_index`` is not provided, then this
         should be the graph adjacency matrix; otherwise, it should be a
         list of weights corresponding to the edges in ``edge_index``.
-    normalise : bool (default True)
+    normalise
         Indicates that the Laplacian should be normalised using the degree
         matrix.
-    topk : bool (default True)
+    topk
         Indicates that the input is a top-k sparse matrix. Ignored if ``W``
         is not a sparse matrix.
     """

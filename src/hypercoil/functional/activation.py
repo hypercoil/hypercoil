@@ -40,10 +40,12 @@ def laplace(
     input
         Tensor to be transformed elementwise by the double exponential
         activation function.
-    loc : float or broadcastable Tensor (default 0)
+    loc
         Centre parameter :math:`\mu` of the double exponential function.
-    width : float or broadcastable Tensor (default 1)
+        A scalar or a tensor broadcastable against ``input``.
+    width
         Spread parameter b of the double exponential function.
+        A scalar or a tensor broadcastable against ``input``.
 
     Returns
     -------
@@ -77,8 +79,9 @@ def expbarrier(
     input
         Tensor to be transformed elementwise by the exponential barrier
         activation function.
-    barrier : float or broadcastable Tensor (default 0)
+    barrier
         Barrier parameter b of the exponential function.
+        A scalar or a tensor broadcastable against ``input``.
 
     Returns
     -------
@@ -131,10 +134,12 @@ def amplitude_laplace(
     input
         Tensor whose amplitude is to be transformed elementwise by the double
         exponential activation function.
-    loc : float or broadcastable Tensor (default 0)
+    loc
         Centre parameter :math:`\mu` of the double exponential function.
-    width : float or broadcastable Tensor (default 1)
+        A scalar or a tensor broadcastable against ``input``.
+    width
         Spread parameter b of the double exponential function.
+        A scalar or a tensor broadcastable against ``input``.
 
     Returns
     -------
@@ -170,8 +175,9 @@ def amplitude_expbarrier(
     input
         Tensor whose amplitude is to be transformed elementwise by the double
         exponential activation function.
-    barrier : float or broadcastable Tensor (default 0)
+    barrier
         Barrier parameter b of the exponential function.
+        A scalar or a tensor broadcastable against ``input``.
 
     Returns
     -------
@@ -273,9 +279,9 @@ def document_corrnorm(f: Callable) -> Callable:
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor to be normalised.
-    factor : Tensor, iterable(Tensor, Tensor), or None (default None)
+    factor
         Normalisation factor.
 
         * If this is not explicitly specified, it follows the default
@@ -285,10 +291,11 @@ def document_corrnorm(f: Callable) -> Callable:
           with non-square inputs.
         * If this is a pair of tensors, then ``input`` is divided by their
           outer product.
-    gradpath : str ``'input'`` or ``'both'`` (default ``'both'``)
+    gradpath
         If this is set to ``'input'`` and the default normalisation behaviour
         is used, then gradient will be blocked from flowing backward through
         the computation of the normalisation factor from the input.
+        One of ``'input'`` and ``'both'``.
 
     Returns
     -------
@@ -345,12 +352,12 @@ def document_isochoric(f: Callable) -> Callable:
 
     Parameters
     ----------
-    input : tensor
+    input
         Tensor containing symmetric, positive definite matrices.
-    volume : float (default 1)
+    volume
         Target volume for the normalisation procedure. All output tensors will
         have this determinant.
-    max_condition : float :math:`\in [1, \infty)` or None (default None)
+    max_condition
         Maximum permissible condition number among output tensors. This can be
         used to constrain the eccentricity of isochoric ellipsoids. To enforce
         this maximum, the eigenvalues of the input tensors are replaced with a
@@ -358,7 +365,8 @@ def document_isochoric(f: Callable) -> Callable:
         such that the largest eigenvalue is no more than ``max_condition``
         times the smallest eigenvalue. Note that a ``max_condition`` of 1
         will always return (a potentially isotropically scaled) identity.
-    softmax_temp : float or None (default None)
+        At least 1; None for no limit.
+    softmax_temp
         If this is provided, then the eigenvalues of the input tensor are
         passed through a softmax with the specified temperature before any
         other processing.

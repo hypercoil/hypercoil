@@ -100,50 +100,50 @@ def document_interpolation(f: Callable) -> Callable:
         observations, then the output time series will be identical to the
         input time series."""
     interpolate_base_spec = """
-    data : tensor
+    data
         Time series data.
-    mask : boolean tensor
+    mask
         Boolean tensor indicating whether the value in each frame of the input
         time series is observed. ``True`` indicates that the original data are
         "good" or observed, while ``False`` indicates that they are "bad" or
         missing and flags them for interpolation."""
     interpolate_hybrid_spec = """
-    max_consecutive_linear : int or None (default 3)
+    max_consecutive_linear
         The maximum number of consecutive frames for which the linear method
         will be used; any unseen frames that cannot be imputed using this
         maximum are instead imputed using the spectral approach."""
     interpolate_spectral_spec = """
-    oversampling_frequency : float (default 8)
+    oversampling_frequency
         Determines the number of frequency bins to use when estimating the
         sine and cosine spectra. 1 indicates that the number of bins should be
         the same as in a Fourier transform, while larger values indicate that
         frequency bins should be oversampled.
-    maximum_frequency : float (default 1)
+    maximum_frequency
         Maximum frequency bin to consider in the fit, as a fraction of
         Nyquist.
-    sampling_period : float (default 1)
+    sampling_period
         Period separating consecutive samples in ``data``.
-    frequency_thresh : float (default 0.3)
+    frequency_thresh
         Because of the non-orthogonality of the basis functions, spurious
         variance will often be captured in the spectral estimates. To control
         this spurious variance, all frequency bins whose estimates are less
         than ``frequency_thresh``, as a fraction of the maximum estimate
         across all bins, are set to 0."""
     interpolate_weighted_spec = """
-    start_stage : int
+    start_stage
         The first stage of weighted interpolation. The meaning of this is
         governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
         argument is otherwise specified, it sets the initial size of a boxcar
         window for averaging. (A value of 1 corresponds to averaging over the
         current frame, together with 1 frame in each of the forward and
         reverse directions.)
-    max_stage : int or None (default None)
+    max_stage
         The final stage of weighted interpolation. The meaning of this is
         governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
         argument is otherwise specified, it sets the maximum size of a boxcar
         window for averaging. By default, no maximum size is specified, and
         iteration proceeds until every unseen time point is imputed.
-    map_to_kernel : callable(int -> tensor)
+    map_to_kernel
         A function that uses the integer value of the current stage to create
         a convolutional kernel for weighting of neighbours. By default, a
         boxcar window that includes the current frame, together with ``stage``
@@ -151,7 +151,7 @@ def document_interpolation(f: Callable) -> Callable:
     # This is no longer used, but I'm leaving it here for now in case we want
     # to add it back in.
     handle_fail_spec = """
-    handle_fail : ``'raise'`` or ``'orig'`` (default ``'orig'``)
+    handle_fail
         Specifies behaviour if the interpolation fails (which typically occurs
         if every frame is labelled as unseen). ``'raise'`` raises an
         exception, while ``'orig'`` returns values from the input time series
@@ -732,7 +732,7 @@ def _interpolate_spectral(
         Sine basis term for the periodogram.
     cosine_basis
         Cosine basis term for the periodogram.
-    angular_frequencies: numpy array
+    angular_frequencies
         Angular frequencies for computing the periodogram.
     all_samples
         Temporal indices of all samples, seen and unseen.

@@ -22,20 +22,20 @@ class Sylo(eqx.Module):
 
     Parameters
     ----------
-    in_channels: int
+    in_channels
         Number of channels or layers in the input graph or matrix.
-    out_channels: int
+    out_channels
         Number of channels or layers in the output graph or matrix. This is
         equal to the number of learnable templates.
-    dim: int or tuple(int)
+    dim
         Number of vertices in the graph or number of columns in the matrix.
         If the graph is bipartite or the matrix is nonsquare, then this should
         be a 2-tuple.
-    rank: int
+    rank
         Rank of the templates learned by the sylo module. Default: 1.
-    bias: bool
+    bias
         If True, adds a learnable bias to the output. Default: True
-    symmetry: ``'psd'``, ``'cross'``, ``'skew'``, or None (default ``'psd'``)
+    symmetry
         Symmetry constraints to impose on learnable templates.
 
         * If None, no symmetry constraints are placed on the templates
@@ -55,7 +55,7 @@ class Sylo(eqx.Module):
 
         This option is not available for nonsquare matrices or bipartite
         graphs. Note that the parameter count doubles if this is False.
-    coupling: None, ``'+'``, ``'-'``, ``'split'``, int, or float
+    coupling
         Coupling parameter when expanding outer-product template banks.
 
         * A value of ``None`` disables the coupling parameter.
@@ -84,7 +84,7 @@ class Sylo(eqx.Module):
           learnable.
         * ``'learnable_all'`` sets all terms of the coupling parameter to be
         learnable.
-    similarity: function
+    similarity
         Definition of the similarity metric. This must be a function whose
         inputs and outputs are:
 
@@ -98,15 +98,15 @@ class Sylo(eqx.Module):
         input stack and the (low-rank) matrix derived from the outer-product
         expansion of the second and third inputs.
         Default: ``crosshair_similarity``
-    delete_diagonal: bool
+    delete_diagonal
         Delete the diagonal of the output.
 
     Attributes
     ----------
-    weight: Tensor
+    weight
         The learnable weights of the module of shape
         ``out_channels x in_channels x dim x rank``.
-    bias: Tensor
+    bias
         The learnable bias of the module of shape ``out_channels``.
     """
     in_channels: int

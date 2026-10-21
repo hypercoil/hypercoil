@@ -56,36 +56,36 @@ def document_stochastic_transforms(func):
         stochastic transforms will produce the same stale samples across
         epochs."""
     base_param_spec = """
-    inference : bool, optional (default: ``False``)
+    inference
         Indicates that the transform (or its parent model) is in inference
         mode. If False, the transform will inject noise into any inputs it
         receives in its ``__call__`` method.
-    key : jax.random.PRNGKey
+    key
         The random number generator key to use when sampling from the noise
         distribution. To refresh stale keys so that they produce new noise,
         you must use the :func:`refresh` function on the transform or its
         parent model.
-    refresh_code : Any, optional (default: ``0``)
+    refresh_code
         The code to use when filtering stochastic sources. The default code is
         0. In nearly all cases, it is not necessary to change the default
         value."""
     axial_param_spec = """
-    sample_axes : Tuple[int, ...] (default: None)
+    sample_axes
         By default, a sample is drawn from the distribution independently for
         each element of the input. If ``sample_axes`` is a value other than
         None, then a sample is drawn from the distribution only along the
         specified axes; this sample is then broadcast across the remaining
         axes of the input."""
     iid_scalar_param_spec = """
-    distribution : ``distrx.Distribution``
+    distribution
         The distribution to sample from. The ``event_shape`` of this
         distribution should correspond to a scalar."""
     iid_tensor_param_spec = """
-    distribution : ``distrx.Distribution``
+    distribution
         The distribution to sample from. The ``event_shape`` of this
         distribution should match the shape of the input along a set of axes,
         which must be specified in the ``event_axes`` argument.
-    event_axes : Tuple[int, ...]
+    event_axes
         Specifies the axes of the input tensor that correspond to the event
         shape of the distribution. Note that event axes are automatically
         excluded from the sample axes."""
@@ -306,7 +306,7 @@ class StochasticParameter(eqx.Module):
     where
         The string address of the parameter to wrap or a callable that takes
         a pytree and returns the parameter to wrap.
-    transform : ``StochasticTransform``
+    transform
         The transform to use for introducing stochasticity to the parameter.
         Inference mode and the kind of stochasticity are configured at the
         level of the transform.
@@ -712,13 +712,13 @@ class EigenspaceReconditionTransform(TensorIIDAddStochasticTransform):
 
     Parameters
     ----------
-    psi: float
+    psi
         Reconditioning parameter to promote nonsingularity.
-    xi: float
+    xi
         Reconditioning parameter to promote nondegeneracy.
-    matrix_dim: int
+    matrix_dim
         Dimension of the square matrices to be reconditioned.
-    event_axes : Tuple[int, ...] (default: (-2, -1))
+    event_axes
         Specifies the axes of the input tensor that correspond to the event
         shape of the distribution (i.e., the slices along which matrices to be
         reconditioned lie). Note that event axes are automatically excluded
@@ -789,13 +789,13 @@ class OuterProduct(distrx.Distribution):
 
     Parameters
     ----------
-    src_distribution: Distribution
+    src_distribution
         The source distribution to sample from.
-    rank: int (default 1)
+    rank
         Matrix rank. If this is equal to the product of the multiplicity and
         the source distribution's event shape, then the result will be a
         positive definite matrix. Otherwise, it will be positive semidefinite.
-    multiplicity: int (default 1)
+    multiplicity
         The multiplicity factor for source distribution samples.
     """
 
@@ -886,9 +886,9 @@ class Diagonal(distrx.Distribution):
 
     Parameters
     ----------
-    src_distribution: Distribution
+    src_distribution
         The source distribution to sample from.
-    multiplicity: int (default 1)
+    multiplicity
         The multiplicity factor for source distribution samples.
     """
 
@@ -1021,9 +1021,9 @@ class MatrixExponential(distrx.Distribution):
 
     Parameters
     ----------
-    src_distribution: Distribution
+    src_distribution
         The source distribution to sample from.
-    rescale_var: bool (default: True)
+    rescale_var
         Indicates that the entry-wise variance of the transformed samples
         should be rescaled empirically to match the entry-wise variance of the
         source samples.

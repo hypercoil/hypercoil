@@ -42,7 +42,7 @@ def cholesky_invert(X: Tensor) -> Tensor:
 
     Parameters
     ----------
-    A : Tensor
+    X
         Symmetric positive definite matrix.
 
     Returns
@@ -70,10 +70,10 @@ def symmetric(
     ----------
     X
         Input to be symmetrised.
-    skew : bool (default False)
+    skew
         Indicates whether skew-symmetry (antisymmetry) should be imposed on
         the input.
-    axes : tuple(int, int) (default (-2, -1))
+    axes
         Axes that delineate the square slices of the input on which symmetry
         is imposed. By default, symmetry is imposed on the last 2 slices.
 
@@ -199,7 +199,7 @@ def spd(
         semidefiniteness, then this will be the minimum possible eigenvalue of
         the output. If SVD is used to impose positive semidefiniteness, then
         this is unused.
-    method : ``'eig'`` or ``'svd'``
+    method
         Method used to ensure that all eigenvalues are positive.
 
         - ``eig`` denotes that the input matrices are symmetrised and then
@@ -258,16 +258,16 @@ def expand_outer(
     ----------
     L
         Left generator of a low-rank matrix (:math:`L R^\intercal`).
-    R : Tensor or None (default None)
+    R
         Right generator of a low-rank matrix (:math:`L R^\intercal`). If this
         is None, then the output matrix is symmetric :math:`L L^\intercal`.
-    C : Tensor or None (default None)
+    C
         Coupling term. If this is specified, each outer product expansion is
         modulated by a corresponding coefficient in the coupling matrix.
         Providing a vector is equivalent to providing a diagonal coupling
         matrix. This term can, for instance, be used to toggle between
         positive and negative semidefinite outputs.
-    symmetry : ``'cross'``, ``'skew'``, or None (default None)
+    symmetry
         Symmetry constraint imposed on the generated low-rank template matrix.
 
         * ``cross`` replaces the expansion with the mean of the expansion and
@@ -451,26 +451,26 @@ def toeplitz(
 
     Parameters
     ----------
-    c: Tensor
+    c
         Tensor of entries in the first column of each Toeplitz matrix. The
         first axis corresponds to a single matrix column; additional
         dimensions correspond to concatenation of Toeplitz matrices into a
         stack or block tensor.
-    r: Tensor
+    r
         Tensor of entries in the first row of each Toeplitz matrix. The first
         axis corresponds to a single matrix row; additional dimensions
         correspond to concatenation of Toeplitz matrices into a stack or block
         tensor. The first entry in each column should be the same as the first
         entry in the corresponding column of `c`; otherwise, it will be
         ignored.
-    dim: 2-tuple of (int, int) or None (default)
+    dim
         Dimension of each Toeplitz banded matrix in the output block. If this
         is None or unspecified, it defaults to the sizes of the first axes of
         inputs `c` and `r`. Otherwise, the row and column inputs are extended
         until their dimensions equal those specified here. This can be useful,
         for instance, to create a large banded matrix with mostly zero
         off-diagonals.
-    fill_value: Tensor or float (default 0)
+    fill_value
         Specifies the value that should be used to populate the off-diagonals
         of each Toeplitz matrix if the specified row and column elements are
         extended to conform with the specified `dim`. If this is a tensor,
@@ -502,7 +502,7 @@ def sym2vec(sym: Tensor, offset: int = 1) -> Tensor:
         Block of tensors to convert. The last two dimensions should be equal,
         with each slice along the final 2 axes being a square, symmetric
         matrix.
-    offset : int (default 1)
+    offset
         Offset from the main diagonal where the upper triangle begins. By
         default, the main diagonal is not included. Set this to 0 to include
         the main diagonal.
@@ -535,7 +535,7 @@ def vec2sym(vec: Tensor, offset: int = 1) -> Tensor:
         Block of vectors to convert. Input vectors should be of length
         (n choose 2), where n is the number of elements on the offset
         diagonal, plus 1.
-    offset : int (default 1)
+    offset
         Offset from the main diagonal where the upper triangle begins. By
         default, the main diagonal is not included. Set this to 0 to place
         elements along the main diagonal.

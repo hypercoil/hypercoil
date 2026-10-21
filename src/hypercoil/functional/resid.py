@@ -42,14 +42,14 @@ def document_linreg(f: Callable) -> Callable:
                     As above."""
 
     regress_param_spec = """
-    rowvar : bool (default True)
+    rowvar
         Indicates that the last axis of the input tensor is the observation
         axis and the penultimate axis is the variable axis. If False, then this
         relationship is transposed.
-    l2 : float (default 0.0)
+    l2
         L2 regularisation parameter. If non-zero, the least-squares solution
         will be regularised by adding a penalty term to the cost function.
-    return_mode : Literal['residual', 'orthogonal'] (default 'residual')
+    return_mode
         Indicates whether the residual or orthogonal tensor should be
         returned. The orthogonal tensor is the projection of `Y` onto the
         span of `X` (i.e., the least-squares solution)."""

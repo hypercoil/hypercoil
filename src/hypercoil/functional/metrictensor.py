@@ -148,10 +148,10 @@ def sample_along_line_segment(
         line segment.
     n_samples
         Number of samples to take along the line segment.
-    even_sampling : bool (default True)
+    even_sampling
         Whether to sample evenly along the line segment. If this is False, then
         samples are drawn from a uniform distribution along the line segment.
-    include_endpoints : bool (default True)
+    include_endpoints
         Whether to include the endpoints of the line segment in the samples.
     key
         Key to use for random number generation.
@@ -204,7 +204,7 @@ def integrate_along_line_segment(
         shape `(*, p, p)` containing the metric tensor at that point.
     n_samples
         Number of samples to take along the line segment.
-    norm : callable (default quadratic_form)
+    norm
         Callable that takes a tensor of shape `(*, p)` and some representation
         of the metric tensor of shape `(*, p, p)` and returns a tensor of
         shape `(*, 1)` containing the norm of the vector under the metric
@@ -214,16 +214,16 @@ def integrate_along_line_segment(
             When approximating the metric tensor field as a sum of a diagonal
             and a low-rank component, the quadratic form can be computed more
             efficiently using :func:`quadratic_form_low_rank_plus_diag`.
-    even_sampling : bool (default True)
+    even_sampling
         Whether to sample evenly along the line segment. If this is False,
         then samples are drawn from a uniform distribution along the line
         segment.
-    include_endpoints : bool (default True)
+    include_endpoints
         Whether to include the endpoints of the line segment in the samples.
-    weight_by_euc_length : bool (default False)
+    weight_by_euc_length
         Whether to weight the estimated norm of each line segment by its
         Euclidean length.
-    weight_by_fraction : bool (default False)
+    weight_by_fraction
         Whether to weight each sample by the length of the line segment
         between it and the next sample, as a fraction of the total Euclidean
         length of the line segment. This is only relevant if `even_sampling`

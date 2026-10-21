@@ -42,11 +42,11 @@ def document_frequency_spectrum(func):
         :doc:`IIRFilter <hypercoil.init.iirfilter>`
         class instead (when it's operational)."""
     base_param_spec = """
-    N : int or tuple of int
+    N
         Filter order. If this is a tuple, then a separate filter will be
         created for each entry in the tuple. Wn must be shaped to match or of
         length 1.
-    Wn : float or tuple(float, float) or tuple thereof
+    Wn
         Critical or cutoff frequency. If this is a band-pass filter, then this
         should be a tuple, with the first entry specifying the high-pass
         cutoff and the second entry specifying the low-pass frequency. This
@@ -55,39 +55,41 @@ def document_frequency_spectrum(func):
         To create multiple filters, specify a tuple (of floats or tuples)
         containing the critical frequencies for each filter in a single entry.
         N must be shaped to match or of length 1.
-    worN : int
+    worN
         Number of frequency bins to include in the computed spectrum.
-    btype : 'lowpass', 'highpass', or 'bandpass' (default 'bandpass')
+    btype
         Filter type to emulate: low-pass, high-pass, or band-pass. The
         interpretation of the critical frequency changes depending on the
         filter type.
-    fs : float or None (default None)
+        One of ``'lowpass'``, ``'highpass'`` and ``'bandpass'``.
+    fs
         Sampling frequency.
     """
     rp_param_spec = """
-    rp : float
+    rp
         Pass-band ripple parameter. Used only for Chebyshev I and elliptic
         filter response emulation."""
     rs_param_spec = """
-    rs : float
+    rs
         Stop-band ripple parameter. Used only for Chebyshev II and elliptic
         filter response emulation."""
     norm_param_spec = """
-    norm : ``'phase'``, ``'delay'``, or ``'amplitude'``
+    norm
         Critical frequency normalisation. Used only for Bessel-Thompson
         filter response emulation. Consult the ``scipy.signal.bessel``
-        documentation for details."""
+        documentation for details.
+        One of ``'phase'``, ``'delay'`` and ``'amplitude'``."""
     randn_param_spec = """
-    ampl_loc : float
+    ampl_loc
         Mean of the normal distribution used to initialise the amplitudes.
         Used only for random initialisation.
-    ampl_scale : float
+    ampl_scale
         Standard deviation of the normal distribution used to initialise the
         amplitudes. Used only for random initialisation.
-    phase_loc : float
+    phase_loc
         Mean of the normal distribution used to initialise the phases. Used
         only for random initialisation.
-    phase_scale : float
+    phase_scale
         Standard deviation of the normal distribution used to initialise the
         phases. Used only for random initialisation.
     """
@@ -503,7 +505,7 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
 
     Parameters
     ----------\
-    ftype : one of (``'butter'``, ``'cheby1'``, ``'cheby2'``, ``'ellip'``, ``'bessel'``, ``'ideal'``, ``'randn'``)
+    ftype
         Filter class to emulate: Butterworth, Chebyshev I, Chebyshev II,
         elliptic, Bessel-Thompson, ideal, or filter weights sampled randomly
         from a normal distribution.
@@ -519,7 +521,7 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
     {rp_param_spec}\
     {norm_param_spec}\
     {randn_param_spec}
-    clamps : list(dict)
+    clamps
         Frequencies whose responses should be clampable to particular values.
         Each element of the list is a dictionary corresponding to a single
         filter; the list should therefore have a length of ``F``. Each
@@ -716,7 +718,7 @@ def freqfilter_init(
     ----------
     shape
         Shape of the tensor to initialise.
-    filter_specs : list(FreqFilterSpec)
+    filter_specs
         A list of filter specifications implemented as :class:`FreqFilterSpec`
         objects.
 
@@ -760,7 +762,7 @@ def clamp_init(
     ----------
     shape
         Shape of the tensors to initialise.
-    filter_specs : list(FreqFilterSpec)
+    filter_specs
         A list of filter specifications implemented as :class:`FreqFilterSpec`
         objects.
 

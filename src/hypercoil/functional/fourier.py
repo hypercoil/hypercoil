@@ -28,10 +28,10 @@ def document_frequency_filter(f: Callable) -> Callable:
     freqfilter_param_spec = """
     Parameters
     ----------
-    X : Tensor
+    X
         The (potentially multivariate) signal to be filtered. The final axis
         should correspond to the time domain of each signal or its analogue.
-    weight : Tensor
+    weight
         The filter gain at each frequency bin in the spectrum, ordered low to
         high along the last axis. Dimensions before the last can be used to
         apply different filters to different variables in the input signal
@@ -56,18 +56,18 @@ def document_frequency_filter(f: Callable) -> Callable:
 
 def document_analytic_signal(f: Callable) -> Callable:
     analytic_signal_base_spec = """
-    X : tensor
+    X
         Input tensor.
-    axis : int (default -1)
+    axis
         Axis along which the transform is applied.
-    n : int (default None)
+    n
         Number of frequency components; dimension of the Fourier transform.
         This defaults to the size of the input along the transform axis."""
     analytic_signal_sampling_freq = """
-    fs : float
+    fs
         Sampling frequency."""
     analytic_signal_period = """
-    period : float (default ``2 * pi``)
+    period
         Range over which the signal wraps. (See ``jax.numpy.unwrap``.)"""
     analytic_signal_return_spec = """
     Returns
@@ -183,14 +183,15 @@ def unwrap(
         Tensor containing phases, or other values to be unwrapped. Currently,
         tensors should be cast to some floating-point type before this
         operation.
-    axis : int (default -1)
+    axis
         Axis along which the maximum discontinuity is not be be exceeded after
         unwrapping.
-    discont : float (default ``period / 2``)
+    discont
         Maximum discontinuity between continuous tensor entries along the
         specified ``axis``. Note that this value can in effect be no smaller
         than ``period / 2``.
-    period : float (default ``(2 * pi)``)
+        None gives ``period / 2``.
+    period
         Size of the range over which the input tensor wraps.
 
     Returns

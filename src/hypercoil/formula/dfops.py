@@ -808,10 +808,10 @@ def match_metadata(pattern, metadata):
 
     Parameters
     ----------
-    pattern : compiled regular expression
+    pattern
         A compiled regular expression (obtained via re.compile) that
         represents the pattern to be matched in the metadata keys.
-    metadata : dict
+    metadata
         Dictionary whose keys are to be searched for the specified pattern.
     """
     return list(filter(pattern.match, metadata.keys()))
@@ -830,13 +830,13 @@ def successive_pad_search(df, key, pad=0, k=5):
 
     Parameters
     ----------
-    df : DataFrame
+    df
         DataFrame whose columns are to be searched for the specified key.
-    key : str
+    key
         Key to search for in the DataFrame.
-    pad : int (default 0)
+    pad
         Number whose padding to ignore in the search
-    k : int
+    k
         Maximum number of pads to try before a KeyError is raised.
     """
     for i in range(k):

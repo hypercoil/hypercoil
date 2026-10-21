@@ -35,7 +35,7 @@ def sphere_to_normals(coor: Tensor, r: float = 1) -> Tensor:
     coor
         Tensor containing 2-tuple coordinates indicating the latitude and
         longitude of each point.
-    r : float (default 1)
+    r
         Radius of the sphere.
 
     Returns
@@ -104,9 +104,10 @@ def spherical_geodesic(
         Tensor containing coordinates on a sphere formatted as surface-normal
         vectors in Euclidean coordinates. Distances are computed between each
         coordinate in X and each coordinate in Y.
-    Y : Tensor or None (default X)
+    Y
         As X. If a second tensor is not provided, then distances are computed
         between every pair of points in X.
+        None gives ``X``.
     r
         Radius of the sphere. We could just get this from X or Y, but we
         don't.
@@ -189,7 +190,7 @@ def spatial_conv(
     max_bin
         Maximum number of points to include in a distance computation. If you
         run out of memory, try decreasing this.
-    truncate : float or None (default None)
+    truncate
         Maximum distance at which data points can be convolved together.
 
     Returns
@@ -249,14 +250,14 @@ def spherical_conv(
     coor
         Tensor containing the spatial coordinates associated with each
         observation in `data`.
-    scale : float (default 1)
+    scale
         Scale parameter of the Gaussian kernel.
-    r : float (default 1)
+    r
         Radius of the sphere.
     max_bin
         Maximum number of points to include in a distance computation. If you
         run out of memory, try decreasing this.
-    truncate : float or None (default None)
+    truncate
         Maximum distance at which data points can be convolved together.
 
     Returns
@@ -358,10 +359,10 @@ def icosphere(
     subdivisions
         Number of subdivisions to perform. For example, a value of 1 will
         return the coordinates for a 12-vertex icosphere.
-    target : Tensor or None (default None)
+    target
         If provided, the coordinates of the first vertex of the icosphere will be
         rotated to align with the provided target coordinate.
-    secondary : Tensor or None (default None)
+    secondary
         If provided, the coordinates of the second vertex of the icosphere will
         be rotated to align with the provided secondary coordinate.
 

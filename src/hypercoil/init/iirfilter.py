@@ -23,15 +23,15 @@ class IIRFilterSpec(eqx.Module):
 
     Parameters
     ----------
-    Wn : float or tuple(float, float)
+    Wn
         Critical or cutoff frequency. If this is a band-pass filter, then this
         should be a tuple, with the first entry specifying the high-pass cutoff
         and the second entry specifying the low-pass frequency. This should be
         specified relative to the Nyquist frequency if ``fs`` is not provided,
         and should be in the same units as ``fs`` if it is provided.
-    N : int or Tensor (default 1)
+    N
         Filter order.
-    ftype : one of (``'butter'``, ``'cheby1'``, ``'cheby2'``, ``'ellip'``, ``'bessel'``, ``'kuznetsov'``)
+    ftype
         Filter class to initialise: Butterworth, Chebyshev I, Chebyshev II,
         elliptic, or Bessel-Thompson.
 
@@ -39,17 +39,19 @@ class IIRFilterSpec(eqx.Module):
             To initialise an ideal filter, use a
             :doc:`frequency product filter <hypercoil.init.freqfilter>`
             instead.
-    btype : ``'bandpass'`` (default) or ``'bandstop'`` or ``'lowpass'`` or ``'highpass'``
+        One of ``'butter'``, ``'cheby1'``, ``'cheby2'``, ``'ellip'``,
+        ``'bessel'`` and ``'kuznetsov'``.
+    btype
         Filter pass-band to emulate: low-pass, high-pass, or band-pass. The
         interpretation of the critical frequency changes depending on the
         filter type.
-    fs : float or None (default None)
+    fs
         Sampling frequency.
-    rp : float (default 0.1)
+    rp
         Pass-band ripple. Used only for Chebyshev I and elliptic filters.
-    rs : float (default 20)
+    rs
         Stop-band ripple. Used only for Chebyshev II and elliptic filters.
-    norm : ``'phase'`` or ``'mag'`` or ``'delay'`` (default ``'phase'``)
+    norm
         Critical frequency normalisation. Consult the ``scipy.signal.bessel``
         documentation for details.
     """

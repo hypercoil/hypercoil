@@ -35,13 +35,13 @@ def deltaplus_init(
     ----------
     shape
         Shape of the tensor to initialise.
-    loc : tuple or None (default None)
+    loc
         Location of the delta function expressed as an n-tuple of array
         coordinates along the last n axes of the tensor. Defaults to the
         centre of the tensor.
-    scale : float (default 1)
+    scale
         Magnitude of the delta function. Defaults to 1.
-    var : float or Tensor (default 0.2)
+    var
         Variance of the Gaussian distribution from which the random noise is
         sampled. By default, noise is sampled i.i.d. for all entries in the
         tensor. To change the i.i.d. behaviour, use a tensor of floats that

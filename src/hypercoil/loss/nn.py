@@ -82,13 +82,13 @@ def document_loss(default_scalarise: str = 'mean'):
     param_spec = """
     Parameters
     ----------
-    name: str
+    name
         Designated name of the loss function. It is not required that this be
         specified, but it is recommended to ensure that the loss function can
         be identified in the context of a reporting utilities. If not
         explicitly specified, the name will be inferred from the class name
         and the name of the scoring function.
-    nu: float
+    nu
         Loss strength multiplier. This is a scalar multiplier that is applied
         to the loss value before it is returned. This can be used to
         modulate the relative contributions of different loss functions to
@@ -96,13 +96,13 @@ def document_loss(default_scalarise: str = 'mean'):
         schedule for the loss function, by dynamically adjusting the
         multiplier over the course of training."""
     score_spec = """
-    score: Callable
+    score
         The scoring function to be used to compute the loss value. This
         function should take a single argument, which is a tensor of
         arbitrary shape, and return a score value for each (potentially
         multivariate) observation in the tensor."""
     scalarisation_spec = f"""
-    scalarisation: Callable
+    scalarisation
         The scalarisation function to be used to aggregate the values
         returned by the scoring function. This function should take a
         single argument, which is a tensor of arbitrary shape, and return

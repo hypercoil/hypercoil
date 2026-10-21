@@ -301,12 +301,12 @@ class LinearCombinationSelector(LinearRFNN):
     ----------
     model_dim
         Dimension of the model to be learned.
-    n_columns : int
+    n_columns
         Number of input vectors to be combined linearly to form the model.
 
     Attributes
     ----------
-    weight : tensor
+    weight
         Tensor of shape :math:`(I, O)` `n_columns` x `model_dim`.
     """
 

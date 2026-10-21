@@ -60,9 +60,9 @@ def laplacian_eigenmaps(
         should be the graph adjacency (or affinity) matrix; otherwise, it
         should be a list of weights corresponding to the edges in
         ``edge_index``.
-    k : int (default 10)
+    k
         Number of eigenmaps to compute.
-    normalise : bool (default True)
+    normalise
         Indicates that the Laplacian should be normalised using the degree
         matrix.
 
@@ -144,11 +144,12 @@ def diffusion_mapping(
     W
         Edge weight tensor. This should be the graph adjacency (or affinity)
         matrix.
-    k : int (default 10)
+    k
         Number of eigenmaps to compute.
-    alpha : float :math:`\in [0, 1]` (default 0.5)
+    alpha
         Anisotropic diffusion parameter.
-    diffusion_time : int (default 0)
+        In :math:`[0, 1]`.
+    diffusion_time
         Diffusion time parameter. A value of 0 indicates that a multi-scale
         diffusion map should be computed, which considers all valid times
         (1, 2, 3, etc.).

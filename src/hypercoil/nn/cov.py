@@ -59,7 +59,7 @@ def document_cov_nn(cls):
 
     Parameters
     ----------
-    cls : type
+    cls
         The class to document.
 
     Returns
@@ -113,7 +113,7 @@ def document_cov_nn(cls):
     default initialisation will be equivalent to an unweighted covariance."""
 
     unary_estimator_spec = """
-    estimator : callable
+    estimator
         Covariance estimator, e.g. from
         :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
         estimator must be unary: it should accept a single tensor rather than
@@ -126,7 +126,7 @@ def document_cov_nn(cls):
           Partial correlation."""
 
     binary_estimator_spec = """
-    estimator : callable
+    estimator
         Covariance estimator, e.g. from
         :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
         estimator must be binary: it should accept two tensors rather than
@@ -148,44 +148,46 @@ def document_cov_nn(cls):
           conditioning on variables in tensor 2."""
 
     param_spec = """
-    dim : int
+    dim
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
-    min_lag , max_lag : int or None (default 0)
+    min_lag, max_lag
         Minimum and maximum lags to include in the weight matrix. If these
         parameters are not None, the structure of the weight matrix is
         constrained to allow nonzero entries only along diagonals that are a
         maximum offset of (``min_lag``, ``max_lag``) from the main diagonal.
         The default value of 0 permits weights only along the main diagonal.
-    out_channels : int (default 1)
+    out_channels
         Number of weight sets ``W`` to include. For each weight set, the
         module produces an output channel.
-    rowvar : bool (default True)
+    rowvar
         Indicates that the last axis of the input tensor is the observation
         axis and the penultimate axis is the variable axis. If False, then
         this relationship is transposed.
-    biased : bool (default False)
+    biased
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
         covariance is unbiased (i.e., division by `N - 1`).
-    ddof : int or None (default None)
+    ddof
         Degrees of freedom for normalisation. If this is specified, it
         overrides the normalisation factor automatically determined using the
         ``biased`` parameter.
-    l2 : nonnegative float (default 0)
+    l2
         L2 regularisation term to add to the maximum likelihood estimate of
         the covariance matrix. This can be set to a positive value to obtain
         intermediate for estimating the regularised inverse covariance or to
         an ensure that the covariance matrix is non-singular (if, for
         instance, it needs to be inverted or projected into a tangent
-        space)."""
+        space).
+        Nonnegative."""
 
     weighted_attr_spec = """
-    mask : Tensor :math:`(W, O, O)` or None
+    mask
         Boolean-valued tensor indicating the entries of the weight tensor that
         are permitted to take nonzero values. This is determined by the
         specified ``max_lag`` parameter at initialisation.
-    weight : Tensor :math:`(W, O, O)`
+        Shape :math:`(W, O, O)`.
+    weight
         Tensor containing importance or coupling weights for the observations.
         If this tensor is 1-dimensional, each entry weights the corresponding
         observation in the covariance computation. If it is 2-dimensional,
@@ -193,17 +195,19 @@ def document_cov_nn(cls):
         case, diagonal entries again correspond to relative importances, while
         off-diagonal entries indicate coupling factors. For instance, a banded
         or multi-diagonal tensor can be used to specify inter-temporal
-        coupling for a time series covariance."""
+        coupling for a time series covariance.
+        Shape :math:`(W, O, O)`."""
 
     toeplitz_attr_spec = """
-    weight_col, weight_row : Tensor :math:`(W, L)`
+    weight_col, weight_row
         Toeplitz matrix generators for the columns (lag) and rows (lead) of
         the weight matrix. L denotes the maximum lag. These parameters are
         repeated along each diagonal of the weight matrix up to the maximum
         lag. The weight generators are initialised as exponentials over
         negative integers with a maximum of 1 at the origin (zero lag;
         :math:`e^0`). The ``weight`` attribute is a property that is generated
-        from these parameters as needed."""
+        from these parameters as needed.
+        Each of shape :math:`(W, L)`."""
 
     fmt = NestedDocParse(
         unary_nn_spec=unary_nn_spec,

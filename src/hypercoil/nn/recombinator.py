@@ -26,26 +26,26 @@ class Recombinator(eqx.Module):
 
     Parameters
     ----------
-    in_channels: int
+    in_channels
         Number of channels or feature maps input to the recombinator layer.
-    out_channels: int
+    out_channels
         Number of recombined channels or feature maps output by the
         recombinator layer.
-    bias: bool
+    bias
         If True, adds a learnable bias to the output.
-    positive_only: bool (default False)
+    positive_only
         If True, initialise with only positive weights.
-    init: dict
+    init
         Dictionary of parameters to pass to the Kaiming initialisation
         function.
         Default: ``{'nonlinearity': 'linear'}``
 
     Attributes
     ----------
-    weight: Tensor
+    weight
         The learnable mixture matrix of the module of shape
         :math:``C_{in} \times C_{out}``.
-    bias: Tensor
+    bias
         The learnable bias of the module of shape ``out_channels``.
     """
     in_channels: int

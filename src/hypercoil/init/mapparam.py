@@ -88,7 +88,7 @@ class MappedParameter(eqx.Module):
         ----------
         model
             The model to which the parameter belongs.
-        where : str or Callable (default: `"weight"`)
+        where
             The address of the parameter to be mapped, specified as a string
             or a function. For example: ``where = "weight"`` or
             ``where = lambda mlp: mlp.layers[-1].linear.weight``.
@@ -140,7 +140,7 @@ class OutOfDomainHandler(eqx.Module):
         ----------
         x
             Tensor whose entries should be evaluated.
-        bound : (float min, float max)
+        bound
             Minimum and maximum permitted values for the test to return True.
 
         Returns
@@ -168,7 +168,7 @@ class Clip(OutOfDomainHandler):
         ----------
         x
             Tensor whose out-of-domain entries are to be clipped.
-        bound : (float min, float max)
+        bound
             Minimum and maximum permitted values; values greater than the
             maximum will be clipped to the maximum and values less than the
             minimum will be clipped to the minimum.
@@ -213,7 +213,7 @@ class Renormalise(OutOfDomainHandler):
         ----------
         x
             Tensor whose out-of-domain entries are to be normalised.
-        bound : (float min, float max)
+        bound
             Minimum and maximum permitted values.
 
         Returns
@@ -249,7 +249,7 @@ class ForcePositiveDefinite(OutOfDomainHandler):
         x
             Tensor whose out-of-domain slices are to be forced to be positive
             definite.
-        bound : (float min, float max)
+        bound
             Only the minimal bound is used. It specifies the minimum
             permissible eigenvalue of each matrix slice.
         """
@@ -291,8 +291,9 @@ class DomainMappedParameter(MappedParameter):
         the map.
     preimage_bound
         Minimum and maximum prescribed values for the preimage map.
-    handler : ``OutOfDomainHandler`` object (default: :class:`Clip`)
+    handler
         The handler to use for imputing out-of-domain values.
+        None gives :class:`Clip`.
     """
 
     original: Tensor
@@ -371,8 +372,9 @@ class AffineDomainMappedParameter(DomainMappedParameter):
         documentation for :class:`DomainMappedParameter` for more details.
     preimage_bound
         Minimum and maximum prescribed values for the preimage map.
-    handler : ``OutOfDomainHandler`` object (default: :class:`Clip`)
+    handler
         The handler to use for imputing out-of-domain values.
+        None gives :class:`Clip`.
     loc
         Location of a scalar affine transformation that is composed with the
         map.
@@ -487,15 +489,16 @@ class TanhMappedParameter(AffineDomainMappedParameter):
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
-    preimage_bound : (float min, float max) (default -3, 3)
+    preimage_bound
         Minimum and maximum prescribed values for the preimage map. Note that
         these are not necessarily the same as the minimum and maximum (or
         infimum and supremum) attainable by the map itself. For example, it
         might be desirable to further truncate values to a range where the
         magnitude of the gradient is non-negligible.
-    handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
+    handler
         Object specifying a method for handling out-of-domain entries.
-    scale : float (default 1)
+        None gives :class:`Clip`.
+    scale
         Maximum/minimum value attained by the hyperbolic tangent map.
     """
 
@@ -532,22 +535,23 @@ class AmplitudeTanhMappedParameter(PhaseAmplitudeMixin, TanhMappedParameter):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
-    preimage_bound : (float min, float max) (default -3, 3)
+    preimage_bound
         Minimum and maximum prescribed values for the preimage map. Note that
         these are not necessarily the same as the minimum and maximum (or
         infimum and supremum) attainable by the map itself. For example, it
         might be desirable to further truncate values to a range where the
         magnitude of the gradient is non-negligible.
-    handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
+    handler
         Object specifying a method for handling out-of-domain entries.
-    scale : float (default 1)
+        None gives :class:`Clip`.
+    scale
         Maximum/minimum value attained by the hyperbolic tangent map.
     """
 
@@ -567,18 +571,19 @@ class MappedLogits(AffineDomainMappedParameter):
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
-    preimage_bound : (float min, float max) (default -3, 3)
+    preimage_bound
         Minimum and maximum prescribed values for the preimage map. Note that
         these are not necessarily the same as the minimum and maximum (or
         infimum and supremum) attainable by the map itself. For example, it
         might be desirable to further truncate values to a range where the
         magnitude of the gradient is non-negligible.
-    handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
+    handler
         Object specifying a method for handling out-of-domain entries.
-    loc : float (default None)
+        None gives :class:`Clip`.
+    loc
         Location parameter for the logistic map. Zero is mapped to this value
         under the logistic map.
-    scale : float (default 1)
+    scale
         Size of the interval mapped onto by the logistic map.
     """
 
@@ -629,12 +634,13 @@ class NormSphereParameter(AffineDomainMappedParameter):
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
-    handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
+    handler
         Object specifying a method for handling out-of-domain entries.
+        None gives :class:`Clip`.
     loc
         Location of the centre of the norm sphere. By default, the sphere is
         centred at the origin (``loc=0``).
-    scale : float (default 1)
+    scale
         Scale of the norm sphere. By default, the unit norm sphere
         (``scale=1``) is used.
     norm
@@ -735,18 +741,23 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
-    handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
+    handler
         Object specifying a method for handling out-of-domain entries.
-    axis : int (default -1)
+        None gives :class:`Clip`.
+    axis
         Axis of tensors in the domain along which 1D slices are mapped to the
         probability simplex.
-    minimum : nonnegative float (default 1e-3)
+    minimum
         Lower prescribed bound on inputs to the elementwise natural logarithm.
-    smoothing : nonnegative float (default 0)
+        Nonnegative.
+    smoothing
         For use when configuring the ``original`` parameter. Increasing the
         smoothing will result in a higher-entropy / more equiprobable image.
-    temperature : nonnegative float or ``'auto'`` (default 1)
+        Nonnegative.
+    temperature
         Softmax temperature.
+        Nonnegative, or ``'auto'`` for the square root of the size of
+        ``axis``.
     """
 
     _image_map_impl: Callable
@@ -801,25 +812,29 @@ class AmplitudeProbabilitySimplexParameter(
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
-    handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
+    handler
         Object specifying a method for handling out-of-domain entries.
-    axis : int (default -1)
+        None gives :class:`Clip`.
+    axis
         Axis of tensors in the domain along which 1D slices are mapped to the
         probability simplex.
-    minimum : nonnegative float (default 1e-3)
+    minimum
         Lower prescribed bound on inputs to the elementwise natural logarithm.
-    smoothing : nonnegative float (default 0)
+        Nonnegative.
+    smoothing
         For use when configuring the ``original`` parameter. Increasing the
         smoothing will result in a higher-entropy / more equiprobable image.
-    temperature : nonnegative float (default 1)
+        Nonnegative.
+    temperature
         Softmax temperature.
+        Nonnegative.
     """
 
 
@@ -877,10 +892,11 @@ class IsochoricParameter(DomainMappedParameter):
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
-    volume : nonnegative float (default 1)
+    volume
         Parameter volume. The determinant of the parameter is set to this
         value.
-    max_condition : float :math:`\in [1, \infty)` or None (default None)
+        Nonnegative.
+    max_condition
         Maximum permissible condition number of the parameter. This can be
         used to constrain the eccentricity of isochoric ellipsoids. To enforce
         this maximum, the eigenvalues of the original parameter are replaced
@@ -889,7 +905,8 @@ class IsochoricParameter(DomainMappedParameter):
         ``max_condition`` times the smallest eigenvalue. Note that a
         ``max_condition`` of 1 will always return (a potentially isotropically
         scaled) identity.
-    softmax_temp : float or None (default None)
+        At least 1; None for no limit.
+    softmax_temp
         If this is provided, then the eigenvalues of the original parameter
         are passed through a softmax with the specified temperature before any
         other processing.

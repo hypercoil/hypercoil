@@ -39,11 +39,11 @@ def document_semidefinite_block_mean(f: Callable) -> Callable:
                 **Output :** :math:`(K, *, D, D)`
                     K denotes the number of mean specs provided."""
     semidefinite_block_mean_spec = """
-    mean_specs : list(_SemidefiniteMean objects)
+    mean_specs
         List of specifications for estimating a measure of central tendency in
         the positive semidefinite cone. SemidefiniteMean subclasses are found
         at `hypercoil.init`.
-    data : Tensor
+    data
         Input dataset over which each mean is to be estimated."""
 
     fmt = NestedDocParse(
@@ -111,7 +111,7 @@ def tangency_init(
     ----------
     init_data
         Input dataset over which each mean is to be estimated.
-    mean_specs : list(``_SemidefiniteMean`` objects)
+    mean_specs
         List of specifications for estimating a measure of central tendency in
         the positive semidefinite cone. ``_SemidefiniteMean`` subclasses are
         found at

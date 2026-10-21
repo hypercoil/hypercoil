@@ -38,11 +38,11 @@ def match_spectra(
         Input signal.
     reference
         Reference signal.
-    use_mean : bool (default False)
+    use_mean
         Indicates that, instead of matching the spectrum of the corresponding
         channel in the reference signal, all channels are matched to the mean
         spectrum across all reference channels.
-    frequencies : bool (default False)
+    frequencies
         If True, indicates that the ``reference`` provided is a spectrum in
         the frequency domain. Otherwise, the spectrum is computed from the
         provided reference.
@@ -120,7 +120,7 @@ def match_covariance(
     reference
         Either a reference signal whose covariance :math:`\Sigma` is to be
         matched, or the covariance matrix itself. See ``cov``.
-    cov : bool (default False)
+    cov
         If True, indicates that the ``reference`` provided is a covariance
         matrix. Otherwise, the covariance matrix is computed from the provided
         reference.
@@ -160,7 +160,7 @@ def match_reference(
         Input signal.
     reference
         Reference signal.
-    use_mean : bool (default False)
+    use_mean
         Indicates that, instead of matching the spectrum of the corresponding
         channel in the reference signal, all channels are matched to the mean
         spectrum across all reference channels.
@@ -245,7 +245,7 @@ def synthesise_matched(
     ----------
     reference
         Reference signal.
-    use_mean : bool (default False)
+    use_mean
         Indicates that, instead of matching the spectrum of the corresponding
         channel in the reference signal, all channels are matched to the mean
         spectrum across all reference channels.
@@ -297,10 +297,8 @@ def synthesise_from_cov_and_spectrum(
         Spectrum to be matched.
     cov
         Covariance matrix to be matched.
-    dtype : ``torch.dtype`` (default None)
-        Data type of the synthetic dataset.
-    device : ``torch.device`` (default None)
-        Device on which the synthetic dataset is instantiated.
+    key
+        Pseudo-random number generator key.
 
     See also
     --------

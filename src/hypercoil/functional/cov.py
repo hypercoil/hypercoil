@@ -21,19 +21,19 @@ from .utils import _conform_vector_weight
 
 def document_covariance(func):
     param_spec = """
-    rowvar : bool (default True)
+    rowvar
         Indicates that the last axis of the input tensor is the observation
         axis and the penultimate axis is the variable axis. If False, then this
         relationship is transposed.
-    bias : bool (default False)
+    bias
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
         covariance is unbiased (i.e., division by `N - 1`).
-    ddof : int or None (default None)
+    ddof
         Degrees of freedom for normalisation. If this is specified, it
         overrides the normalisation factor automatically determined using the
         `bias` parameter.
-    weight : Tensor or None (default None)
+    weight
         Tensor containing importance or coupling weights for the observations.
         If this tensor is 1-dimensional, each entry weights the corresponding
         observation in the covariance computation. If it is 2-dimensional,
@@ -42,37 +42,38 @@ def document_covariance(func):
         off-diagonal entries indicate coupling factors. For instance, a banded
         or multi-diagonal tensor can be used to specify inter-temporal
         coupling for a time series covariance.
-    l2 : nonnegative float (default 0)
+    l2
         L2 regularisation term to add to the maximum likelihood estimate of
         the covariance matrix. This can be set to a positive value to obtain
-        an intermediate for estimating the regularised inverse covariance."""
+        an intermediate for estimating the regularised inverse covariance.
+        Nonnegative."""
     unary_param_spec = """
-    X : Tensor
+    X
         Tensor containing a sample of multivariate observations. Each slice
         along the last axis corresponds to an observation, and each slice along
         the penultimate axis corresponds to a data channel or more generally a
         variable."""
     binary_param_spec = """
-    X, Y : Tensors
+    X, Y
         Tensors containing samples of multivariate observations. Each slice
         along the last axis corresponds to an observation, and each slice along
         the penultimate axis corresponds to a data channel or more generally a
         variable."""
     conditional_param_spec = """
-    X : Tensor
+    X
         Tensor containing samples of multivariate observations, with those
         variables whose influence we wish to control for removed and separated
         out into tensor Y. Each slice along the last axis corresponds to an
         observation, and each slice along the penultimate axis corresponds to a
         data channel or more generally a variable.
-    Y : Tensor
+    Y
         Tensor containing samples of multivariate observations, limited to
         nuisance or confound variables whose influence we wish to control for.
         Each slice along the last axis corresponds to an observation, and each
         slice along the penultimate axis corresponds to a data channel or more
         generally a variable."""
     inverting_param_spec = """
-    require_nonsingular : bool
+    require_nonsingular
         Indicates that the covariance must be nonsingular. If this is False,
         then the Moore-Penrose pseudoinverse is computed instead of the
         inverse."""

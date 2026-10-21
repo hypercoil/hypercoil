@@ -36,10 +36,10 @@ def dirichlet_init(
     ----------
     shape
         Shape of the tensor to initialise.
-    distr : instance of ``torch.distributions.Dirichlet``
+    distr
         Parametrised Dirichlet distribution from which all 1D slices of the
         input tensor along the specified axis are sampled.
-    axis : int (default -1)
+    axis
         Axis along which slices are sampled from the specified Dirichlet
         distribution.
     key

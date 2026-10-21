@@ -31,12 +31,13 @@ from . import recondition_eigenspaces, symmetric
 
 def document_symmetric_map(func):
     symmap_param_spec = r"""
-    psi : float in [0, 1]
+    psi
         Conditioning factor to promote positive definiteness.
-    key: Tensor or None (default None)
+        In [0, 1].
+    key
         Key for pseudo-random number generation. Required if ``recondition`` is
         set to ``'eigenspaces'`` and ``psi`` is in (0, 1].
-    recondition : ``'convexcombination'`` or ``'eigenspaces'`` (default ``'eigenspaces'``)
+    recondition
         Method for reconditioning.
 
         - ``'convexcombination'`` denotes that the original input will be
@@ -58,10 +59,10 @@ def document_symmetric_map(func):
           definiteness, this method promotes eigenspaces with dimension 1 (no
           degenerate/repeated eigenvalues). Nondegeneracy of eigenvalues is
           required for differentiation through SVD.
-    fill_nans : bool (default True)
+    fill_nans
         Indicates that any NaNs among the transformed eigenvalues should be
         replaced with zeros.
-    truncate_eigenvalues : bool (default False)
+    truncate_eigenvalues
         Indicates that very small eigenvalues, which might for instance occur
         due to numerical errors in the decomposition, should be truncated to
         zero. Note that you should not do this if you wish to differentiate
@@ -110,7 +111,7 @@ def symmap(
         Batch of symmetric tensors to transform.
     map
         Transformation to apply as a matrix-valued function.
-    spd : bool (default True)
+    spd
         Indicates that the matrices in the input batch are symmetric positive
         semidefinite; guards against numerical rounding errors and ensures all
         eigenvalues are nonnegative.\

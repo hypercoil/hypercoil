@@ -108,9 +108,9 @@ def document_constraint_violation(func):
 
         1 - Y \hat{Y}"""
     constraint_violation_spec = """
-    constraints : Sequence[Callable[[Tensor], Tensor]]
+    constraints
         Iterable containing constraint functions.
-    broadcast_against_input : bool, optional (default: ``False``)
+    broadcast_against_input
         If ``True``, broadcast all constraint outputs against the input shape."""
     fmt = NestedDocParse(
         long_description=long_description,
@@ -199,13 +199,13 @@ def document_smoothness(func):
         ``meansq_scalarise`` or ``vnorm_scalarise`` with either the ``p=1``
         or ``p=inf`` options might be more appropriate."""
     smoothness_spec = """
-    n: int, optional (default: 1)
+    n
         Number of times to differentiate using the backwards differences
         method.
-    axis : int, optional (default: -1)
+    axis
         Axis defining the slice of the input tensor over which differences
         are computed
-    pad_value : float, optional (default: None)
+    pad_value
         Arguments to ``jnp.diff``. Values to prepend to the input along the
         specified axis before computing the difference."""
     fmt = NestedDocParse(
@@ -253,7 +253,7 @@ def document_bimodal_symmetric(func):
     is closer. Penalising this quantity can be used to concentrate weights at
     two modes, for instance 0 and 1 or -1 and 1."""
     bimodal_symmetric_spec = """
-    modes : tuple(float, float) (default (0, 1))
+    modes
         Modes of the loss."""
     fmt = NestedDocParse(
         long_description=long_description,
@@ -367,23 +367,23 @@ def document_gramian_determinant(func: Callable) -> Callable:
         procedure is available for all operations involving the determinant to
         reduce the occurrence of degenerate eigenvalues."""
     det_gram_spec = r"""
-    theta : Tensor, optional (default: ``None``)
+    theta
         Kernel parameter tensor. If ``None``, then the kernel is assumed to
         be isotropic.
-    op : Callable, optional (default: :func:`corr_kernel`)
+    op
         Kernel function. By default, the Pearson correlation kernel is used.
-    psi : float, optional (default: ``0.``)
+    psi
         Kernel regularisation parameter. If ``psi > 0``, then the kernel
         matrix is regularised by adding ``psi`` to the diagonal. This can be
         used to ensure that the matrix is strictly positive definite.
-    xi : float, optional (default: ``0.``)
+    xi
         Kernel regularisation parameter. If ``xi > 0``, then the kernel
         matrix is regularised by stochastically adding samples from a uniform
         distribution with support :math:`\psi - \xi, \xi` to the diagonal.
         This can be used to ensure that the matrix does not have degenerate
         eigenvalues. If ``xi > 0``, then ``psi`` must also be greater than
         ``xi`` and a key must be provided.
-    key: PRNGKey, optional (default: ``None``)
+    key
         Random number generator key. This is only required if ``xi > 0``."""
     return_spec = """
     Returns
@@ -471,37 +471,37 @@ def document_entropy(func: Callable) -> Callable:
     divergence_param_spec = """
     Parameters
     ----------
-    P : Tensor
+    P
         Input tensor parameterising the first categorical distribution.
-    Q : Tensor
+    Q
         Input tensor parameterising the second categorical distribution."""
 
     entropy_spec = """
-    axis : int or sequence of ints, optional (default: ``-1``)
+    axis
         Axis or axes over which to compute the entropy.
-    keepdims : bool, optional (default: ``True``)
+    keepdims
         As in ``jax.numpy.sum``.
-    reduce : bool, optional (default: ``True``)
+    reduce
         If this is False, then the unsummed probability-weighted surprise is
         computed for each element of the input tensor. Otherwise, the entropy
         is computed over the specified axis or axes."""
 
     kl_spec = """
-    axis : int or sequence of ints, optional (default: ``-1``)
+    axis
         Axis or axes over which to compute the KL divergence.
-    keepdims : bool, optional (default: ``True``)
+    keepdims
         As in ``jax.numpy.sum``.
-    reduce : bool, optional (default: ``True``)
+    reduce
         If this is False, then the unsummed KL divergence is computed for
         each element of the input tensor. Otherwise, the KL divergence is
         computed over the specified axis or axes."""
 
     js_spec = """
-    axis : int or sequence of ints, optional (default: ``-1``)
+    axis
         Axis or axes over which to compute the JS divergence.
-    keepdims : bool, optional (default: ``True``)
+    keepdims
         As in ``jax.numpy.sum``.
-    reduce : bool, optional (default: ``True``)
+    reduce
         If this is False, then the unsummed JS divergence is computed for
         each element of the input tensor. Otherwise, the JS divergence is
         computed over the specified axis or axes."""
@@ -802,13 +802,13 @@ def document_bregman(func: Callable) -> Callable:
     bregman_spec = """
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.
-    Y : Tensor
+    Y
         Target tensor.
-    f : Callable
+    f
         Convex function to induce the Bregman divergence.
-    f_dim : int
+    f_dim
         Dimension of arguments to ``f``.
 
     Returns
@@ -932,26 +932,26 @@ def document_equilibrium(func: Callable) -> Callable:
     """
 
     equilibrium_spec = """
-    level_axis: int or sequence of ints, optional
+    level_axis
         The axis or axes over which to compute the equilibrium. Within each
         data instance or weight channel, all elements along the specified axis
         or axes should correspond to a single level or parcel. The default is
         -1.
-    prob_axis: int or sequence of ints, optional
+    prob_axis
         The axis or axes over which to compute the probabilities (logit version
         only). The default is -2. In general the union of ``level_axis`` and
         ``prob_axis`` should be the same as ``instance_axes``.
-    instance_axes: int or sequence of ints, optional
+    instance_axes
         The axis or axes corresponding to a single data instance or weight
         channel. This should be a superset of `level_axis`. The default is
         (-1, -2).
-    keepdims: bool, optional
+    keepdims
         As in :func:`jax.numpy.sum`. The default is True."""
 
     input_spec = """
     Parameters
     ----------
-    X: Tensor
+    X
         A tensor of probabilities (or masses of another kind)."""
 
     return_spec = """
@@ -1100,13 +1100,13 @@ def document_second_moment(func: Callable) -> Callable:
     pparam_spec = """
     Parameters
     ----------
-    X: Tensor
+    X
         A tensor of observations.
-    weight: Tensor
+    weight
         A tensor of weights."""
 
     second_moment_spec = """
-    skip_normalise: bool, optional
+    skip_normalise
         If True, do not include normalisation by the sum of the weights in the
         computation. In practice, this seems to work better than computing the
         actual second moment. Instead of computing the second moment, this
@@ -1120,15 +1120,15 @@ def document_second_moment(func: Callable) -> Callable:
         Tensor of second moments."""
 
     std_spec_nomean = """
-    standardise: bool, optional
+    standardise
         If True, z-score the input matrix before computing the second moment.
         The default is False."""
 
     std_spec_mean = """
-    standardise_data: bool, optional
+    standardise_data
         If True, z-score the input matrix before computing the second moment.
         The default is False.
-    standardise_mu: bool, optional
+    standardise_mu
         If True, z-score the mean matrix ``mu`` before computing the second
         moment. The default is False."""
 
@@ -1474,14 +1474,16 @@ def point_agreement(
 def document_batch_correlation(func):
 
     batch_correlation_spec = """
-    tol : nonnegative float or ``'auto'`` (default 0)
+    tol
         Tolerance for correlations. Only correlation values above ``tol`` are
         counted. If this is set to ``'auto'``, a tolerance is computed for the
         batch size given the significance level in ``tol_sig``.
-    tol_sig : float in (0, 1)
+        Nonnegative, or ``'auto'`` to set the tolerance from ``tol_sig``.
+    tol_sig
         Significance level for correlation tolerance. Used only if ``tol`` is
         set to ``'auto'``.
-    abs : bool (default True)
+        In (0, 1).
+    abs
         Use the absolute value of correlations. If this is being used as a loss
         function, the model's weights will thus be updated to shrink all
         batchwise correlations toward zero."""
@@ -1526,9 +1528,10 @@ def auto_tol(
     ----------
     batch_size
         Number of observations in the batch.
-    significance : float in (0, 1) (default 0.1)
+    significance
         Significance level at which the tolerance should be computed.
-    tails : 1 or 2 (default 2)
+        In (0, 1).
+    tails
         Number of tails for the t-test.
 
     Returns
@@ -1599,9 +1602,9 @@ def qcfc(
 
     Parameters
     ----------
-    FC : tensor
+    FC
         Tensor block containing functional connectivity measures.
-    QC : tensor
+    QC
         Vector of quality control measures with which the FC measures are to
         be correlated.\
     {batch_correlation_spec}
@@ -1616,13 +1619,13 @@ def qcfc(
 
 def document_spatial_loss(func):
     reference_tether_spec = """
-    ref : Tensor
+    ref
         Coordinates of the reference points to which the centres of mass of
         the objects in ``X`` should be tethered. Each object or parcel should
         have a single corresponding reference point.
-    coor : Tensor
+    coor
         Coordinates of the spatial locations in each of the columns of ``X``.
-    radius : float or None (default 100)
+    radius
         Radius of the spherical manifold on which the coordinates are
         located. If this is specified as None, it is assumed that the
         coordinates are in Euclidean space."""
@@ -1656,26 +1659,27 @@ def document_spatial_loss(func):
         Currently, this loss only works in spherical surface space."""
 
     interhemispheric_tether_spec = """
-    lh_coor : Tensor
+    lh_coor
         Coordinates of the spatial locations in each of the columns of ``lh``.
-    rh_coor : Tensor
+    rh_coor
         Coordinates of the spatial locations in each of the columns of ``rh``.
-    radius : float (default 100)
+    radius
         Radius of the spherical manifold on which the coordinates are
         located."""
 
     compactness_spec = """
-    coor : Tensor
+    coor
         Coordinates of the spatial locations in each of the columns of ``X``.
-    radius : float or None (default 100)
+    radius
         Radius of the spherical manifold on which the coordinates are
         located. If this is specified as None, it is assumed that the
         coordinates are in a space induced by the ``norm`` parameter.
-    norm : int, float or 'inf' (default 2)
+    norm
         The norm to use to calculate the distance between the centres of mass
         and the masses. Ignored if ``radius`` is specified; in this case, the
         spherical geodesic distance is used.
-    floor : float (default 0)
+        An int, a float or ``'inf'``.
+    floor
         Minimum distance to be penalised. This can be used to avoid penalising
         masses that are already very close to the centre of mass."""
 
@@ -1713,7 +1717,7 @@ def document_spatial_loss(func):
     """
 
     dispersion_spec = """
-    metric : Callable
+    metric
         Function to calculate the distance between centres of mass. This
         should take either one or two arguments, and should return the
         distance between each pair of observations."""
@@ -1910,10 +1914,10 @@ def dispersion(
 
 def document_mv_kurtosis(func):
     mv_kurtosis_spec = """
-    l2 : float (default 0)
+    l2
         L2 regularisation to be applied to the covariance matrix to ensure
         that it is invertible.
-    dimensional_scaling : bool (default False)
+    dimensional_scaling
         The expected value of the multivariate kurtosis for a normally
         distributed, stationary process of infinite duration with d channels
         (or variables) is :math:`d (d + 2)`. Setting this to true normalises
@@ -1988,11 +1992,11 @@ def document_connectopy(func: Callable) -> Callable:
 
     Parameters
     ----------
-    Q : tensor
+    Q
         Proposed connectopies or maps.
-    A : tensor
+    A
         Affinity matrix.
-    D : tensor or None (default None)
+    D
         If this argument is provided, then the affinity matrix is first
         transformed as :math:`D A D^\intercal`. For instance, setting D to
         a diagonal matrix whose entries are the reciprocal of the square root
@@ -2000,30 +2004,30 @@ def document_connectopy(func: Callable) -> Callable:
         graph Laplacian."""
 
     connectopy_spec = """
-    theta : tensor, float, or None (default None)
+    theta
         Parameterisation of the pairwise dissimilarity function.
-    omega : tensor, float, or None (default None)
+    omega
         Optional parameterisation of the affinity function, if one is
         provided.
-    dissimilarity : callable
+    dissimilarity
         Function to compute dissimilarity between latent coordinates induced
         by the proposed connectopies. By default, the square of the L2
         distance is used. The callable must accept ``Q`` and ``theta`` as
         arguments. (``theta`` may be unused.)
-    affinity : callable or None (default None)
+    affinity
         If an affinity function is provided, then the image of argument A
         under this function is the affinity matrix. Otherwise, argument A is
         the affinity matrix."""
 
     modularity_spec = """
-    gamma : float (default 1.)
+    gamma
         Modularity parameter. Takes the place of the ``omega`` argument in
         ``connectopy``.
-    exclude_diag : bool (default True)
+    exclude_diag
         If True, then the diagonal of the affinity matrix is set to zero."""
 
     prog_theta_spec = """
-    progressive_theta : bool (default False)
+    progressive_theta
         When this is True, a ``theta`` is generated such that the last map in
         ``Q`` has a weight of 1, the second-to-last has a weight of 2, and so
         on. This can be used to encourage the last column to correspond to the

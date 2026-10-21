@@ -30,17 +30,17 @@ def document_crosshair(f: Callable) -> Callable:
     The dimension of the output tensor exactly equals the dimension of the
     input tensor."""
     crosshair_unary_pparams = """
-    A: Tensor
+    A
         Input tensor."""
     crosshair_binary_pparams = """
-    A: Tensor
+    A
         First input tensor.
-    B: Tensor
+    B
         Second input tensor."""
     crosshair_rc_spec = """
-    row: int
+    row
         Axis of the input tensors over which the row index increases.
-    col: int
+    col
         Axis of the input tensors over which the column index increases."""
     crosshair_return_spec = """
     Returns

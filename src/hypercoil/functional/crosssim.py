@@ -38,13 +38,13 @@ def document_crosssim(f: Callable) -> Callable:
     crosssim_param_spec = """
     Parameters
     ----------
-    X : Tensor
+    X
         Block of input tensors in which features should be identified. The last
         two axes correspond to the column and row dimensions of the matrices;
         the third to last axis corresponds to the data channels viewed by each
         reference template or filter. This is analogous to colour channels in a
         convolutional layer.
-    W : Tensor
+    W
         Block of reference or template tensors or filters. The last two axes
         correspond to row and column dimensions, and the third to last
         corresponds to the input data channels. The fourth to last axis

@@ -55,13 +55,13 @@ def document_scalarisation_map(func: Callable) -> Callable:
     param_spec = """
     Parameters
     ----------
-    inner : Callable, optional
+    inner
         The inner scalarisation map. If not specified, the identity map is
         used. For many scalarisation maps, the default settings for the inner
         map and the scalarisation axis amount to applying the scalarisation
         map over the entire tensor. Users are advised to verify the default
         settings for the inner map and the scalarisation axis.
-    axis: Union[int, Sequence[int]], optional
+    axis
         The axis or axes over which to apply the scalarisation map. If not
         specified, the scalarisation map is applied over the entire tensor,
         except in the cases of maps that are only defined over vectors or
@@ -86,7 +86,7 @@ def document_scalarisation_map(func: Callable) -> Callable:
             in the (perhaps more intuitive) behaviour of the ``axis`` argument
             referring to the axis or axes of the original tensor.
 
-    keepdims: bool, optional
+    keepdims
         Whether to keep the reduced dimensions in the output. If ``True``, the
         output will have the same number of dimensions as the input, each of
         singleton size. If ``False``, the output will have one fewer dimension
@@ -101,10 +101,10 @@ def document_scalarisation_map(func: Callable) -> Callable:
             tensor, only setting ``keepdims=False`` for the outermost
             scalarisation map."""
     norm_spec = """
-    p : Any
+    p
         The norm order."""
     unused_key_spec = """
-    key : Optional[``jax.random.PRNGKey``]
+    key
         An optional random number generator key. Unused; exists for
         conformance with potential future scalarisation maps that could inject
         randomness."""

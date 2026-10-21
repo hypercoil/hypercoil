@@ -131,12 +131,12 @@ def document_param_pairwise(f: Callable) -> Callable:
                     As above."""
 
     pairwise_base_spec = """
-    X0 : tensor
+    X0
         A feature tensor.
-    X1 : tensor or None
+    X1
         Second feature tensor. If not explicitly provided, the kernel of
         ``X`` with itself is computed.
-    theta : tensor or None
+    theta
         Kernel parameter (generally a representation of a positive definite
         matrix). If not provided, defaults to identity (an unparameterised
         kernel). If the last two dimensions are the same size, they are used
@@ -144,21 +144,21 @@ def document_param_pairwise(f: Callable) -> Callable:
         used as the diagonal of the matrix."""
 
     kernel_gamma_spec = r"""
-    gamma : float or None (default None)
+    gamma
         Scaling coefficient. If not explicitly specified, this is
         automatically set to :math:`\frac{1}{P}`."""
 
     kernel_sigma_spec = r"""
-    sigma : float or None (default None)
+    sigma
         Isotropic standard deviation.
     """
 
     kernel_order_spec = """
-    order : int (default 3)
+    order
         Maximum degree of the polynomial."""
 
     kernel_r_spec = r"""
-    r : float (default 0)
+    r
         Offset coefficient."""
 
     kernel_return_spec = """
