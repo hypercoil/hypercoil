@@ -222,15 +222,15 @@ class StochasticTransform(eqx.Module):
 
     Each stochastic transform must implement the following methods:
 
-    - ``sample``: Sample from the noise distribution. Required keyword
-                  parameters: ``key``, ``shape``.
-    - ``inject``: Inject noise into a tensor. Required positional parameter:
-                  ``input``. Required keyword parameters: ``key``.
+    - :meth:`sample` samples from the noise distribution. Required keyword
+      parameters: ``key``, ``shape``.
+    - :meth:`inject` injects noise into a tensor. Required positional
+      parameter: ``input``. Required keyword parameter: ``key``.
 
     A stochastic transform can be used as a layer for noise injection,
-    regularisation or dropout (multiplicative noise). The forward method
-    (``__call__``) samples from the noise distribution and injects the sample
-    into the input unless the ``inference`` attribute is True.
+    regularisation or dropout (multiplicative noise). The forward method,
+    :meth:`__call__`, samples from the noise distribution and injects the
+    sample into the input unless the ``inference`` attribute is True.
 
     A stochastic transform can also wrap a parameter of a model through
     :class:`StochasticParameter`.
@@ -366,11 +366,10 @@ class StochasticParameter(eqx.Module):
 
 class AdditiveNoiseMixin:
     """
-    Mixin for configuring a ``StochasticTransform`` to add noise to the input.
+    Mixin that makes a :class:`StochasticTransform` add noise to the input.
 
-    This implements the ``inject`` method for injecting noise additively.
-    Any subclasses are still responsible for implementing the ``sample``
-    method.
+    The mixin implements :meth:`~StochasticTransform.inject`; a subclass
+    implements :meth:`~StochasticTransform.sample`.
     """
 
     def inject(self, input: Tensor, *, key: 'jax.random.PRNGKey') -> Tensor:
@@ -383,9 +382,8 @@ class MultiplicativeNoiseMixin:
 
     Multiplicative noise is dropout.
 
-    This implements the ``inject`` method for injecting noise
-    multiplicatively. Any subclasses are still responsible for implementing
-    the ``sample`` method.
+    The mixin implements :meth:`~StochasticTransform.inject`; a subclass
+    implements :meth:`~StochasticTransform.sample`.
     """
 
     def inject(self, input: Tensor, *, key: 'jax.random.PRNGKey') -> Tensor:
@@ -398,9 +396,8 @@ class ConvexCombinationNoiseMixin:
 
     The output is a convex combination of the input and the noise.
 
-    This implements the ``inject`` method for injecting noise as a convex
-    combination. Any subclasses are still responsible for implementing the
-    ``sample`` method.
+    The mixin implements :meth:`~StochasticTransform.inject`; a subclass
+    implements :meth:`~StochasticTransform.sample`.
     """
 
     # fmt: off
@@ -416,10 +413,10 @@ class AxialSelectiveTransform(StochasticTransform):
     """
     Noise source whose randomness is restricted to selected axes.
 
-    This implements the ``sample`` method as a wrapper for sampling from the
-    noise distribution. Any subclasses are still responsible for implementing
-    the ``inject`` method. Additionally, subclasses are responsible for
-    implementing the ``sample_impl`` method, which is wrapped by ``sample``.
+    The class implements :meth:`~StochasticTransform.sample` as a wrapper
+    for sampling from the noise distribution. A subclass implements
+    :meth:`~StochasticTransform.inject` and :meth:`sample_impl`, which
+    :meth:`~StochasticTransform.sample` wraps.
     """
 
     sample_axes: Tuple[int, ...] = None
@@ -774,7 +771,7 @@ class OuterProduct(distrx.Distribution):
         To obtain an outer-product distribution whose entries have
         approximately some approximate expected standard deviation, use a
         normal distribution for  the source after calling the static method
-        ``rescale_std_for_normal`` to compute the standard deviation for
+        :meth:`rescale_std_for_normal` to compute the standard deviation for
         the source distribution.
 
         For the transformed entries to have a standard deviation near
@@ -859,7 +856,7 @@ class OuterProduct(distrx.Distribution):
 
         The output of this static method is intended to be used to initialise
         the standard deviation of a normal distribution that can then be used
-        as the ``src_distribution`` argument to an ``OuterProduct``
+        as the ``src_distribution`` argument to an :class:`OuterProduct`
         distribution.
 
         Parameters

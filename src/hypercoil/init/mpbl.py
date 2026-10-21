@@ -432,9 +432,10 @@ def maximum_potential_bipartite_lattice_autoselect_order(
     order_max
         Maximum lattice order to consider.
     inner_criterion
-        Same as ``criterion`` in ``maximum_potential_bipartite_lattice``.
+        Same as ``criterion`` in
+        :func:`maximum_potential_bipartite_lattice`.
     outer_criterion
-        Criterion to use for order selection. Only ``corr_criterion`` is
+        Criterion to use for order selection. Only :func:`corr_criterion` is
         currently supported.
     """
     symmetric = not isinstance(potentials, tuple)

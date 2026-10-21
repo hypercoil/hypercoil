@@ -939,12 +939,12 @@ def spsp_innerpaired(
 
         :math:`\mathbb{R}^{m \times p} \times \mathbb{R}^{m \times p} \rightarrow \mathbb{R}^{m}`
 
-        while that of ``spspmm`` is
+        while that of :func:`spspmm` is
 
         :math:`\mathbb{R}^{m \times p} \times \mathbb{R}^{n \times p} \rightarrow \mathbb{R}^{m \times n}`
 
         Every argument in ``lhs`` is thus paired with one in ``rhs``. If your
-        data do not fit this schema, then use ``spspmm`` instead.
+        data do not fit this schema, then use :func:`spspmm` instead.
 
     .. note::
         If ``rhs`` is not specified, then this computes a squared vector norm.

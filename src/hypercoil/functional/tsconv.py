@@ -241,7 +241,7 @@ def polyconv2d(
     .. warning::
         This function automatically creates a channel for each specified
         power. If your input already includes a channel for each power, you
-        should use ``tsconv2d`` instead.
+        should use :func:`tsconv2d` instead.
     \
     {ts_conv_dim}
 

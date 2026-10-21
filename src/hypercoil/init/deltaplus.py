@@ -66,7 +66,7 @@ class DeltaPlusInitialiser(MappedInitialiser):
 
     Initialise a tensor as a delta function added to Gaussian noise.
 
-    See :func:`deltaplus_init_` and :class:`MappedInitialiser` for usage
+    See :func:`deltaplus_init` and :class:`MappedInitialiser` for usage
     details.
     """
 

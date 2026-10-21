@@ -363,7 +363,7 @@ def document_gramian_determinant(func: Callable) -> Callable:
         singular values of the input matrix are close together, the gradient
         can become unstable (and undefined if the singular values are
         identical). A simple
-        :doc:`matrix reconditioning <hypercoil.functional.matrix.recondition_eigenspaces>`
+        :func:`matrix reconditioning <hypercoil.functional.matrix.recondition_eigenspaces>`
         procedure is available for all operations involving the determinant to
         reduce the occurrence of degenerate eigenvalues."""
     det_gram_spec = r"""
@@ -538,7 +538,7 @@ def document_entropy(func: Callable) -> Callable:
         certainly undesirable. For this reason, it is recommended that some
         constraint be imposed on the input set when placing a penalty on
         entropy. One possibility is using a
-        :doc:`probability simplex parameter mapper <hypercoil.init.mapparam.ProbabilitySimplexParameter>`
+        :class:`probability simplex parameter mapper <hypercoil.init.mapparam.ProbabilitySimplexParameter>`
         to first project the input weights onto the probability simplex."""
 
     kl_long_description = r"""
@@ -920,7 +920,7 @@ def document_equilibrium(func: Callable) -> Callable:
         unnormalised loss could be improved by simply shrinking all weights.)
         For this reason, we can either normalise the loss or situate the
         parcellation tensor in the probability simplex using a
-        :doc:`multi-logit (softmax) domain mapper <hypercoil.init.mapparam.ProbabilitySimplexParameter>`.
+        :class:`multi-logit (softmax) domain mapper <hypercoil.init.mapparam.ProbabilitySimplexParameter>`.
 
         The equilibrium loss attains a minimum when parcels are equal in their
         total weight. It has a trivial and uninteresting minimum where all
@@ -928,7 +928,7 @@ def document_equilibrium(func: Callable) -> Callable:
         which might be of greater interest, occur where each feature is
         deterministically assigned to a single parcel. These minima can be
         favoured by using the equilibrium in conjunction with a penalty on the
-        :doc:`entropy <hypercoil.loss.entropy>`.
+        :func:`~hypercoil.loss.functional.entropy`.
     """
 
     equilibrium_spec = """
@@ -1090,12 +1090,9 @@ def document_second_moment(func: Callable) -> Callable:
 
         When using this loss to learn a parcellation on voxelwise time series,
         the full computation will certainly be much too large to fit in GPU
-        memory. Fortunately, because much of the computation is elementwise, it
-        can be broken down along multiple axes without affecting the result.
-        This tensor slicing is implemented automatically in the
-        :doc:`ReactiveTerminal <hypercoil.engine.terminal.ReactiveTerminal>`
-        class. Use extreme caution with ``ReactiveTerminals``, as improper use
-        can result in destruction of the computational graph."""
+        memory. Because much of the computation is elementwise, the
+        computation can be sliced along multiple axes without changing the
+        result."""
 
     pparam_spec = """
     Parameters
@@ -1397,7 +1394,7 @@ def point_similarity(
     """
     Compute the local similarity of a weight assignment at a set of points.
 
-    This loss primarily exists as an ablation for the ``point_agreement``
+    This loss primarily exists as an ablation for :func:`point_agreement`
     function. It is equivalent to the agreement loss with the functional
     homogeneity term removed (i.e., ``kappa=1``).
     """
@@ -1740,8 +1737,8 @@ def document_spatial_loss(func):
     separation, imposed by the ``VectorDispersion`` loss) while also promoting
     proximity between observations and their closest centroids (within-cluster
     closeness, for instance using a
-    :doc:`norm loss <hypercoil.loss.norm>` or
-    :doc:`compactness <hypercoil.loss.cmass.Compactness>`
+    :class:`norm loss <hypercoil.loss.nn.NormedLoss>` or
+    :class:`compactness <hypercoil.loss.nn.CompactnessLoss>`
     if the clusters are associated with spatial coordinates)."""
 
     fmt = NestedDocParse(
@@ -2022,7 +2019,7 @@ def document_connectopy(func: Callable) -> Callable:
     modularity_spec = """
     gamma
         Modularity parameter. Takes the place of the ``omega`` argument in
-        ``connectopy``.
+        :func:`~hypercoil.loss.functional.connectopy`.
     exclude_diag
         If True, then the diagonal of the affinity matrix is set to zero."""
 
@@ -2058,7 +2055,7 @@ def document_connectopy(func: Callable) -> Callable:
         projection, it is more prone to misalignment than a projective approach
         for eigendecomposition-based maps.
 
-    .. danger::
+    .. warning::
         Note that a connectopic loss is often insufficient on its own as a
         loss. It should be combined with appropriate projections and
         constraints, for instance to ensure the learned maps are zero-centred
@@ -2130,23 +2127,23 @@ def document_connectopy(func: Callable) -> Callable:
         function, parameters representing the community affiliation :math:`C`
         and coupling :math:`L` matrices can be pre-transformed. Mapping the
         community affiliation matrix :math:`C` through a
-        :doc:`softmax <hypercoil.init.domain.MultiLogit>`
+        :class:`softmax <hypercoil.init.mapparam.ProbabilitySimplexParameter>`
         function along the community axis lends the affiliation matrix the
         intuitive interpretation of distributions over communities, or a
         quantification of the uncertainty of each vertex's community
         assignment. Similarly, the coupling matrix can be pre-transformed
         through a
-        :doc:`sigmoid <hypercoil.init.domain.Logit>`
+        :class:`sigmoid <hypercoil.init.mapparam.MappedLogits>`
         to constrain inter-community couplings to :math:`(0, 1)`.
     .. note::
         Because the community affiliation matrices :math:`C` induce
         parcellations, we can regularise them using parcellation losses. For
         instance, penalising the
-        :doc:`entropy <hypercoil.loss.entropy>`
+        :func:`~hypercoil.loss.functional.entropy`
         will promote a solution wherein each node's community assignment
         probability distribution is concentrated in a single community.
         Similarly, using parcel
-        :doc:`equilibrium <hypercoil.loss.equilibrium>` will favour a solution
+        :func:`~hypercoil.loss.functional.equilibrium` will favour a solution
         wherein communities are of similar sizes."""
 
     return_spec = """
@@ -2301,15 +2298,15 @@ def eigenmaps(
         This function is provided as an illustrative example of how to
         parameterise the connectopy functional. It is not recommended for
         practical use, because it is incredibly inefficient and numerically
-        unstable. Instead, use the ``laplacian_eigenmaps`` function from
-        ``hypercoil.functional``.
+        unstable. Instead, use
+        :func:`~hypercoil.functional.connectopy.laplacian_eigenmaps`.
     \
     {connectopy_pparam_spec}\
     {connectopy_spec}
     normalise : bool (default True)
         If True, then the graph Laplacian is normalised by the vertex degrees.
         Takes the place of the ``D`` and ``omega`` arguments in
-        ``connectopy``.
+        :func:`~hypercoil.loss.functional.connectopy`.
     \
     {return_spec}
     """

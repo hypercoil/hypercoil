@@ -78,8 +78,8 @@ class Initialiser(eqx.Module):
     requested shape.
 
     To use an initialiser, do not instantiate it directly, but instead use the
-    ``init`` method of the module class that uses it. This will apply the
-    initialiser to the model parameter specified by ``where``.
+    :meth:`~Initialiser.init` method of the module class that uses it. This
+    will apply the initialiser to the model parameter specified by ``where``.
     """
 
     def __call__(
@@ -135,7 +135,7 @@ class MappedInitialiser(Initialiser):
     """
     Initialiser base class with an optional parameter map.
 
-    The :doc:`parameter map <api/hypercoil.init.mapparam>` combines
+    The :mod:`parameter map <hypercoil.init.mapparam>` combines
     initialisation and re-parameterisation in one step. The map is given as
     a class, not an instance. Without a map, the initialiser is applied as
     normal.
@@ -145,7 +145,7 @@ class MappedInitialiser(Initialiser):
     shape.
 
     .. warning::
-        Do not call an instance directly. The classmethod ``init`` applies
+        Do not call an instance directly. The classmethod :meth:`init` applies
         the initialiser to the model parameter at ``where``.
 
     .. note::
@@ -155,7 +155,7 @@ class MappedInitialiser(Initialiser):
         not match the initialiser's specification.
 
     .. note::
-        Extra keyword arguments to ``init`` are passed to the map.
+        Extra keyword arguments to :meth:`init` are passed to the map.
     """
 
     mapper: Optional[Type[MappedParameter]] = None
@@ -213,7 +213,7 @@ class MappedInitialiser(Initialiser):
         mapper
             Mapping function to apply to the initialised parameter. This
             should be a subclass of
-            :doc:`MappedParameter <api/hypercoil.init.mapparam.MappedParameter>`.
+            :class:`~hypercoil.init.mapparam.MappedParameter`.
             If this is ``None``, the initialiser is applied as normal.
         where
             Address of the parameter to initialise. This can be a string

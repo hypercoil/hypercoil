@@ -97,7 +97,7 @@ class Sylo(eqx.Module):
         Similarity is computed between each of the N matrices in the first
         input stack and the (low-rank) matrix derived from the outer-product
         expansion of the second and third inputs.
-        Default: ``crosshair_similarity``
+        Default :func:`~hypercoil.functional.crosssim.crosshair_similarity`.
     delete_diagonal
         Delete the diagonal of the output.
 

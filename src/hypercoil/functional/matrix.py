@@ -578,9 +578,9 @@ def squareform(X: Tensor) -> Tensor:
     -------
     tensor
         If the input block is in square matrix form, returns it
-        :doc:`in vector form <hypercoil.functional.matrix.sym2vec>`.
+        :func:`in vector form <hypercoil.functional.matrix.sym2vec>`.
         If the input block is in vector form, returns it
-        :doc:`in square matrix form <hypercoil.functional.matrix.vec2sym>`.
+        :func:`in square matrix form <hypercoil.functional.matrix.vec2sym>`.
     """
     if X.shape[-2] == X.shape[-1] and jnp.allclose(X, X.swapaxes(-1, -2)):
         return sym2vec(X, offset=1)

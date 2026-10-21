@@ -212,7 +212,7 @@ class AtlasLinear(eqx.Module):
         ----------
         atlas
             A neuroimaging atlas, implemented as an instance of a subclass of
-            :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`.
+            :class:`~hypercoil.init.atlas.BaseAtlas`.
             This initialises the atlas labels from which representative time
             series are extracted.\
         {atlas_lin_init_param_spec}

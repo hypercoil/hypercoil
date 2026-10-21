@@ -76,8 +76,8 @@ def residualise(
     {regress_warning}
 
     .. note::
-        The :doc:`conditional covariance <hypercoil.functional.cov.conditionalcov>`
-        or :doc:`conditional correlation <hypercoil.functional.cov.conditionalcorr>`
+        The :func:`conditional covariance <hypercoil.functional.cov.conditionalcov>`
+        or :func:`conditional correlation <hypercoil.functional.cov.conditionalcorr>`
         may be used instead where appropriate.
     \
     {regress_dim}

@@ -30,7 +30,7 @@ from .mapparam import MappedParameter
 
 def document_frequency_spectrum(func):
     iir_warning = """
-    .. danger::
+    .. warning::
 
         Note that this provides **only an emulation** for IIR filters. Thus,
         for instance, using the ``butterworth`` filter initialisation will not
@@ -39,7 +39,7 @@ def document_frequency_spectrum(func):
         filter in the frequency domain. In practice, the results are not even
         close to a true IIR filter. For a true differentiable IIR filter, use
         the
-        :doc:`IIRFilter <hypercoil.init.iirfilter>`
+        :mod:`IIRFilter <hypercoil.init.iirfilter>`
         class instead (when it's operational)."""
     base_param_spec = """
     N
@@ -462,7 +462,7 @@ def randn_spectrum(
 
 class _FreqFilterSpecDefaults(eqx.Module):
     """
-    Dataclass default fields for the ``FreqFilterSpec`` class.
+    Dataclass default fields for :class:`FreqFilterSpec`.
     """
 
     Wn: Optional[
@@ -530,7 +530,7 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
         at that frequency. For instance {{0.1: 0, 0.5: 1}} enables clamping of
         the frequency bin closest to 0.1 to 0 (full stop) and the bin closest
         to 0.5 to 1 (full pass). Note that the clamp must be applied using the
-        ``get_clamps`` method.
+        :meth:`get_clamps` method.
     """
 
     n_filters: int

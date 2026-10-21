@@ -332,7 +332,7 @@ class EliminationSelector(eqx.Module):
     Begin with a full complement of model vectors, then eliminate them by
     placing an L1 penalty on the weight of this layer.
 
-    .. danger::
+    .. warning::
 
         Not for practical use. Across random seeds this model performs
         poorly; it is retained for the synthetic data experiments.

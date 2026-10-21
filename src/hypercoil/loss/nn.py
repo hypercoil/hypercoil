@@ -2161,8 +2161,8 @@ class EigenmapsLoss(Loss):
         This function is provided as an illustrative example of how to
         parameterise the connectopy functional. It is not recommended for
         practical use, because it is incredibly inefficient and numerically
-        unstable. Instead, use the ``laplacian_eigenmaps`` function from
-        ``hypercoil.functional``.
+        unstable. Instead, use
+        :func:`~hypercoil.functional.connectopy.laplacian_eigenmaps`.
     \
     {param_spec}\
     {connectopy_spec}\

@@ -54,9 +54,9 @@ class LossApply(eqx.Module):
     apply
         Callable that pretransforms the input to the loss. This can be used
         as a selector, so that different entries in a
-        :doc:`LossScheme <hypercoil.loss.scheme.LossScheme>` are applied
-        to different combinations of weights, inputs, and outputs. One use
-        case is filtering the inputs to a ``LossScheme`` and forwarding only
+        :class:`~hypercoil.loss.scheme.LossScheme` are applied
+        to different combinations of weights, inputs, and outputs. One use case
+        is filtering the inputs to a :class:`LossScheme` and forwarding only
         the ones relevant to the loss function at hand.
     """
 

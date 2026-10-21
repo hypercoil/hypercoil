@@ -12,61 +12,59 @@ together with random or unstructured initialisations that use no prior
 knowledge.
 
 The initialisation class itself,
-:doc:`AtlasInit <hypercoil.init.atlas.AtlasInit>`,
+:class:`~hypercoil.init.atlas.AtlasInitialiser`,
 takes as its required argument an atlas object.
 All atlas objects subclass the abstract base class
-:doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
+:class:`~hypercoil.init.atlas.BaseAtlas`
 and incorporate a combination of
-:doc:`atlas mixins <hypercoil.init.atlasmixins>`
+:mod:`atlas mixins <hypercoil.init.atlasmixins>`
 to implement diverse functionalities. These subclasses generally take a
 pointer to a reference as an input argument; this reference either forms the
 base for the atlas (for classes that use previously existing knowledge
 annotations) or defines its dimensions (for classes based on random
 initialisations). Existing subclasses include
 
-- :doc:`DiscreteVolumetricAtlas <hypercoil.init.atlas.DiscreteVolumetricAtlas>`
+- :class:`~hypercoil.init.atlas.DiscreteVolumetricAtlas`
   implements a volumetric atlas with discrete parcels, loaded from a single
   reference image and a single volume in which each unique integer identifies
   a single parcel.
-- :doc:`MultiVolumetricAtlas <hypercoil.init.atlas.MultiVolumetricAtlas>`
+- :class:`~hypercoil.init.atlas.MultiVolumetricAtlas`
   implements a volumetric atlas whose parcels are each encoded in a separate
   volume of the reference image.
-- :doc:`MultifileVolumetricAtlas <hypercoil.init.atlas.MultifileVolumetricAtlas>`
+- :class:`~hypercoil.init.atlas.MultifileVolumetricAtlas`
   implements a volumetric atlas whose parcels (either discrete or continuous)
   are each encoded in a separate reference image file.
-- :doc:`CortexSubcortexCIfTIAtlas <hypercoil.init.atlas.CortexSubcortexCIfTIAtlas>`
+- :class:`~hypercoil.init.atlas.CortexSubcortexCIfTIAtlas`
   implements a surface-based atlas with discrete parcels, loaded from a CIfTI
   image. Parcels are compartmentalised into left and right cerebral cortex and
   subcortex.
-- :doc:`DirichletInitVolumetricAtlas <hypercoil.init.atlas.DirichletInitVolumetricAtlas>`
+- :class:`~hypercoil.init.atlas.DirichletInitVolumetricAtlas`
   implements a volumetric atlas whose voxel-label annotations are initialised
   as random, i.i.d. samples from a Dirichlet distribution.
-- :doc:`DirichletInitSurfaceAtlas <hypercoil.init.atlas.DirichletInitSurfaceAtlas>`
+- :class:`~hypercoil.init.atlas.DirichletInitSurfaceAtlas`
   implements a surface-based atlas compartmentalised into left and right
   cerebral cortex and subcortex. Voxel- and vertex-label annotations are
   initialised as random, i.i.d. samples from a Dirichlet distribution.
 
 .. note::
-    Composing the :doc:`atlas mixins <hypercoil.init.atlasmixins>` into a new
+    Composing the :mod:`atlas mixins <hypercoil.init.atlasmixins>` into a new
     atlas subclass is not currently supported in general.
 
 .. image:: ../_images/atlas_linearmap.svg
   :width: 400
   :align: center
 
-Each subclass instance of ``BaseAtlas`` has a ``maps`` attribute that stores
-voxel-label annotations as a dictionary. The keys of this dictionary
+Each subclass instance of :class:`BaseAtlas` has a ``maps`` attribute that
+stores voxel-label annotations as a dictionary. The keys of this dictionary
 correspond to isolated compartments of the atlas. (The single key ``'all'`` is
 used for atlases not compartmentalised.) The dictionary values are
 :math:`L_{compartment} \times V_{compartment}` matrices, where
-:math:`V_{compartment}` is the number of spatial locations (voxels or
-vertices) in the compartment, and
-:math:`L_{compartment}` is the number of distinct parcel labels in the
-compartment. These matrices can be used in a linear mapping to reduce the
-dimension of an input time series from the number of voxels to the number of
-parcels. See
-:doc:`the linear atlas module <hypercoil.nn.atlas>`
-for more details.
+:math:`V_{compartment}` is the number of spatial locations (voxels or vertices)
+in the compartment, and :math:`L_{compartment}` is the number of distinct
+parcel labels in the compartment. These matrices can be used in a linear
+mapping to reduce the dimension of an input time series from the number of
+voxels to the number of parcels. See
+:mod:`the linear atlas module <hypercoil.nn.atlas>` for more details.
 """
 from __future__ import annotations
 from abc import abstractmethod
@@ -133,7 +131,7 @@ class BaseAtlas(eqx.Module):
 
     Several atlas classes are included to cover frequent scenarios, but users
     can also create their own atlas class compositionally using the available
-    :doc:`mixins <hypercoil.init.atlasmixins>`.
+    :mod:`mixins <hypercoil.init.atlasmixins>`.
     Each atlas class must implement the following methods:
 
     ``_load_reference``
@@ -1252,7 +1250,7 @@ class AtlasInitialiser(MappedInitialiser):
     matrices that each map a relevant subset of image voxels to a set of
     labels. The initialisation can use a previously existing atlas,
     instantiated as a subclass of
-    :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
+    :class:`~hypercoil.init.atlas.BaseAtlas`
     with the option of blurring labels using pointwise spatial convolution or
     injecting noise.
 

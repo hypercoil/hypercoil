@@ -100,7 +100,7 @@ def document_modularity(f: Callable) -> Callable:
     null
         Function of ``A`` that returns, for each adjacency matrix in the input
         tensor block, a suitable null model. By default, the
-        :doc:`Girvan-Newman null model <hypercoil.functional.graph.girvan_newman_null>`
+        :func:`Girvan-Newman null model <hypercoil.functional.graph.girvan_newman_null>`
         is used.
     normalise_modularity
         Indicates that the resulting matrix should be normalised by the total

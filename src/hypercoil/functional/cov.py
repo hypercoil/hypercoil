@@ -314,7 +314,7 @@ def pairedcov(
     """
     Empirical covariance between two sets of variables.
 
-    .. danger::
+    .. warning::
         The ``l2`` parameter is ignored. It is accepted for signature
         conformance with :func:`cov`.
 
@@ -368,7 +368,7 @@ def pairedcorr(
 
     {corr_long_description}
 
-    .. danger::
+    .. warning::
         The ``l2`` parameter is ignored. It is accepted for signature
         conformance with :func:`cov`.
 

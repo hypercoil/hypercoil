@@ -4,7 +4,7 @@
 """
 Mappings that hold the arguments to a model or loss function.
 
-``LossArgument`` is an alias of ``ModelArgument``.
+``LossArgument`` is an alias of :class:`ModelArgument`.
 """
 from __future__ import annotations
 from collections import namedtuple

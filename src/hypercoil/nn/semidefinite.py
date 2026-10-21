@@ -61,7 +61,7 @@ def document_semidefinite_projection_module(f: Callable) -> Callable:
         Objects encoding a measure of central tendency in the positive
         semidefinite cone. Used to initialise the reference points of
         tangency. Selected from
-        :doc:`means on the semidefinite cone <hypercoil.init.semidefinite>`."""
+        :mod:`means on the semidefinite cone <hypercoil.init.semidefinite>`."""
 
     tangent_projection_dest_spec = """
     dest
@@ -82,9 +82,9 @@ def document_semidefinite_init_from_spec(f: Callable) -> Callable:
     f.__doc__ = """
     Initialise the reference point of tangency from a data sample.
 
-    See :doc:`means on the semidefinite cone <hypercoil.init.semidefinite>`
+    See :mod:`means on the semidefinite cone <hypercoil.init.semidefinite>`
     for a list of available measures of central tendency, and
-    :doc:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
+    :class:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
     for more details on the initialisation procedure.
     """
     return f
@@ -222,9 +222,9 @@ class TangentProject(_TangentProject):
         """
         Initialise the reference point of tangency from a data sample.
 
-        See :doc:`means on the semidefinite cone <hypercoil.init.semidefinite>`
+        See :mod:`means on the semidefinite cone <hypercoil.init.semidefinite>`
         for a list of available measures of central tendency, and
-        :doc:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
+        :class:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
         for more details on the initialisation procedure.
         """
         m_key, i_key = jax.random.split(key)
@@ -262,7 +262,7 @@ class BatchTangentProject(_TangentProject):
     Tangent/cone projection with a new tangency point computed for each batch.
 
     .. warning::
-        Initialise this only using the ``from_specs`` class method.
+        Initialise this only using the :meth:`from_specs` class method.
     \
     {tangent_projection_long_description}
 

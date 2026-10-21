@@ -115,35 +115,35 @@ def document_cov_nn(cls):
     unary_estimator_spec = """
     estimator
         Covariance estimator, e.g. from
-        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
+        :mod:`~hypercoil.functional.cov`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
 
-        - :doc:`cov <hypercoil.functional.cov.cov>`: Raw empirical covariance.
-        - :doc:`corr  <hypercoil.functional.cov.corr>`: Pearson correlation.
-        - :doc:`precision  <hypercoil.functional.cov.precision>`: Precision.
-        - :doc:`partialcorr  <hypercoil.functional.cov.partialcorr>`:
+        - :func:`~hypercoil.functional.cov.cov`: Raw empirical covariance.
+        - :func:`~hypercoil.functional.cov.corr`: Pearson correlation.
+        - :func:`~hypercoil.functional.cov.precision`: Precision.
+        - :func:`~hypercoil.functional.cov.partialcorr`:
           Partial correlation."""
 
     binary_estimator_spec = """
     estimator
         Covariance estimator, e.g. from
-        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
+        :mod:`~hypercoil.functional.cov`. The
         estimator must be binary: it should accept two tensors rather than
         one. Some available options are:
 
-        - :doc:`pairedcov <hypercoil.functional.cov.pairedcov>`:
+        - :func:`~hypercoil.functional.cov.pairedcov`:
           Empirical covariance between variables in tensor 1 and those in
           tensor 2.
-        - :doc:`pairedcorr <hypercoil.functional.cov.pairedcorr>`:
+        - :func:`~hypercoil.functional.cov.pairedcorr`:
           Pearson correlation between variables in tensor 1 and those in
           tensor 2.
-        - :doc:`conditionalcov <hypercoil.functional.cov.conditionalcov>`:
+        - :func:`~hypercoil.functional.cov.conditionalcov`:
           Covariance between variables in tensor 1 after conditioning on
           variables in tensor 2. Can be used to control for the effects of
           confounds and is equivalent to confound regression with the
           addition of an intercept term.
-        - :doc:`conditionalcorr <hypercoil.functional.cov.conditionalcorr>`:
+        - :func:`~hypercoil.functional.cov.conditionalcorr`:
           Pearson correlation between variables in tensor 1 after
           conditioning on variables in tensor 2."""
 
@@ -378,7 +378,7 @@ class BaseWeightedCovariance(BaseCovariance):
     """
     Base class for covariance estimators with fully learnable weights.
 
-    ``_WeightedCov`` extends ``BaseCovariance`` by providing a default
+    ``_WeightedCov`` extends :class:`BaseCovariance` by providing a default
     initialisation framework for the module's learnable parameters.
 
     Consult specific implementations for comprehensive documentation.

@@ -44,7 +44,7 @@ class MappedParameter(eqx.Module):
         Rather than first instantiating a new ``MappedParameter`` and then
         creating an updated model, it is also possible to directly create an
         updated model that immediatelycontains the ``MappedParameter`` using
-        the ``map`` class method.
+        the :meth:`map` class method.
 
     Parameters
     ----------
@@ -730,7 +730,7 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
     The forward function is a softmax. Note that the softmax function does
     not have a unique inverse; here we use the elementwise natural logarithm
     as an 'inverse'. For a relatively well-behaved map, pair this with
-    :doc:`Dirichlet initialisation <init.dirichlet.DirichletInit>`.
+    :class:`Dirichlet initialisation <hypercoil.init.dirichlet.DirichletInitialiser>`.
 
     Parameters
     ----------

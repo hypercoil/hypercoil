@@ -37,7 +37,7 @@ class IIRFilterSpec(eqx.Module):
 
         .. note::
             To initialise an ideal filter, use a
-            :doc:`frequency product filter <hypercoil.init.freqfilter>`
+            :mod:`frequency product filter <hypercoil.init.freqfilter>`
             instead.
         One of ``'butter'``, ``'cheby1'``, ``'cheby2'``, ``'ellip'``,
         ``'bessel'`` and ``'kuznetsov'``.
