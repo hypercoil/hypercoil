@@ -686,7 +686,7 @@ class TensorIIDMulStochasticTransform(
 
 @document_stochastic_transforms
 class EigenspaceReconditionTransform(TensorIIDAddStochasticTransform):
-    """
+    r"""
     Stochastic transform that removes degenerate and zero eigenvalues.
 
     Differentiating through various numerical operations in linear algebra,
@@ -699,12 +699,11 @@ class EigenspaceReconditionTransform(TensorIIDAddStochasticTransform):
     diagonal of the input matrix. Each input matrix A is transformed
     following:
 
-    :math:`A := A + \\left(\\psi - \\frac{{\\xi}}{{2}}\\right) I + I\\mathbf{{x}}`
+    :math:`A := A + \left(\psi - \frac{{\xi}}{{2}}\right) I + I\mathbf{{x}}`
 
-    :math:`x_i \\sim \\mathrm{{Uniform}}(0, \\xi) \\forall x_i`
+    :math:`x_i \sim \mathrm{{Uniform}}(0, \xi) \forall x_i`
 
-    :math:`\\psi > \\xi`
-    \
+    :math:`\psi > \xi`
     {base_warning}
 
     Parameters
@@ -719,9 +718,7 @@ class EigenspaceReconditionTransform(TensorIIDAddStochasticTransform):
         Specifies the axes of the input tensor that correspond to the event
         shape of the distribution (i.e., the slices along which matrices to be
         reconditioned lie). Note that event axes are automatically excluded
-        from the sample axes.\
-    {axial_param_spec}\
-    {base_param_spec}
+        from the sample axes.{axial_param_spec}{base_param_spec}
     """
 
     def __init__(

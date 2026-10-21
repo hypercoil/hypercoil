@@ -344,35 +344,23 @@ class MSELoss(Loss):
 
 @document_loss()
 class NormedLoss(Loss):
-    """
+    r"""
     :math:`L_p` norm regulariser.
 
     An example of how to compose elements to define a loss function. By
-    default, this function flattens the input tensor and computes the
-    :math:`L_2` norm of the resulting vector. The dimensions to be flattened
-    and the norm order can be specified using the ``axis`` and ``p`` arguments
-    respectively. If the norm is computed over only a subset of axes, the
-    remaining axes can be further reduced by specifying a scalarisation
-    function using the ``outer_scalarise`` argument. By default, the outer
-    scalarisation function is the mean function. Setting this to an identity
-    function will result in a loss function that returns a vector of values
-    for each observation.
-    \
-    {param_spec}\
-    {score_spec}\
-    p: float
-        The order of the norm to be computed. If ``p = 1``, the function
-        computes the :math:`L_1` Manhattan / city block norm. If ``p = 2``,
-        the function computes the :math:`L_2` Euclidean norm. If ``p = inf``,
-        the function computes the :math:`L_\infty` maximum norm.
-    axis: Optional[Union[int, Sequence[int]]]
-        The axes to be flattened. If ``None``, all axes are flattened.
-    outer_scalarise: Optional[Callable]
-        The scalarisation function to be applied to any dimensions that are
-        not flattened (i.e., those not specified in ``axis``). If ``None``,
-        the mean function is used. If ``axis`` is ``None``, this argument is
-        ignored. To return a vector of values for each observation, explicitly
-        set this to an identity function.
+    default, the loss flattens the input tensor and computes the
+    :math:`L_2` norm of the resulting vector. ``axis`` selects the axes to
+    flatten and ``p`` the norm order. The axes not in ``axis`` are reduced by
+    ``outer_scalarise``.
+    {param_spec}{score_spec}
+    p
+        Norm order: 1 for the :math:`L_1` norm, 2 for the :math:`L_2` norm,
+        ``inf`` for the :math:`L_\infty` norm.
+    axis
+        Axes to flatten; None flattens all axes.
+    outer_scalarise
+        Scalarisation map over the axes not in ``axis``. An identity map
+        returns a value for each observation.
     """
 
     p: float

@@ -312,7 +312,7 @@ def document_gramian_determinant(func: Callable) -> Callable:
     function should always be a positive semi-definite function, and
     additional arguments are provided to ensure a non-singular (i.e.,
     strictly positive definite) matrix."""
-    ultra_long_description = """
+    ultra_long_description = r"""
     .. admonition:: Log-det-Gram
 
         The log-det-Gram loss among a set of vectors :math:`X` is defined as
@@ -1627,7 +1627,7 @@ def document_spatial_loss(func):
         located. If this is specified as None, it is assumed that the
         coordinates are in Euclidean space."""
 
-    interhemispheric_long_description = """
+    interhemispheric_long_description = r"""
     Displacement of centres of mass in one cortical hemisphere from
     corresponding centres of mass in the other cortical hemisphere.
 
@@ -1976,7 +1976,7 @@ def multivariate_kurtosis(
 
 def document_connectopy(func: Callable) -> Callable:
 
-    connectopy_pparam_spec = """
+    connectopy_pparam_spec = r"""
     :Dimension: **Q :** :math:`(D, C)`
                     D denotes the number of vertices in the affinity matrix
                     and C denotes the number of proposed maps.

@@ -258,12 +258,11 @@ class TangentProject(_TangentProject):
 @document_semidefinite_mean
 @document_semidefinite_projection_module
 class BatchTangentProject(_TangentProject):
-    """
+    r"""
     Tangent/cone projection with a new tangency point computed for each batch.
 
     .. warning::
         Initialise this only using the :meth:`from_specs` class method.
-    \
     {tangent_projection_long_description}
 
     Here, the tangency point is computed as a convex combination of the
@@ -278,20 +277,16 @@ class BatchTangentProject(_TangentProject):
     :math:`\bar{\Theta}`, the weight is updated as
 
     :math:`\Omega_t := \eta \Omega_{t-1} + (1 - \eta) \bar{\Theta}`
-    \
     {tangent_projection_dim}
 
     Parameters
-    ----------\
-    {tangent_projection_mean_specs_spec}\
-    {semidefinite_mean_psi_spec}
+    ----------{tangent_projection_mean_specs_spec}{semidefinite_mean_psi_spec}
     inertia
         Parameter :math:`\eta` describing the relative weighting of the
         historical tangencypoint and the current batch mean. Zero inertia
         strictly uses the current batch mean. High inertia prevents the
         tangency point from skipping by heavily weighting the history.
-        In [0, 1].\
-    {tangent_projection_dest_spec}
+        In [0, 1].{tangent_projection_dest_spec}
 
     Attributes
     ----------
