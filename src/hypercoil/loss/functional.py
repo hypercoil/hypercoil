@@ -40,7 +40,7 @@ def identity(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Identity function.
+    Return ``X`` unchanged; ``key`` is unused.
     """
     return X
 
@@ -52,7 +52,7 @@ def zero(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Zero function.
+    Return 0, or zeros like ``X`` if ``broadcast``; ``key`` is unused.
     """
     if broadcast:
         return jnp.zeros_like(X)
@@ -66,7 +66,7 @@ def difference(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Difference score function.
+    Return ``X - Y``; ``key`` is unused.
     """
     return X - Y
 
@@ -1286,8 +1286,36 @@ def functional_homogeneity(
     use_schaefer: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
-    """
+    r"""
     Compute the functional homogeneity of a dataset.
+
+    The homogeneity of a parcel is the weighted mean product of the time
+    series of pairs of distinct locations in the parcel, averaged over
+    time; with standardised time series this is a mean correlation.
+
+    Parameters
+    ----------
+    X
+        Time series of shape :math:`(*, N, T)`.
+    weight
+        Assignment weights of shape :math:`(*, N, P)`.
+    standardise
+        Standardise ``X`` over the last axis first.
+    skip_normalise
+        Use ``weight`` as given; otherwise normalise each parcel's weights to
+        sum to 1.
+    use_geom_mean
+        Use the square root of ``weight``.
+    use_schaefer
+        Return the mean homogeneity over parcels, weighted by parcel size.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        Homogeneity of each parcel, of shape :math:`(*, P)`, or its weighted
+        mean if ``use_schaefer``.
     """
     orig_weight = weight
     X, weight = _homogeneity_prepare_args(
@@ -1358,8 +1386,33 @@ def point_homogeneity(
     standardise: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
-    """
+    r"""
     Compute the functional homogeneity of a dataset at a set of points.
+
+    The homogeneity is the product of the time series of each reference
+    point and its neighbours, weighted by the similarity of their assignment
+    weights, averaged over time and normalised by the total similarity.
+
+    Parameters
+    ----------
+    X
+        Time series of shape :math:`(*, N, T)`.
+    weight
+        Assignment weights of shape :math:`(*, N, P)`.
+    neighbourhood
+        Integer indices of shape :math:`(n, D)`: the :math:`D` neighbours of
+        each of the :math:`n` reference points.
+    reference
+        Indices of the :math:`n` reference points; None uses every location.
+    standardise
+        Standardise ``X`` over the last axis first.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        The homogeneity, reduced over all axes but the batch axes.
     """
     X, _ = _homogeneity_prepare_args(
         X,
@@ -1392,12 +1445,35 @@ def point_similarity(
     rectify_at: Union[float, Literal['auto']] = 'auto',
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
-    """
+    r"""
     Compute the local similarity of a weight assignment at a set of points.
 
-    This loss primarily exists as an ablation for :func:`point_agreement`
-    function. It is equivalent to the agreement loss with the functional
-    homogeneity term removed (i.e., ``kappa=1``).
+    This loss is an ablation of :func:`point_agreement`: the agreement loss
+    without the functional homogeneity term (``kappa=1``). The similarity
+    :math:`s` of a reference point and a neighbour is the inner product of
+    their assignment weights.
+
+    Parameters
+    ----------
+    weight
+        Assignment weights of shape :math:`(*, N, P)`: the weight of each of
+        :math:`N` locations over :math:`P` parcels.
+    neighbourhood
+        Integer indices of shape :math:`(n, D)`: the :math:`D` neighbours of
+        each of the :math:`n` reference points.
+    reference
+        Indices of the :math:`n` reference points; None uses every location.
+    rectify_at
+        Similarity above which no penalty is applied. ``'auto'`` gives
+        :math:`1 / P`, the similarity of uniform assignments.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        :math:`\max(r - s, 0)` for threshold :math:`r` (``rectify_at``), of
+        shape :math:`(*, n, D)`.
     """
     if rectify_at == 'auto':
         # This blocks penalisation when the similarity kernel is any better
@@ -1424,10 +1500,49 @@ def point_agreement(
     rescale_result: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
-    """
+    r"""
     Compute a homogeneity-based agreement at a set of points.
 
-    Boundaries are penalised.
+    The score combines a boundary term, which penalises low assignment
+    similarity :math:`s` between each reference point and its neighbours,
+    and an agreement term, which penalises low functional homogeneity
+    :math:`h`: the product of the reference and neighbour time series
+    weighted by :math:`s`, averaged over time and normalised by the total
+    similarity.
+
+    Parameters
+    ----------
+    X
+        Time series of shape :math:`(*, N, T)`.
+    weight
+        Assignment weights of shape :math:`(*, N, P)`: the weight of each of
+        :math:`N` locations over :math:`P` parcels.
+    neighbourhood
+        Integer indices of shape :math:`(n, D)`: the :math:`D` neighbours of
+        each of the :math:`n` reference points.
+    reference
+        Indices of the :math:`n` reference points; None uses every location.
+    kappa
+        Weight :math:`\kappa` of the boundary term; the agreement term has
+        weight :math:`1 - \kappa`. ``'auto'`` gives
+        :math:`r_a / (r_a + r_b)`.
+    rectify_agreement
+        Homogeneity :math:`r_a` above which the agreement term is 0.
+    rectify_boundaries
+        Similarity :math:`r_b` above which the boundary term is 0. ``'auto'``
+        gives :math:`1 / P`.
+    standardise
+        Standardise ``X`` over the last axis first.
+    rescale_result
+        Divide the score by :math:`\kappa r_b + (1 - \kappa) r_a`.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        :math:`\kappa \max(r_b - s, 0) + (1 - \kappa) \max(r_a - h, 0)`, of
+        shape :math:`(*, n, D)`.
     """
     X, _ = _homogeneity_prepare_args(
         X,

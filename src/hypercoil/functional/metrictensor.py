@@ -230,6 +230,12 @@ def integrate_along_line_segment(
         is False.
     key
         Key to use for random number generation.
+
+    Returns
+    -------
+    Tensor
+        Approximate length of each segment under the metric, of shape
+        :math:`(*, 1)`.
     """
     rel = _obtain_relative_samples(
         n_samples=n_samples,

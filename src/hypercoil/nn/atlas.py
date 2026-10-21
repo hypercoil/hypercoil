@@ -266,10 +266,26 @@ class AtlasLinear(eqx.Module):
         concatenate: Optional[bool] = None,
     ) -> Mapping[str, Tensor]:
         """
-        Encode the input time series into the atlas's connectivity space.
+        Encode a time series by its correlation with the atlas time series.
 
-        If you wish to encode the reference time series, use the instance as
-        a callable instead with ``encode=True``.
+        The atlas maps ``ref`` to regional time series, and ``input`` is
+        encoded by its Pearson correlation with each of them. To encode the
+        reference itself, call the module with ``encode=True``.
+
+        Parameters
+        ----------
+        input
+            Time series to encode.
+        ref
+            Reference time series from which the regional time series are
+            computed.
+        normalisation, forward_mode, decode_labels, concatenate
+            As for calling the module.
+
+        Returns
+        -------
+        Mapping[str, Tensor]
+            Encoded input.
         """
         basis = self(
             ref,

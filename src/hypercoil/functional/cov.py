@@ -559,20 +559,12 @@ def pcorr(*pparams, **params):
 
 
 def ccov(*pparams, **params):
-    """
-    Compute the conditional covariance.
-
-    Alias of :func:`conditionalcov`.
-    """
+    """Compute the conditional covariance; alias of :func:`conditionalcov`."""
     return conditionalcov(*pparams, **params)
 
 
 def ccorr(*pparams, **params):
-    """
-    Compute the conditional correlation.
-
-    Alias of :func:`conditionalcorr`.
-    """
+    """Compute the conditional correlation (:func:`conditionalcorr`)."""
     return conditionalcorr(*pparams, **params)
 
 

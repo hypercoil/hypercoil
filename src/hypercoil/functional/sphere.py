@@ -297,9 +297,28 @@ def euclidean_conv(
     truncate: Optional[float] = None,
 ):
     """
-    Spatial convolution using the standard L2 metric and a Gaussian kernel.
+    Convolve data in Euclidean space with an isotropic Gaussian kernel.
 
-    See :func:`spatial_conv` for implementation details.
+    See :func:`spatial_conv` for the algorithm and shapes.
+
+    Parameters
+    ----------
+    data
+        Data observations, of shape :math:`(*, N, C)`.
+    coor
+        Euclidean coordinates of each observation, of shape :math:`(*, N, D)`.
+    scale
+        Scale (standard deviation) of the Gaussian kernel.
+    max_bin
+        Maximum number of points in one distance computation; decrease it to
+        reduce memory use.
+    truncate
+        Maximum distance at which data points are convolved together.
+
+    Returns
+    -------
+    Tensor
+        The convolved data.
     """
     kernel = partial(kernel_gaussian, scale=scale)
     return spatial_conv(

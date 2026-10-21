@@ -261,7 +261,7 @@ class StochasticTransform(eqx.Module):
         key: 'jax.random.PRNGKey',
     ) -> Tensor:
         """
-        Sample from the source.
+        Sample noise of shape ``shape`` with the key ``key``.
         """
         raise NotImplementedError
 
@@ -273,7 +273,7 @@ class StochasticTransform(eqx.Module):
         key: 'jax.random.PRNGKey',
     ):
         """
-        Inject stochasticity into the input.
+        Return ``input`` with noise injected using the key ``key``.
         """
         raise NotImplementedError
 

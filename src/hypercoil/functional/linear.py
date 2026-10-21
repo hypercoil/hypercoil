@@ -186,6 +186,12 @@ def compartmentalised_linear(
         Normalisation approach for output.
     forward_mode
         Forward mode for linear mapping.
+    concatenate
+        Concatenate the compartment outputs into one tensor; otherwise return
+        a mapping by compartment.
+    encode
+        Encode ``input`` by its Pearson correlation with each mapped
+        time series.
 
     Returns
     -------

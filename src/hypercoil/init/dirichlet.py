@@ -45,6 +45,12 @@ def dirichlet_init(
     key
         Pseudo-random number generator key for sampling the Dirichlet
         distribution.
+
+    Returns
+    -------
+    Tensor
+        Tensor of shape ``shape`` whose slices along ``axis`` are Dirichlet
+        samples.
     """
     return sample_multivariate(
         distr=distr, shape=shape, event_axes=(axis,), key=key

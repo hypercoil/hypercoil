@@ -63,6 +63,23 @@ def random_sparse(
 ) -> Tensor:
     """
     Generate a batch of random sparse matrices in the top-k format.
+
+    Parameters
+    ----------
+    shape
+        Shape of the batch: ``(n_rows, n_cols)``, or
+        ``(batch_size, *channel_dims, n_rows, n_cols)``.
+    k
+        Number of nonzero entries in each row; None gives
+        ``max(n_cols // 100, 1)``.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Top-k format matrices with standard normal entries at column indices
+        drawn without replacement, shared across the batch.
     """
     ikey, dkey = jax.random.split(key)
     if k is None:
@@ -91,10 +108,7 @@ def sparse_astype(
     dtype: Any,
 ) -> Tensor:
     """
-    Set the data type of a sparse matrix.
-
-    This function is probably unnecessary, but I'm missing a way to do this
-    with the current JAX API.
+    Cast the data of a BCOO sparse matrix ``tensor`` to ``dtype``.
     """
     if tensor.dtype == dtype:
         return tensor
@@ -137,6 +151,20 @@ def spdiagmm(
 
     A diagonal matrix that is in matrix form can be converted into a vector by
     calling a ``diagonal`` function that is appropriately vmapped.
+
+    Parameters
+    ----------
+    lhs, rhs
+        The operands: a top-k format sparse matrix and the diagonal as a
+        vector, in either order.
+    lhs_diag
+        ``lhs`` is the diagonal (the product :math:`D X`); otherwise ``rhs``
+        is (the product :math:`X D`).
+
+    Returns
+    -------
+    TopKTensor
+        The product, with the indices of the sparse operand.
     """
     if lhs_diag:
         data = lhs[..., None] * rhs.data
@@ -230,6 +258,19 @@ def spspmm_full(
         Note that this implementation of the matrix multiplication operation
         returns
         :math:`A B^\intercal` for LHS :math:`A` and RHS :math:`B`.
+
+    Parameters
+    ----------
+    lhs
+        Left operand :math:`A`, a top-k format sparse matrix.
+    rhs
+        Right operand :math:`B`, a top-k format sparse matrix or a full
+        matrix.
+
+    Returns
+    -------
+    Tensor
+        The full matrix :math:`A B^\intercal`.
     """
     if not isinstance(rhs, BCOO):
         return lhs @ rhs.swapaxes(-2, -1)
@@ -296,11 +337,25 @@ def select_indices(
         If True, then the threshold value must be an integer, and the
         thresholding operation will be replaced by selection of the top k
         entries.
+    top_k_reduction
+        ``'mean'`` averages over the fixed axes before selecting the top k
+        entries, giving one set of indices; None selects separately.
     fix_indices_over_channel_dims
         If True, then the indices of nonzero entries that are returned will
         be fixed over all channel dimensions. If False, then the indices of
         nonzero entries that are returned are allowed to vary over all channel
         dimensions.
+
+    Returns
+    -------
+    Tensor
+        Indices of the selected entries, one row per entry for thresholding
+        or of shape :math:`(*, n, k, 1)` for top-k selection.
+
+    Raises
+    ------
+    ValueError
+        If ``top_k`` is True and ``threshold`` is not an int.
     """
     if fix_indices_over_channel_dims:
         fixed_axes = tuple(range(tensor.ndim - 2))
@@ -387,11 +442,25 @@ def trace_spspmm(
         If True, then the threshold value must be an integer, and the
         thresholding operation will be replaced by selection of the top k
         entries.
+    top_k_reduction
+        ``'mean'`` averages over the fixed axes before selecting the top k
+        entries, giving one set of indices; None selects separately.
     fix_indices_over_channel_dims
         If True, then the indices of nonzero entries that are returned will
         be fixed over all channel dimensions. If False, then the indices of
         nonzero entries that are returned are allowed to vary over all channel
         dimensions.
+
+    Returns
+    -------
+    Tensor
+        Indices of the selected entries, one row per entry for thresholding
+        or of shape :math:`(*, n, k, 1)` for top-k selection.
+
+    Raises
+    ------
+    ValueError
+        If ``top_k`` is True and ``threshold`` is not an int.
     """
     data = spspmm_full(lhs, rhs)
     return select_indices(
@@ -440,9 +509,47 @@ def block_serialise(
         blocks along the specified axis.
 
     .. warning::
-        Any parameters that are not to be serialised must be passed as keyword
-        arguments. If this is not possible using the original function, then
-        you will have to write a wrapper function.
+        Parameters that are not serialised must be passed as keyword
+        arguments; a function that does not accept them as keywords needs a
+        wrapper.
+
+    Parameters
+    ----------
+    f
+        Function to serialise. Its positional arguments are split into
+        blocks.
+    n_blocks
+        Number of blocks. Ignored if ``block_size`` is given.
+    block_size
+        Size of each block. Inputs are padded with ``pad_value`` to a
+        multiple of ``block_size``; outputs are not trimmed.
+    retnums
+        Indices of the return values that are reassembled from blocks.
+    in_axes
+        Axis along which each positional argument is split, cycled over the
+        arguments.
+    out_axes
+        Axis along which each return value in ``retnums`` is reassembled. A
+        single axis applies to all.
+    pad_value
+        Value used to pad inputs to a multiple of ``block_size``.
+    carrier_fn
+        Function of the carry, the blocked arguments and the return values
+        that returns the next carry. The default returns the carry
+        unchanged.
+    carry_init
+        Initial carry.
+    return_carry
+        Return the final carry together with the output.
+    postprocess_fn
+        Function applied to the return values of each block. The default is
+        the identity.
+
+    Returns
+    -------
+    Callable
+        The serialised function, which runs ``f`` over the blocks with
+        ``jax.lax.scan``.
     """
     if len(out_axes) == 1:
         out_axes = out_axes * len(retnums)
@@ -556,6 +663,39 @@ def sp_block_serialise(
 ) -> Callable:
     """
     Serialise a function over blocks of top-k format sparse data.
+
+    Sparse arguments and return values are split into blocks of rows.
+
+    Parameters
+    ----------
+    f
+        Function to serialise.
+    n_blocks
+        Number of blocks.
+    retnums
+        Indices of the dense return values to reassemble.
+    in_axes
+        Axis along which each dense positional argument is split.
+    out_axes
+        Axis along which each dense return value in ``retnums`` is
+        reassembled.
+    sp_argnums
+        Indices of the top-k sparse positional arguments.
+    sp_retnums
+        Indices of the top-k sparse return values.
+    sp_retshapes
+        Shape of each sparse return value; required if ``sp_retnums`` is
+        nonempty.
+
+    Returns
+    -------
+    Callable
+        The serialised function.
+
+    Raises
+    ------
+    ValueError
+        If ``sp_retnums`` is nonempty and ``sp_retshapes`` is empty.
     """
 
     def _cfg_return():
@@ -834,6 +974,25 @@ def topk(
 ) -> Tensor:
     """
     Select the top k entries of a tensor as top-k format indices.
+
+    The selection uses NumPy and cannot be traced by JAX.
+
+    Parameters
+    ----------
+    tensor
+        Tensor from which to select.
+    k
+        Number of entries to select.
+    axis
+        Axis along which to select.
+    descending
+        Select the largest entries; otherwise the smallest.
+
+    Returns
+    -------
+    ndarray
+        Indices of the selected entries along ``axis``, in no particular
+        order.
     """
     if descending:
         tensor = -tensor
@@ -851,7 +1010,7 @@ def as_topk(
     descending: bool = True,
 ) -> TopKTensor:
     """
-    Convert a tensor to a top-k sparse matrix format.
+    Keep the top ``k`` entries along the last axis of ``tensor`` as top-k.
     """
     # TODO: allow user to specify axis (?)
     indices = topk(tensor, k, axis=-1, descending=descending)
@@ -866,9 +1025,18 @@ def full_as_topk(
     """
     Represent a batch of full tensors in top-k sparse matrix format.
 
-    This is strictly less efficient than standard full tensor format, but
-    provides compatibility with functions that operate only on top-k sparse
-    matrices.
+    The representation is less efficient than the full tensor; functions that
+    accept only top-k sparse matrices require it.
+
+    Parameters
+    ----------
+    tensor
+        Full tensor whose last axis holds the k entries of each row.
+
+    Returns
+    -------
+    TopKTensor
+        ``tensor`` in top-k format, with every entry stored.
     """
     data = tensor
     ndim = data.ndim
@@ -895,7 +1063,7 @@ def spsp_pairdiff(
     rhs: TopKTensor,
 ) -> TopKTensor:
     """
-    Pairwise difference between two top-k sparse matrices.
+    Return the difference of each row of ``lhs`` and each row of ``rhs``.
     """
     lhs_data = fold_and_promote(lhs.data, -2, lhs.data.shape[-2])
     lhs_indices = fold_and_promote(lhs.indices, -3, lhs.indices.shape[-3])
@@ -919,6 +1087,21 @@ def splr_hadamard(
 
     The low-rank matrix is the outer product of the given column and row
     vectors.
+
+    Parameters
+    ----------
+    input
+        Top-k format sparse matrix of shape :math:`(*, n, m)`.
+    col
+        Column factors of shape :math:`(*, n, r)`.
+    row
+        Row factors of shape :math:`(m, r)`.
+
+    Returns
+    -------
+    TopKTensor
+        ``input`` multiplied entrywise by ``col @ row.T``, with the indices
+        of ``input``.
     """
     row = row[tuple(input.indices.squeeze(-1))]
     col = col[..., None, :]
@@ -986,7 +1169,7 @@ def spsymv(
 
 def topk_diagzero(input: TopKTensor) -> TopKTensor:
     r"""
-    Zero out the diagonal of a top-k sparse matrix.
+    Return ``input``, a top-k sparse matrix, with its diagonal set to zero.
     """
     diag_indices = jnp.arange(input.shape[-2])
     xdim = [
@@ -1025,7 +1208,7 @@ def topk_diagreplace(
     diag: Tensor,
 ) -> TopKTensor:
     r"""
-    Diagonal replacement of a top-k sparse matrix.
+    Return ``input``, a top-k sparse matrix, with its diagonal set to ``diag``.
     """
     return topk_diagaugment(topk_diagzero(input), diag)
 

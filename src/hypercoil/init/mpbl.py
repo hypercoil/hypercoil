@@ -289,6 +289,8 @@ def maximum_potential_bipartite_lattice(
           (compressed and uncompressed).
         * `u` is the vector of potentials included in the compression.
         * The returned scalar is minimal for an optimum compression.
+    key
+        Pseudo-random number generator key for the Monte Carlo search.
 
     Returns
     -------

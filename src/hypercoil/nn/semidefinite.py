@@ -86,6 +86,32 @@ def document_semidefinite_init_from_spec(f: Callable) -> Callable:
     for a list of available measures of central tendency, and
     :class:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
     for more details on the initialisation procedure.
+
+    Parameters
+    ----------
+    mean_specs
+        Mean specifications from :mod:`hypercoil.init.semidefinite`, one for
+        each output channel.
+    init_data
+        Data sample from which each mean is computed; the last axis gives
+        the matrix size.
+    psi
+        Conditioning factor in [0, 1] that promotes positive definiteness.
+    inertia
+        Weight of the previous point of tangency in each update, in [0, 1];
+        :class:`BatchTangentProject` only.
+    dest
+        Target of the projection, ``'tangent'`` or ``'cone'``.
+    std
+        Standard deviation of the positive semidefinite noise added to each
+        channel of the initialised point of tangency.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Module
+        A module with initialised points of tangency.
     """
     return f
 
@@ -226,7 +252,30 @@ class TangentProject(_TangentProject):
         for a list of available measures of central tendency, and
         :class:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
         for more details on the initialisation procedure.
-        """
+
+        Parameters
+        ----------
+        mean_specs
+            Mean specifications from :mod:`hypercoil.init.semidefinite`, one
+            for each output channel.
+        init_data
+            Data sample from which each mean is computed; the last axis gives
+            the matrix size.
+        psi
+            Conditioning factor in [0, 1] that promotes positive definiteness.
+        dest
+            Target of the projection, ``'tangent'`` or ``'cone'``.
+        std
+            Standard deviation of the positive semidefinite noise added to each
+            channel of the initialised point of tangency.
+        key
+            Pseudo-random number generator key.
+
+        Returns
+        -------
+        TangentProject
+            A module with initialised points of tangency.
+    """
         m_key, i_key = jax.random.split(key)
         out_channels = len(mean_specs)
         matrix_size = init_data.shape[-1]

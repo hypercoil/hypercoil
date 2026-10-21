@@ -121,11 +121,14 @@ def tangency_init(
         channel of the weight matrix. This can be used to ensure that
         different channels initialised from the same mean receive different
         gradients and differentiate from one another.
+    key
+        Pseudo-random number generator key for the noise; required if
+        ``std`` is positive.
 
     Returns
     -------
     Tensor
-        The initialised tensor.
+        The initialised tensor, one mean for each specification.
     """
     means = mean_block_spd(mean_specs, init_data)
     if std > 0:

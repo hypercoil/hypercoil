@@ -35,7 +35,23 @@ def conform_mask(
     """
     Conform a mask or weight for elementwise applying to a tensor.
 
-    There is almost certainly a better way to do this.
+    Parameters
+    ----------
+    tensor
+        Tensor to which the mask is applied.
+    mask
+        Mask or weight, aligned with ``axis`` of ``tensor``.
+    axis
+        Axes of ``tensor`` spanned by ``mask``. For an int, ``mask`` is tiled
+        over the leading axes.
+    batch
+        The first axis of ``mask`` is a batch axis aligned with the first
+        axis of ``tensor``.
+
+    Returns
+    -------
+    Tensor
+        ``mask`` tiled to the shape of ``tensor``.
 
     See also
     --------
@@ -77,13 +93,28 @@ def apply_mask(
 
     .. warning::
 
-        This function will only work if the mask is one-dimensional. For
-        multi-dimensional masks, use :func:`conform_mask`.
+        Only one-dimensional masks are supported. For multi-dimensional masks,
+        use :func:`conform_mask`.
 
     .. warning::
 
-        Use of this function is strongly discouraged. It is incompatible with
-        `jax.jit`.
+        Discouraged: incompatible with ``jax.jit``, because the output shape
+        depends on the mask.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to mask.
+    msk
+        Boolean mask over ``axis``.
+    axis
+        Axis to mask.
+
+    Returns
+    -------
+    Tensor
+        ``tensor`` with the entries along ``axis`` where ``msk`` is False
+        removed.
 
     See also
     --------
@@ -170,7 +201,7 @@ def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
 
 def amplitude_apply(func: Callable) -> Callable:
     """
-    Decorate a function to apply it to the amplitude of a complex tensor.
+    Return ``func`` applied to the amplitude of a complex tensor.
     """
 
     def wrapper(complex: Tensor) -> Tensor:

@@ -339,9 +339,7 @@ def recondition_eigenspaces(
 
 def delete_diagonal(A: Tensor) -> Tensor:
     """
-    Delete the diagonal from a block of square matrices.
-
-    The dimension is inferred from the last axis.
+    Zero the diagonal of each square matrix over the last two axes of ``A``.
     """
     mask = ~jnp.eye(A.shape[-1], dtype=bool)
     return A * mask
@@ -349,16 +347,29 @@ def delete_diagonal(A: Tensor) -> Tensor:
 
 def diag_embed(v: Tensor, offset: int = 0) -> Tensor:
     """
-    Embed a vector into a diagonal matrix.
+    Embed the last axis of ``v`` as diagonal ``offset`` of a square matrix.
     """
     return vmap_over_outer(partial(jnp.diagflat, k=offset), 1)((v,))
 
 
 def fill_diagonal(A: Tensor, fill: float = 0, offset: int = 0) -> Tensor:
     """
-    Fill a selected diagonal in a block of square matrices.
+    Fill a selected diagonal in a block of matrices.
 
-    The dimension is inferred from the last axes.
+    Parameters
+    ----------
+    A
+        Block of matrices over the last two axes.
+    fill
+        Value of the diagonal entries.
+    offset
+        Diagonal to fill: 0 for the main diagonal, positive above it and
+        negative below it.
+
+    Returns
+    -------
+    Tensor
+        ``A`` with the selected diagonal set to ``fill``.
     """
     dim = A.shape[-2:]
     mask = jnp.ones(max(dim) - abs(offset), dtype=bool)
@@ -375,24 +386,33 @@ def toeplitz_2d(
     fill_value: float = 0,
 ) -> Tensor:
     """
-    Construct a 2D Toeplitz matrix from a column and row vector.
+    Construct a 2D Toeplitz matrix from a column and a row vector.
 
-    Based on the second method posted by @mattjj and evaluated by
-    @blakehechtman here:
-    https://github.com/google/jax/issues/1646#issuecomment-1139044324
-    Apparently this method underperforms on TPU. But given that TPUs are
-    only available for Google, this is probably not a big deal.
+    The matrix need not be circulant, and off-diagonals created by extending
+    the inputs take a fill value. :func:`toeplitz` supports any number of
+    leading dimensions.
 
-    Our method is more flexible in that it admits Toeplitz matrices without
-    circulant structure. Our API is also closer to that of the scipy toeplitz
-    function. We also support a fill value for the matrix. See
-    :func:`toeplitz` for complete API documentation.
+    Parameters
+    ----------
+    c
+        First column. The first entry is ignored in favour of the first
+        entry of ``r``.
+    r
+        First row; None uses ``c``.
+    shape
+        Shape of the output; None gives ``(len(c), len(r))``. The inputs are
+        extended with ``fill_value`` to fit.
+    fill_value
+        Value of the entries created by extending ``c`` and ``r``.
 
-    .. note::
-
-        Use the :func:`toeplitz` function for an API that supports any number
-        of leading dimensions.
+    Returns
+    -------
+    Tensor
+        Toeplitz matrix of shape ``shape``.
     """
+    # Adapted from the second method in
+    # https://github.com/google/jax/issues/1646#issuecomment-1139044324,
+    # which is reported to underperform on TPU.
     if r is None:
         r = c
     m_in, n_in = c.shape[-1], r.shape[-1]
@@ -433,7 +453,8 @@ def toeplitz(
 
         Inputs ``c`` and ``r`` must contain the same first element for
         functionality to match ``scipy.toeplitz``. This is not checked.
-        In the event that this is not the case, ``c[0]`` is ignored.
+        In the event that this is not the case, the first entry of ``c``
+        is ignored.
         Note that this is the opposite of ``scipy.toeplitz``.
 
     :Dimension: **c :** :math:`(C, *)`
@@ -446,8 +467,8 @@ def toeplitz(
                 **fill_value :** :math:`(*)`
                     As above.
                 **Output :** :math:`(*, C^{*}, R^{*})`
-                    :math:`C^{*}` and :math:`{*}` default to C and R unless
-                    specified otherwise in the `dim` argument.
+                    :math:`C^{*}` and :math:`R^{*}` default to C and R unless
+                    specified otherwise in the ``shape`` argument.
 
     Parameters
     ----------
@@ -461,25 +482,22 @@ def toeplitz(
         axis corresponds to a single matrix row; additional dimensions
         correspond to concatenation of Toeplitz matrices into a stack or block
         tensor. The first entry in each column should be the same as the first
-        entry in the corresponding column of `c`; otherwise, it will be
-        ignored.
-    dim
-        Dimension of each Toeplitz banded matrix in the output block. If this
-        is None or unspecified, it defaults to the sizes of the first axes of
-        inputs `c` and `r`. Otherwise, the row and column inputs are extended
-        until their dimensions equal those specified here. This can be useful,
-        for instance, to create a large banded matrix with mostly zero
+        entry in the corresponding column of ``c``; otherwise, it is
+        ignored. None uses ``c``.
+    shape
+        Shape of each Toeplitz banded matrix in the output block. None gives
+        the sizes of the first axes of ``c`` and ``r``. Otherwise, the row
+        and column inputs are extended to this shape, which can, for
+        instance, create a large banded matrix with mostly zero
         off-diagonals.
     fill_value
-        Specifies the value that should be used to populate the off-diagonals
-        of each Toeplitz matrix if the specified row and column elements are
-        extended to conform with the specified `dim`. If this is a tensor,
-        then each entry corresponds to the fill value in a different data
-        channel. Ignored if ``dim`` is None.
+        Value of the off-diagonals created when the row and column inputs
+        are extended to ``shape``. A tensor gives a fill value for each data
+        channel. Ignored if ``shape`` is None.
 
     Returns
     -------
-    out: Tensor
+    Tensor
         Block of Toeplitz matrices populated from the specified row and column
         elements.
     """

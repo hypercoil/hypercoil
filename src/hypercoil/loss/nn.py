@@ -216,8 +216,6 @@ class Loss(eqx.Module):
     def cfg(self, value: Any, where: str = '_nu') -> Loss:
         """
         Return a copy of the loss with attribute ``where`` set to ``value``.
-
-        By default ``where`` is the loss multiplier.
         """
         return eqx.filter(
             self,
@@ -230,7 +228,16 @@ class Loss(eqx.Module):
         """
         Advance the multiplier schedule by one step, or to step ``count``.
 
-        A loss whose multiplier is not a schedule is returned unchanged.
+        Parameters
+        ----------
+        count
+            Step to set; None advances by one step.
+
+        Returns
+        -------
+        Loss
+            A copy of the loss with the schedule advanced. A loss whose
+            multiplier is not a schedule is returned unchanged.
         """
         if not isinstance(self._nu, _ScheduleContainer):
             return self

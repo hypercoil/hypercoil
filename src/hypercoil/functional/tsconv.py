@@ -100,10 +100,31 @@ def conv(
     padding: Union[int, Sequence[Tuple[int, int]]] = 0,
     dilation: Union[int, Sequence[int]] = 1,
 ) -> Tensor:
-    """
+    r"""
     Convolve with a ``torch``-like interface.
 
     Adapted from https://stackoverflow.com/questions/69571976/.
+
+    Parameters
+    ----------
+    input
+        Input of shape :math:`(N, C_{in}, *)`, with up to three spatial axes.
+    weight
+        Kernel of shape :math:`(C_{out}, C_{in}, *)`.
+    bias
+        Bias added to the output; None for no bias.
+    stride
+        Stride along each spatial axis, or one stride for all.
+    padding
+        ``(before, after)`` padding for each spatial axis, or one symmetric
+        padding for all.
+    dilation
+        Kernel dilation along each spatial axis, or one dilation for all.
+
+    Returns
+    -------
+    Tensor
+        Output of shape :math:`(N, C_{out}, *)`.
     """
     # TODO: Compare against
     # https://github.com/patrick-kidger/equinox/blob/main/equinox/nn/conv.py#L104
@@ -321,6 +342,11 @@ def basischan(
        requirement.
     include_const
         Indicates that a constant or intercept term should be included.
+
+    Returns
+    -------
+    Tensor
+        The basis expansion of ``X``, with the basis on axis 1.
     """
     X = _configure_input_for_ts_conv(X)
     if include_const:

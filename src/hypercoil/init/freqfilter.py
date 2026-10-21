@@ -610,9 +610,7 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
 
         The clamps hold each transfer function at the specified frequencies.
 
-        To apply the clamp, use:
-
-        ```jnp.where(points, values, spectrum)```
+        To apply the clamp, use ``jnp.where(points, values, spectrum)``.
 
         Parameters
         ----------
@@ -621,11 +619,12 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
 
         Returns
         -------
-        points : Tensor
-            Boolean mask indicating the frequency bins that are clampable.
-        values : Tensor
-            Values to which the response function is clampable at the specified
-            frequencies.
+        points
+            Boolean mask of the clamped frequency bins, of shape
+            ``(n_filters, worN)``.
+        values
+            Values at the clamped frequency bins, of shape
+            ``(n_filters, worN)``.
         """
         frequencies = jnp.linspace(0, 1, worN)
         if self.clamps is None or len(self.clamps) == 0:
@@ -680,6 +679,9 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
         ----------
         worN
             Number of frequency bins between 0 and Nyquist, inclusive.
+        key
+            Pseudo-random number generator key, used by random
+            initialisation.
 
         Returns
         -------
@@ -765,14 +767,16 @@ def clamp_init(
     filter_specs
         A list of filter specifications implemented as :class:`FreqFilterSpec`
         objects.
+    key
+        Unused.
 
     Returns
     -------
-    points_tensor : Tensor
-        A boolean tensor of shape ``shape`` that masks the points of a filter's
-        transfer function to be clamped.
-    values_tensor : Tensor
-        A tensor of shape ``shape`` that contains the clamping values.
+    points_tensor
+        Boolean mask of the transfer function bins to be clamped, of shape
+        :math:`(F, N)` with :math:`N` the last entry of ``shape``.
+    values_tensor
+        Clamping values, of shape :math:`(F, N)`.
     """
     worN = shape[-1]
     clamps = [fspec.get_clamps(worN=worN) for fspec in filter_specs]

@@ -25,18 +25,22 @@ def from_distr_init(
     key: jax.random.PRNGKey,
 ) -> Tensor:
     """
-    Sample a tensor from a specified distribution.
-
-    Thin wrapper around ``numpyro``.
+    Sample a tensor from a distribution.
 
     Parameters
     ----------
     shape
-        Shape of the tensor to populate or initialise from the specified
-        distribution.
+        Sample shape.
     distr
-        Numpyro distribution object from which to sample values used to
-        populate the tensor.
+        Distribution with a ``sample(key, sample_shape)`` method, such as a
+        ``numpyro`` distribution.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Sample of shape ``shape`` followed by the event shape of ``distr``.
     """
     return distr.sample(key=key, sample_shape=shape)
 
@@ -48,9 +52,7 @@ def constant_init(
     key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
-    Initialise a tensor to a constant value.
-
-    The value need not be scalar; it is broadcast to the tensor shape.
+    Initialise a tensor of shape ``shape`` to ``value``; ``key`` is unused.
     """
     return jnp.full(shape, value)
 
@@ -63,7 +65,24 @@ def identity_init(
     key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
-    Initialise a tensor with identity matrices over the last two axes.
+    Initialise a tensor with scaled identity matrices over the last two axes.
+
+    Parameters
+    ----------
+    shape
+        Shape of the tensor; the last two axes must be equal.
+    scale
+        Value of the diagonal entries before ``shift``.
+    shift
+        Value added to every entry.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        :math:`s I + c` in each slice, for ``scale`` :math:`s` and ``shift``
+        :math:`c`.
     """
     return jnp.tile(jnp.eye(shape[-1]) * scale + shift, (*shape[:-2], 1, 1))
 
