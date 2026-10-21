@@ -240,7 +240,7 @@ class MappedInitialiser(Initialiser):
             parameter.
         key
             Pseudo-random number generator key to use for initialisation.
-        **params : Any
+        **params
             Extra keyword arguments; these are forwarded to the mapper when it
             is instantiated and applied.
         """
