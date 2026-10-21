@@ -113,9 +113,11 @@ def tangency_init(
         Input dataset over which each mean is to be estimated.
     mean_specs
         List of specifications for estimating a measure of central tendency in
-        the positive semidefinite cone. ``_SemidefiniteMean`` subclasses are
-        found at
-        :mod:`~hypercoil.init.semidefinite`.
+        the positive semidefinite cone: instances of
+        :class:`~hypercoil.init.semidefinite.SPDEuclideanMean`,
+        :class:`~hypercoil.init.semidefinite.SPDHarmonicMean`,
+        :class:`~hypercoil.init.semidefinite.SPDLogEuclideanMean` or
+        :class:`~hypercoil.init.semidefinite.SPDGeometricMean`.
     std
         Standard deviation of the positive semidefinite noise added to each
         channel of the weight matrix. This can be used to ensure that

@@ -132,26 +132,27 @@ class BaseAtlas(eqx.Module):
     Several atlas classes are included to cover frequent scenarios, but users
     can also create their own atlas class compositionally using the available
     :mod:`mixins <hypercoil.init.atlasmixins>`.
-    Each atlas class must implement the following methods:
+    Each atlas class implements the following methods, which the private
+    mixins of :mod:`~hypercoil.init.atlasmixins` supply:
 
     ``_load_reference``
-        Implemented by a ``~ReferenceMixin`` class.
+        Supplied by a ``_*ReferenceMixin`` class.
     ``_create_mask``
-        Implemented by a ``~MaskMixin`` class.
+        Supplied by a ``_*MaskMixin`` class.
     ``_compartment_names_dict``
-        Implemented by a ``~CompartmentMixin`` class.
+        Supplied by a ``_*CompartmentMixin`` class.
     ``_create_compartments``
-        Implemented by a ``~CompartmentMixin`` class.
+        Supplied by a ``_*CompartmentMixin`` class.
     ``_configure_decoders``
-        Implemented by a ``~LabelMixin`` class.
+        Supplied by a ``_*LabelMixin`` class.
     ``_populate_map_from_ref``
-        Implemented by a ``~LabelMixin`` class.
+        Supplied by a ``_*LabelMixin`` class.
     ``_init_coors``
-        Implemented by a ``~MeshMixin`` class.
+        Supplied by a ``_*MeshMixin`` class.
     ``_configure_sigma``
-        Implemented by a ``~ConvMixin`` class.
+        Supplied by a ``_*ConvMixin`` class.
     ``_convolve``
-        Implemented by a ``~ConvMixin`` class.
+        Supplied by a ``_*ConvMixin`` class.
 
     Abstractly, atlas creation proceeds through the following steps:
 
