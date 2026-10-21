@@ -20,7 +20,7 @@ def document_window_fn(fn: Callable) -> Callable:
 
     Parameters
     ----------
-    fn : callable
+    fn
         The function to document.
 
     Returns

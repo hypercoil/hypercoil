@@ -32,7 +32,7 @@ def sphere_to_normals(coor: Tensor, r: float = 1) -> Tensor:
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor containing 2-tuple coordinates indicating the latitude and
         longitude of each point.
     r : float (default 1)
@@ -62,7 +62,7 @@ def sphere_to_latlong(coor: Tensor) -> Tensor:
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor containing 3-tuple coordinates indicating x, y, and z values of
         each point on a sphere whose centre is the origin.
 
@@ -100,14 +100,14 @@ def spherical_geodesic(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor containing coordinates on a sphere formatted as surface-normal
         vectors in Euclidean coordinates. Distances are computed between each
         coordinate in X and each coordinate in Y.
     Y : Tensor or None (default X)
         As X. If a second tensor is not provided, then distances are computed
         between every pair of points in X.
-    r : float
+    r
         Radius of the sphere. We could just get this from X or Y, but we
         don't.
 
@@ -172,21 +172,21 @@ def spatial_conv(
 
     Parameters
     ----------
-    data : Tensor
+    data
         Tensor containing data observations, which might be arrayed into
         channels.
-    coor : Tensor
+    coor
         Tensor containing the spatial coordinates associated with each
         observation in `data`.
-    kernel : callable
+    kernel
         Function that maps a distance to a weight. Typically, shorter distances
         correspond to larger weights.
-    metric : callable
+    metric
         Function that takes as parameters two :math:`(*, N_i, D)` tensors
         containing coordinates and returns the pairwise distance between each
         pair of tensors. In Euclidean space, this could be the L2 norm; in
         spherical space, this could be the great-circle distance.
-    max_bin : int
+    max_bin
         Maximum number of points to include in a distance computation. If you
         run out of memory, try decreasing this.
     truncate : float or None (default None)
@@ -243,17 +243,17 @@ def spherical_conv(
 
     Parameters
     ----------
-    data : Tensor
+    data
         Tensor containing data observations, which might be arrayed into
         channels.
-    coor : Tensor
+    coor
         Tensor containing the spatial coordinates associated with each
         observation in `data`.
     scale : float (default 1)
         Scale parameter of the Gaussian kernel.
     r : float (default 1)
         Radius of the sphere.
-    max_bin : int
+    max_bin
         Maximum number of points to include in a distance computation. If you
         run out of memory, try decreasing this.
     truncate : float or None (default None)
@@ -355,7 +355,7 @@ def icosphere(
 
     Parameters
     ----------
-    subdivisions : int
+    subdivisions
         Number of subdivisions to perform. For example, a value of 1 will
         return the coordinates for a 12-vertex icosphere.
     target : Tensor or None (default None)

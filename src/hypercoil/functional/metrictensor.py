@@ -28,16 +28,16 @@ def metric_tensor_field_diag_plus_low_rank(
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor containing the coordinates of each point in the metric tensor
         field. This is a tensor of shape `(*, p)`, where `*` denotes any number
         of batch and intervening dimensions, and `p` is the number of
         dimensions of the metric tensor field.
-    low_rank_model : callable
+    low_rank_model
         Callable that takes a tensor of shape `(*, p)` and returns a tensor of
         shape `(*, p, r)` where `r` is the rank of the low-rank component of
         the metric tensor field.
-    diag_model : callable
+    diag_model
         Callable that takes a tensor of shape `(*, p)` and returns a tensor of
         shape `(*, p)` containing the diagonal of the metric tensor field.
 
@@ -61,9 +61,9 @@ def quadratic_form(
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor of shape `(*, p)` containing the vector to multiply.
-    metric_tensor : Tensor
+    metric_tensor
         Tensor of shape `(*, p, p)` containing the metric tensor.
 
     Returns
@@ -85,9 +85,9 @@ def quadratic_form_low_rank_plus_diag(
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor of shape `(*, p)` containing the vector to multiply.
-    metric_tensor : tuple of Tensors
+    metric_tensor
         Tuple containing the low-rank and diagonal components of the metric
         tensor. The low-rank component is a tensor of shape `(*, p, r)` and the
         diagonal component is a tensor of shape `(*, p)`. The sum of these two
@@ -142,20 +142,20 @@ def sample_along_line_segment(
     
     Parameters
     ----------
-    a : Tensor
+    a
         Tensor of shape `(*, p)` containing the coordinates of the start of the
         line segment.
-    b : Tensor
+    b
         Tensor of shape `(*, p)` containing the coordinates of the end of the
         line segment.
-    n_samples : int
+    n_samples
         Number of samples to take along the line segment.
     even_sampling : bool (default True)
         Whether to sample evenly along the line segment. If this is False, then
         samples are drawn from a uniform distribution along the line segment.
     include_endpoints : bool (default True)
         Whether to include the endpoints of the line segment in the samples.
-    key : jax.random.PRNGKey
+    key
         Key to use for random number generation.
 
     Returns
@@ -196,16 +196,16 @@ def integrate_along_line_segment(
 
     Parameters
     ----------
-    a : Tensor
+    a
         Tensor of shape `(*, p)` containing the coordinates of the start of the
         line segment.
-    b : Tensor
+    b
         Tensor of shape `(*, p)` containing the coordinates of the end of the
         line segment.
-    metric_tensor_field : callable
+    metric_tensor_field
         Callable that takes a tensor of shape `(*, p)` and returns a tensor of
         shape `(*, p, p)` containing the metric tensor at that point.
-    n_samples : int
+    n_samples
         Number of samples to take along the line segment.
     norm : callable (default quadratic_form)
         Callable that takes a tensor of shape `(*, p)` and some representation
@@ -231,7 +231,7 @@ def integrate_along_line_segment(
         between it and the next sample, as a fraction of the total Euclidean
         length of the line segment. This is only relevant if `even_sampling`
         is False.
-    key : jax.random.PRNGKey
+    key
         Key to use for random number generation.
     """
     rel = _obtain_relative_samples(

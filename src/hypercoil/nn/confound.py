@@ -300,7 +300,7 @@ class LinearCombinationSelector(LinearRFNN):
 
     Parameters
     ----------
-    model_dim : int
+    model_dim
         Dimension of the model to be learned.
     n_columns : int
         Number of input vectors to be combined linearly to form the model.
@@ -361,13 +361,13 @@ class EliminationSelector(eqx.Module):
         elimination threshold.
     supremum : float (default 2.5)
         Supremum of the thresholded sigmoid function.
-    or_dim : int
+    or_dim
         If this is greater than 1, then `or_dim` separate vectors are learned,
         and a variable is only eliminated if every one learns a 0 weight for
         that variable.
         During testing, we did not find a practical use for this. We didn't
         look very carefully, and it's possible that someone might find a use.
-    and_dim : int
+    and_dim
         If this is greater than 1, then `and_dim` separate vectors are
         learned, and a variable is eliminated if any one learns a 0 weight for
         that variable.

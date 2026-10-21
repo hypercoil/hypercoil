@@ -380,7 +380,7 @@ def graph_laplacian(
 
     Parameters
     ----------
-    W : tensor
+    W
         Edge weight tensor. If ``edge_index`` is not provided, then this
         should be the graph adjacency matrix; otherwise, it should be a
         list of weights corresponding to the edges in ``edge_index``.

@@ -396,19 +396,19 @@ def orient_and_conform(
 
     Parameters
     ----------
-    input : tensor
+    input
         Input tensor.
-    axis : tuple
+    axis
         Output axes along which the tensor's input dimensions should be
         reoriented. This should be an n-tuple, where n is the number of axes
         in the input tensor. These axes must be in the same order in the input
         tensor; if they are not, the input must be transposed before being
         oriented.
-    reference : tensor or None
+    reference
         Reference tensor. The output is unsqueezed so that its total
         dimension equals that of the reference. Either a reference or an
         explicit output dimension (``dim``) must be provided.
-    dim : int or None
+    dim
         Number of tensor axes in the desired output.
 
     Returns

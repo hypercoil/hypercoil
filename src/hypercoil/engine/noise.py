@@ -194,9 +194,9 @@ def refresh(model: PyTree, code: Any = 0) -> PyTree:
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to refresh.
-    code : Any, optional
+    code
         The code to use when filtering stochastic sources. The default code
         is 0. In nearly all cases, it is not necessary to change the default
         value.
@@ -306,9 +306,9 @@ class StochasticParameter(eqx.Module):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to wrap.
-    where : str or callable
+    where
         The string address of the parameter to wrap or a callable that takes
         a pytree and returns the parameter to wrap.
     transform : ``StochasticTransform``
@@ -878,11 +878,11 @@ class OuterProduct(distrx.Distribution):
 
         Parameters
         ----------
-        std : Tensor
+        std
             The desired standard deviation of the outer product of the samples.
-        rank : int
+        rank
             The rank of the samples.
-        matrix_dim : int
+        matrix_dim
             The dimension of the square matrices output by the outer product.
         """
         return math.sqrt(std / math.sqrt(rank + (rank**2) / matrix_dim))

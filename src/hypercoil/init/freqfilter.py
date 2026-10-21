@@ -120,15 +120,15 @@ def filter_spectrum(
 
     Parameters
     ----------
-    filter : callable
+    filter
         `scipy.signal` filter function corresponding to the filter to be
         estimated, for instance `butter` for a Butterworth filter.\
     {base_param_spec}
-    filter_params : dict
+    filter_params
         Additional parameters to pass to the `filter` callable other than
         those passed directly to this function (for instance, pass- and
         stop-band ripples).
-    spectrum_params : dict
+    spectrum_params
         Additional parameters to pass to the `freqz` function that computes
         the frequency response spectrum other than those passed directly to
         this function.
@@ -437,9 +437,9 @@ def randn_spectrum(
 
     Parameters
     ----------
-    worN : int
+    worN
         Number of frequencies at which to evaluate the transfer function.
-    n_filters : int, optional
+    n_filters
         Number of filters to generate. Default: 1.\
     {randn_param_spec}
 
@@ -615,7 +615,7 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
 
         Parameters
         ----------
-        worN : int
+        worN
             Number of frequency bins between 0 and Nyquist, inclusive.
 
         Returns
@@ -677,7 +677,7 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
 
         Parameters
         ----------
-        worN : int
+        worN
             Number of frequency bins between 0 and Nyquist, inclusive.
 
         Returns
@@ -715,7 +715,7 @@ def freqfilter_init(
 
     Parameters
     ----------
-    shape : Tuple[int, ...]
+    shape
         Shape of the tensor to initialise.
     filter_specs : list(FreqFilterSpec)
         A list of filter specifications implemented as :class:`FreqFilterSpec`
@@ -759,7 +759,7 @@ def clamp_init(
 
     Parameters
     ----------
-    shape : Tuple[int, ...]
+    shape
         Shape of the tensors to initialise.
     filter_specs : list(FreqFilterSpec)
         A list of filter specifications implemented as :class:`FreqFilterSpec`

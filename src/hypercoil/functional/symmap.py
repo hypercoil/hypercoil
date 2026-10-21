@@ -104,9 +104,9 @@ def symmap(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Batch of symmetric tensors to transform.
-    map : dimension-conserving callable
+    map
         Transformation to apply as a matrix-valued function.
     spd : bool (default True)
         Indicates that the matrices in the input batch are symmetric positive
@@ -173,7 +173,7 @@ def symlog(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Batch of symmetric tensors to transform using the matrix logarithm.\
     {symmap_param_spec}
 
@@ -216,7 +216,7 @@ def symexp(input: Tensor) -> Tensor:
 
     Parameters
     ----------
-    input : Tensor
+    input
         Batch of symmetric tensors to transform using the matrix exponential.
 
     Returns
@@ -267,7 +267,7 @@ def symsqrt(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Batch of symmetric tensors to transform using the matrix square root.\
     {symmap_param_spec}
 

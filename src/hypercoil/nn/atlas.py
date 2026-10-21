@@ -92,9 +92,9 @@ class AtlasLinear(eqx.Module):
 
     Parameters
     ----------
-    n_locations : Dict[str, int]
+    n_locations
         Number of locations (e.g., voxels or vertices) in each compartment.
-    n_labels : Dict[str, int]
+    n_labels
         Number of labels in each compartment.
     limits : Dict[str, Tuple[int, int]], optional (default=None)
         Limits of each compartment. The first element of the tuple denotes the
@@ -208,7 +208,7 @@ class AtlasLinear(eqx.Module):
 
         Parameters
         ----------
-        atlas : Atlas object
+        atlas
             A neuroimaging atlas, implemented as an instance of a subclass of
             :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`.
             This initialises the atlas labels from which representative time

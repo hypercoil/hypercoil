@@ -84,11 +84,11 @@ def residualise(
 
     Parameters
     ----------
-    Y : Tensor
+    Y
         Tensor to be residualised or orthogonalised with respect to `X`. The
         vector of observations in each channel is projected into a subspace
         orthogonal to the span of `X`.
-    X : Tensor
+    X
         Tensor containing explanatory variables. Any variance in `Y` that can
         be explained by variables in `X` will be removed from `Y`.\
     {regress_param_spec}

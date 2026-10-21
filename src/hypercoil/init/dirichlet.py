@@ -35,7 +35,7 @@ def dirichlet_init(
 
     Parameters
     ----------
-    shape : tuple
+    shape
         Shape of the tensor to initialise.
     distr : instance of ``torch.distributions.Dirichlet``
         Parametrised Dirichlet distribution from which all 1D slices of the
@@ -43,7 +43,7 @@ def dirichlet_init(
     axis : int (default -1)
         Axis along which slices are sampled from the specified Dirichlet
         distribution.
-    key : jax.random.PRNGKey
+    key
         Pseudo-random number generator key for sampling the Dirichlet
         distribution.
     """

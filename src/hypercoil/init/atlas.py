@@ -189,7 +189,7 @@ class BaseAtlas(eqx.Module):
     ----------
     ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
     compartments : dict(bool tensor)
@@ -328,7 +328,7 @@ class BaseAtlas(eqx.Module):
             established by the atlas's coordinate system and the topology of
             each compartment. The value of sigma establishes the width of the
             Gaussian kernel.
-        noise : callable or None
+        noise
             If this is a callable, then it should be a mapping from a tensor
             to another tensor of the same dimensions. After spatial smoothing
             but before normalisation, this callable is applied to each map
@@ -342,7 +342,7 @@ class BaseAtlas(eqx.Module):
             value for spherical coordinate systems only. This enables the use
             of different kernel widths for spherical and Euclidean
             coordinates.
-        truncate : float
+        truncate
             Maximum distance at which data points are convolved together
             during smoothing.
 
@@ -412,7 +412,7 @@ class DirichletInitBaseAtlas(
         Source of data used to create an overall mask for the atlas.
     compartment_labels : dict(int)
         Number of labels to initialise for each compartment.
-    conc : float
+    conc
         If this is provided and ``init`` is not, then the Dirichlet
         distributions used to sample assignments of spatial locations to
         parcels are defined with the same concentration parameter, ``conc``,
@@ -876,7 +876,7 @@ class DirichletInitVolumetricAtlas(
         Source of data used to create an overall mask for the atlas.
     n_labels : dict(int)
         Number of labels to initialise for the atlas.
-    conc : float
+    conc
         If this is provided and `init` is not, then the Dirichlet
         distributions used to sample assignments of spatial locations to
         parcels are defined with the same concentration parameter, `conc`,
@@ -965,7 +965,7 @@ class DirichletInitSurfaceAtlas(
         Template CIfTI for establishing compartment extents.
     compartment_labels : dict(int)
         Number of labels to initialise for each compartment.
-    conc : float
+    conc
         If this is provided and `init` is not, then the Dirichlet
         distributions used to sample assignments of spatial locations to
         parcels are defined with the same concentration parameter, `conc`,
@@ -1074,7 +1074,7 @@ class IcosphereAtlas(
 
     Parameters
     ----------
-    n_subdivisions : int
+    n_subdivisions
         Number of subdivisions of the icosahedron used to define disc centres.
         The default number of labels per hemisphere follows the formula
         ``12 + 10 * (n_subdivisions**2 -1)``. Then, the coordinates of each
@@ -1226,7 +1226,7 @@ def atlas_init(
 
     Parameters
     ----------
-    atlas : Atlas object
+    atlas
         Atlas object to use for tensor initialisation.
     kernel_sigma : float or None (default None)
         If this is a float, then a Gaussian smoothing kernel with the
@@ -1265,7 +1265,7 @@ class AtlasInitialiser(MappedInitialiser):
 
     Parameters
     ----------
-    atlas : Atlas object
+    atlas
         Atlas object to use for tensor initialisation.
     normalise : bool (default False)
         Indicates that maps should be spatially normalised such that the sum

@@ -44,13 +44,13 @@ class FrequencyDomainFilter(eqx.Module):
         objects. These determine the filter bank that
         is applied to the input. Consult the ``FreqFilterSpec`` documentation
         for further details.
-    dim : int or None
+    dim
         Number of frequency bins. This must be conformant with the time series
         supplied as input. If you are uncertain about the dimension in the
         frequency domain, it is possible to instead provide the ``time_dim``
         argument (the length of the time series), but either ``time_dim`` or
         ``dim`` (but not both) must be specified.
-    time_dim : int or None
+    time_dim
         Number of time points in the input time series. Either ``time_dim`` or
         ``dim`` (but not both) must be specified.
     filter : callable (default ``product_filtfilt``)

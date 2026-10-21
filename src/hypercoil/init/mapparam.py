@@ -46,9 +46,9 @@ class MappedParameter(eqx.Module):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
@@ -85,7 +85,7 @@ class MappedParameter(eqx.Module):
 
         Parameters
         ----------
-        model : PyTree
+        model
             The model to which the parameter belongs.
         where : str or Callable (default: `"weight"`)
             The address of the parameter to be mapped, specified as a string
@@ -136,7 +136,7 @@ class OutOfDomainHandler(eqx.Module):
 
         Parameters
         ----------
-        x : Tensor
+        x
             Tensor whose entries should be evaluated.
         bound : (float min, float max)
             Minimum and maximum permitted values for the test to return True.
@@ -164,7 +164,7 @@ class Clip(OutOfDomainHandler):
 
         Parameters
         ----------
-        x : Tensor
+        x
             Tensor whose out-of-domain entries are to be clipped.
         bound : (float min, float max)
             Minimum and maximum permitted values; values greater than the
@@ -211,7 +211,7 @@ class Renormalise(OutOfDomainHandler):
 
         Parameters
         ----------
-        x : Tensor
+        x
             Tensor whose out-of-domain entries are to be normalised.
         bound : (float min, float max)
             Minimum and maximum permitted values.
@@ -248,7 +248,7 @@ class ForcePositiveDefinite(OutOfDomainHandler):
 
         Parameters
         ----------
-        x : Tensor
+        x
             Tensor whose out-of-domain slices are to be forced to be positive
             definite.
         bound : (float min, float max)
@@ -276,14 +276,14 @@ class DomainMappedParameter(MappedParameter):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
-    image_bound : Tuple[float, float]
+    image_bound
         Minimum and maximum prescribed values for the image map. Note that
         these are not necessarily the same as the minimum and maximum (or
         infimum and supremum) attainable by the map itself. For example, it
@@ -291,7 +291,7 @@ class DomainMappedParameter(MappedParameter):
         magnitude of the gradient is non-negligible. However, in general, the
         prescribed bounds should not admit any values outside the domain of
         the map.
-    preimage_bound : Tuple[float, float]
+    preimage_bound
         Minimum and maximum prescribed values for the preimage map.
     handler : ``OutOfDomainHandler`` object (default: :class:`Clip`)
         The handler to use for imputing out-of-domain values.
@@ -364,24 +364,24 @@ class AffineDomainMappedParameter(DomainMappedParameter):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
-    image_bound : Tuple[float, float]
+    image_bound
         Minimum and maximum prescribed values for the image map. See the
         documentation for :class:`DomainMappedParameter` for more details.
-    preimage_bound : Tuple[float, float]
+    preimage_bound
         Minimum and maximum prescribed values for the preimage map.
     handler : ``OutOfDomainHandler`` object (default: :class:`Clip`)
         The handler to use for imputing out-of-domain values.
-    loc : Tensor
+    loc
         Location of a scalar affine transformation that is composed with the
         map.
-    scale : Tensor
+    scale
         Scale of a scalar affine transformation that is composed with the map.
     """
 
@@ -486,9 +486,9 @@ class TanhMappedParameter(AffineDomainMappedParameter):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
@@ -566,9 +566,9 @@ class MappedLogits(AffineDomainMappedParameter):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
@@ -632,22 +632,22 @@ class NormSphereParameter(AffineDomainMappedParameter):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
         ``weight`` attribute of the model is retrieved.
     handler : ``OutOfDomainHandler`` object (default :class:`Clip`)
         Object specifying a method for handling out-of-domain entries.
-    loc : float or tensor
+    loc
         Location of the centre of the norm sphere. By default, the sphere is
         centred at the origin (``loc=0``).
     scale : float (default 1)
         Scale of the norm sphere. By default, the unit norm sphere
         (``scale=1``) is used.
-    norm : int, str, or tensor
+    norm
         Norm order argument passed to ``jnp.linalg.norm``. If this is
         a tensor of symmetric positive semidefinite matrices, then a
         Mahalanobis-like ellipse norm is computed using those matrices. (No
@@ -740,9 +740,9 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
@@ -845,9 +845,9 @@ class OrthogonalParameter(MappedParameter):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the
@@ -883,9 +883,9 @@ class IsochoricParameter(DomainMappedParameter):
 
     Parameters
     ----------
-    model : PyTree
+    model
         The model to which the parameter belongs.
-    where : Callable
+    where
         As in ``equinox.tree_at``: a function that takes a model (or generally
         a PyTree) and returns the parameter tensor to be mapped. For example:
         ``where = lambda mlp: mlp.layers[-1].linear.weight``. By default, the

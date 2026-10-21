@@ -68,7 +68,7 @@ def symmetric(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input to be symmetrised.
     skew : bool (default False)
         Indicates whether skew-symmetry (antisymmetry) should be imposed on
@@ -191,9 +191,9 @@ def spd(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input to be made positive definite.
-    eps : float
+    eps
         Minimum threshold for the smallest eigenvalue identified in diagonal
         eigendecomposition. If diagonalisation is used to impose positive
         semidefiniteness, then this will be the minimum possible eigenvalue of
@@ -257,7 +257,7 @@ def expand_outer(
 
     Parameters
     ----------
-    L : Tensor
+    L
         Left generator of a low-rank matrix (:math:`L R^\intercal`).
     R : Tensor or None (default None)
         Right generator of a low-rank matrix (:math:`L R^\intercal`). If this
@@ -323,11 +323,11 @@ def recondition_eigenspaces(
 
     Parameters
     ----------
-    A : tensor
+    A
         Matrix or matrix block to be reconditioned.
-    psi : float
+    psi
         Reconditioning parameter for ensuring nonzero eigenvalues.
-    xi : float
+    xi
         Reconditioning parameter for ensuring nondegenerate eigenvalues.
 
     Returns
@@ -499,7 +499,7 @@ def sym2vec(sym: Tensor, offset: int = 1) -> Tensor:
 
     Parameters
     ----------
-    sym : tensor
+    sym
         Block of tensors to convert. The last two dimensions should be equal,
         with each slice along the final 2 axes being a square, symmetric
         matrix.
@@ -532,7 +532,7 @@ def vec2sym(vec: Tensor, offset: int = 1) -> Tensor:
 
     Parameters
     ----------
-    vec : tensor
+    vec
         Block of vectors to convert. Input vectors should be of length
         (n choose 2), where n is the number of elements on the offset
         diagonal, plus 1.
@@ -571,7 +571,7 @@ def squareform(X: Tensor) -> Tensor:
 
     Parameters
     ----------
-    X : tensor
+    X
         Block of symmetric matrices, in either square matrix or vectorised
         form.
 

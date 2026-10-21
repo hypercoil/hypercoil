@@ -731,17 +731,17 @@ def _interpolate_spectral(
 
     Parameters
     ----------
-    data : numpy array
+    data
         Seen data to use as a reference for reconstruction of unseen data.
-    sine_basis : numpy array
+    sine_basis
         Sine basis term for the periodogram.
-    cosine_basis : numpy array
+    cosine_basis
         Cosine basis term for the periodogram.
     angular_frequencies: numpy array
         Angular frequencies for computing the periodogram.
-    all_samples : numpy array
+    all_samples
         Temporal indices of all samples, seen and unseen.
-    thresh : float
+    thresh
         Threshold applied to sine and cosine spectral terms to remove weak or
         spurious bands.
 

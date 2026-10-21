@@ -109,14 +109,14 @@ def tangency_init(
 
     Parameters
     ----------
-    init_data : Tensor
+    init_data
         Input dataset over which each mean is to be estimated.
     mean_specs : list(``_SemidefiniteMean`` objects)
         List of specifications for estimating a measure of central tendency in
         the positive semidefinite cone. ``_SemidefiniteMean`` subclasses are
         found at
         :doc:`hypercoil.init.semidefinite <hypercoil.init.semidefinite.SemidefiniteMean>`.
-    std : float
+    std
         Standard deviation of the positive semidefinite noise added to each
         channel of the weight matrix. This can be used to ensure that
         different channels initialised from the same mean receive different

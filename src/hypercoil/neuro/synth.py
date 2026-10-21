@@ -35,9 +35,9 @@ def match_spectra(
 
     Parameters
     ----------
-    signal : tensor
+    signal
         Input signal.
-    reference : tensor
+    reference
         Reference signal.
     use_mean : bool (default False)
         Indicates that, instead of matching the spectrum of the corresponding
@@ -116,10 +116,10 @@ def match_covariance(
 
     Parameters
     ----------
-    signal : tensor
+    signal
         Input signal :math:`\mathbf{T}` to project so that its covariance is
         matched to the ``reference``.
-    reference : tensor
+    reference
         Either a reference signal whose covariance :math:`\Sigma` is to be
         matched, or the covariance matrix itself. See ``cov``.
     cov : bool (default False)
@@ -159,9 +159,9 @@ def match_reference(
 
     Parameters
     ----------
-    signal : tensor
+    signal
         Input signal.
-    reference : tensor
+    reference
         Reference signal.
     use_mean : bool (default False)
         Indicates that, instead of matching the spectrum of the corresponding
@@ -199,11 +199,11 @@ def match_cov_and_spectrum(
                     As above.
     Parameters
     ----------
-    signal : tensor
+    signal
         Input signal.
-    spectrum : tensor
+    spectrum
         Spectrum to be matched.
-    cov : tensor
+    cov
         Covariance matrix to be matched.
 
     See also
@@ -247,7 +247,7 @@ def synthesise_matched(
 
     Parameters
     ----------
-    reference : tensor
+    reference
         Reference signal.
     use_mean : bool (default False)
         Indicates that, instead of matching the spectrum of the corresponding
@@ -298,9 +298,9 @@ def synthesise_from_cov_and_spectrum(
 
     Parameters
     ----------
-    spectrum : tensor
+    spectrum
         Spectrum to be matched.
-    cov : tensor
+    cov
         Covariance matrix to be matched.
     dtype : ``torch.dtype`` (default None)
         Data type of the synthetic dataset.

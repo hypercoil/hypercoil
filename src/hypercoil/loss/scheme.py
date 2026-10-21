@@ -52,9 +52,9 @@ class LossApply(eqx.Module):
 
     Parameters
     ----------
-    loss : callable
+    loss
         Loss function to apply.
-    apply : callable
+    apply
         Callable that pretransforms the input to the loss. This can be used
         as a selector, so that different entries in a
         :doc:`LossScheme <hypercoil.loss.scheme.LossScheme>` are applied

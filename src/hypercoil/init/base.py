@@ -31,10 +31,10 @@ def from_distr_init(
 
     Parameters
     ----------
-    shape : Tensor
+    shape
         Shape of the tensor to populate or initialise from the specified
         distribution.
-    distr : Distribution
+    distr
         Numpyro distribution object from which to sample values used to
         populate the tensor.
     """
@@ -216,7 +216,7 @@ class MappedInitialiser(Initialiser):
 
         Parameters
         ----------
-        model : PyTree
+        model
             Model whose parameter to initialise.
         mapper : Optional[Type[MappedParameter]] (default: None)
             Mapping function to apply to the initialised parameter. This
@@ -227,7 +227,7 @@ class MappedInitialiser(Initialiser):
             Address of the parameter to initialise. This can be a string
             address or a callable that takes a model and returns a
             parameter.
-        key : jax.random.PRNGKey
+        key
             Pseudo-random number generator key to use for initialisation.
         **params : Any
             Extra keyword arguments; these are forwarded to the mapper when it

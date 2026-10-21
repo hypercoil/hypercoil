@@ -173,9 +173,9 @@ def spspmm(
 
     Parameters
     ----------
-    lhs : TopKTensor
+    lhs
         Left-hand side sparse matrix in the top-k format.
-    rhs : TopKTensor
+    rhs
         Right-hand side sparse matrix in the top-k format.
     indices : Tensor or None (default: None)
         Indices of the matrix product to return. If not specified, the entire
@@ -285,7 +285,7 @@ def select_indices(
 
     Parameters
     ----------
-    tensor : Tensor
+    tensor
         The input tensor.
     threshold : float (default: 0.0)
         The threshold value. Used only if the input matrices are matrices with
@@ -375,9 +375,9 @@ def trace_spspmm(
 
     Parameters
     ----------
-    lhs : TopKTensor
+    lhs
         The left-hand side sparse matrix.
-    rhs : TopKTensor
+    rhs
         The right-hand side sparse matrix.
     threshold : float (default: 0.0)
         The threshold value. Used only if the input matrices are matrices with
@@ -755,7 +755,7 @@ def topkx(
 
     Parameters
     ----------
-    f : Callable
+    f
         The function to transform.
     retnums : Sequence[int] (default: (0,))
         The indices of the return values to be converted to the top-k format.

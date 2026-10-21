@@ -312,7 +312,7 @@ def basischan(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Dataset to expand with basis functions. A new channel will be created
         containing the same dataset transformed using each basis function.
     basis_functions : list(callable)
@@ -353,7 +353,7 @@ def polychan(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Dataset to expand as a polynomial basis. A new channel will be created
         containing the same dataset raised to each power up to the specified
         degree.

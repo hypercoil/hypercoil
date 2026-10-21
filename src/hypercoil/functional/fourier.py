@@ -180,7 +180,7 @@ def unwrap(
 
     Parameters
     ----------
-    phase : tensor
+    phase
         Tensor containing phases, or other values to be unwrapped. Currently,
         tensors should be cast to some floating-point type before this
         operation.

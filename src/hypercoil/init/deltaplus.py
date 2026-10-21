@@ -33,7 +33,7 @@ def deltaplus_init(
 
     Parameters
     ----------
-    shape : tuple
+    shape
         Shape of the tensor to initialise.
     loc : tuple or None (default None)
         Location of the delta function expressed as an n-tuple of array
@@ -46,7 +46,7 @@ def deltaplus_init(
         sampled. By default, noise is sampled i.i.d. for all entries in the
         tensor. To change the i.i.d. behaviour, use a tensor of floats that
         is broadcastable to the specified shape.
-    key : jax.random.PRNGKey
+    key
         Pseudo-random number generator key for sampling the Gaussian noise.
 
     Returns

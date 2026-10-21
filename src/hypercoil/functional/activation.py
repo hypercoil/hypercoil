@@ -37,7 +37,7 @@ def laplace(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor to be transformed elementwise by the double exponential
         activation function.
     loc : float or broadcastable Tensor (default 0)
@@ -74,7 +74,7 @@ def expbarrier(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor to be transformed elementwise by the exponential barrier
         activation function.
     barrier : float or broadcastable Tensor (default 0)
@@ -128,7 +128,7 @@ def amplitude_laplace(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor whose amplitude is to be transformed elementwise by the double
         exponential activation function.
     loc : float or broadcastable Tensor (default 0)
@@ -167,7 +167,7 @@ def amplitude_expbarrier(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor whose amplitude is to be transformed elementwise by the double
         exponential activation function.
     barrier : float or broadcastable Tensor (default 0)
@@ -201,7 +201,7 @@ def amplitude_tanh(input: Tensor) -> Tensor:
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor whose amplitude is to be transformed elementwise by the
         hyperbolic tangent activation function.
 
@@ -233,7 +233,7 @@ def amplitude_atanh(input: Tensor) -> Tensor:
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor whose amplitude is to be transformed elementwise by the
         hyperbolic arctangent function.
 

@@ -137,7 +137,7 @@ def constraint_violation(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {constraint_violation_spec}
 
@@ -233,7 +233,7 @@ def smoothness(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {smoothness_spec}
     """
@@ -291,7 +291,7 @@ def bimodal_symmetric(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {bimodal_symmetric_spec}
     """
@@ -416,7 +416,7 @@ def det_gram(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {det_gram_spec}
     \
@@ -447,7 +447,7 @@ def log_det_gram(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {det_gram_spec}
     \
@@ -610,7 +610,7 @@ def entropy(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor containing probabilities or logits for each category.\
     {entropy_spec}
     \
@@ -642,7 +642,7 @@ def entropy_logit(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor containing probabilities or logits for each category.\
     {entropy_spec}
     \
@@ -1522,7 +1522,7 @@ def auto_tol(
 
     Parameters
     ----------
-    batch_size : int
+    batch_size
         Number of observations in the batch.
     significance : float in (0, 1) (default 0.1)
         Significance level at which the tolerance should be computed.
@@ -1555,9 +1555,9 @@ def batch_corr(
 
     Parameters
     ----------
-    X : tensor
+    X
         Tensor block containing measures to be correlated with those in ``N``.
-    N : tensor
+    N
         Vector of measures with which the measures in ``X`` are to be
         correlated.\
     {batch_correlation_spec}
@@ -1766,7 +1766,7 @@ def reference_tether(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor block containing the data to be tethered. Each row is a
         collection of masses assigned to the single object or parcel, and each
         column denotes the distribution of masses across objects or parcels at
@@ -1809,12 +1809,12 @@ def interhemispheric_tether(
 
     Parameters
     ----------
-    lh : Tensor
+    lh
         Tensor block containing the data for the left hemisphere. Each row is a
         collection of masses assigned to the single object or parcel, and each
         column denotes the distribution of masses across objects or parcels at
         a single spatial location.
-    rh : Tensor
+    rh
         Tensor block containing the data for the right hemisphere.\
     {interhemispheric_tether_spec}
 
@@ -1856,7 +1856,7 @@ def compactness(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor block containing the data to be evaluated. Each row is a
         collection of masses assigned to the single object or parcel, and each
         column denotes the distribution of masses across objects or parcels at
@@ -1887,7 +1887,7 @@ def dispersion(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor block containing the data to be evaluated. Each row contains
         the centre of mass of a single object or parcel.\
     {dispersion_spec}
@@ -1944,7 +1944,7 @@ def multivariate_kurtosis(
 
     Parameters
     ----------
-    ts : Tensor
+    ts
         Multivariate time series to be evaluated. Each row is a channel or
         variable, and each column is a time point.\
     {mv_kurtosis_spec}

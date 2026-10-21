@@ -70,7 +70,7 @@ def sylo(
     ----------
     input : Tensor
         Input tensor of shape :math:`N \times C_{in} \times H \times W`.
-    L, R : Tensors
+    L, R
         Left and right precursors of a low-rank basis that transforms the input
         via a local similarity measure. The template basis itself is created
         as the outer product between the left (column) and right (row) weight

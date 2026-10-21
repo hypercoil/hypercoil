@@ -172,11 +172,11 @@ def compartmentalised_linear(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Input data.
-    weight : Mapping[str, Tensor]
+    weight
         Compartment-specific weights.
-    limits : Mapping[str, Tuple[int, int]]
+    limits
         Indices denoting the start and size of each compartment.
     decoder : Optional[Mapping[str, Tensor]] (default: None)
         Decoder for compartment-specific weights.

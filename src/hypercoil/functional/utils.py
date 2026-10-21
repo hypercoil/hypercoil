@@ -121,7 +121,7 @@ def complex_decompose(complex: Tensor) -> Tuple[Tensor, Tensor]:
 
     Parameters
     ----------
-    complex : Tensor
+    complex
         Complex-valued tensor.
 
     Returns
@@ -151,9 +151,9 @@ def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
 
     Parameters
     ----------
-    ampl : Tensor
+    ampl
         Real-valued array storing complex number amplitudes.
-    phase : Tensor
+    phase
         Real-valued array storing complex number phases in radians.
 
     Returns

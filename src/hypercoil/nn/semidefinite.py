@@ -172,7 +172,7 @@ class TangentProject(_TangentProject):
         tangency.\
     {tangent_projection_mean_specs_spec}\
     {semidefinite_mean_psi_spec}
-    scale : float
+    scale
         Scaling factor for the initialisation of the reference point of
         tangency.\
     {tangent_projection_dest_spec}

@@ -41,7 +41,7 @@ def cmass(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor containing the weights whose centres of mass are to be
         computed.
     axes : iterable or None (default None)
@@ -137,9 +137,9 @@ def cmass_coor(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Weight whose centre of mass is to be computed.
-    coor : Tensor
+    coor
         Coordinates corresponding to each column (location/voxel) in X.
     radius : float or None (default None)
         If this is not None, then the computed centre of mass is projected
@@ -184,9 +184,9 @@ def diffuse(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Weight for which the compactness score is to be computed.
-    coor : Tensor
+    coor
         Coordinates corresponding to each column (location/voxel) in X.
     norm
         Indicator of the type of norm to use for the distance function.

@@ -523,7 +523,7 @@ def corrnorm(A: Tensor) -> Tensor:
 
     Parameters
     ----------
-    A : Tensor
+    A
         Batch of covariance or unnormalised correlation matrices.
 
     Returns
