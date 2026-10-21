@@ -2,8 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Initialise a tensor such that elements along a given axis are Dirichlet
-samples.
+Initialisation of tensors with Dirichlet samples along an axis.
 """
 from __future__ import annotations
 from typing import Callable, Optional, Sequence, Tuple, Type, Union
@@ -54,8 +53,7 @@ def dirichlet_init(
 
 class DirichletInitialiser(MappedInitialiser):
     """
-    Initialise a parameter such that all slices along the final axis are
-    samples from a specified Dirichlet distribution.
+    Initialiser of Dirichlet samples along the last axis.
 
     See :func:`dirichlet_init` and :class:`MappedInitialiser` for argument
     details.

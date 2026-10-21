@@ -2,8 +2,9 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Differentiable computation of matrix logarithm, exponential, and square root.
-For use with symmetric (typically positive semidefinite) matrices.
+Differentiable matrix logarithm, exponential and square root.
+
+The functions are for symmetric, typically positive semidefinite, matrices.
 """
 from __future__ import annotations
 from typing import Callable, Literal, Optional
@@ -87,8 +88,9 @@ def symmap(
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
     r"""
-    Apply a specified matrix-valued transformation to a batch of symmetric
-    (probably positive semidefinite) tensors.
+    Apply a matrix function to a batch of symmetric matrices.
+
+    The matrices are typically positive semidefinite.
 
     .. note::
         This should be faster than using ``jax.scipy.linalg.funm`` for

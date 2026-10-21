@@ -2,8 +2,9 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Linear recombinator layer for feature-map learning networks.
-A 1x1 conv layer by another name.
+Linear recombinator layer for feature maps.
+
+The layer is equivalent to a 1x1 convolution.
 """
 from __future__ import annotations
 from typing import Optional
@@ -19,8 +20,9 @@ from ..functional.sylo import recombine
 
 class Recombinator(eqx.Module):
     r"""
-    Linear recombinator layer for feature maps. It should also be possible
-    to substitute a 1x1 convolutional layer with similar results.
+    Linear recombinator layer for feature maps.
+
+    A 1x1 convolutional layer gives similar results.
 
     Parameters
     ----------

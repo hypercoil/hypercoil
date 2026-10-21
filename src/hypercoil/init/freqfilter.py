@@ -2,8 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Tools for initialising parameters to emulate or replicate the transfer
-function of a filter in the frequency domain.
+Initialisation of parameters to emulate a filter's frequency response.
 """
 from __future__ import annotations
 from dataclasses import field
@@ -114,8 +113,8 @@ def filter_spectrum(
     spectrum_params: Optional[dict] = None,
 ) -> Tensor:
     """
-    Transfer function for an IIR filter, obtained via import from scipy.
-    \
+    Compute the transfer function of an IIR filter with ``scipy.signal``.
+
     {iir_warning}
 
     Parameters
@@ -167,8 +166,8 @@ def butterworth_spectrum(
     **params,
 ) -> Tensor:
     """
-    Butterworth filter's transfer function obtained via import from scipy.
-    \
+    Compute the transfer function of a Butterworth filter.
+
     {iir_warning}
 
     Parameters
@@ -207,8 +206,8 @@ def chebyshev1_spectrum(
     **params,
 ):
     """
-    Chebyshev I filter's transfer function obtained via import from scipy.
-    \
+    Compute the transfer function of a Chebyshev I filter.
+
     {iir_warning}
 
     Parameters
@@ -251,8 +250,8 @@ def chebyshev2_spectrum(
     **params,
 ) -> Tensor:
     """
-    Chebyshev II filter's transfer function obtained via import from scipy.
-    \
+    Compute the transfer function of a Chebyshev II filter.
+
     {iir_warning}
 
     Parameters
@@ -296,8 +295,8 @@ def elliptic_spectrum(
     **params,
 ) -> Tensor:
     """
-    Elliptic filter's transfer function obtained via import from scipy.
-    \
+    Compute the transfer function of an elliptic filter.
+
     {iir_warning}
 
     Parameters
@@ -342,8 +341,8 @@ def bessel_spectrum(
     **params,
 ) -> Tensor:
     """
-    Bessel-Thompson filter's transfer function obtained via import from scipy.
-    \
+    Compute the transfer function of a Bessel-Thompson filter.
+
     {iir_warning}
 
     Parameters
@@ -498,9 +497,8 @@ class _FreqFilterSpecDefaults(eqx.Module):
 @document_frequency_spectrum
 class FreqFilterSpec(_FreqFilterSpecDefaults):
     """
-    Specification for an approximate frequency response curve for various
-    filter classes.
-    \
+    Specification of an approximate frequency response for a filter bank.
+
     {iir_warning}
 
     Parameters
@@ -606,8 +604,9 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
         worN: int,
     ):
         """
-        Returns a mask and a set of values that can be used to clamp each
-        filter's transfer function at a specified set of frequencies.
+        Return a mask and values that clamp each transfer function.
+
+        The clamps hold each transfer function at the specified frequencies.
 
         To apply the clamp, use:
 
@@ -671,9 +670,9 @@ class FreqFilterSpec(_FreqFilterSpecDefaults):
         key: 'jax.random.PRNGKey',
     ) -> Tensor:
         """
-        Initialises a frequency spectrum or transfer function approximation
-        for the specified filter with ``worN`` frequency bins between 0 and
-        Nyquist, inclusive.
+        Initialise a transfer function approximation for each filter.
+
+        The spectrum has ``worN`` frequency bins from 0 to Nyquist, inclusive.
 
         Parameters
         ----------

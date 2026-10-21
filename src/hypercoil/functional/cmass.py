@@ -27,9 +27,9 @@ def cmass(
     na_rm: bool = False,
 ) -> Tensor:
     r"""
-    Differentiably compute a weight's centre of mass. This can be used to
-    regularise the weight so that its centre of mass is close to a provided
-    coordinate.
+    Compute the centre of mass of a weight, differentiably.
+
+    A regulariser can use it to keep the centre of mass near a coordinate.
 
     :Dimension: **Input :** :math:`(*, k_1, k_2, ..., k_n)`
                     `*` denotes any number of batch and intervening
@@ -110,8 +110,7 @@ def cmass_reference_displacement(
     radius: Optional[float] = None,
 ) -> Tensor:
     """
-    Displacement of centres of mass from reference points -- explicit
-    coordinate version.
+    Compute the displacement of centres of mass from reference coordinates.
 
     See :func:`cmass_coor` for parameter specifications.
     """

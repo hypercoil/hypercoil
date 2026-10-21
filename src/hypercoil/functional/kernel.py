@@ -197,8 +197,8 @@ def linear_kernel(
     intermediate_indices: None = None,
 ) -> Tensor:
     """
-    Parameterised linear kernel between input tensors.
-    \
+    Compute the parameterised linear kernel between input tensors.
+
     {linear_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -266,8 +266,8 @@ def param_norm(
     squared: bool = False,
 ) -> Tensor:
     """
-    Parameterised norm of observation vectors in an input tensor.
-    \
+    Compute the parameterised norm of observation vectors in a tensor.
+
     {norm_long_desc}
     \
     {kernel_fmt_note}
@@ -385,8 +385,8 @@ def polynomial_kernel(
     r: float = 0,
 ) -> Tensor:
     """
-    Parameterised polynomial kernel between input tensors.
-    \
+    Compute the parameterised polynomial kernel between input tensors.
+
     {polynomial_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -416,8 +416,8 @@ def sigmoid_kernel(
     r: float = 0,
 ) -> Tensor:
     """
-    Parameterised sigmoid kernel between input tensors.
-    \
+    Compute the parameterised sigmoid kernel between input tensors.
+
     {sigmoid_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -445,8 +445,8 @@ def gaussian_kernel(
     sigma: Optional[float] = None,
 ) -> Tensor:
     """
-    Parameterised Gaussian kernel between input tensors.
-    \
+    Compute the parameterised Gaussian kernel between input tensors.
+
     {gaussian_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -474,8 +474,8 @@ def rbf_kernel(
     gamma: Optional[float] = None,
 ) -> Tensor:
     """
-    Parameterised RBF kernel between input tensors.
-    \
+    Compute the parameterised RBF kernel between input tensors.
+
     {rbf_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -501,8 +501,8 @@ def cosine_kernel(
     theta: Optional[Tensor] = None,
 ) -> Tensor:
     """
-    Parameterised cosine kernel between input tensors.
-    \
+    Compute the parameterised cosine kernel between input tensors.
+
     {cosine_kernel_long_desc}
     \
     {kernel_fmt_note}

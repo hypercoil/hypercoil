@@ -154,8 +154,8 @@ def document_modularity(f: Callable) -> Callable:
 @document_modularity
 def girvan_newman_null(A: Tensor) -> Tensor:
     """
-    Girvan-Newman null model for a tensor block.
-    \
+    Compute the Girvan-Newman null model for a tensor block.
+
     {girvan_newman_long_desc}
 
     :Dimension: {adjacency_dim_spec}\
@@ -187,8 +187,8 @@ def modularity_matrix(
     **params,
 ) -> Tensor:
     """
-    Modularity matrices for a tensor block.
-    \
+    Compute the modularity matrices for a tensor block.
+
     {modularity_matrix_long_desc}
 
     :Dimension: {adjacency_dim_spec}\
@@ -229,8 +229,8 @@ def coaffiliation(
     normalise_coaffiliation: bool = False,
 ) -> Tensor:
     """
-    Coaffiliation of vertices under a community structure.
-    \
+    Compute the coaffiliation of vertices under a community structure.
+
     {coaffiliation_long_desc}
 
     :Dimension: {coaffiliation_dim_spec}\
@@ -278,8 +278,8 @@ def relaxed_modularity(
     **params,
 ) -> Tensor:
     """
-    A relaxation of the modularity of a network given a community partition.
-    \
+    Compute a relaxed modularity of a network given a community partition.
+
     {relaxed_modularity_long_desc}
 
     :Dimension: {adjacency_dim_spec}

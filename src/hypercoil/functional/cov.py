@@ -193,8 +193,8 @@ def corr(
     **params,
 ) -> Tensor:
     """
-    Pearson correlation of variables in a tensor batch.
-    \
+    Compute the Pearson correlation of variables in a tensor batch.
+
     {corr_long_description}
 
     :Dimension: {unary_dim_spec}
@@ -363,8 +363,8 @@ def pairedcorr(
     **params,
 ) -> Tensor:
     """
-    Empirical Pearson correlation between variables in two tensor batches.
-    \
+    Compute the Pearson correlation between variables in two tensor batches.
+
     {corr_long_description}
 
     .. danger::
@@ -402,8 +402,8 @@ def conditionalcov(
     **params,
 ) -> Tensor:
     """
-    Conditional covariance of variables in a tensor batch.
-    \
+    Compute the conditional covariance of variables in a tensor batch.
+
     {conditional_cov_long_description}
 
     :Dimension: {binary_dim_spec}
@@ -439,8 +439,8 @@ def conditionalcorr(
     **params,
 ) -> Tensor:
     """
-    Conditional Pearson correlation of variables in a tensor batch.
-    \
+    Compute the conditional Pearson correlation of variables in a batch.
+
     {conditional_cov_long_description}
     \
     {corr_long_description}
@@ -538,39 +538,46 @@ def corrnorm(A: Tensor) -> Tensor:
 
 
 def covariance(*pparams, **params):
-    """Alias for :func:`cov`."""
+    """Compute the covariance; an alias of :func:`cov`."""
     return cov(*pparams, **params)
 
 
 def correlation(*pparams, **params):
-    """Alias for :func:`corr`."""
+    """Compute the Pearson correlation; an alias of :func:`corr`."""
     return corr(*pparams, **params)
 
 
 def corrcoef(*pparams, **params):
-    """Alias for :func:`corr`."""
+    """Compute the Pearson correlation; an alias of :func:`corr`."""
     return corr(*pparams, **params)
 
 
 def pcorr(*pparams, **params):
-    """Alias for :func:`partialcorr`."""
+    """Compute the partial correlation; an alias of :func:`partialcorr`."""
     return partialcorr(*pparams, **params)
 
 
 def ccov(*pparams, **params):
-    """Alias for :func:`conditionalcov`."""
+    """
+    Compute the conditional covariance.
+
+    Alias of :func:`conditionalcov`.
+    """
     return conditionalcov(*pparams, **params)
 
 
 def ccorr(*pparams, **params):
-    """Alias for :func:`conditionalcorr`."""
+    """
+    Compute the conditional correlation.
+
+    Alias of :func:`conditionalcorr`.
+    """
     return conditionalcorr(*pparams, **params)
 
 
 def _prepare_input(X: Tensor, rowvar: bool = True) -> Tensor:
     """
-    Ensure that the input is conformant with the transposition expected by the
-    covariance function.
+    Transpose the input as the covariance function expects.
     """
     X = jnp.atleast_2d(X)
     if not rowvar and X.shape[-2] != 1:
@@ -588,10 +595,9 @@ def _prepare_weight_and_avg(
     Sequence[Tensor],
 ]:
     """
-    Set the weights for the covariance computation based on user input and
-    determine the sum of weights for normalisation. If weights are not
-    provided, the sum is simply the count of data observations. Compute the
-    first moment or its weighted analogue.
+    Compute the weights, their sum, and the weighted first moment.
+
+    Without weights, the sum is the number of observations.
     """
     if weight is not None:
         if weight.ndim == 1 or weight.shape[-1] != weight.shape[-2]:
@@ -621,8 +627,7 @@ def _prepare_denomfact(
     weight: Optional[Tensor] = None,
 ) -> Tensor:
     """
-    Determine the factor we should divide by to obtain the (un)biased
-    covariance from the sum over observations.
+    Compute the divisor that gives the biased or unbiased covariance.
     """
     if ddof is None:
         ddof = int(not bias)

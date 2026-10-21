@@ -225,8 +225,7 @@ class Reference(eqx.Module):
     @property
     def axobj(self) -> Any:
         """
-        Thanks to Chris Markiewicz for tutorials that shaped this
-        implementation.
+        CIfTI axis objects of the reference image.
         """
         try:
             hdr = self.header
@@ -904,9 +903,9 @@ class _PhantomReferenceMixin:
 
 class _PhantomDataobj(eqx.Module):
     """
-    For tricking ``nibabel`` into instantiating ``Nifti1Image`` objects
-    without any real data. Used to reduce data overhead when initialising
-    atlases from distributions.
+    Stand-in data object for a ``nibabel`` image without data.
+
+    Atlases initialised from distributions use it to avoid loading image data.
     """
 
     shape: tuple
@@ -1083,8 +1082,7 @@ class _CIfTIOutputMixin:
 
 class _LogicMaskMixin:
     """
-    Use to create an overall mask that specifies atlas inclusion status of
-    spatial locations.
+    Mixin that creates the atlas inclusion mask over spatial locations.
 
     For use when the mask source is either a path on the file system
     containing Boolean-valued data or a nested logical expression tree
@@ -1128,8 +1126,7 @@ class _LogicMaskMixin:
 
 class _CortexSubcortexCIfTIMaskMixin:
     """
-    Use to create an overall mask that specifies atlas inclusion status of
-    spatial locations.
+    Mixin that creates the atlas inclusion mask from a CIfTI reference.
 
     For use when creating a CIfTI atlas with separate cortical and subcortical
     compartments, and when the provided mask source indicates medial wall
@@ -1165,8 +1162,7 @@ class _CortexSubcortexCIfTIMaskMixin:
 
 class _FromNullMaskMixin:
     """
-    Use to create an overall mask that specifies atlas inclusion status of
-    spatial locations.
+    Mixin that creates the atlas inclusion mask by excluding null locations.
 
     For use when automatically creating a mask by excluding all background-
     or null-valued (typically 0-valued) spatial locations from the reference.
@@ -1190,8 +1186,7 @@ class _FromNullMaskMixin:
 
 class _SingleCompartmentMixin:
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that defines a single compartment covering the whole atlas.
 
     For use when no isolation is desired, and the entire atlased region is a
     single compartment.
@@ -1219,8 +1214,7 @@ class _SingleCompartmentMixin:
 #       cortex/subcortex.
 class _MultiCompartmentMixin:
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that divides the atlas into compartments with separate label sets.
 
     For use when isolation into multiple compartments is desired. With this
     mixin, each extra keyword argument passed to the atlas constructor is
@@ -1258,8 +1252,7 @@ class _MultiCompartmentMixin:
 
 class _CortexSubcortexSurfaceCompartmentMixin:
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that divides a surface atlas into cortical and subcortical parts.
 
     For use when creating an atlas based on cortical surface data in either
     CIfTI or GIfTI format, with separate subcompartments for the left and
@@ -1305,8 +1298,7 @@ class _CortexSubcortexCIfTICompartmentMixin(
     _CortexSubcortexSurfaceCompartmentMixin
 ):
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that divides a CIfTI atlas into cortical and subcortical parts.
 
     For use when creating a CIfTI-based atlas with separate subcompartments
     for the left and right cortical hemispheres and for subcortical locations.
@@ -1352,8 +1344,7 @@ class _CortexSubcortexGIfTICompartmentMixin(
     _CortexSubcortexSurfaceCompartmentMixin
 ):
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that divides a GIfTI atlas into cortical and subcortical parts.
 
     For use when creating a GIfTI-based atlas with separate subcompartments
     for the left and right cortical hemispheres and for subcortical locations.
@@ -1386,8 +1377,7 @@ class _CortexSubcortexGIfTICompartmentMixin(
 
 class _DiscreteLabelMixin:
     """
-    Use to decode label sets present in an atlas and to create a linear map
-    representation of the atlas.
+    Mixin that decodes discrete labels into a linear map.
 
     For use when the label sets are encoded as discrete values in a single
     reference volume or surface.
@@ -1436,8 +1426,7 @@ class _DiscreteLabelMixin:
 
 class _ContinuousLabelMixin:
     """
-    Use to decode label sets present in an atlas and to create a linear map
-    representation of the atlas.
+    Mixin that decodes continuous labels into a linear map.
 
     For use when the label sets are encoded across multiple volumes. This is
     necessary for continuous-valued atlases or atlases with overlapping
@@ -1482,8 +1471,7 @@ class _ContinuousLabelMixin:
 
 class _DirichletLabelMixin:
     """
-    Use to decode label sets present in an atlas and to create a linear map
-    representation of the atlas.
+    Mixin that samples labels from a Dirichlet distribution as a linear map.
 
     For use when the linear map is to be initialised from a Dirichlet
     distribution rather than a reference. This requires the prior existence of
@@ -1532,8 +1520,7 @@ class _DirichletLabelMixin:
 
 class _VolumetricMeshMixin:
     """
-    Used to establish a coordinate system over the linear map representations
-    of the atlas.
+    Mixin that sets volumetric coordinates for the linear map.
 
     For use when the atlas reference comprises evenly spaced volumetric
     samples (i.e., voxels).
@@ -1559,8 +1546,7 @@ class _VolumetricMeshMixin:
 
 class _VertexCIfTIMeshMixin:
     """
-    Used to establish a coordinate system over the linear map representations
-    of the atlas.
+    Mixin that sets coordinates from a CIfTI reference for the linear map.
 
     For use when the atlas reference is a CIfTI that includes some samples
     associated to cortical surface meshes. This mixin establishes a spherical
@@ -1607,8 +1593,7 @@ class _VertexCIfTIMeshMixin:
 
 class _VertexGIfTIMeshMixin:
     """
-    Used to establish a coordinate system over the linear map representations
-    of the atlas.
+    Mixin that sets coordinates from GIfTI surfaces for the linear map.
 
     For use when the atlas reference is a set of GIfTI files that includes
     some samples associated to cortical surface meshes. This mixin establishes

@@ -58,11 +58,12 @@ def random_bipartite_lattice(
 
 class VerticalCompression(eqx.Module):
     r"""
-    Compress a graph by fusing vertices. For an adjacency matrix A, this
-    layer applies the transform
-    :math:`\left(C_{row} A\right) \times C_{col}^{\intercal}` so that an
-    :math:`H_{in} \times W_{in}` matrix is mapped to an
-    :math:`H_{out} \times W_{out}` matrix.
+    Layer that compresses a graph by fusing vertices.
+
+    For an adjacency matrix :math:`A`, the layer computes
+    :math:`\left(C_{row} A\right) C_{col}^{\intercal}`, which maps an
+    :math:`H_{in} \times W_{in}` matrix to an :math:`H_{out} \times W_{out}`
+    matrix.
     """
     in_features: int
     out_features: int

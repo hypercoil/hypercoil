@@ -135,9 +135,8 @@ def sum_scalarise(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
-    Transform a tensor-valued function to a scalar-valued function by summing
-    the tensor.
-    \
+    Scalarise a tensor-valued function by summing the tensor.
+
     {long_description_scalarise}
     \
     {param_spec}\
@@ -167,9 +166,8 @@ def mean_scalarise(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
-    Transform a tensor-valued function to a scalar-valued function by taking
-    the mean of the tensor.
-    \
+    Scalarise a tensor-valued function by taking the mean.
+
     {long_description_scalarise}
     \
     {param_spec}\
@@ -199,9 +197,8 @@ def meansq_scalarise(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
-    Transform a tensor-valued function to a scalar-valued function by taking
-    the mean of the elementwise squared tensor.
-    \
+    Scalarise a tensor-valued function by taking the mean square.
+
     {long_description_scalarise}
     \
     {param_spec}\
@@ -231,8 +228,7 @@ def max_scalarise(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
-    Transform a tensor-valued function to a scalar-valued function by taking
-    the maximum of the tensor.
+    Scalarise a tensor-valued function by taking the maximum.
 
     This may be more appropriate than using the infinity norm, particularly
     for negative-valued loss functions.
@@ -268,11 +264,11 @@ def norm_scalarise(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[..., float]:
     """
-    Compute a specified norm along an axis or set of axes, and then map the
-    tensor of norms to a scalar using a scalarisation map. This is equivalent
-    to a composition of the norm along an axis or set of axes with an outer
-    scalarisation map.
-    \
+    Scalarise a tensor-valued function by a norm over axes.
+
+    The norm is applied to the output of the inner scalarisation map,
+    ``inner``.
+
     {long_description_scalarise}
     \
     {param_spec}\
@@ -327,9 +323,10 @@ def vnorm_scalarise(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[..., float]:
     """
-    Transform a tensor-valued function to a scalar-valued function by taking
-    the vector norm of the tensor along an axis or set of axes, and then
-    mapping the resulting norms to a scalar using a scalarisation map.
+    Scalarise a tensor-valued function by a vector norm over axes.
+
+    The norm is applied to the output of the inner scalarisation map,
+    ``inner``.
 
     Like :func:`norm_scalarise`, but always unfolds the tensor along the
     specified axis or axes before computing the norm so that the norm is
@@ -413,8 +410,9 @@ def selfwmean(
     softmax_invert: bool = False,
 ) -> Tensor:
     """
-    Self-weighted mean rank-reducing function. With the softmax turned on,
-    this should be close to a soft version of the maximum.
+    Compute the self-weighted mean over axes.
+
+    With the softmax enabled, the result approximates a soft maximum.
     """
     if softmax_axis is False:
         weight = input
@@ -447,9 +445,11 @@ def wmean_scalarise(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
-    Transform a tensor-valued function to a scalar-valued function by taking
-    the weighted mean of the tensor along an axis or set of axes, and then
-    mapping the resulting means to a scalar using a scalarisation map.
+    Scalarise a tensor-valued function by a weighted mean over axes.
+
+    The mean is applied to the output of the inner scalarisation map,
+    ``inner``, with weights from the ``scalarisation_weight`` keyword
+    argument of the scalarised function.
 
     .. warning::
 
@@ -498,9 +498,8 @@ def selfwmean_scalarise(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Callable[[Callable[..., Tensor]], Callable[..., float]]:
     """
-    Transform a tensor-valued function to a scalar-valued function by taking
-    the self-weighted mean of the tensor along an axis or set of axes.
-    \
+    Scalarise a tensor-valued function by self-weighted means over axes.
+
     {long_description_scalarise}
     \
     {param_spec}

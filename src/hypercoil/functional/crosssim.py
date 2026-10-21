@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Crosshair-kernel similarity
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Localised similarity functions over a crosshair kernel.
 """
 from __future__ import annotations
@@ -70,9 +68,8 @@ def document_crosssim(f: Callable) -> Callable:
 @document_crosssim
 def crosshair_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
-    Crosshair kernel inner product between a tensor block and a reference block
-    of template tensors.
-    \
+    Compute the crosshair kernel inner product with each template.
+
     {crosssim_rank_warning}
     \
     {crosssim_dim_spec}
@@ -87,9 +84,8 @@ def crosshair_similarity(X: Tensor, W: Tensor) -> Tensor:
 @document_crosssim
 def crosshair_cosine_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
-    Crosshair kernel cosine similarity between a tensor block and a reference
-    block of template tensors.
-    \
+    Compute the crosshair kernel cosine similarity with each template.
+
     {crosssim_rank_warning}
     \
     {crosssim_dim_spec}
@@ -109,9 +105,8 @@ def crosshair_cosine_similarity(X: Tensor, W: Tensor) -> Tensor:
 @document_crosssim
 def crosshair_l1_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
-    Crosshair kernel L1 distance between a tensor block and a reference block
-    of template tensors.
-    \
+    Compute the crosshair kernel L1 distance to each template.
+
     {crosssim_rank_warning}
     \
     {crosssim_dim_spec}
@@ -127,9 +122,8 @@ def crosshair_l1_similarity(X: Tensor, W: Tensor) -> Tensor:
 @document_crosssim
 def crosshair_l2_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
-    Crosshair kernel L2 distance between a tensor block and a reference block
-    of template tensors.
-    \
+    Compute the crosshair kernel L2 distance to each template.
+
     {crosssim_rank_warning}
     \
     {crosssim_dim_spec}

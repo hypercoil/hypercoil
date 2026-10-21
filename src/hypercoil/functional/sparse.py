@@ -107,8 +107,7 @@ def topk_to_bcoo(
     tensor: TopKTensor,
 ) -> Tensor:
     """
-    Convert a top-k format BCOO sparse matrix to an unstructured BCOO format
-    sparse matrix.
+    Convert a top-k format BCOO matrix to an unstructured BCOO matrix.
     """
     indices = jnp.tile(
         jnp.arange(tensor.indices.shape[-3])[..., None],
@@ -128,8 +127,9 @@ def spdiagmm(
     lhs_diag: bool = False,
 ) -> TopKTensor:
     """
-    Matrix multiplication of a top-k format sparse matrix with a diagonal
-    matrix. Returns a sparse matrix in the top-k format.
+    Multiply a top-k format sparse matrix by a diagonal matrix.
+
+    The result is a top-k format sparse matrix.
 
     The diagonal matrix should be formatted as a vector or batch of vectors
     whose final dimension is equal to the matching inner dimension of the
@@ -224,8 +224,7 @@ def spspmm_full(
     rhs: TopKTensor,
 ) -> Tensor:
     r"""
-    Matrix multiplication of a top-k format sparse matrix with another sparse
-    matrix in the top-k format. Returns a full matrix.
+    Multiply two top-k format sparse matrices into a full matrix.
 
     .. warning::
         Note that this implementation of the matrix multiplication operation
@@ -247,9 +246,10 @@ def dspdmm(
     diag: Tensor,
 ) -> TopKTensor:
     r"""
-    Left and right matrix multiplication of a top-k format sparse matrix with
-    a diagonal matrix. Returns a sparse matrix in the top-k format. For a
-    sparse matrix X and a diagonal matrix D, the result is
+    Multiply a top-k format sparse matrix by a diagonal matrix on both sides.
+
+    The result is a top-k format sparse matrix. For a sparse matrix X and a
+    diagonal matrix D, the result is
 
     .. math::
         \mathbf{D} \mathbf{X} \mathbf{D}
@@ -355,8 +355,7 @@ def trace_spspmm(
     fix_indices_over_channel_dims: bool = True,
 ) -> Tensor:
     """
-    Trace the matrix multiplication of two top-k format sparse matrices to
-    determine the indices of nonzero entries.
+    Find the indices of nonzero entries of a top-k sparse matrix product.
 
     The inputs can be boolean matrices, in which case the output contains the
     indices of True entries. The inputs can also be matrices with values, in
@@ -407,16 +406,14 @@ def trace_spspmm(
 
 def _null_carrier(carry, pparams, retvals):
     """
-    No-op carrier function for block serialisation transformations of
-    functions.
+    Return the carry unchanged; the default block serialisation carrier.
     """
     return carry
 
 
 def _noop(retvals):
     """
-    No-op postprocessing function for block serialisation transformations of
-    functions.
+    Return the input unchanged; the default block serialisation postprocessor.
     """
     return retvals
 
@@ -436,8 +433,7 @@ def block_serialise(
     postprocess_fn: Optional[Callable] = None,
 ) -> Callable:
     """
-    Serialise a function to be run over blocks of data, in order to reduce the
-    memory footprint of each call.
+    Serialise a function over blocks of data to reduce memory use per call.
 
     .. warning::
         Each specified input argument must be divisible by the number of
@@ -559,8 +555,7 @@ def sp_block_serialise(
     sp_retshapes: Sequence[Sequence[int]] = (),
 ) -> Callable:
     """
-    Function block serialisation transformation with a convenience wrapper for
-    handling top-k format sparse data.
+    Serialise a function over blocks of top-k format sparse data.
     """
 
     def _cfg_return():
@@ -734,8 +729,7 @@ def topkx(
     fix_indices_over_channel_dims: bool = True,
 ) -> TopKTensor:
     """
-    Transform a function that produces a full matrix so that it instead
-    produces a sparse matrix in the top-k format.
+    Transform a function that returns a full matrix to return top-k format.
 
     .. warning::
         The transformed function produces as an intermediate result a full
@@ -843,8 +837,7 @@ def topk(
     descending: bool = True,
 ) -> Tensor:
     """
-    Select the top k entries of a tensor and return the indices in a format
-    compatible with the top-k sparse matrix format.
+    Select the top k entries of a tensor as top-k format indices.
     """
     if descending:
         tensor = -tensor
@@ -926,8 +919,10 @@ def splr_hadamard(
     row: Tensor,
 ) -> TopKTensor:
     """
-    Hadamard product between a sparse matrix and a low-rank matrix generated
-    as the outer product of the specified column and row vectors.
+    Compute the Hadamard product of a sparse and a low-rank matrix.
+
+    The low-rank matrix is the outer product of the given column and row
+    vectors.
     """
     row = row[tuple(input.indices.squeeze(-1))]
     col = col[..., None, :]
@@ -941,8 +936,7 @@ def spsp_innerpaired(
     # theta: Optional[Tensor] = None,
 ) -> Tensor:
     r"""
-    Positive definite nondegenerate symmetric bilinear forms with sparse
-    arguments.
+    Evaluate a positive definite symmetric bilinear form on sparse arguments.
 
     .. note::
         The array dimension signature of this operation is informally
@@ -980,8 +974,7 @@ def spsymv(
     rhs: Tensor,
 ) -> Tensor:
     r"""
-    Matrix-vector product between a top-k formatted sparse tensor and a
-    vector. The top-k tensor is implicitly symmetrised.
+    Multiply a top-k format sparse matrix, implicitly symmetrised, by a vector.
 
     .. note::
         This operation has applications in certain matrix-free methods.
@@ -1068,8 +1061,7 @@ def random_sparse_batchfinal(key, shape, density=0.1):
 
 def to_batch_batchfinal(matrices: Sequence[Tensor]) -> Tensor:
     """
-    Convert a sequence of sparse matrices to a batch of matrices using the
-    batch-final, common-index COO format.
+    Convert a sequence of sparse matrices to a batch-final common-index batch.
 
     .. note::
         This function is not intended to be compatible with JIT compilation.

@@ -71,8 +71,8 @@ def residualise(
     return_mode: str = 'residual',
 ) -> Tensor:
     r"""
-    Residualise a tensor block via ordinary linear least squares.
-    \
+    Residualise a tensor block by ordinary least squares.
+
     {regress_warning}
 
     .. note::

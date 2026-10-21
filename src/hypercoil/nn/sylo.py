@@ -18,8 +18,7 @@ from ..functional import crosshair_similarity, expand_outer, sylo
 
 class Sylo(eqx.Module):
     r"""
-    Layer that learns a set of (possibly) symmetric, low-rank representations
-    of a dataset.
+    Layer that learns possibly symmetric, low-rank templates of a dataset.
 
     Parameters
     ----------

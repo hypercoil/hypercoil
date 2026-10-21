@@ -2,9 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-A hideous, disorganised group of utility functions. Hopefully someday they
-can disappear altogether or be moved elsewhere, but for now they exist, a sad
-blemish.
+Utility functions.
 """
 from __future__ import annotations
 from typing import Callable, Sequence, Tuple, Union
@@ -142,8 +140,7 @@ def complex_decompose(complex: Tensor) -> Tuple[Tensor, Tensor]:
 
 def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
     """
-    Reconstitute a complex-valued tensor from real-valued tensors denoting its
-    amplitude and its phase.
+    Compose a complex tensor from its amplitude and phase.
 
     :Dimension:
         Both inputs must be the same shape (or broadcastable). The
@@ -173,8 +170,7 @@ def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
 
 def amplitude_apply(func: Callable) -> Callable:
     """
-    Decorator for applying a function to the amplitude component of a complex
-    tensor.
+    Decorate a function to apply it to the amplitude of a complex tensor.
     """
 
     def wrapper(complex: Tensor) -> Tensor:

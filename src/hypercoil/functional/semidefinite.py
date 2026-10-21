@@ -2,8 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Differentiable projection from the positive semidefinite cone into a proper
-subspace tangent to the Riemann manifold.
+Differentiable projection between the semidefinite cone and tangent spaces.
 
 .. warning::
     Nearly all operations here, as currently implemented, exhibit numerical
@@ -78,9 +77,7 @@ def document_semidefinite_projection(f: Callable) -> Callable:
 
 def document_semidefinite_mean(f: Callable) -> Callable:
     euclidean_mean_desc = r"""
-    Batch-wise Euclidean mean of tensors in the positive semidefinite cone.
-
-    This is the familiar arithmetic mean:
+    The Euclidean mean is the arithmetic mean:
 
     :math:`\frac{1}{N}\sum_{i=1}^N X_{i}`"""
 
@@ -91,8 +88,6 @@ def document_semidefinite_mean(f: Callable) -> Callable:
     :math:`\bar{X} = \left(\frac{1}{N}\sum_{i=1}^N X_{i}^{-1}\right)^{-1}`"""
 
     logeuc_mean_desc = r"""
-    Batch-wise log-Euclidean mean of tensors in the positive semidefinite cone.
-
     The log-Euclidean mean is computed as the matrix exponential of the mean of
     matrix logarithms.
 
@@ -107,8 +102,6 @@ def document_semidefinite_mean(f: Callable) -> Callable:
                     As above."""
 
     geometric_mean_desc = r"""
-    Batch-wise geometric mean of tensors in the positive semidefinite cone.
-
     The geometric mean is computed via gradient descent along the geodesic on
     the manifold. In brief:
 
@@ -188,9 +181,8 @@ def tangent_project_spd(
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
     """
-    Project a batch of symmetric matrices from the positive semidefinite cone
-    into a tangent subspace.
-    \
+    Project symmetric matrices from the semidefinite cone to a tangent space.
+
     {tangent_project_long_desc}
     \
     {tangency_project_dim}
@@ -240,9 +232,8 @@ def cone_project_spd(
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
     """
-    Project a batch of symmetric matrices from a tangent subspace into the
-    positive semidefinite cone.
-    \
+    Project symmetric matrices from a tangent space to the semidefinite cone.
+
     {cone_project_long_desc}
     \
     {tangency_project_dim}
@@ -282,7 +273,9 @@ def mean_euc_spd(
     input: Tensor,
     axis: Union[int, Sequence[int]] = 0,
 ) -> Tensor:
-    """\
+    """
+    Compute the batch-wise Euclidean mean of semidefinite matrices.
+
     {euclidean_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -303,7 +296,9 @@ def mean_harm_spd(
     axis: Union[int, Sequence[int]] = 0,
     require_nonsingular: bool = True,
 ) -> Tensor:
-    """\
+    """
+    Compute the batch-wise harmonic mean of semidefinite matrices.
+
     {harmonic_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -331,7 +326,9 @@ def mean_logeuc_spd(
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
-    """\
+    """
+    Compute the batch-wise log-Euclidean mean of semidefinite matrices.
+
     {logeuc_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -372,7 +369,9 @@ def mean_geom_spd(
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
-    """\
+    """
+    Compute the batch-wise geometric mean of semidefinite matrices.
+
     {geometric_mean_desc}
     \
     {semidefinite_mean_dim}

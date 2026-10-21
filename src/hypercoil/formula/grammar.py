@@ -2,10 +2,9 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Grammar
-~~~~~~~
-Elementary formula grammar. For use with the confound modelling and parameter
-specification subsystems.
+Elementary formula grammar.
+
+The grammar underlies confound modelling and parameter specification.
 """
 from __future__ import annotations
 import re

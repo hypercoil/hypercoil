@@ -2,9 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Window amplification
-~~~~~~~~~~~~~~~~~~~~
-Rebatching or channel amplification through data windowing.
+Rebatching or channel amplification by data windowing.
 """
 from __future__ import annotations
 from typing import Callable, Optional, Sequence, Union

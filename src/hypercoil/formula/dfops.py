@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-DataFrames
-~~~~~~~~~~
 Transformations and grammar for DataFrame operations.
 """
 import re
@@ -821,8 +819,7 @@ def match_metadata(pattern, metadata):
 
 def successive_pad_search(df, key, pad=0, k=5):
     """
-    Find the column of a DataFrame that matches a query, ignoring potential
-    zero-padding.
+    Find the DataFrame column that matches a query, ignoring zero-padding.
 
     This function is an unfortunate artefact of an inconsistency in the way
     that an earlier version of fMRIPrep named metadata entries and data

@@ -255,8 +255,7 @@ class BaseCovariance(eqx.Module):
 
 class UnaryCovMixin:
     """
-    Mixin for covariance estimators that operate on a single multivariate
-    tensor.
+    Mixin for covariance estimators of a single multivariate tensor.
 
     ``UnaryCovMixin`` provides an implementation of the forward pass through a
     covariance module, which takes as input a single multivariate tensor and
@@ -287,8 +286,7 @@ class UnaryCovMixin:
 
 class BinaryCovMixin:
     """
-    Base class for covariance estimators that operate on a pair of
-    multivariate tensors.
+    Base class for covariance estimators of a pair of multivariate tensors.
 
     ``BinaryCovMixin`` provides an implementation of the forward pass through
     a covariance module, which takes as input two multivariate tensors and
@@ -324,8 +322,7 @@ class BinaryCovMixin:
 
 class ParameterisedUnaryCovMixin(UnaryCovMixin):
     """
-    Like :class:`UnaryCovMixin`, but with weight and mask parameters that are
-    attributes of the module.
+    :class:`UnaryCovMixin` with weight and mask as module attributes.
     """
 
     def __call__(
@@ -349,8 +346,7 @@ class ParameterisedUnaryCovMixin(UnaryCovMixin):
 
 class ParameterisedBinaryCovMixin(BinaryCovMixin):
     """
-    Like :class:`BinaryCovMixin`, but with weight and mask parameters that are
-    attributes of the module.
+    :class:`BinaryCovMixin` with weight and mask as module attributes.
     """
 
     def __call__(
@@ -376,8 +372,7 @@ class ParameterisedBinaryCovMixin(BinaryCovMixin):
 
 class BaseWeightedCovariance(BaseCovariance):
     """
-    Base class for covariance estimators with a full complement of learnable
-    weights.
+    Base class for covariance estimators with fully learnable weights.
 
     ``_WeightedCov`` extends ``BaseCovariance`` by providing a default
     initialisation framework for the module's learnable parameters.
@@ -452,8 +447,7 @@ class BaseWeightedCovariance(BaseCovariance):
 
 class BaseToeplitzWeightedCovariance(BaseCovariance):
     """
-    Base class for covariance estimators with a single learnable weight for
-    each time lag.
+    Base class for covariance estimators with a learnable weight per lag.
     """
 
     weight_col: Tensor
@@ -536,9 +530,8 @@ class UnaryCovariance(
     ParameterisedUnaryCovMixin,
 ):
     """
-    Covariance measures of a single tensor, with a full complement of
-    learnable weights.
-    \
+    Covariance of a single tensor, with fully learnable weights.
+
     {weighted_nn_spec}\
     {unary_nn_spec}
 
@@ -586,9 +579,8 @@ class UnaryCovarianceTW(
     ParameterisedUnaryCovMixin,
 ):
     """
-    Covariance measures of a single tensor, with a single learnable weight for
-    each time lag.
-    \
+    Covariance of a single tensor, with a learnable weight per time lag.
+
     {weighted_nn_spec}\
     {unary_nn_spec}
 
@@ -637,8 +629,8 @@ class UnaryCovarianceUW(
     UnaryCovMixin,
 ):
     """
-    Covariance measures of a single tensor, without learnable weights.
-    \
+    Covariance of a single tensor, without learnable weights.
+
     {unary_nn_spec}
 
     Parameters
@@ -680,9 +672,8 @@ class BinaryCovariance(
     ParameterisedBinaryCovMixin,
 ):
     r"""
-    Covariance measures using variables stored in two tensors, with a full
-    complement of learnable weights.
-    \
+    Covariance between two tensors, with fully learnable weights.
+
     {weighted_nn_spec}\
     {binary_nn_spec}
 
@@ -730,9 +721,8 @@ class BinaryCovarianceTW(
     ParameterisedBinaryCovMixin,
 ):
     r"""
-    Covariance measures using variables stored in two tensors, with a single
-    learnable weight for each time lag.
-    \
+    Covariance between two tensors, with a learnable weight per time lag.
+
     {weighted_nn_spec}\
     {binary_nn_spec}
 
@@ -781,9 +771,8 @@ class BinaryCovarianceUW(
     BinaryCovMixin,
 ):
     r"""
-    Covariance measures using variables stored in two tensors, without
-    learnable weights.
-    \
+    Covariance between two tensors, without learnable weights.
+
     {binary_nn_spec}
 
     Parameters

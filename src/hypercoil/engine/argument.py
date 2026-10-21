@@ -2,10 +2,9 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Model argument
-~~~~~~~~~~~~~~
-Convenience mappings representing arguments to a model or loss function.
-Also aliased to loss arguments.
+Mappings that hold the arguments to a model or loss function.
+
+``LossArgument`` is an alias of ``ModelArgument``.
 """
 from __future__ import annotations
 from collections import namedtuple
@@ -98,9 +97,9 @@ class ModelArgument(Mapping, eqx.Module):
 
 class UnpackingModelArgument(ModelArgument):
     """
-    ``ModelArgument`` variant that is automatically unpacked when it is the
-    output of an ``apply`` call. This is only distinguished from
-    ``ModelArgument`` within the loss scheme module.
+    :class:`ModelArgument` that is unpacked when returned by an ``apply`` call.
+
+    The loss scheme module alone distinguishes the two classes.
     """
 
     pass

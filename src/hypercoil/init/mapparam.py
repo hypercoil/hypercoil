@@ -2,8 +2,10 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Parameter mappers / mapped parameters for ``equinox`` modules.
-Similar to PyTorch's ``torch.nn.utils.parametrize``.
+Mapped parameters for ``equinox`` modules.
+
+A mapped parameter is stored in a preimage and passed through a map before
+use, similar to PyTorch's ``torch.nn.utils.parametrize``.
 """
 from __future__ import annotations
 from abc import abstractmethod
@@ -80,8 +82,7 @@ class MappedParameter(eqx.Module):
         **params,
     ):
         """
-        Create an updated version of a model that contains the mapped
-        parameter.
+        Return a copy of the model with the parameter mapped.
 
         Parameters
         ----------
@@ -125,9 +126,10 @@ class MappedParameter(eqx.Module):
 
 class OutOfDomainHandler(eqx.Module):
     """
-    Generic object for evaluating whether values in a parameter tensor are
-    within a domain and applying a transformation to those values that are
-    outside the domain.
+    Base class for out-of-domain handlers.
+
+    A handler tests whether the entries of a parameter tensor lie in a domain
+    and transforms the entries that do not.
     """
 
     def test(self, x: Tensor, bound: Tuple[float, float]) -> Tensor:
@@ -182,8 +184,7 @@ class Clip(OutOfDomainHandler):
 
 class Renormalise(OutOfDomainHandler):
     """
-    Normalise entries in the specified tensor so that all are in an interval
-    specified by bounds.
+    Out-of-domain handler that rescales a tensor into an interval.
 
     Note that this handler is in general much more radical than clipping. In
     particular, if any entry at all is out of bounds, nearly all entries in
@@ -206,8 +207,7 @@ class Renormalise(OutOfDomainHandler):
         axis: Optional[Tuple[int, ...]] = None,
     ) -> Tensor:
         """
-        Re-scale all values in the specified tensor to fall in the specified
-        interval.
+        Rescale all values of the tensor into the interval ``bound``.
 
         Parameters
         ----------
@@ -233,8 +233,7 @@ class Renormalise(OutOfDomainHandler):
 
 class ForcePositiveDefinite(OutOfDomainHandler):
     """
-    Handle non-positive definite slices of a parameter tensor by forcing them
-    to be positive definite.
+    Out-of-domain handler that forces slices to be positive definite.
     """
 
     def apply(
@@ -243,8 +242,7 @@ class ForcePositiveDefinite(OutOfDomainHandler):
         bound: Tuple[float, float],
     ) -> Tensor:
         """
-        Force all non-positive definite slices of the specified tensor to be
-        positive definite.
+        Make every non-positive definite slice of the tensor positive definite.
 
         Parameters
         ----------
@@ -318,8 +316,7 @@ class DomainMappedParameter(MappedParameter):
 
     def preimage_map(self, param: Tensor) -> Tensor:
         """
-        Map a tensor to its preimage under the transformation. Any values
-        outside the prescribed bounds are handled as appropriate.
+        Map a tensor to its preimage, handling out-of-bounds values first.
         """
         x = self.handler.apply(param, self.image_bound)
         i = self.preimage_map_impl(x)
@@ -342,15 +339,13 @@ class DomainMappedParameter(MappedParameter):
 
     def test(self, param: Tensor):
         """
-        Evaluate whether each entry in a tensor falls within the prescribed
-        bounds of the image map.
+        Test whether each tensor entry lies within the bounds of the image map.
         """
         return self.handler.test(param, self.image_bound)
 
     def handle_ood(self, param: Tensor) -> Tensor:
         """
-        Apply an out-of-domain handler to ensure that all tensor entries are
-        within bounds.
+        Apply the out-of-domain handler to bring all entries within bounds.
         """
         return self.handler.apply(param, self.image_bound)
 
@@ -415,8 +410,7 @@ class AffineDomainMappedParameter(DomainMappedParameter):
 
     def preimage_map(self, param: Tensor) -> Tensor:
         """
-        Map a tensor to its preimage under the transformation. Any values
-        outside the prescribed bounds are handled as appropriate.
+        Map a tensor to its preimage, handling out-of-bounds values first.
         """
         x = self.handler.apply(param, self.image_bound)
         i = self.preimage_map_impl((x - self.loc) / self.scale)
@@ -441,9 +435,9 @@ class PhaseAmplitudeMixin:
 
     def preimage_map(self, param: Tensor) -> Tensor:
         """
-        Map the amplitude of a complex-valued tensor to its preimage under the
-        transformation. Any values outside the transformation's range are
-        first handled.
+        Map the amplitude of a complex tensor to its preimage.
+
+        Out-of-range amplitudes are handled first.
         """
         ampl, phase = complex_decompose(param)
         ampl = super().preimage_map(ampl)
@@ -451,8 +445,7 @@ class PhaseAmplitudeMixin:
 
     def image_map(self, param: Tensor) -> Tensor:
         """
-        Map the amplitude of a complex-valued a tensor to its image under the
-        transformation.
+        Map the amplitude of a complex tensor to its image.
         """
         ampl, phase = complex_decompose(param)
         ampl = super().image_map(ampl)
@@ -481,8 +474,9 @@ class AffineMappedParameter(AffineDomainMappedParameter):
 
 class TanhMappedParameter(AffineDomainMappedParameter):
     """
-    Parameter mapped through a hyperbolic tangent function. The tensor values
-    are thus constrained between some finite scale value and its negation.
+    Parameter mapped through a hyperbolic tangent.
+
+    The values are bounded by the scale and its negation.
 
     Parameters
     ----------
@@ -532,9 +526,9 @@ class TanhMappedParameter(AffineDomainMappedParameter):
 
 class AmplitudeTanhMappedParameter(PhaseAmplitudeMixin, TanhMappedParameter):
     """
-    Complex-valued parameter whose amplitude is mapped through a hyperbolic
-    tangent function. The amplitude is thus constrained between some finite
-    scale value and its negation.
+    Complex parameter whose amplitude is mapped through a hyperbolic tangent.
+
+    The amplitude is bounded by the scale and its negation.
 
     Parameters
     ----------
@@ -560,9 +554,9 @@ class AmplitudeTanhMappedParameter(PhaseAmplitudeMixin, TanhMappedParameter):
 
 class MappedLogits(AffineDomainMappedParameter):
     """
-    Parameter mapped through a logistic function. The tensor values are thus
-    constrained between 0 and 1, or more generally between 2 arbitrary finite
-    real numbers.
+    Parameter mapped through a logistic function.
+
+    The values are bounded by 0 and 1, or more generally by two finite reals.
 
     Parameters
     ----------
@@ -725,8 +719,7 @@ def paramsoftmax(
 
 class ProbabilitySimplexParameter(DomainMappedParameter):
     """
-    Parameter whose constituent slices are projected onto the probability
-    simplex.
+    Parameter whose slices are projected onto the probability simplex.
 
     The forward function is a softmax. Note that the softmax function does
     not have a unique inverse; here we use the elementwise natural logarithm
@@ -800,8 +793,7 @@ class AmplitudeProbabilitySimplexParameter(
     ProbabilitySimplexParameter,
 ):
     """
-    Complex-valued parameter whose amplitudes are projected onto the
-    probability simplex.
+    Complex parameter whose amplitudes are projected onto the simplex.
 
     The forward function is a softmax applied to the amplitudes. Note that
     the softmax function does not have a unique inverse; here we use the

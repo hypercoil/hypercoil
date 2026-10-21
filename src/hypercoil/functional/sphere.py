@@ -16,16 +16,16 @@ from ..engine import Tensor
 # TODO: Switch to using kernel.gaussian_kernel instead of this everywhere
 def kernel_gaussian(x: Tensor, scale: float = 1) -> Tensor:
     """
-    An example of an isotropic kernel. Zero-centered Gaussian kernel with
-    specified scale parameter.
+    Evaluate a zero-centred isotropic Gaussian kernel with scale ``scale``.
     """
     return jnp.exp(-((x / scale) ** 2) / 2) / (scale * (2 * jnp.pi) ** 0.5)
 
 
 def sphere_to_normals(coor: Tensor, r: float = 1) -> Tensor:
     r"""
-    Convert spherical coordinates from latitude/longitude format to normal
-    vector format. Note this only works for 2-spheres as of now.
+    Convert latitude-longitude coordinates to normal vectors.
+
+    Only 2-spheres are supported.
 
     :Dimension: **Input :** :math:`(*, 2)`
                 **Output :** :math:`(*, 3)`
@@ -54,8 +54,9 @@ def sphere_to_normals(coor: Tensor, r: float = 1) -> Tensor:
 
 def sphere_to_latlong(coor: Tensor) -> Tensor:
     r"""
-    Convert spherical coordinates from normal vector format to latitude/
-    longitude format. Note this only works for 2-spheres as of now.
+    Convert normal vectors to latitude-longitude coordinates.
+
+    Only 2-spheres are supported.
 
     :Dimension: **Input :** :math:`(*, 3)`
                 **Output :** :math:`(*, 2)`
@@ -86,8 +87,7 @@ def spherical_geodesic(
     r: float = 1,
 ) -> Tensor:
     r"""
-    Geodesic great-circle distance between two sets of spherical coordinates
-    formatted as normal vectors.
+    Compute the great-circle distance between points given as normal vectors.
 
     This is not a haversine distance, although the result is identical. Please
     ensure that input vectors are expressed as normals and not as latitude/

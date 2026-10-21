@@ -23,8 +23,7 @@ def metric_tensor_field_diag_plus_low_rank(
     diag_model: Callable[[Tensor], Tensor],
 ) -> Tensor:
     """
-    Parameterise a metric tensor field as a sum of a diagonal and a low-rank
-    component.
+    Parameterise a metric tensor field as diagonal plus low rank.
 
     Parameters
     ----------
@@ -80,8 +79,7 @@ def quadratic_form_low_rank_plus_diag(
     metric_tensor: Tuple[Tensor, Tensor],
 ) -> Tensor:
     """
-    Compute the quadratic form :math:`x^T A x` where :math:`A` is a sum of a
-    diagonal and a low-rank component.
+    Compute the quadratic form :math:`x^T A x` for diagonal plus low-rank A.
 
     Parameters
     ----------

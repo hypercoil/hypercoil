@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Noise
-~~~~~
 Additive and multiplicative noise sources.
 """
 from __future__ import annotations
@@ -29,10 +27,10 @@ from .paramutil import (
 
 def _symlog(input):
     """
-    Symmetric logarithmic transform. The bare functionality here is
-    necessary so we don't import from ``functional``. In practice, the
-    ``symlog`` function in ``functional`` is more robust and flexible, and
-    should be favoured where possible.
+    Compute the symmetric matrix logarithm.
+
+    A minimal version of :func:`hypercoil.functional.symlog`, which is more
+    robust and is preferred elsewhere.
     """
     L, Q = jnp.linalg.eigh((input + input.swapaxes(-2, -1)) / 2)
     Lmap = jnp.log(L)
@@ -381,8 +379,9 @@ class AdditiveNoiseMixin:
 
 class MultiplicativeNoiseMixin:
     """
-    Mixin for configuring a ``StochasticTransform`` to multiply the input
-    with noise (i.e., apply dropout).
+    Mixin that makes a :class:`StochasticTransform` multiply input by noise.
+
+    Multiplicative noise is dropout.
 
     This implements the ``inject`` method for injecting noise
     multiplicatively. Any subclasses are still responsible for implementing
@@ -395,8 +394,9 @@ class MultiplicativeNoiseMixin:
 
 class ConvexCombinationNoiseMixin:
     """
-    Mixin for configuring a ``StochasticTransform`` to combine the input with
-    noise as a convex combination.
+    Mixin that makes a :class:`StochasticTransform` mix input and noise.
+
+    The output is a convex combination of the input and the noise.
 
     This implements the ``inject`` method for injecting noise as a convex
     combination. Any subclasses are still responsible for implementing the
@@ -414,8 +414,7 @@ class ConvexCombinationNoiseMixin:
 
 class AxialSelectiveTransform(StochasticTransform):
     """
-    Noise source for which it is possible to specify the tensor axes along
-    which there is randomness.
+    Noise source whose randomness is restricted to selected axes.
 
     This implements the ``sample`` method as a wrapper for sampling from the
     noise distribution. Any subclasses are still responsible for implementing
@@ -471,8 +470,7 @@ class AxialSelectiveTransform(StochasticTransform):
 
     def select_dimensions(self, shape: Tuple[int]) -> Tuple[int, ...]:
         """
-        Change the dimension of the sample such that randomness occurs only
-        along the specified axes.
+        Return a sample shape with randomness only along the selected axes.
         """
         if self.sample_axes is not None:
             ndim = len(shape)
@@ -489,9 +487,8 @@ class AxialSelectiveTransform(StochasticTransform):
 @document_stochastic_transforms
 class ScalarIIDStochasticTransform(AxialSelectiveTransform):
     """
-    Noise source where each sample is scalar-valued, independently drawn from
-    an identical distribution.
-    \
+    Noise source of scalar samples drawn i.i.d.
+
     {base_warning}
 
     Parameters
@@ -532,9 +529,8 @@ class ScalarIIDStochasticTransform(AxialSelectiveTransform):
 @document_stochastic_transforms
 class TensorIIDStochasticTransform(AxialSelectiveTransform):
     """
-    Noise source where each sample is multivariate, independently drawn from
-    an identical distribution.
-    \
+    Noise source of multivariate samples drawn i.i.d.
+
     {base_warning}
 
     Parameters
@@ -589,9 +585,8 @@ class ScalarIIDAddStochasticTransform(
     ScalarIIDStochasticTransform,
 ):
     """
-    Additive noise source where each sample is scalar-valued, independently
-    drawn from an identical distribution.
-    \
+    Additive noise source of scalar samples drawn i.i.d.
+
     {base_warning}
 
     Parameters
@@ -608,9 +603,8 @@ class TensorIIDAddStochasticTransform(
     TensorIIDStochasticTransform,
 ):
     """
-    Additive noise source where each sample is multivariate, independently
-    drawn from an identical distribution.
-    \
+    Additive noise source of multivariate samples drawn i.i.d.
+
     {base_warning}
 
     Parameters
@@ -627,9 +621,8 @@ class ScalarIIDMulStochasticTransform(
     ScalarIIDStochasticTransform,
 ):
     """
-    Multiplicative noise source (i.e., dropout) where each sample is scalar-
-    valued, independently drawn from an identical distribution.
-    \
+    Multiplicative noise source (dropout) of scalar samples drawn i.i.d.
+
     {multiplicative_mean_correction}
     \
     {base_warning}
@@ -663,9 +656,8 @@ class TensorIIDMulStochasticTransform(
     TensorIIDStochasticTransform,
 ):
     """
-    Multiplicative noise source (i.e., dropout) where each sample is
-    multivariate, independently drawn from an identical distribution.
-    \
+    Multiplicative noise source (dropout) of multivariate samples drawn i.i.d.
+
     {multiplicative_mean_correction}
     \
     {base_warning}
@@ -698,8 +690,7 @@ class TensorIIDMulStochasticTransform(
 @document_stochastic_transforms
 class EigenspaceReconditionTransform(TensorIIDAddStochasticTransform):
     """
-    Stochastic transform for reconditioning eigenspaces such there is neither
-    degeneracy nor singularity.
+    Stochastic transform that removes degenerate and zero eigenvalues.
 
     Differentiating through various numerical operations in linear algebra,
     such as the singular value decomposition (SVD), often suffers from
@@ -859,9 +850,7 @@ class OuterProduct(distrx.Distribution):
         matrix_dim: int,
     ) -> Tensor:
         """
-        Find the standard deviation of a normal distribution such that the
-        outer product of its samples has approximately a specified standard
-        deviation.
+        Approximate the normal scale whose outer products have a given scale.
 
         This is a bit of a hack and isn't correct, but it's the best we can do
         given we have more pressing problems to solve. In reality, the

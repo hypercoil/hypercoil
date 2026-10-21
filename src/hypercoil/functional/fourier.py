@@ -128,8 +128,7 @@ def product_filtfilt(
     **params,
 ) -> Tensor:
     """
-    Perform zero-phase digital filtering of a signal via multiplication in the
-    frequency domain.
+    Filter a signal with zero phase by multiplication in the frequency domain.
 
     This function operates by first filtering the data and then filtering a
     time-reversed copy of the filtered data again. Note that the effect on the
@@ -377,8 +376,10 @@ def env_inst(
     period: float = (2 * math.pi),
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
-    Compute the analytic signal, and then decompose it into the envelope and
-    instantaneous phase and frequency.
+    Decompose the analytic signal into envelope, phase and frequency.
+
+    The instantaneous phase and frequency are computed from the analytic
+    signal.
 
     Parameters
     ----------\
@@ -413,10 +414,10 @@ def ampl_phase_corr(
     **params,
 ) -> Tensor:
     """
-    Covariance among frequency bins, amplitude and phase. To run it across the
-    batch and region axes, use
-    ``ampl_phase_corr(X, weight=None, corr_axes=(0, -2))``
-    Be advised: there is no interesting structure here.
+    Compute the correlations among frequency bins of amplitude and of phase.
+
+    To correlate across the batch and region axes, use
+    ``ampl_phase_corr(X, weight=None, corr_axes=(0, -2))``.
     """
     n = X.shape[-1]
     Xf = jnp.fft.rfft(X, n=n, **params)

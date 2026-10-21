@@ -216,8 +216,7 @@ def amplitude_tanh(input: Tensor) -> Tensor:
 
 def amplitude_atanh(input: Tensor) -> Tensor:
     r"""
-    Inverse hyperbolic tangent (hyperbolic arctangent) activation function
-    applied to the amplitude only.
+    Apply the inverse hyperbolic tangent to the amplitude of a tensor.
 
     The amplitude (absolute value) of the input is transformed according to
 
@@ -309,8 +308,8 @@ def corrnorm(
     gradpath: Literal['input', 'both'] = 'both',
 ) -> Tensor:
     """
-    Correlation normalisation activation function.
-    \
+    Apply the correlation normalisation activation.
+
     {corrnorm_spec}
     """
     if isinstance(factor, jax.Array):
@@ -384,9 +383,8 @@ def isochor(
     softmax_temp: Optional[float] = None,
 ) -> Tensor:
     """
-    Volume-normalising activation function for symmetric, positive definite
-    matrices.
-    \
+    Normalise the volume of symmetric positive definite matrices.
+
     {isochoric_spec}
     """
     L, Q = jnp.linalg.eigh(input)

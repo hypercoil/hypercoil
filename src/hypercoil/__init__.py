@@ -3,7 +3,7 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 # isort: skip_file
 """
-Top-level import
+Differentiable programming for neuroimaging.
 """
 from .__about__ import (
     __packagename__,

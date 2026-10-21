@@ -19,8 +19,7 @@ from ..init.freqfilter import FreqFilterInitialiser, FreqFilterSpec
 
 class FrequencyDomainFilter(eqx.Module):
     r"""
-    Filter bank applied by transfer function multiplication in the frequency
-    domain.
+    Filter bank applied by multiplication in the frequency domain.
 
     Each input time series is transformed into the frequency domain,
     multiplied by the transfer function of each filter in the bank, and

@@ -22,9 +22,8 @@ from ..functional.interpolate import (
 @document_interpolation
 class SpectralInterpolate(eqx.Module):
     """
-    :doc:`Spectral interpolation <hypercoil.functional.interpolate.spectral_interpolate>`
-    module.
-    \
+    Module for :func:`~hypercoil.functional.interpolate.spectral_interpolate`.
+
     {spectral_interpolate_long_desc}
 
     Parameters
@@ -56,8 +55,7 @@ class SpectralInterpolate(eqx.Module):
 
 class LinearInterpolate(eqx.Module):
     """
-    :doc:`Linear interpolation <hypercoil.functional.interpolate.linear_interpolate>`
-    module.
+    Module for :func:`~hypercoil.functional.interpolate.linear_interpolate`.
     """
 
     def __call__(
@@ -76,9 +74,8 @@ class LinearInterpolate(eqx.Module):
 @document_interpolation
 class HybridInterpolate(eqx.Module):
     """
-    :doc:`Hybrid interpolation <hypercoil.functional.interpolate.hybrid_interpolate>`
-    module.
-    \
+    Module for :func:`~hypercoil.functional.interpolate.hybrid_interpolate`.
+
     {hybrid_interpolate_long_desc}
 
     Parameters

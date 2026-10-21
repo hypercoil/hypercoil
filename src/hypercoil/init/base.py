@@ -48,9 +48,9 @@ def constant_init(
     key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
-    Initialise a tensor to a constant value throughout. (The specified value
-    doesn't actually have to be scalar as long as it is broadcastable to the
-    tensor being initialised.)
+    Initialise a tensor to a constant value.
+
+    The value need not be scalar; it is broadcast to the tensor shape.
     """
     return jnp.full(shape, value)
 
@@ -63,10 +63,7 @@ def identity_init(
     key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
-    Initialise a tensor such that each of its slices is an identity matrix.
-    Currently this sets each slice defined by the last two axes to identity.
-    If there is a use case for other slices, it can be made more flexible in
-    the future.
+    Initialise a tensor with identity matrices over the last two axes.
     """
     return jnp.tile(jnp.eye(shape[-1]) * scale + shift, (*shape[:-2], 1, 1))
 
@@ -136,12 +133,12 @@ class Initialiser(eqx.Module):
 
 class MappedInitialiser(Initialiser):
     """
-    Initialiser base class with an optional
-    :doc:`parameter map <api/hypercoil.init.mapparam>`.
+    Initialiser base class with an optional parameter map.
 
-    The map combines initialisation and re-parameterisation in one step. The
-    map is given as a class, not an instance. Without a map, the initialiser
-    is applied as normal.
+    The :doc:`parameter map <api/hypercoil.init.mapparam>` combines
+    initialisation and re-parameterisation in one step. The map is given as
+    a class, not an instance. Without a map, the initialiser is applied as
+    normal.
 
     A subclass implements ``_init``, which takes an output shape (``shape``)
     and a random number generator key (``key``) and returns a tensor of that
@@ -153,9 +150,9 @@ class MappedInitialiser(Initialiser):
 
     .. note::
         The initialiser fills the parameter first, and the map is then
-        applied to the result. The map applies its out-of-domain handler to
-        any out-of-domain values, so the instantiated tensor might not match
-        the initialiser's specification.
+        applied to the result. Because the map's out-of-domain handler
+        transforms any out-of-domain values, the instantiated tensor might
+        not match the initialiser's specification.
 
     .. note::
         Extra keyword arguments to ``init`` are passed to the map.
@@ -336,8 +333,7 @@ class ConstantInitialiser(MappedInitialiser):
 
 class IdentityInitialiser(MappedInitialiser):
     """
-    Initialise a parameter such that all slices along the final two axes are
-    identity matrices.
+    Initialiser that sets each slice over the last two axes to identity.
 
     See :func:`identity_init` and :class:`MappedInitialiser` for argument
     details.

@@ -124,10 +124,7 @@ def document_loss(default_scalarise: str = 'mean'):
 
 class _ScheduleContainer:
     """
-    A dumb container for a schedule. This is used to make the schedule
-    *not* be a PyTree, so that we don't have to use a hacky `is_leaf` call
-    in the `eqx.filter` function. The container is mutable, but it doesn't
-    really matter since it's only used internally.
+    Mutable container that keeps a schedule out of the PyTree.
     """
     def __init__(self, schedule: Tuple[Callable[[int], float], int]):
         self.schedule = schedule
@@ -218,9 +215,9 @@ class Loss(eqx.Module):
 
     def cfg(self, value: Any, where: str = '_nu') -> Loss:
         """
-        Return a copy of the loss function with the specified attribute
-        modified. By default, this modifies the loss multiplier (``nu``), but
-        this can be changed by specifying the ``where`` argument.
+        Return a copy of the loss with attribute ``where`` set to ``value``.
+
+        By default ``where`` is the loss multiplier.
         """
         return eqx.filter(
             self,
@@ -231,8 +228,9 @@ class Loss(eqx.Module):
 
     def step(self, count: Optional[int] = None) -> Loss:
         """
-        If the loss multiplier is a schedule, this will advance the schedule
-        by one step.
+        Advance the multiplier schedule by one step, or to step ``count``.
+
+        A loss whose multiplier is not a schedule is returned unchanged.
         """
         if not isinstance(self._nu, _ScheduleContainer):
             return self
@@ -409,8 +407,8 @@ class NormedLoss(Loss):
 @document_loss()
 class ConstraintViolationLoss(Loss):
     """
-    Loss function for constraint violations.
-    \
+    Loss for constraint violations.
+
     {long_description}
     \
     {param_spec}\
@@ -461,8 +459,8 @@ class ConstraintViolationLoss(Loss):
 @document_loss()
 class UnilateralLoss(Loss):
     """
-    Loss function corresponding to a single soft nonpositivity constraint.
-    \
+    Loss for a single soft nonpositivity constraint.
+
     {long_description_unil}
     \
     {param_spec}\
@@ -500,8 +498,8 @@ class UnilateralLoss(Loss):
 @document_loss(default_scalarise='sum')
 class HingeLoss(Loss):
     """
-    Hinge loss function.
-    \
+    Hinge loss.
+
     {long_description_hinge}
     \
     {param_spec}\
@@ -540,8 +538,8 @@ class HingeLoss(Loss):
 @document_loss(default_scalarise='L1 norm')
 class SmoothnessLoss(Loss):
     """
-    Smoothness loss function.
-    \
+    Smoothness loss.
+
     {long_description}
     \
     {param_spec}\
@@ -597,8 +595,8 @@ class SmoothnessLoss(Loss):
 @document_loss()
 class BimodalSymmetricLoss(Loss):
     """
-    Loss based on the minimum distance from either of two modes.
-    \
+    Loss on the distance from the nearer of two modes.
+
     {long_description}
     \
     {param_spec}\
@@ -699,8 +697,8 @@ class _GramDeterminantLoss(Loss):
 @document_loss()
 class GramDeterminantLoss(_GramDeterminantLoss):
     """
-    Loss based on the determinant of the Gram matrix.
-    \
+    Loss on the determinant of the Gram matrix.
+
     {long_description}
     \
     {param_spec}\
@@ -739,8 +737,8 @@ class GramDeterminantLoss(_GramDeterminantLoss):
 @document_loss()
 class GramLogDeterminantLoss(_GramDeterminantLoss):
     """
-    Loss based on the log-determinant of the Gram matrix.
-    \
+    Loss on the log-determinant of the Gram matrix.
+
     {long_description}
     {ultra_long_description}
     \
@@ -777,8 +775,9 @@ class GramLogDeterminantLoss(_GramDeterminantLoss):
 
 
 class _InformationLoss(Loss):
-    """Base implementation for loss functions based on information theoretic
-    quantities."""
+    """
+    Base class for losses based on information-theoretic quantities.
+    """
 
     axis: Union[int, Tuple[int, ...]]
     keepdims: bool
@@ -907,8 +906,7 @@ class EntropyLogitLoss(_InformationLoss):
 @document_loss()
 class KLDivergenceLoss(_InformationLoss):
     """
-    Loss based on the Kullback-Leibler divergence between two categorical
-    distributions.
+    Loss on the Kullback-Leibler divergence of two categorical distributions.
 
     This operates on probability tensors. For a version that operates on
     logits, see :class:`KLDivergenceLogitLoss`.
@@ -949,8 +947,7 @@ class KLDivergenceLoss(_InformationLoss):
 @document_loss()
 class KLDivergenceLogitLoss(_InformationLoss):
     """
-    Loss based on the Kullback-Leibler divergence between two categorical
-    distributions.
+    Kullback-Leibler divergence loss for categorical distributions as logits.
 
     This operates on logit tensors. For a version that operates on
     probabilities, see :class:`KLDivergenceLoss`.
@@ -991,8 +988,7 @@ class KLDivergenceLogitLoss(_InformationLoss):
 @document_loss()
 class JSDivergenceLoss(_InformationLoss):
     """
-    Loss based on the Jensen-Shannon divergence between two categorical
-    distributions.
+    Loss on the Jensen-Shannon divergence of two categorical distributions.
 
     This operates on probability tensors. For a version that operates on
     logits, see :class:`JSDivergenceLogitLoss`.
@@ -1033,8 +1029,7 @@ class JSDivergenceLoss(_InformationLoss):
 @document_loss()
 class JSDivergenceLogitLoss(_InformationLoss):
     """
-    Loss based on the Jensen-Shannon divergence between two categorical
-    distributions.
+    Jensen-Shannon divergence loss for categorical distributions as logits.
 
     This operates on logit tensors. For a version that operates on
     probabilities, see :class:`JSDivergenceLoss`.
@@ -1120,8 +1115,7 @@ class _BregmanDivergenceLoss(Loss):
 @document_loss()
 class BregmanDivergenceLoss(_BregmanDivergenceLoss):
     """
-    Loss based on the Bregman divergence between two categorical
-    distributions.
+    Loss on the Bregman divergence of two categorical distributions.
 
     This operates on unmapped tensors. For a version that operates on logits
     logits, see :class:`BregmanDivergenceLogitLoss`.
@@ -1160,8 +1154,7 @@ class BregmanDivergenceLoss(_BregmanDivergenceLoss):
 @document_loss()
 class BregmanDivergenceLogitLoss(_BregmanDivergenceLoss):
     """
-    Loss based on the Bregman divergence between two categorical
-    distributions.
+    Bregman divergence loss for categorical distributions as logits.
 
     This operates on logits. For a version that operates on unmapped
     probabilities, see :class:`BregmanDivergenceLoss`.
@@ -1319,7 +1312,7 @@ class EquilibriumLogitLoss(Loss):
 class SecondMomentLoss(Loss):
     """
     Second moment loss.
-    \
+
     {long_description}
     \
     {ultra_long_description}
@@ -1375,8 +1368,8 @@ class SecondMomentLoss(Loss):
 @document_loss()
 class SecondMomentCentredLoss(Loss):
     """
-    Second moment loss centred on a precomputed mean.
-    \
+    Second moment loss about a precomputed mean.
+
     {long_description}
     \
     {ultra_long_description}
@@ -1645,7 +1638,7 @@ class PointAgreementLoss(Loss):
 class BatchCorrelationLoss(Loss):
     """
     Batch correlation loss.
-    \
+
     {param_spec}\
     {batch_correlation_spec}\
     {scalarisation_spec}
@@ -1701,7 +1694,7 @@ class BatchCorrelationLoss(Loss):
 class QCFCLoss(BatchCorrelationLoss):
     """
     QC-FC loss.
-    \
+
     {param_spec}\
     {batch_correlation_spec}\
     {scalarisation_spec}
@@ -1725,8 +1718,8 @@ class QCFCLoss(BatchCorrelationLoss):
 @document_loss()
 class ReferenceTetherLoss(Loss):
     """
-    Loss function penalising distance from a tethered reference point.
-    \
+    Loss on the distance from a tethered reference point.
+
     {param_spec}\
     {spatial_loss_spec}\
     {scalarisation_spec}
@@ -1785,9 +1778,8 @@ class ReferenceTetherLoss(Loss):
 @document_loss()
 class InterhemisphericTetherLoss(Loss):
     """
-    Loss function penalising distance between matched parcels or objects on
-    opposite hemispheres.
-    \
+    Loss on the distance between matched objects on opposite hemispheres.
+
     {interhemispheric_long_description}
     \
     {param_spec}\
@@ -1850,9 +1842,8 @@ class InterhemisphericTetherLoss(Loss):
 @document_loss()
 class CompactnessLoss(Loss):
     """
-    Loss function penalising distances between locations in a mass and the
-    centroid of that mass.
-    \
+    Loss on the distances between locations in a mass and its centroid.
+
     {compactness_long_description}
     \
     {param_spec}\
@@ -1914,8 +1905,8 @@ class CompactnessLoss(Loss):
 @document_loss()
 class DispersionLoss(Loss):
     """
-    Loss function penalising proximity between vectors.
-    \
+    Loss penalising proximity between vectors.
+
     {dispersion_long_description}
 
     {param_spec}\
@@ -1959,7 +1950,7 @@ class DispersionLoss(Loss):
 class MultivariateKurtosis(Loss):
     """
     Multivariate kurtosis loss for a time series.
-    \
+
     {mv_kurtosis_long_description}
     \
     {param_spec}\
@@ -2010,9 +2001,8 @@ class MultivariateKurtosis(Loss):
 @document_loss()
 class ConnectopyLoss(Loss):
     """
-    Generalised connectopic functional, for computing different kinds of
-    connectopic maps.
-    \
+    Loss on the generalised connectopic functional.
+
     {connectopy_long_description}
     \
     {param_spec}\
@@ -2099,7 +2089,9 @@ class ConnectopyLoss(Loss):
 @document_connectopy
 @document_loss()
 class ModularityLoss(Loss):
-    """\
+    """
+    Modularity loss.
+
     {modularity_long_description}
     \
     {param_spec}\

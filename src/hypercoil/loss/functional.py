@@ -131,8 +131,8 @@ def constraint_violation(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Constraint violation score function.
-    \
+    Compute the constraint violation score.
+
     {long_description}
 
     Parameters
@@ -160,8 +160,8 @@ def unilateral_loss(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Unilateral loss function.
-    \
+    Compute the unilateral loss.
+
     {long_description_unil}
     """
     return constraint_violation(X, constraints=(identity,))
@@ -175,8 +175,8 @@ def hinge_loss(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Hinge loss function.
-    \
+    Compute the hinge loss.
+
     {long_description_hinge}
     """
     score = 1 - Y * Y_hat
@@ -227,8 +227,8 @@ def smoothness(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Smoothness score function.
-    \
+    Compute the smoothness score.
+
     {long_description}
 
     Parameters
@@ -271,8 +271,10 @@ def _bimodal_symmetric_impl(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Bimodal symmetric score function. This parameterisation is used internally
-    by :func:`bimodal_symmetric` and the version in ``loss.nn``.
+    Compute the bimodal symmetric score from a mean and a step.
+
+    Used by :func:`bimodal_symmetric` and
+    :class:`~hypercoil.loss.nn.BimodalSymmetricLoss`.
     """
     return jnp.abs(jnp.abs(X - mean) - step)
 
@@ -285,8 +287,8 @@ def bimodal_symmetric(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Bimodal symmetric score function.
-    \
+    Compute the bimodal symmetric score.
+
     {long_description}
 
     Parameters
@@ -410,8 +412,8 @@ def det_gram(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Gramian determinant score function.
-    \
+    Compute the Gramian determinant score.
+
     {long_description}
 
     Parameters
@@ -441,8 +443,8 @@ def log_det_gram(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Gramian log-determinant score function.
-    \
+    Compute the Gramian log-determinant score.
+
     {long_description}
 
     Parameters
@@ -634,8 +636,9 @@ def entropy_logit(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Project logits in the input matrix onto the probability simplex, and then
-    compute the entropy of the resulting categorical distribution.
+    Compute the entropy of the categorical distribution given by logits.
+
+    The logits are projected onto the probability simplex first.
 
     This function operates on logit tensors. For a version that operates on
     probabilities, see :func:`entropy`.
@@ -829,8 +832,7 @@ def _bregman_divergence_impl(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Bregman divergence score function for a single pair of distributions or
-    observations.
+    Compute the Bregman divergence for one pair of distributions.
     """
     df = jax.grad(f)
     return (f(Y) - f(X)) - df(X).ravel() @ (Y - X).ravel()
@@ -846,8 +848,8 @@ def bregman_divergence(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Bregman divergence score function.
-    \
+    Compute the Bregman divergence score.
+
     {long_description}
 
     For a version of this function that operates on logits, see
@@ -869,8 +871,8 @@ def bregman_divergence_logit(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Bregman divergence score function for logits.
-    \
+    Compute the Bregman divergence score for logits.
+
     {long_description}
 
     This function operates on logits. For the standard version of this
@@ -979,7 +981,7 @@ def equilibrium(
 ) -> Tensor:
     """
     Compute the parcel equilibrium.
-    \
+
     {long_description}
 
     This function operates on probability tensors. For a version that operates
@@ -1005,9 +1007,10 @@ def equilibrium_logit(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Project logits in the input matrix onto the probability simplex, and then
-    compute the parcel equilibrium.
-    \
+    Compute the parcel equilibrium of logits.
+
+    The logits are projected onto the probability simplex first.
+
     {long_description}
 
     This function operates on logits. For a version that operates on
@@ -1172,8 +1175,7 @@ def _second_moment_lowmem_impl(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Core computation for second-moment loss, with memory-efficient
-    implementation.
+    Compute the second moment with a memory-efficient implementation.
     """
     weight = jnp.abs(weight)
     if not skip_normalise:
@@ -1195,7 +1197,7 @@ def second_moment(
 ) -> Tensor:
     """
     Compute the second moment of a dataset.
-    \
+
     {long_description}
     \
     {pparam_spec}\
@@ -1223,7 +1225,7 @@ def second_moment_centred(
 ) -> Tensor:
     """
     Compute the second moment of a dataset about a specified mean.
-    \
+
     {long_description}
     \
     {pparam_spec}\
@@ -1425,8 +1427,9 @@ def point_agreement(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Compute a homogeneity-derived measure of agreement for a dataset at a set
-    of points, penalising boundaries.
+    Compute a homogeneity-based agreement at a set of points.
+
+    Boundaries are penalised.
     """
     X, _ = _homogeneity_prepare_args(
         X,
@@ -1506,8 +1509,7 @@ def auto_tol(
     tails: int = 2,
 ) -> float:
     r"""
-    Automatically set the tolerance for batch-dimension correlations based on
-    a significance level.
+    Set the batch correlation tolerance from a significance level.
 
     From the t-value associated with the specified significance level, the
     tolerance is computed as
@@ -1590,8 +1592,10 @@ def qcfc(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Alias for :func:`batch_corr`. Quality control-functional connectivity
-    correlation.
+    Compute the QC-FC correlation; an alias of :func:`batch_corr`.
+
+    QC-FC is the correlation between quality control measures and functional
+    connectivity.
 
     Parameters
     ----------
@@ -1798,8 +1802,9 @@ def interhemispheric_tether(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Distance of centres of mass of left-hemisphere parcels from corresponding
-    right-hemisphere parcels. This can be used to promote a symmetric atlas.
+    Compute the distance between matched parcel centres across hemispheres.
+
+    The score promotes a symmetric atlas.
 
     .. note::
 
@@ -1938,8 +1943,8 @@ def multivariate_kurtosis(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Multivariate kurtosis of a time series.
-    \
+    Compute the multivariate kurtosis of a time series.
+
     {mv_kurtosis_long_description}
 
     Parameters
@@ -2179,9 +2184,10 @@ def connectopy(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Generalised connectopic functional, for computing different kinds of
-    connectopic maps.
-    \
+    Compute the generalised connectopic functional.
+
+    The functional gives different kinds of connectopic maps.
+
     {connectopy_long_description}
     \
     {connectopy_pparam_spec}\

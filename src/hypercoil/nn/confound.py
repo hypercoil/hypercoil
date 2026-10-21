@@ -21,8 +21,7 @@ from ..init.mapparam import MappedLogits
 
 class LinearRFNN(eqx.Module):
     """
-    Model selection as a linear combination, with convolutional model
-    augmentation.
+    Model selection by linear combination, with convolutional augmentation.
     """
 
     model_dim: int

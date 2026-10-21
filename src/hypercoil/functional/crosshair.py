@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Crosshair kernel
-~~~~~~~~~~~~~~~~
 Elementary operations over a crosshair kernel.
 """
 from __future__ import annotations
@@ -71,8 +69,8 @@ def crosshair_dot(
     col: int = -1,
 ) -> Tensor:
     """
-    Local dot product between two matrices over a crosshair kernel.
-    \
+    Compute the local dot product of two matrices over a crosshair kernel.
+
     {crosshair_inner_long}
     \
     {crosshair_dim_spec}
@@ -101,8 +99,8 @@ def crosshair_norm_l2(
     col: int = -1,
 ) -> Tensor:
     """
-    Compute the local L2 norm on a matrix over a crosshair kernel.
-    \
+    Compute the local L2 norm of a matrix over a crosshair kernel.
+
     {crosshair_norm_long}
     \
     {crosshair_dim_spec}
@@ -124,8 +122,8 @@ def crosshair_norm_l1(
     col: int = -1,
 ) -> Tensor:
     """
-    Compute the local L1 norm on a matrix over a crosshair kernel.
-    \
+    Compute the local L1 norm of a matrix over a crosshair kernel.
+
     {crosshair_norm_long}
     \
     {crosshair_dim_spec}

@@ -189,8 +189,10 @@ def vertical_compression(
     sign: Optional[int] = None,
 ) -> Tensor:
     r"""
-    Vertically compress a matrix or matrix stack of dimensions
-    :math:`H_{in} \times W_{in} \rightarrow H_{out} \times W_{out}`.
+    Vertically compress a matrix or matrix stack.
+
+    The compression maps :math:`H_{in} \times W_{in}` to
+    :math:`H_{out} \times W_{out}`.
 
     Parameters
     ----------

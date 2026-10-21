@@ -2,8 +2,10 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-IIR filter implemented as RNN. This follows a close adaptation of:
-https://github.com/boris-kuz/differentiable_iir_filters
+IIR filter implemented as a recurrent neural network.
+
+The implementation closely adapts
+https://github.com/boris-kuz/differentiable_iir_filters.
 
 If you use this in published work, you must cite:
 

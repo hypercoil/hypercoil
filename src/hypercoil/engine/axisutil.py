@@ -352,8 +352,7 @@ def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
 @partial(jax.jit, static_argnames=('axis', 'n_folds'))
 def fold_and_promote(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     """
-    Fold the specified axis into the specified number of folds, and promote
-    the new axis across the number of folds to the outermost dimension.
+    Fold an axis and promote the new axis to the outermost dimension.
     """
     axis = standard_axis_number(axis, tensor.ndim)
     folded = fold_axis(tensor, axis, n_folds)
@@ -386,8 +385,7 @@ def orient_and_conform(
     dim: Optional[int] = None,
 ) -> Tensor:
     """
-    Orient an input tensor along a set of axes, and conform its overall
-    dimension to equal that of a reference.
+    Orient a tensor along a set of axes and conform its rank to a reference.
 
     .. warning::
 
@@ -440,8 +438,9 @@ def orient_and_conform(
 
 def promote_to_rank(tensor: Tensor, rank: int) -> Tensor:
     """
-    Promote a tensor to a rank-``rank`` tensor by prepending singleton
-    dimensions. If the tensor is already rank-``rank``, this is a no-op.
+    Promote a tensor to rank ``rank`` by prepending singleton dimensions.
+
+    A tensor of rank ``rank`` or greater is returned unchanged.
     """
     ndim = tensor.ndim
     if ndim == rank:
@@ -455,9 +454,9 @@ def extend_to_size(
     fill: float = float('nan'),
 ) -> Tensor:
     """
-    Extend a tensor in the positive direction until its size matches the
-    specification. Any new entries created via extension are populated with
-    ``fill``.
+    Extend a tensor in the positive direction to the specified size.
+
+    New entries are set to ``fill``.
     """
     tensor = promote_to_rank(tensor, len(shape))
     out = jnp.full(shape, fill, dtype=tensor.dtype)
@@ -469,9 +468,9 @@ def extend_to_max_size(
     fill: float = float('nan'),
 ) -> Tensor:
     """
-    Extend all tensors in a sequence until their sizes are equal to the size
-    of the largest tensor along each axis. Any new entries created via
-    extension are populated with ``fill``.
+    Extend every tensor in a sequence to the largest size along each axis.
+
+    New entries are set to ``fill``.
     """
     ndim_max = max(t.ndim for t in tensors)
     tensors = tuple(promote_to_rank(t, ndim_max) for t in tensors)

@@ -127,8 +127,9 @@ from .mapparam import MappedParameter, ProbabilitySimplexParameter
 
 class BaseAtlas(eqx.Module):
     """
-    Atlas object encoding linear mappings from voxels to labels.
-    Base class inherited by discrete and continuous atlas containers.
+    Base class for atlases: linear maps from spatial locations to labels.
+
+    Discrete and continuous atlas containers inherit from this class.
 
     Several atlas classes are included to cover frequent scenarios, but users
     can also create their own atlas class compositionally using the available
@@ -398,9 +399,8 @@ class DirichletInitBaseAtlas(
 ):
     """
     Abstract base class for atlases initialised from a Dirichlet distribution.
-    See
-    :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
-    for general details.
+
+    See :class:`BaseAtlas` for general details.
 
     Parameters
     ----------
@@ -510,9 +510,9 @@ class DiscreteVolumetricAtlas(
     BaseAtlas,
 ):
     """
-    Discrete atlas container object. Use for atlases stored in single-volume
-    images with non-overlapping, discrete-valued parcels. It is assumed that
-    a value of 0 in the reference image corresponds to no label.
+    Atlas with discrete, non-overlapping parcels in a single volume.
+
+    A value of 0 in the reference image is taken to mean no label.
 
     Parameters
     ----------
@@ -577,12 +577,11 @@ class MultiVolumetricAtlas(
     BaseAtlas,
 ):
     """
-    Continuous atlas container object. Use for atlases whose labels overlap
-    and must therefore be stored across multiple image volumes -- for
-    instance, probabilistic segmentations or ICA results. If the labels are
-    stored across multiple files, use
-    :doc:`MultifileVolumetricAtlas <hypercoil.init.atlas.MultifileVolumetricAtlas>`
-    instead.
+    Continuous atlas with each label in a separate volume of one image.
+
+    Overlapping labels, such as probabilistic segmentations or ICA results, are
+    stored across volumes. For labels stored across multiple files, use
+    :class:`MultifileVolumetricAtlas`.
 
     Parameters
     ----------
@@ -647,12 +646,11 @@ class MultifileVolumetricAtlas(
     BaseAtlas,
 ):
     """
-    Continuous atlas container object. Use for atlases whose labels overlap
-    and must therefore be stored across multiple image files -- for
-    instance, probabilistic segmentations or ICA results. If the labels are
-    stored across multiple volumes of a single file, use
-    :doc:`MultiVolumetricAtlas <hypercoil.init.atlas.MultiVolumetricAtlas>`
-    instead.
+    Continuous atlas with each label in a separate image file.
+
+    Overlapping labels, such as probabilistic segmentations or ICA results, are
+    stored across files. For labels stored across the volumes of one file, use
+    :class:`MultiVolumetricAtlas`.
 
     Parameters
     ----------
@@ -757,11 +755,11 @@ class CortexSubcortexCIfTIAtlas(
     BaseAtlas,
 ):
     """
-    CIfTI surface-based atlas container object. This class automatically
-    defines three subcompartments for the left and right hemispheric cortices
-    and for the subcortical grey matter. The cortical hemispheres are surfaces
-    endowed with a spherical coordinate system, while the subcortex uses a
-    volumetric, Euclidean coordinate system.
+    Surface-based atlas loaded from a CIfTI image.
+
+    The atlas has three compartments: the left and right cortical hemispheres,
+    which are surfaces with a spherical coordinate system, and the subcortical
+    grey matter, which has a volumetric Euclidean coordinate system.
 
     Parameters
     ----------
@@ -860,11 +858,11 @@ class DirichletInitVolumetricAtlas(
     DirichletInitBaseAtlas,
 ):
     """
-    Volumetric atlas object created from random samples of a Dirichlet
-    distribution. Each spatial location's parcel assignment is a categorical
+    Volumetric atlas sampled from a Dirichlet distribution.
+
+    The parcel assignment of each spatial location is a categorical
     distribution sampled from a Dirichlet distribution. For a surface-based
-    Dirichlet atlas, use
-    :doc:`DirichletInitSurfaceAtlas <hypercoil.init.atlas.DirichletInitSurfaceAtlas>`.
+    atlas, use :class:`DirichletInitSurfaceAtlas`.
 
     Parameters
     ----------
@@ -945,15 +943,14 @@ class DirichletInitSurfaceAtlas(
     DirichletInitBaseAtlas,
 ):
     """
-    Surface atlas object created from random samples of a Dirichlet
-    distribution. Each spatial location's parcel assignment is a categorical
-    distribution sampled from a Dirichlet distribution. This class
-    defines three subcompartments for the left and right hemispheric cortices
-    and for the subcortical grey matter. The cortical hemispheres are surfaces
-    endowed with a spherical coordinate system, while the subcortex uses a
-    volumetric, Euclidean coordinate system. For a volumetric Dirichlet atlas,
-    use
-    :doc:`DirichletInitVolumetricAtlas <hypercoil.init.atlas.DirichletInitVolumetricAtlas>`.
+    Surface atlas sampled from a Dirichlet distribution.
+
+    The parcel assignment of each spatial location is a categorical
+    distribution sampled from a Dirichlet distribution. The atlas has three
+    compartments: the left and right cortical hemispheres, which are surfaces
+    with a spherical coordinate system, and the subcortical grey matter, which
+    has a volumetric Euclidean coordinate system. For a volumetric atlas, use
+    :class:`DirichletInitVolumetricAtlas`.
 
     Parameters
     ----------
@@ -1063,10 +1060,10 @@ class IcosphereAtlas(
     BaseAtlas,
 ):
     """
-    Approximately geometrically uniform atlas container object. Use to create
-    atlases whose labels are approximately evenly spaced discs on a spherical
-    surface homeomorphic to the cortical sheet. The disc centres are defined
-    by a subdivision of an icosahedron.
+    Atlas of approximately evenly spaced discs on a spherical surface.
+
+    The surface is homeomorphic to the cortical sheet; the disc centres are the
+    vertices of a subdivided icosahedron.
 
     Parameters
     ----------

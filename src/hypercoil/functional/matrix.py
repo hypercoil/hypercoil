@@ -305,11 +305,10 @@ def recondition_eigenspaces(
     key: Tensor,
 ) -> Tensor:
     r"""
-    Recondition a positive semidefinite matrix to remove zero eigenvalues and
-    give every eigenspace dimension one.
+    Recondition a semidefinite matrix to have distinct nonzero eigenvalues.
 
-    This reconditioning operation should help stabilise differentiation
-    through singular value decomposition.
+    Distinct nonzero eigenvalues stabilise differentiation through the
+    singular value decomposition.
 
     This operation modifies the input matrix A following
 
@@ -340,8 +339,9 @@ def recondition_eigenspaces(
 
 def delete_diagonal(A: Tensor) -> Tensor:
     """
-    Delete the diagonal from a block of square matrices. Dimension is inferred
-    from the final axis.
+    Delete the diagonal from a block of square matrices.
+
+    The dimension is inferred from the last axis.
     """
     mask = ~jnp.eye(A.shape[-1], dtype=bool)
     return A * mask
@@ -356,8 +356,9 @@ def diag_embed(v: Tensor, offset: int = 0) -> Tensor:
 
 def fill_diagonal(A: Tensor, fill: float = 0, offset: int = 0) -> Tensor:
     """
-    Fill a selected diagonal in a block of square matrices. Dimension is
-    inferred from the final axes.
+    Fill a selected diagonal in a block of square matrices.
+
+    The dimension is inferred from the last axes.
     """
     dim = A.shape[-2:]
     mask = jnp.ones(max(dim) - abs(offset), dtype=bool)

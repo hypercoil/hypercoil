@@ -2,8 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Modules that project data between the positive semidefinite cone and proper
-subspaces tangent to the cone.
+Projection between the positive semidefinite cone and tangent subspaces.
 """
 from __future__ import annotations
 from typing import Callable, Literal, Optional, Sequence, Tuple
@@ -92,8 +91,7 @@ def document_semidefinite_init_from_spec(f: Callable) -> Callable:
 
 class _TangentProject(eqx.Module):
     """
-    Base class for modules that project symmetric matrix data between the
-    positive semidefinite cone and proper subspaces tangent to the cone.
+    Base class for projection between the semidefinite cone and a subspace.
     """
 
     dest: Literal['tangent', 'cone']

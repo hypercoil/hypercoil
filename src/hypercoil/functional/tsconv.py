@@ -101,10 +101,9 @@ def conv(
     dilation: Union[int, Sequence[int]] = 1,
 ) -> Tensor:
     """
-    ``torch``-like API for convolution.
-    The implementation is basically pilfered from
-    https://stackoverflow.com/questions/69571976/ ...
-    ... how-to-use-grad-convolution-in-google-jax
+    Convolve with a ``torch``-like interface.
+
+    Adapted from https://stackoverflow.com/questions/69571976/.
     """
     # TODO: Compare against
     # https://github.com/patrick-kidger/equinox/blob/main/equinox/nn/conv.py#L104

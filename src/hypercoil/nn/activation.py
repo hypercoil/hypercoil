@@ -22,9 +22,8 @@ from ..functional.activation import (
 @document_corrnorm
 class CorrelationNorm(eqx.Module):
     """
-    :doc:`Correlation normalisation <hypercoil.functional.activation.corrnorm>`
-    module.
-    \
+    Module for :func:`~hypercoil.functional.activation.corrnorm`.
+
     {corrnorm_spec}
     """
 
@@ -50,9 +49,8 @@ class CorrelationNorm(eqx.Module):
 @document_isochoric
 class Isochor(eqx.Module):
     """
-    :doc:`Isochoric normalisation <hypercoil.functional.activation.isochor>`
-    module.
-    \
+    Module for :func:`~hypercoil.functional.activation.isochor`.
+
     {isochoric_spec}
     """
 

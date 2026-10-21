@@ -2,8 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Module for additively applying a set of several losses or
-regularisations to a set of inputs.
+Loss schemes: additive application of several losses to a set of inputs.
 """
 from __future__ import annotations
 from collections import namedtuple
@@ -25,8 +24,7 @@ LossReturn = namedtuple('LossReturn', ('value', 'nu'))
 
 def unpack_or_noop(*pparams) -> Any:
     """
-    For an argument sequence, unpack if it's a singleton sequence, and
-    otherwise return the sequence.
+    Return the single argument if exactly one is given, else all arguments.
     """
     if len(pparams) == 1:
         return pparams[0]
@@ -47,8 +45,7 @@ def apply_and_evaluate(
 # TODO: add examples of how to use this.
 class LossApply(eqx.Module):
     """
-    Callable loss function wrapper that composes the loss with a selector or
-    other pretransformation.
+    Loss wrapper that applies a selector or other transformation first.
 
     Parameters
     ----------

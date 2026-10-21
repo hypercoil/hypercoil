@@ -202,9 +202,11 @@ class AtlasLinear(eqx.Module):
         **params,
     ) -> PyTree:
         """
-        Initialise the atlas module from an instance of a ``BaseAtlas``
-        subclass, perhaps representing *a priori* knowledge about the
-        functional organisation of the brain.
+        Initialise the module from an atlas.
+
+        ``atlas`` is an instance of a :class:`~hypercoil.init.atlas.BaseAtlas`
+        subclass, which might encode prior knowledge of the functional
+        organisation of the brain.
 
         Parameters
         ----------

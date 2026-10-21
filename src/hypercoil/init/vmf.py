@@ -2,7 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-The von Mises-Fisher distribution on the sphere
+The von Mises-Fisher distribution on the sphere.
 """
 from functools import partial
 from math import prod
@@ -27,9 +27,10 @@ def random_VMF(
     key: 'jax.random.PRNGKey',
 ) -> Tuple[Tensor, Tensor]:
     """
-    Von Mises-Fisher distribution sampler with
-    mean direction mu and concentration kappa.
-    Adapted from source: https://hal.science/hal-04004568
+    Sample from a von Mises-Fisher distribution.
+
+    The distribution has mean direction ``mu`` and concentration ``kappa``. The
+    sampler is adapted from https://hal.science/hal-04004568.
     """
     key_radial, key_angular = jax.random.split(key, 2)
 
@@ -69,11 +70,13 @@ def random_VMF_angle(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tuple[Tensor, Tensor]:
-    """
-    Generate n iid samples t with density function given by
-    p(t) = C * (1 - t ** 2) ** ((d - 3) / 2) * exp(kappa * t)
-    for some constant C
-    Adapted from source: https://hal.science/hal-04004568
+    r"""
+    Sample the sine and cosine of the angle to the mean direction.
+
+    Each sample :math:`t` has density
+    :math:`p(t) = C (1 - t^2)^{(d - 3) / 2} e^{\kappa t}` for a normalising
+    constant :math:`C`. The sampler is adapted from
+    https://hal.science/hal-04004568.
     """
     shape = (batch_size, *event_shape)
     alpha = (d - 1) / 2
@@ -107,8 +110,9 @@ def random_VMF_angle(
 
 def log_bessel(order: int, kappa: Tensor) -> Tensor:
     """
-    Approximation to the logarithm of a modified Bessel function of the first
-    kind. We use this to normalise the vMF distribution.
+    Approximate the logarithm of a modified Bessel function of the first kind.
+
+    The approximation normalises the von Mises-Fisher distribution.
 
     See Appendix B of:
     Fröhlich J and Spencer T (1981) "The Kosterlitz-Thouless Transition in

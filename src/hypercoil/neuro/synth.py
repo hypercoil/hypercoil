@@ -19,8 +19,7 @@ def match_spectra(
     frequencies: bool = False,
 ) -> Tensor:
     """
-    Rescale the frequency components of an input signal to match the
-    amplitude spectrum of a reference signal.
+    Rescale the frequency components of a signal to match a reference spectrum.
 
     This operation assumes real-valued input and always returns real-valued
     output.
@@ -66,8 +65,7 @@ def match_covariance(
     cov: bool = False,
 ) -> Tensor:
     r"""
-    Project a multivariate signal so that its covariance matches a reference
-    covariance.
+    Project a multivariate signal to match a reference covariance.
 
     This uses the procedure described in Laumann et al. (2017),
     "On the Stability of BOLD fMRI Correlations". Specifically, given an
@@ -146,10 +144,9 @@ def match_reference(
     use_mean: bool = False,
 ) -> Tensor:
     """
-    Match both the
-    :func:`spectrum <match_spectra>` and
-    :func:`covariance <match_covariance>`
-    of a reference signal.
+    Match the spectrum and covariance of a signal to a reference signal.
+
+    See :func:`match_spectra` and :func:`match_covariance`.
 
     :Dimension: **signal :** :math:`(D, N)`
                     D denotes dimension of the multivariate signal and N
@@ -185,9 +182,9 @@ def match_cov_and_spectrum(
     cov: Tensor,
 ) -> Tensor:
     """
-    Transform an input signal to match a given
-    :func:`spectrum <match_spectra>` and
-    :func:`covariance matrix <match_covariance>`.
+    Transform a signal to match a given spectrum and covariance matrix.
+
+    See :func:`match_spectra` and :func:`match_covariance`.
 
     :Dimension: **signal :** :math:`(D, N)`
                     D denotes dimension of the multivariate signal and N
@@ -232,8 +229,7 @@ def synthesise_matched(
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
     """
-    Create a synthetic signal matched in spectrum and covariance to a
-    reference.
+    Synthesise a signal matched in spectrum and covariance to a reference.
 
     The synthetic signal will be drawn from a stationary Gaussian process.
     After sampling i.i.d. from a standard normal distribution, the synthetic
@@ -279,8 +275,7 @@ def synthesise_from_cov_and_spectrum(
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
     """
-    Create a synthetic signal matched in spectrum and covariance to
-    references.
+    Synthesise a signal with a given spectrum and covariance.
 
     The synthetic signal will be drawn from a stationary Gaussian process.
     After sampling i.i.d. from a standard normal distribution, the synthetic

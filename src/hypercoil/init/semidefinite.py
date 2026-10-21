@@ -2,8 +2,10 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Initialise and compute means and mean blocks in the positive semidefinite
-cone.
+Initialisation of points of tangency in the positive semidefinite cone.
+
+Means and block means of positive semidefinite matrices initialise the
+points of tangency.
 """
 from __future__ import annotations
 from typing import Callable, Optional, Sequence, Tuple, Type, Union
@@ -76,8 +78,7 @@ def mean_apply_block(
     data: Tensor,
 ) -> Tensor:
     """
-    Apply each mean from a list of specifications to a different slice or
-    block of a dataset.
+    Apply each mean specification to a different block of a dataset.
 
     :Dimension: **data :** :math:`(K, N, *, D, D)`
                     K denotes the number of mean specs provided. \
@@ -98,8 +99,7 @@ def tangency_init(
     key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
-    Initialise points of tangency for projection between the positive
-    semidefinite cone and a tangent subspace.
+    Initialise points of tangency between the semidefinite cone and a subspace.
 
     :Dimension: **init_data :** :math:`(N, *, D, D)` or :math:`(N, *, obs, C)`
                     N denotes the number of observations over which each mean
@@ -143,8 +143,7 @@ def tangency_init(
 
 class TangencyInitialiser(MappedInitialiser):
     """
-    Initialise points of tangency for projection between the positive
-    semidefinite cone and a tangent subspace.
+    Initialiser of points of tangency for semidefinite cone projection.
 
     See :func:`tangency_init` for argument details.
     """
@@ -212,7 +211,9 @@ class _SemidefiniteMean(eqx.Module):
 
 @document_semidefinite_mean
 class SPDEuclideanMean(_SemidefiniteMean):
-    """\
+    """
+    Euclidean mean of semidefinite matrices, as a mean specification.
+
     {euclidean_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -228,7 +229,9 @@ class SPDEuclideanMean(_SemidefiniteMean):
 
 @document_semidefinite_mean
 class SPDHarmonicMean(_SemidefiniteMean):
-    """\
+    """
+    Harmonic mean of semidefinite matrices, as a mean specification.
+
     {harmonic_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -244,7 +247,9 @@ class SPDHarmonicMean(_SemidefiniteMean):
 
 @document_semidefinite_mean
 class SPDLogEuclideanMean(_SemidefiniteMean):
-    """\
+    """
+    Log-Euclidean mean of semidefinite matrices, as a mean specification.
+
     {logeuc_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -268,7 +273,9 @@ class SPDLogEuclideanMean(_SemidefiniteMean):
 
 @document_semidefinite_mean
 class SPDGeometricMean(_SemidefiniteMean):
-    r"""\
+    r"""
+    Geometric mean of semidefinite matrices, as a mean specification.
+
     {geometric_mean_desc}
     \
     {semidefinite_mean_dim}

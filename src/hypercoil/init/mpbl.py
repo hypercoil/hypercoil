@@ -23,9 +23,10 @@ def corr_criterion(
     u: Any,
 ) -> float:
     """
-    Select the compression scheme that maximises the feature-wise
-    correlation between the original uncompressed matrix and its
-    reconstruction.
+    Score a compression by the negative correlation with the original.
+
+    The correlation is computed between the vectorised original matrix and its
+    reconstruction; lower scores are better.
     """
     q = -pairedcorr(
         sym2vec(recon).reshape(1, -1),
@@ -42,8 +43,7 @@ def potential_criterion(
     u: Tensor,
 ) -> float:
     """
-    Select the compression scheme that maximises the transmitted
-    potential.
+    Score a compression by the negative transmitted potential.
     """
     return -jnp.sum(u)
 
@@ -76,8 +76,7 @@ def _init_select(
     key: 'jax.random.PRNGKey',
 ) -> int:
     """
-    Make an initial selection of two input vertices to fuse into a new
-    output vertex.
+    Select the first two input vertices to fuse into an output vertex.
     """
     init_idx = jnp.nonzero(candidates)[0]
     if random_init:
@@ -231,8 +230,9 @@ def maximum_potential_bipartite_lattice(
     key: 'jax.random.PRNGKey',
 ) -> Tuple[Union[Tensor, Tuple[Tensor, Tensor]], Tensor, Tensor]:
     r"""
-    Estimates the maximum potential bipartite lattice using a greedy Monte
-    Carlo approach. A naive solution to the vertical compression problem.
+    Estimate the maximum potential bipartite lattice by greedy Monte Carlo.
+
+    This is a naive solution to the vertical compression problem.
 
     .. warning::
 
@@ -420,9 +420,10 @@ def maximum_potential_bipartite_lattice_autoselect_order(
     outer_criterion: Callable = corr_criterion,
 ) -> Tuple[Any, ...]:
     """
-    Automatically selects the lattice order for a maximum potential
-    bipartite lattice. That is to say, it runs the algorithm across a range
-    of orders and selects the one that optimises a specified criterion.
+    Select the order of a maximum potential bipartite lattice.
+
+    The algorithm runs over a range of orders, and the order that optimises
+    ``outer_criterion`` is selected.
 
     Parameters
     ----------

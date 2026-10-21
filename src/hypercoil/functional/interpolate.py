@@ -2,8 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Methods for interpolating, extrapolating, and imputing unseen or censored
-frames.
+Interpolation, extrapolation and imputation of unseen or censored frames.
 """
 from __future__ import annotations
 from functools import partial
@@ -215,11 +214,10 @@ def hybrid_interpolate(
     frequency_thresh: float = 0.3,
 ) -> Tensor:
     """
-    Interpolate unseen time frames using a hybrid approach that combines
-    :func:`linear <linear_interpolate>` and
-    :func:`spectral <spectral_interpolate>`
-    methods.
-    \
+    Interpolate unseen time frames by combining linear and spectral methods.
+
+    See :func:`linear_interpolate` and :func:`spectral_interpolate`.
+
     {hybrid_interpolate_long_desc}
 
     Parameters
@@ -315,8 +313,9 @@ def linear_interpolate(
     mask: Tensor,
 ) -> Tensor:
     """
-    Interpolate unseen time frames as a proximity-weighted convex combination
-    of nearest neighbours.
+    Interpolate unseen time frames from proximity-weighted nearest neighbours.
+
+    The interpolant is a convex combination of the nearest seen neighbours.
 
     Parameters
     ----------\
@@ -457,7 +456,7 @@ def weighted_interpolate(
 ) -> Tensor:
     """
     Interpolate unseen time frames as a weighted average of neighbours.
-    \
+
     {weighted_interpolate_long_desc}
 
     Parameters
@@ -554,8 +553,8 @@ def spectral_interpolate(
     frequency_thresh: float = 0,
 ) -> Tensor:
     """
-    Spectral interpolation based on basis function projection.
-    \
+    Interpolate unseen time frames by projection onto basis functions.
+
     {spectral_interpolate_long_desc}
 
     Parameters
@@ -671,12 +670,11 @@ def _fit_spectrum(
     thresh: float = 0,
 ) -> Tensor:
     """
-    Compute the transform from seen data for sin and cos terms.
-    Here we project the data onto each of the sine and cosine bases.
-    Note that, due to missing observations, the basis functions are not
-    exactly orthogonal. Thus, we will have some shared variance captured by
-    our estimates. We can potentially mitigate this using a threshold or
-    lateral inhibition.
+    Fit sine and cosine coefficients to the seen data.
+
+    The seen data are projected onto each sine and cosine basis function.
+    With missing observations the basis functions are not exactly orthogonal,
+    and the estimates share some variance.
     """
     num = basis @ data.swapaxes(-1, -2)
     # There seems to be a missing square here in the original implementation.
@@ -715,14 +713,11 @@ def _interpolate_spectral(
     thresh: float = 0,
 ) -> Tensor:
     """
-    Temporally interpolate over unseen (masked) values in a dataset using an
-    approach loosely inspired by the Lomb-Scargle periodogram. Modified from
-    code originally written in MATLAB by Anish Mitra and Jonathan Power that
-    likely followed the original periodogram more closely:
-    https://www.ncbi.nlm.nih.gov/pubmed/23994314
-    The original code can be found in the function `getTransform` here:
-        https://github.com/MidnightScanClub/MSC_Gratton2018_Codebase/blob/ ...
-        master/FCProcessing/FCPROCESS_MSC_task.m
+    Interpolate unseen (masked) values by a Lomb-Scargle-like periodogram.
+
+    Adapted from MATLAB code by Anish Mitra and Jonathan Power
+    (https://www.ncbi.nlm.nih.gov/pubmed/23994314); see ``getTransform`` in
+    https://github.com/MidnightScanClub/MSC_Gratton2018_Codebase/blob/master/FCProcessing/FCPROCESS_MSC_task.m.
 
     In summary, the approach involves first projecting seen data onto sine and
     cosine bases evaluated at the seen time points in order to estimate fit

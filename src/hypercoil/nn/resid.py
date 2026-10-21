@@ -20,8 +20,8 @@ from ..functional.resid import document_linreg, residualise
 @document_linreg
 class Residualise(Module):
     """
-    Residualise a tensor block via ordinary linear least squares.
-    \
+    Module that residualises a tensor block by ordinary least squares.
+
     {regress_warning}
 
     Parameters
