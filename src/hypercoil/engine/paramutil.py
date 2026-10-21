@@ -14,6 +14,7 @@ from numpyro.distributions import Distribution as Distr
 
 # TODO: replace with jaxtyping at some point
 Tensor = Union[jax.Array, np.ndarray]
+"""Array type of the API: a JAX or NumPy array."""
 PyTree = Any
 Distribution = Distr
 
@@ -28,4 +29,5 @@ def _to_jax_array(param: Tensor) -> Tensor:
 
 
 def where_weight(model: PyTree) -> Tensor:
+    """Return the ``weight`` attribute of ``model``."""
     return model.weight

@@ -59,6 +59,19 @@ def _seq_pad(
 
 
 def atleast_4d(*pparams) -> Tensor:
+    """
+    Prepend singleton axes to an array until it has at least four axes.
+
+    Parameters
+    ----------
+    *pparams
+        Arrays to promote. Only the first is processed and returned.
+
+    Returns
+    -------
+    Tensor
+        The first array, with leading singleton axes up to rank 4.
+    """
     res = []
     for p in pparams:
         if p.ndim == 0:
@@ -333,6 +346,7 @@ def demote_axis(
     ndim: int,
     axis: Union[int, Tuple[int, ...]],
 ) -> Tuple[int, ...]:
+    """Return the permutation that moves the leading axes back to ``axis``."""
     if isinstance(axis, int):
         axis = (axis,)
     axis = [standard_axis_number(ax, ndim) for ax in axis]
@@ -427,6 +441,25 @@ def demote_and_unfold(
     target_address: int,
     axes: Union[int, Tuple[int, ...]],
 ):
+    """
+    Move the leading axes of ``tensor`` back to their places and merge axes.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to reshape.
+    target_address
+        Axis or axes to which the leading axes of ``tensor`` return, as in
+        :func:`demote_axis`.
+    axes
+        Consecutive axes of the demoted tensor to merge, as in
+        :func:`unfold_axes`.
+
+    Returns
+    -------
+    Tensor
+        ``tensor`` with its leading axes demoted and ``axes`` merged.
+    """
     demoted = jnp.transpose(tensor, demote_axis(tensor.ndim, target_address))
     return unfold_axes(demoted, axes)
 
@@ -437,6 +470,7 @@ def argsort(seq):
     #     equivalent-of-numpy-argsort-in-basic-python
     # (2) http://stackoverflow.com/questions/3071415/ ...
     #     efficient-method-to-calculate-the-rank-vector-of-a-list-in-python
+    """Return the indices that sort the sequence ``seq``."""
     return sorted(range(len(seq)), key=seq.__getitem__)
 
 

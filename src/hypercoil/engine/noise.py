@@ -39,15 +39,11 @@ def _symlog(input):
     return (output + output.swapaxes(-2, -1)) / 2
 
 
-# TODO: We formerly used distrax.Distribution objects here, but they
-#       were not compatible with eqx.filter and distrax generally seems
-#       to be sparsely maintained. We have switched to numpyro distributions,
-#       but this might have introduced some bugs. We should improve test
-#       coverage for these functions and other sections of the codebase
-#       that use distributions.
+# TODO: improve test coverage of the code that uses numpyro distributions.
 
 
 def document_stochastic_transforms(func):
+    """Fill the shared templates in the docstring of ``func``."""
     base_warning = """
     .. warning::
         When training models with stochastic features, you must apply the
@@ -114,6 +110,32 @@ def sample_multivariate(
     mean_correction: bool = False,
     key: 'jax.random.PRNGKey',
 ):
+    """
+    Draw i.i.d. events from a distribution to fill an array of a given shape.
+
+    Parameters
+    ----------
+    distr
+        Distribution to sample. Its ``event_shape`` matches ``shape`` along
+        ``event_axes``; the match is not checked.
+    shape
+        Shape of the output.
+    event_axes
+        Axes of the output along which each event lies. The remaining axes
+        index the samples.
+    mean_correction
+        Divide the samples by the distribution mean, or by the sample mean if
+        ``distr.mean`` is unavailable, so that the output has unit mean in
+        expectation.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Array of shape ``shape`` whose slices along ``event_axes`` are
+        independent events.
+    """
     ndim = len(shape)
     event_axes = tuple(standard_axis_number(axis, ndim) for axis in event_axes)
     # event_shape = tuple([shape[axis] for axis in event_axes])
@@ -288,7 +310,7 @@ class StochasticParameter(eqx.Module):
     A wrapper for a parameter that introduces stochasticity.
 
     .. note::
-        Do not instantiate this class directly. Use the :method:`wrap` class
+        Do not instantiate this class directly. Use the :meth:`wrap` class
         method instead. This will return the model with the specified
         parameter wrapped in a :class:`StochasticTransform`.
 
@@ -341,6 +363,29 @@ class StochasticParameter(eqx.Module):
         #      ``retrieve_address`` here. We might be able to do this more
         #      efficiently, but this is low-priority as each call usually has
         #      very little overhead.
+        """
+        Wrap the parameters of a model at an address in stochastic transforms.
+
+        Parameters
+        ----------
+        model
+            Model whose parameters to wrap.
+        *pparams
+            Positional arguments forwarded to :class:`StochasticParameter`.
+        where
+            String address, or callable that takes ``model`` and returns the
+            parameters. Each parameter at the address is wrapped separately.
+        transform
+            Transform applied to each parameter when it is read.
+        **params
+            Keyword arguments forwarded to :class:`StochasticParameter`.
+
+        Returns
+        -------
+        PyTree
+            ``model`` with each parameter at ``where`` replaced by a
+            :class:`StochasticParameter`.
+        """
         parameters = retrieve_address(model, where)
         wrapped = ()
         for i, _ in enumerate(parameters):
@@ -373,6 +418,7 @@ class AdditiveNoiseMixin:
     """
 
     def inject(self, input: Tensor, *, key: 'jax.random.PRNGKey') -> Tensor:
+        """Return ``input`` plus a noise sample of the same shape."""
         return input + self.sample(shape=input.shape, key=key)
 
 
@@ -387,6 +433,7 @@ class MultiplicativeNoiseMixin:
     """
 
     def inject(self, input: Tensor, *, key: 'jax.random.PRNGKey') -> Tensor:
+        """Return ``input`` times a noise sample of the same shape."""
         return input * self.sample(shape=input.shape, key=key)
 
 
@@ -402,6 +449,7 @@ class ConvexCombinationNoiseMixin:
 
     # fmt: off
     def inject(self, input: Tensor, *, key: 'jax.random.PRNGKey') -> Tensor:
+        """Return ``(1 - c) * input + c * noise`` for a same-shape sample."""
         return (
             (1 - self.c) * input +
             self.c * self.sample(shape=input.shape, key=key)
@@ -443,6 +491,7 @@ class AxialSelectiveTransform(StochasticTransform):
         shape: Tuple[int],
         key: 'jax.random.PRNGKey',
     ) -> Tensor:
+        """Sample noise of ``shape``, already reduced to the sample axes."""
         raise NotImplementedError
 
     def sample(
@@ -451,6 +500,7 @@ class AxialSelectiveTransform(StochasticTransform):
         shape: Tuple[int],
         key: 'jax.random.PRNGKey',
     ) -> Tensor:
+        """Sample noise with size 1 along all axes but the sample axes."""
         shape = self.select_dimensions(shape)
         return self.sample_impl(shape=shape, key=key)
 
@@ -459,6 +509,7 @@ class AxialSelectiveTransform(StochasticTransform):
         ndim: int,
         axes: Optional[Tuple[int, ...]] = None,
     ) -> Tuple[int, ...]:
+        """Return ``axes`` or ``sample_axes`` as nonnegative axis numbers."""
         if axes is None:
             if self.sample_axes is None:
                 return None
@@ -520,6 +571,7 @@ class ScalarIIDStochasticTransform(AxialSelectiveTransform):
         shape: Tuple[int],
         key: 'jax.random.PRNGKey',
     ):
+        """Draw i.i.d. scalar samples of ``shape`` from ``distribution``."""
         return self.distribution.sample(key=key, sample_shape=shape)
 
 
@@ -565,6 +617,7 @@ class TensorIIDStochasticTransform(AxialSelectiveTransform):
         shape: Tuple[int],
         key: 'jax.random.PRNGKey',
     ):
+        """Draw i.i.d. events of ``distribution`` along ``event_axes``."""
         event_axes = self.canonicalise_axis_numbers(
             ndim=len(shape), axes=self.event_axes
         )
@@ -637,6 +690,7 @@ class ScalarIIDMulStochasticTransform(
         shape: Tuple[int],
         key: 'jax.random.PRNGKey',
     ):
+        """Draw i.i.d. scalar samples, divided by the distribution mean."""
         sample = super().sample_impl(shape=shape, key=key)
         try:
             mean_correction = 1 / (
@@ -672,6 +726,7 @@ class TensorIIDMulStochasticTransform(
         shape: Tuple[int],
         key: 'jax.random.PRNGKey',
     ):
+        """Draw i.i.d. events, divided by the distribution mean."""
         event_axes = self.canonicalise_axis_numbers(
             ndim=len(shape), axes=self.event_axes
         )
@@ -810,6 +865,7 @@ class OuterProduct(distrx.Distribution):
     def sample(
         self, key: 'jax.random.PRNGKey', sample_shape: Tuple[int, ...]
     ) -> Tensor:
+        """Draw outer-product matrices for ``sample_shape``."""
         samples = self.src_distribution.sample(
             key=key, sample_shape=(*sample_shape, self.rank, self.multiplicity)
         )
@@ -825,14 +881,17 @@ class OuterProduct(distrx.Distribution):
         # -- and that's only for off-diagonals.
         #
         # So, we just return NaN.
+        """Return NaN for each entry of ``value``; no density is computed."""
         return float('nan') * value
 
     @property
     def event_shape(self):
+        """Shape of one event, ``(matrix_dim, matrix_dim)``."""
         return (self.matrix_dim, self.matrix_dim)
 
     @property
     def mean(self):
+        """Mean of an event, ``rank * mu @ mu.T``; covariance not included."""
         mu = jnp.atleast_1d(self.src_distribution.mean)
         src_mean = jnp.concatenate((mu,) * self.multiplicity)[..., None]
         return self.rank * src_mean @ src_mean.T
@@ -903,6 +962,7 @@ class Diagonal(distrx.Distribution):
     def sample(
         self, key: 'jax.random.PRNGKey', sample_shape: Tuple[int, ...]
     ) -> Tensor:
+        """Draw diagonal matrices for ``sample_shape``."""
         samples = self.src_distribution.sample(
             key=key, sample_shape=(*sample_shape, self.multiplicity)
         )
@@ -917,6 +977,7 @@ class Diagonal(distrx.Distribution):
     def log_prob(self, value: Tensor) -> Tensor:
         # We set the log probability to 0 for any value that is not on the
         # diagonal, because it is zero with expectation 1.
+        """Return the source log-density on the diagonal, and 0 elsewhere."""
         mask = jnp.eye(self.matrix_dim, dtype=jnp.bool_)[None, ...]
         diags = jnp.diagonal(value, axis1=-2, axis2=-1)[..., None]
         log_prob = self.src_distribution.log_prob(diags)
@@ -925,10 +986,12 @@ class Diagonal(distrx.Distribution):
 
     @property
     def event_shape(self):
+        """Shape of one event, ``(matrix_dim, matrix_dim)``."""
         return (self.matrix_dim, self.matrix_dim)
 
     @property
     def mean(self):
+        """Mean of an event: the stacked source mean along the diagonal."""
         mu = jnp.atleast_1d(self.src_distribution.mean)
         return jnp.concatenate((mu,) * self.multiplicity) * jnp.eye(
             self.matrix_dim
@@ -936,6 +999,27 @@ class Diagonal(distrx.Distribution):
 
 
 class Symmetric(distrx.Distribution):
+    """
+    Symmetric transformed distribution.
+
+    This distribution draws a square matrix from a source distribution and
+    returns the sum of the matrix and its transpose. The output dimension is
+    ``multiplicity`` for a scalar source, ``multiplicity * n`` for a source
+    with event shape ``(n,)``, and ``multiplicity * m`` for a source with
+    event shape ``(n, m)``.
+
+    Parameters
+    ----------
+    src_distribution
+        Source distribution, with a scalar, 1-D or 2-D event shape.
+    multiplicity
+        Multiplicity factor for source distribution samples.
+
+    Raises
+    ------
+    ValueError
+        If the event shape of ``src_distribution`` has more than two axes.
+    """
     def __init__(
         self,
         src_distribution: Distribution,
@@ -972,6 +1056,7 @@ class Symmetric(distrx.Distribution):
     def sample(
         self, key: 'jax.random.PRNGKey', sample_shape: Tuple[int, ...]
     ) -> Tensor:
+        """Draw symmetric matrices for ``sample_shape``."""
         src_event_shape = self.src_distribution.event_shape
         samples = self.src_distribution.sample(
             key=key,
@@ -990,14 +1075,17 @@ class Symmetric(distrx.Distribution):
         # The density of the symmetrised sample is a convolution of source
         # densities, which might be unavailable or not continuous. NaN is
         # returned in place of an incorrect value.
+        """Return NaN for each entry of ``value``; no density is computed."""
         return float('nan') * value
 
     @property
     def event_shape(self):
+        """Shape of one event, ``(matrix_dim, matrix_dim)``."""
         return (self.matrix_dim, self.matrix_dim)
 
     @property
     def mean(self):
+        """Mean of an event: twice the source mean."""
         return 2 * self.src_distribution.mean
 
 
@@ -1037,6 +1125,7 @@ class MatrixExponential(distrx.Distribution):
     def sample(
         self, key: jax.random.PRNGKey, sample_shape: Tuple[int, ...]
     ) -> Tensor:
+        """Draw matrix exponentials of source samples for ``sample_shape``."""
         n = math.prod(sample_shape)
         samples = self.src_distribution.sample(key=key, sample_shape=(n,))
         if self.rescale_var:
@@ -1051,6 +1140,22 @@ class MatrixExponential(distrx.Distribution):
         return samples
 
     def log_prob(self, value: Tensor) -> Tensor:
+        """
+        Return the source log-density at the matrix logarithm of ``value``.
+
+        The Jacobian of the matrix exponential is not included.
+
+        Parameters
+        ----------
+        value
+            Symmetric positive definite matrices.
+
+        Returns
+        -------
+        Tensor
+            Log-density under ``src_distribution`` of the matrix logarithm of
+            ``value``.
+        """
         samples = _symlog(value)
         return self.src_distribution.log_prob(samples)
 
@@ -1064,4 +1169,5 @@ class MatrixExponential(distrx.Distribution):
 
     @property
     def event_shape(self):
+        """Shape of one event, ``(matrix_dim, matrix_dim)``."""
         return (self.matrix_dim, self.matrix_dim)

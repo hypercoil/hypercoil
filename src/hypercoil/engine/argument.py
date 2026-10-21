@@ -16,11 +16,10 @@ import equinox as eqx
 
 class ModelArgument(Mapping, eqx.Module):
     """
-    Representation of a set of arguments to a model or loss function.
+    Immutable mapping of the arguments to a model or loss function.
 
-    Effectively this is currently little more than a prettified, immutable
-    dict. Or a namedtuple that's a mapping rather than a sequence, with a
-    dict-like interface.
+    Each argument is also readable as an attribute; an absent name read as an
+    attribute gives ``None``.
     """
 
     # We'd like to use the read-only MappingProxyType, but it's not possible
@@ -63,15 +62,18 @@ class ModelArgument(Mapping, eqx.Module):
 
     @classmethod
     def add(cls, arg: 'ModelArgument', **params) -> 'ModelArgument':
+        """Return ``arg`` updated with ``params``; ``params`` wins a clash."""
         return arg + cls(**params)
 
     @classmethod
     def all_except(cls, arg: Mapping, *remove) -> 'ModelArgument':
+        """Return ``arg`` without the keys named in ``remove``."""
         arg = {k: v for k, v in arg.items() if k not in remove}
         return cls(**arg)
 
     @classmethod
     def replaced(cls, arg: Mapping, **replace) -> 'ModelArgument':
+        """Return ``arg`` with its keys set from non-``None`` ``replace``."""
         arg = {
             k: (replace[k] if replace.get(k) is not None else v)
             for k, v in arg.items()
@@ -80,6 +82,7 @@ class ModelArgument(Mapping, eqx.Module):
 
     @classmethod
     def swap(cls, arg: Mapping, *rm, **new) -> 'ModelArgument':
+        """Return ``arg`` without the keys in ``rm`` and with ``new`` added."""
         arg = {k: v for k, v in arg.items() if k not in rm}
         arg.update(**new)
         return cls(**arg)
