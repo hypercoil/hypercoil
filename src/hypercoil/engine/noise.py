@@ -754,7 +754,7 @@ class EigenspaceReconditionTransform(TensorIIDAddStochasticTransform):
     diagonal of the input matrix. Each input matrix A is transformed
     following:
 
-    :math:`A := A + \left(\psi - \frac{{\xi}}{{2}}\right) I + I\mathbf{{x}}`
+    :math:`A := A + (\psi - \xi) I + \mathrm{{diag}}(\mathbf{{x}})`
 
     :math:`x_i \sim \mathrm{{Uniform}}(0, \xi) \forall x_i`
 

@@ -16,6 +16,7 @@ from .utils import complex_decompose
 
 
 def document_frequency_filter(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     freqfilter_dim_spec = r"""
     :Dimension: **Input :** :math:`(N, *, obs)`
                     N denotes batch size, ``*`` denotes any number of
@@ -55,6 +56,7 @@ def document_frequency_filter(f: Callable) -> Callable:
 
 
 def document_analytic_signal(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     analytic_signal_base_spec = """
     X
         Input tensor.
@@ -419,6 +421,27 @@ def ampl_phase_corr(
 
     To correlate across the batch and region axes, use
     ``ampl_phase_corr(X, weight=None, corr_axes=(0, -2))``.
+
+    Parameters
+    ----------
+    X
+        Time series, with observations on the last axis.
+    weight
+        Observation weights, forwarded to ``cov``.
+    corr_axes
+        Axes of ``X`` merged into the observations that ``cov`` correlates
+        over; the frequency bins are the variables.
+    cov
+        Function of the form ``cov(x, weight=weight)`` that computes the
+        correlations.
+    **params
+        Keyword arguments forwarded to :func:`jax.numpy.fft.rfft`.
+
+    Returns
+    -------
+    tuple
+        Correlation among the frequency bins of the amplitude, then of the
+        phase.
     """
     n = X.shape[-1]
     Xf = jnp.fft.rfft(X, n=n, **params)

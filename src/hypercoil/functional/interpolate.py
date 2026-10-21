@@ -33,10 +33,12 @@ from .utils import conform_mask
 
 
 class InterpolationError(Exception):
+    """Exception for a failed interpolation."""
     pass
 
 
 def document_interpolation(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     hybrid_interpolate_long_desc = """
     Hybrid interpolation uses the :func:`linear <linear_interpolate>`
     method for unseen frames that are no more than ``max_consecutive_linear``
@@ -183,19 +185,23 @@ def _number_consecutive_impl(carry: int, x: Tensor) -> Tuple[int, int]:
 
 
 def number_consecutive(x: Tensor) -> Tensor:
+    """Return the length of the run of True values ending at each entry."""
     return jax.lax.scan(_number_consecutive_impl, 0, x)[1]
 
 
 def max_number_consecutive(x: Tensor) -> Tensor:
+    """Return the length of the longest run of True values in ``x``."""
     return number_consecutive(x).max()
 
 
 def first(x: Tensor, mask: Tensor) -> Tensor:
+    """Return ``x`` at the first index where ``mask`` is True, as a slice."""
     idx = jnp.argwhere(mask, size=1)[0, -1]
     return x[..., [idx]]
 
 
 def first_and_last(x: Tensor, mask: Tensor) -> Tensor:
+    """Return ``x`` at the first and the last index where ``mask`` is True."""
     frst = first(x, mask)
     last = jnp.flip(
         first(jnp.flip(x, axis=-1), jnp.flip(mask, axis=-1)), axis=-1
@@ -276,6 +282,24 @@ def branched_cond(
     branches: Sequence[Tensor],
     *operands: PyTree,
 ) -> Tensor:
+    """
+    Evaluate the first branch whose predicate holds.
+
+    Parameters
+    ----------
+    preds
+        Predicates, one per branch. The predicate of the last branch is not
+        read: the last branch is the default.
+    branches
+        Callables, evaluated on ``operands``.
+    *operands
+        Arguments of each branch.
+
+    Returns
+    -------
+    Tensor
+        Output of the selected branch.
+    """
     if len(preds) == 1:
         return branches[0](*operands)
     return jax.lax.cond(
@@ -408,6 +432,26 @@ def delta_lookahead(
     data_mask: Tensor,
     frames: Tensor,
 ) -> Tensor:
+    """
+    Compute the per-frame increments that interpolate linearly across gaps.
+
+    Parameters
+    ----------
+    data
+        Time series, with frames on the last axis.
+    diff_mask
+        True at each seen frame that a run of unseen frames follows.
+    data_mask
+        True at each seen frame.
+    frames
+        Number of consecutive unseen frames that follow each frame.
+
+    Returns
+    -------
+    Tensor
+        Increment of each frame over its predecessor, with frames on the last
+        axis; 0 outside the gaps.
+    """
     f = partial(
         _delta_lookahead_impl,
         lookahead_fn=partial(_delta_lookahead_fn, data=data, mask=data_mask),
@@ -493,6 +537,7 @@ def make_kernels(
     stages: Sequence[int],
     map_to_kernel: Callable,
 ) -> Sequence[Tensor]:
+    """Return ``map_to_kernel(stage)`` for each stage in ``stages``."""
     return [map_to_kernel(stage) for stage in stages]
 
 
@@ -501,6 +546,24 @@ def all_stages(
     max_stage: Union[int, Literal['auto']] = 'auto',
     mask: Optional[Tensor] = None,
 ) -> Sequence[int]:
+    """
+    Return the stages of a weighted interpolation.
+
+    Parameters
+    ----------
+    start_stage
+        First stage.
+    max_stage
+        Last stage. ``'auto'`` takes the length of the longest run of unseen
+        frames in ``mask``.
+    mask
+        True at each seen frame; required if ``max_stage`` is ``'auto'``.
+
+    Returns
+    -------
+    range
+        Stages ``start_stage`` to ``max_stage``, inclusive.
+    """
     if max_stage == 'auto':
         max_stage = vmap_over_outer(max_number_consecutive, 1)((~mask,)).max()
     return range(start_stage, max_stage + 1)
@@ -517,6 +580,22 @@ def _weighted_interpolate_stage(
 
 
 def centred_square_kernel(stage: int, max_stage: int) -> Tensor:
+    """
+    Return a centred box kernel.
+
+    Parameters
+    ----------
+    stage
+        Half-width of the box: the kernel is 1 on ``2 * stage + 1`` entries.
+    max_stage
+        Half-width of the kernel.
+
+    Returns
+    -------
+    Tensor
+        Kernel of size ``2 * max_stage + 1``, 1 within ``stage`` of the centre
+        and 0 elsewhere.
+    """
     kernel = jnp.zeros(2 * max_stage + 1)
     midpt = max_stage
     return kernel.at[(midpt - stage) : (midpt + stage + 1)].set(1)
@@ -538,6 +617,24 @@ def reconstruct_weighted(
     mask: Tensor,
     kernel: Tensor,
 ) -> Tensor:
+    """
+    Reconstruct each frame as the kernel-weighted mean of the seen frames.
+
+    Parameters
+    ----------
+    data
+        Time series, with frames on the last axis.
+    mask
+        True at each seen frame.
+    kernel
+        Convolution kernel over frames, as in :func:`tsconv2d`.
+
+    Returns
+    -------
+    Tensor
+        Weighted mean of the seen frames in each window; NaN where no seen
+        frame falls in the window.
+    """
     val = tsconv2d(jnp.where(mask, data, 0), kernel)
     wt = tsconv2d(jnp.where(mask, 1.0, 0.0), kernel)
     return val / wt  # (wt + jnp.finfo(wt.dtype).eps)

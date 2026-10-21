@@ -30,6 +30,7 @@ from . import recondition_eigenspaces, symmetric
 
 
 def document_symmetric_map(func):
+    """Fill the shared templates in the docstring of ``func``."""
     symmap_param_spec = r"""
     psi
         Conditioning factor to promote positive definiteness.

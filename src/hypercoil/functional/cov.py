@@ -20,6 +20,7 @@ from .utils import _conform_vector_weight
 
 
 def document_covariance(func):
+    """Fill the shared templates in the docstring of ``func``."""
     param_spec = """
     rowvar
         Indicates that the last axis of the input tensor is the observation

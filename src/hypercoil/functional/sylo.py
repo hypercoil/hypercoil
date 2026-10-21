@@ -218,13 +218,18 @@ def vertical_compression(
     remove_diagonal
         If True, the diagonal elements of the input are removed before and
         after compression.
+    fold_channels
+        If True, the axes before the matrix axes are merged into one channel
+        axis: the output has shape ``(N, -1, H_out, W_out)`` if the
+        compressed tensor has rank 5 or more, and ``(-1, H_out, W_out)``
+        otherwise.
     sign
         If not None, this should be either 1 or -1. If -1, the output is
         multiplied by -1.
 
     Returns
     -------
-    output: Tensor
+    Tensor
         Compressed tensor.
     """
     if remove_diagonal:

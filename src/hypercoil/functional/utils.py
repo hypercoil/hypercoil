@@ -15,6 +15,7 @@ from ..engine.paramutil import Tensor
 
 # TODO: This will not work if JAX ever adds sparse formats other than BCOO.
 def is_sparse(X):
+    """Return whether ``X`` is a sparse ``BCOO`` array."""
     return isinstance(X, BCOO)
 
 
@@ -137,6 +138,26 @@ def mask_tensor(
     axis: Sequence[int],
     fill_value: Union[float, Tensor] = 0,
 ):
+    """
+    Replace the entries of a tensor outside a mask by a fill value.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to mask.
+    mask
+        Boolean mask, aligned with ``axis`` of ``tensor`` as in
+        :func:`conform_mask`.
+    axis
+        Axes of ``tensor`` spanned by ``mask``.
+    fill_value
+        Value of the entries where ``mask`` is False.
+
+    Returns
+    -------
+    Tensor
+        ``tensor`` where ``mask`` is True, and ``fill_value`` elsewhere.
+    """
     mask = conform_mask(tensor=tensor, mask=mask, axis=axis)
     return jnp.where(mask, tensor, fill_value)
 

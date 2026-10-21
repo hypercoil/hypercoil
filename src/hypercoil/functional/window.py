@@ -164,6 +164,30 @@ def sample_nonoverlapping_windows_existing_ax(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
+    """
+    Sample non-overlapping windows, concatenated along an existing axis.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to sample from.
+    window_size
+        Size of each window along ``windowing_axis``.
+    num_windows
+        Number of windows. ``window_size * num_windows`` must not exceed
+        the size of ``windowing_axis``.
+    windowing_axis
+        Axis along which to sample windows.
+    multiplying_axis
+        Axis along which the windows are concatenated.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Windows of ``tensor``, concatenated along ``multiplying_axis``.
+    """
     return _sample_window_impl(
         tensor,
         window_size=window_size,
@@ -186,6 +210,30 @@ def sample_nonoverlapping_windows_new_ax(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
+    """
+    Sample non-overlapping windows, stacked along a new axis.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to sample from.
+    window_size
+        Size of each window along ``windowing_axis``.
+    num_windows
+        Number of windows. ``window_size * num_windows`` must not exceed
+        the size of ``windowing_axis``.
+    windowing_axis
+        Axis along which to sample windows.
+    multiplying_axis
+        Axis along which the windows are stacked.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Windows of ``tensor``, stacked along ``multiplying_axis``.
+    """
     return _sample_window_impl(
         tensor,
         window_size=window_size,
@@ -208,6 +256,29 @@ def sample_overlapping_windows_existing_ax(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
+    """
+    Sample windows that can overlap, concatenated along an existing axis.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to sample from.
+    window_size
+        Size of each window along ``windowing_axis``.
+    num_windows
+        Number of windows.
+    windowing_axis
+        Axis along which to sample windows.
+    multiplying_axis
+        Axis along which the windows are concatenated.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Windows of ``tensor``, concatenated along ``multiplying_axis``.
+    """
     return _sample_window_impl(
         tensor,
         window_size=window_size,
@@ -230,6 +301,29 @@ def sample_overlapping_windows_new_ax(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
+    """
+    Sample windows that can overlap, stacked along a new axis.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to sample from.
+    window_size
+        Size of each window along ``windowing_axis``.
+    num_windows
+        Number of windows.
+    windowing_axis
+        Axis along which to sample windows.
+    multiplying_axis
+        Axis along which the windows are stacked.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Windows of ``tensor``, stacked along ``multiplying_axis``.
+    """
     return _sample_window_impl(
         tensor,
         window_size=window_size,

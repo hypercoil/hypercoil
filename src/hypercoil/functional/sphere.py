@@ -332,6 +332,25 @@ def euclidean_conv(
 
 
 def rotation_matrix(axis: Tensor, angle: Tensor) -> Tensor:
+    r"""
+    Return the 3-D rotation matrix for a rotation about an axis.
+
+    The matrix follows Rodrigues' formula,
+    :math:`I + \sin\theta K + (1 - \cos\theta) K^2`, where :math:`K` is the
+    cross-product matrix of ``axis``.
+
+    Parameters
+    ----------
+    axis
+        Unit vector of shape ``(3,)``; the axis is not normalised.
+    angle
+        Rotation angle :math:`\theta`, in radians.
+
+    Returns
+    -------
+    Tensor
+        Rotation matrix of shape ``(3, 3)``.
+    """
     cpix = jnp.asarray((
         (
             (0, 0, 0),
@@ -358,6 +377,23 @@ def rotation_matrix(axis: Tensor, angle: Tensor) -> Tensor:
 
 
 def rotate_axis_angle(src: Tensor, axis: Tensor, angle: Tensor) -> Tensor:
+    """
+    Rotate points about an axis.
+
+    Parameters
+    ----------
+    src
+        Points of shape ``(*, 3)``.
+    axis
+        Unit vector of shape ``(3,)``; the axis is not normalised.
+    angle
+        Rotation angle, in radians.
+
+    Returns
+    -------
+    Tensor
+        Rotated points, of the shape of ``src``.
+    """
     rmat = rotation_matrix(axis, angle)
     return src @ rmat.T
 

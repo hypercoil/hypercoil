@@ -99,6 +99,26 @@ def threshold(
     dead: Union[Tensor, int] = 0,
     leak: float = 0,
 ) -> Tensor:
+    """
+    Replace the entries at or below a threshold.
+
+    Parameters
+    ----------
+    input
+        Input tensor.
+    threshold
+        Entries greater than ``threshold`` are kept.
+    dead
+        Value that replaces the other entries.
+    leak
+        Slope of a leak: the other entries become ``dead + leak * input``.
+
+    Returns
+    -------
+    Tensor
+        ``input`` where it exceeds ``threshold``, and the replacement
+        elsewhere.
+    """
     if leak == 0:
         return jnp.where(input > threshold, input, dead)
     return jnp.where(input > threshold, input, dead + leak * input)
@@ -259,6 +279,7 @@ def _corrnorm_factor(input: Tensor) -> Tensor:
 
 
 def document_corrnorm(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     corrnorm_spec = r"""
     Divide each entry :math:`A_{ij}` of the input matrix :math:`A` by the
     product of the signed square roots of the corresponding diagonals:
@@ -331,6 +352,7 @@ def corrnorm(
 
 
 def document_isochoric(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     isochoric_spec = r"""
     This activation function first finds the eigendecomposition of each input
     matrix. The eigenvalues are then each divided by

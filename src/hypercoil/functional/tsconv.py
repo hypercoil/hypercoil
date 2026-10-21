@@ -28,9 +28,16 @@ torch_dims = {
     2: ('NCHW', 'OIHW', 'NCHW'),
     3: ('NCHWD', 'OIHWD', 'NCHWD'),
 }
+"""
+Convolution dimension numbers, keyed by number of spatial axes.
+
+Each value gives the input, kernel and output layouts for
+:func:`jax.lax.conv_general_dilated`.
+"""
 
 
 def document_time_series_convolution(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     ts_conv_dim = r"""
     :Dimension: **Input :** :math:`(N, *, C, obs)`
                     N denotes batch size, ``*`` denotes any number of

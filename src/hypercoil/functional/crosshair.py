@@ -13,6 +13,7 @@ from ..engine import NestedDocParse, Tensor
 
 
 def document_crosshair(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     crosshair_inner_long = """
     For each entry of the input matrices :math:`X_{ij}`, the crosshair product
     is the scalar sum over elements in either the same row or column as the
@@ -153,6 +154,20 @@ def crosshair_dot_gen(
     .. warning::
         Experimental and untested. Slower than the 2-D implementation,
         :func:`crosshair_dot`.
+
+    Parameters
+    ----------
+    A, B
+        Tensors of the same shape.
+    axes
+        Axes spanned by each crosshair.
+
+    Returns
+    -------
+    Tensor
+        At each position, the sum of ``A * B`` over the lines through that
+        position along each of ``axes``, with the position itself counted
+        once.
     """
     prod = A * B
     repeats = len(axes) - 1

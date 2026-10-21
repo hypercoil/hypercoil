@@ -279,6 +279,11 @@ def expand_outer(
         * Otherwise, no symmetry constraint is imposed. Passing None for R,
           or the same tensor as R and L, gives a symmetric positive
           semidefinite output.
+
+    Returns
+    -------
+    Tensor
+        Expanded matrix of shape ``(*, H, W)``.
     """
     if L.ndim == 1:
         L = L[..., None]
@@ -312,7 +317,7 @@ def recondition_eigenspaces(
 
     This operation modifies the input matrix A following
 
-    :math:`A := A + \left(\psi - \frac{\xi}{2}\right) I + I\mathbf{x}`
+    :math:`A := A + (\psi - \xi) I + \mathrm{diag}(\mathbf{x})`
 
     :math:`x_i \sim \mathrm{Uniform}(0, \xi) \forall x_i`
 
@@ -326,10 +331,12 @@ def recondition_eigenspaces(
         Reconditioning parameter for ensuring nonzero eigenvalues.
     xi
         Reconditioning parameter for ensuring nondegenerate eigenvalues.
+    key
+        Pseudo-random number generator key for :math:`\mathbf{x}`.
 
     Returns
     -------
-    tensor
+    Tensor
         Reconditioned matrix or matrix block.
     """
     x = jax.random.uniform(key=key, shape=A.shape, maxval=xi)
@@ -607,20 +614,24 @@ def squareform(X: Tensor) -> Tensor:
 
 
 def sym2vec_fwd(sym, offset):
+    """Forward rule of the custom VJP of :func:`sym2vec`."""
     return sym2vec(sym, offset=offset), None
 
 
 def sym2vec_bwd(offset, res, g):
+    """Backward rule of the custom VJP of :func:`sym2vec`."""
     unscaled = vec2sym(g, offset=offset)
     scalar = jnp.triu(jnp.ones(unscaled.shape[-2:]), offset)
     return unscaled * scalar,
 
 
 def vec2sym_fwd(vec, offset):
+    """Forward rule of the custom VJP of :func:`vec2sym`."""
     return vec2sym(vec, offset=offset), None
 
 
 def vec2sym_bwd(offset, res, g):
+    """Backward rule of the custom VJP of :func:`vec2sym`."""
     scalar = jnp.where(jnp.eye(g.shape[-1]), 1, 2)
     scalar = sym2vec(scalar, offset=offset)
     return scalar * sym2vec(symmetric(g), offset=offset),

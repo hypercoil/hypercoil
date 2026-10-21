@@ -25,6 +25,7 @@ from ..engine import NestedDocParse, Tensor
 
 
 def document_semidefinite_projection(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     tangent_project_long_desc = r"""
     Given a tangency point :math:`\Omega`, each input :math:`\Theta` is
     projected as:
@@ -76,6 +77,7 @@ def document_semidefinite_projection(f: Callable) -> Callable:
 
 
 def document_semidefinite_mean(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     euclidean_mean_desc = r"""
     The Euclidean mean is the arithmetic mean:
 
@@ -413,6 +415,29 @@ def mean_geom_spd(
 
 # TODO: marking this as an experimental function
 def mean_kullback_spd(input, alpha, recondition=0):
+    r"""
+    Compute a Kullback-type mean of positive definite matrices.
+
+    With the Euclidean mean :math:`E` and the harmonic mean :math:`H` of the
+    input, the mean is
+    :math:`E^{1/2} (E^{-1/2} H E^{-1/2})^{\alpha} E^{1/2}`.
+
+    Parameters
+    ----------
+    input
+        Positive definite matrices of shape ``(N, *, D, D)``, averaged over
+        the first axis.
+    alpha
+        Exponent :math:`\alpha`; 0 gives :math:`E` and 1 gives :math:`H`.
+    recondition
+        Reconditioning factor ``psi`` for the square root and the inverse
+        square root of :math:`E`, as in :func:`symmap`.
+
+    Returns
+    -------
+    Tensor
+        Mean of shape ``(*, D, D)``.
+    """
     S = symsqrt(mean_euc_spd(input), recondition)
     R = symmap(mean_euc_spd(input), lambda X: X**-0.5, psi=recondition)
     T = R @ mean_harm_spd(input) @ R

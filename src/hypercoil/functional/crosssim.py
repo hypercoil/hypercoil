@@ -19,6 +19,7 @@ from .crosshair import (
 
 
 def document_crosssim(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     crosssim_dim_spec = r"""
     :Dimension: **X :** :math:`(N, *, C_{in}, H, W)`
                     N denotes batch size, ``*`` denotes any number of

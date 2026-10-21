@@ -294,6 +294,18 @@ def dspdmm(
 
     .. math::
         \mathbf{D} \mathbf{X} \mathbf{D}
+
+    Parameters
+    ----------
+    input
+        Top-k format sparse matrix :math:`\mathbf{X}`.
+    diag
+        Diagonal of :math:`\mathbf{D}`.
+
+    Returns
+    -------
+    TopKTensor
+        :math:`\mathbf{D} \mathbf{X} \mathbf{D}`, in top-k format.
     """
     return spdiagmm(diag, spdiagmm(input, diag), lhs_diag=True)
 
@@ -1131,6 +1143,19 @@ def spsp_innerpaired(
 
     .. note::
         If ``rhs`` is not specified, then this computes a squared vector norm.
+
+    Parameters
+    ----------
+    lhs
+        Sparse or dense matrix of shape ``(*, m, p)``.
+    rhs
+        Sparse or dense matrix of shape ``(*, m, p)``. Defaults to ``lhs``.
+
+    Returns
+    -------
+    Tensor
+        Inner product of each row of ``lhs`` with the paired row of ``rhs``,
+        of shape ``(*, m)``.
     """
     if rhs is None:
         rhs = lhs
@@ -1161,6 +1186,18 @@ def spsymv(
     .. note::
         The implicit symmetrisation results in treatment of an input matrix
         :math:`A` as though it were :math:`(A + A^\intercal) / 2`.
+
+    Parameters
+    ----------
+    lhs
+        Top-k format sparse matrix :math:`A` of shape ``(*, n, n)``.
+    rhs
+        Vector :math:`x` of shape ``(*, n)``.
+
+    Returns
+    -------
+    Tensor
+        :math:`(A + A^\intercal) x / 2`, of shape ``(*, n)``.
     """
     right = (lhs @ rhs[..., None]).squeeze(-1)
     left = (rhs[..., None, :] @ lhs).squeeze(-2)
@@ -1194,6 +1231,18 @@ def topk_diagaugment(
 
     Given a top-k sparse matrix :math:`A` and a diagonal matrix :math:`D`,
     the diagonal augmented matrix is :math:`A + D`.
+
+    Parameters
+    ----------
+    input
+        Top-k format sparse matrix :math:`A`.
+    diag
+        Diagonal of :math:`D`, of shape ``(*, n)`` or ``(*, n, 1)``.
+
+    Returns
+    -------
+    TopKTensor
+        :math:`A + D`, in top-k format with one more entry per row.
     """
     if diag.shape[-1] != 1:
         diag = diag[..., None]
@@ -1244,6 +1293,18 @@ def to_batch_batchfinal(matrices: Sequence[Tensor]) -> Tensor:
 
     .. note::
         This function is not intended to be compatible with JIT compilation.
+
+    Parameters
+    ----------
+    matrices
+        Sparse ``BCOO`` matrices of the same shape.
+
+    Returns
+    -------
+    Tensor
+        Sparse ``BCOO`` array of shape ``(*shape, len(matrices))``, with the
+        union of the indices of ``matrices`` and the batch on the last
+        (dense) axis.
     """
     batch_size = len(matrices)
     shape = sum([m.data.shape[0] for m in matrices])
@@ -1277,7 +1338,29 @@ def spspmm_batchfinal(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
 
     .. warning::
         Not recommended; use top-k format matrices with :func:`spspmm`
-        instead.
+        instead. Memory use scales with the product of the numbers of
+        stored entries of ``lhs`` and ``rhs``.
+
+    Parameters
+    ----------
+    lhs
+        Sparse ``BCOO`` matrix with two sparse axes.
+    rhs
+        Sparse ``BCOO`` matrix with two sparse axes.
+    inner_dims
+        Sparse axis of ``lhs`` and of ``rhs`` that is contracted.
+    outer_dims
+        Sparse axis of ``lhs`` and of ``rhs`` that is kept.
+
+    Returns
+    -------
+    Tensor
+        Sparse ``BCOO`` product, with the trailing dense axes of the inputs.
+
+    Raises
+    ------
+    AssertionError
+        If ``lhs`` or ``rhs`` does not have exactly two sparse axes.
     """
     # only support 2D sparse for now
     assert lhs.n_sparse == rhs.n_sparse == 2
@@ -1314,6 +1397,7 @@ def spspmm_batchfinal(lhs, rhs, inner_dims=(0, 0), outer_dims=(1, 1)):
 
 
 def embed_params_in_diagonal(params):
+    """Embed ``params`` along the diagonal of a sparse ``BCOO`` matrix."""
     dim = params.shape[-1]
     indices = jnp.arange(dim)
     indices = jnp.stack((indices, indices)).T[None, ...]
@@ -1334,6 +1418,17 @@ def embed_params_in_sparse(params):
     .. warning::
         The input must have at least 1 batch dimension. If it does not, a
         singleton batch dimension is added.
+
+    Parameters
+    ----------
+    params
+        Dense matrices of shape ``(*, n, n)``. An entry is stored if it is
+        nonzero in any matrix of the batch.
+
+    Returns
+    -------
+    Tensor
+        Sparse ``BCOO`` array of shape ``(*, n, n)``.
     """
     if params.ndim == 2:
         params = params[None, ...]

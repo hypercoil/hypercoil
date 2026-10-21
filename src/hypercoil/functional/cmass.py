@@ -95,9 +95,25 @@ def cmass_reference_displacement_grid(
     na_rm: bool = False,
 ) -> Tensor:
     """
-    Displacement of centres of mass from reference points -- grid version.
+    Compute the displacement of grid centres of mass from reference points.
 
-    See :func:`cmass` for parameter specifications.
+    Parameters
+    ----------
+    weight
+        Weights whose centres of mass are computed, as ``X`` in
+        :func:`cmass`.
+    refs
+        Reference points, broadcastable to the output of :func:`cmass`.
+    axes
+        Axes that span each slice, as in :func:`cmass`.
+    na_rm
+        Handling of the centres of slices with zero mass, as in
+        :func:`cmass`.
+
+    Returns
+    -------
+    Tensor
+        Centres of mass minus ``refs``, of shape ``(*, n)``.
     """
     cm = cmass(weight, axes=axes, na_rm=na_rm)
     return cm - refs
@@ -112,7 +128,22 @@ def cmass_reference_displacement(
     """
     Compute the displacement of centres of mass from reference coordinates.
 
-    See :func:`cmass_coor` for parameter specifications.
+    Parameters
+    ----------
+    weight
+        Weights of shape ``(*, W, L)``, as ``X`` in :func:`cmass_coor`.
+    refs
+        Reference coordinates, broadcastable to ``(*, D, W)``.
+    coor
+        Coordinates of shape ``(*, D, L)`` of each location.
+    radius
+        If not None, the centres of mass are projected onto a sphere of this
+        radius before the displacement is computed.
+
+    Returns
+    -------
+    Tensor
+        Centres of mass minus ``refs``, of shape ``(*, D, W)``.
     """
     cm = cmass_coor(weight, coor, radius=radius)
     return cm - refs

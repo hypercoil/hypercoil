@@ -25,6 +25,7 @@ from .utils import is_sparse
 
 
 def document_modularity(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     girvan_newman_long_desc = r"""
     The Girvan-Newman null model is defined as the expected connection weight
     between each pair of vertices if all edges are cut and the resulting stubs
@@ -328,6 +329,7 @@ def degree(W: Tensor) -> Tensor:
     # TODO: technically, we *have* implemented this for sparse graphs in the
     # ``_sparse_laplacian`` function, but it involves some overhead that makes
     # a separate implementation useless for our purposes.
+    """Return the row sums of the dense adjacency matrix ``W``."""
     if is_sparse(W):
         raise NotImplementedError
     return W.sum(-1)
@@ -369,29 +371,29 @@ def graph_laplacian(
         either the in-degree Laplacian or the out-degree Laplacian, depending
         on the convention adopted for the input.
 
-    :Dimension: **W :** :math:`(*, N, N)` or :math:`(*, E)`
-                    ``*`` denotes any number of preceding dimensions, N
-                    denotes number of vertices, and E denotes number of edges.
-                    The shape should be :math:`(*, N, N)` if ``edge_index`` is
-                    not provided and :math:`(*, E)` if ``edge_index`` is
-                    provided.
-                **edge_index :** :math:`(*, 2, E)`
-                    As above.
-                **Output :** :math:`(*, N, N)` or tuple(:math:`(*, E)`, :math:`(*, 2, E)`)
+    :Dimension: **W :** :math:`(*, N, N)`
+                    ``*`` denotes any number of preceding dimensions and N
+                    denotes number of vertices.
+                **Output :** :math:`(*, N, N)`
                     As above.
 
     Parameters
     ----------
     W
-        Edge weight tensor. If ``edge_index`` is not provided, then this
-        should be the graph adjacency matrix; otherwise, it should be a
-        list of weights corresponding to the edges in ``edge_index``.
+        Graph adjacency matrix, dense or in top-k sparse format. Its
+        diagonal is ignored.
     normalise
         Indicates that the Laplacian should be normalised using the degree
-        matrix.
+        matrix. Vertices of degree 0 are left unscaled.
     topk
         Indicates that the input is a top-k sparse matrix. Ignored if ``W``
         is not a sparse matrix.
+
+    Returns
+    -------
+    Tensor
+        Laplacian, in the format of ``W``. The diagonal of a normalised
+        dense Laplacian is set to 1.
     """
     W = delete_diagonal(W)
     deg = degree(W)

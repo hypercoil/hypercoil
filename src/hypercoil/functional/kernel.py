@@ -32,6 +32,7 @@ def _default_gamma(X: Tensor, *, gamma: Optional[float]) -> float:
 
 
 def document_param_pairwise(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     linear_kernel_long_desc = r"""
     For tensors :math:`X_0` and :math:`X_1` containing features in column
     vectors, the parameterised linear kernel is

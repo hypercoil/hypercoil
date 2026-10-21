@@ -18,6 +18,7 @@ from ..engine import (
 
 
 def document_linreg(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     regress_warning = """
     .. warning::
         When using ``torch``, we have found in some cases that the
