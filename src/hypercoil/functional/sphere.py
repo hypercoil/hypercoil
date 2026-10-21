@@ -226,10 +226,9 @@ def spherical_conv(
     r"""
     Convolve data on a 2-sphere with an isotropic Gaussian kernel.
 
-    This is implemented in pretty much the dumbest possible way, but it works.
-    Here is a likely more efficient method that requires Lie groups or some
-    such thing:
-    https://openreview.net/pdf?id=Hkbd5xZRb
+    The implementation is direct rather than efficient; spherical
+    convolution through group representations
+    (https://openreview.net/pdf?id=Hkbd5xZRb) is likely faster.
 
     See :func:`spatial_conv` for implementation details.
 

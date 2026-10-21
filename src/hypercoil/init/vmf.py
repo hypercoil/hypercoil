@@ -118,10 +118,8 @@ def log_bessel(order: int, kappa: Tensor) -> Tensor:
     Fröhlich J and Spencer T (1981) "The Kosterlitz-Thouless Transition in
     Two-Dimensional Abelian Spin Systems and the Coulomb Gas".
     Commun. Math. Phys. 81, 527-602.
-    The notation in this paper is a bit different, but the approximation is
-    for large values of kappa. We should run some Monte Carlo integration
-    simulations to assess this approximation in practice for the range of
-    values of kappa we expect to encounter.
+    The approximation is asymptotic in large ``kappa``; its accuracy for
+    small ``kappa`` has not been assessed.
 
     This asymptotic approximation returns results approximately equivalent to
     the implementation in the HierarchBayesParcel package:

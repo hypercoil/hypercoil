@@ -843,18 +843,13 @@ class OuterProduct(distrx.Distribution):
         rank: int,
         matrix_dim: int,
     ) -> Tensor:
-        """
+        r"""
         Approximate the normal scale whose outer products have a given scale.
 
-        This is a bit of a hack and isn't correct, but it's the best we can do
-        given we have more pressing problems to solve. In reality, the
-        diagonal entries tend to have a larger standard deviation than the
-        off-diagonal entries.
-
-        The output of this static method is intended to be used to initialise
-        the standard deviation of a normal distribution that can then be used
-        as the ``src_distribution`` argument to an :class:`OuterProduct`
-        distribution.
+        The approximation is coarse: diagonal entries of the outer product
+        have a larger standard deviation than off-diagonal entries. The result
+        parameterises a normal distribution for the ``src_distribution`` of an
+        :class:`OuterProduct`.
 
         Parameters
         ----------
@@ -864,6 +859,13 @@ class OuterProduct(distrx.Distribution):
             The rank of the samples.
         matrix_dim
             The dimension of the square matrices output by the outer product.
+
+        Returns
+        -------
+        float
+            Standard deviation of the source normal distribution,
+            :math:`\sqrt{s / \sqrt{r + r^2 / d}}` for target ``std``
+            :math:`s`, ``rank`` :math:`r` and ``matrix_dim`` :math:`d`.
         """
         return math.sqrt(std / math.sqrt(rank + (rank**2) / matrix_dim))
 

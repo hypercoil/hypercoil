@@ -657,8 +657,9 @@ def entropy_logit(
 
 def _mul_exp(x: Tensor, logp: Tensor) -> Tensor:
     """
-    Shamelessly pilfered from ``distrax``.
+    Compute ``x * exp(logp)``, with 0 wherever ``exp(logp)`` is 0.
     """
+    # Adapted from distrax.
     p = jnp.exp(logp)
     x = jnp.where(p == 0, 0.0, x)
     return x * p
