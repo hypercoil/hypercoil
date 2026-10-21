@@ -92,7 +92,7 @@ class LinearRFNN(eqx.Module):
         weight = {k: _to_jax_array(v) for k, v in self.weight.items()}
         x = atleast_4d(x)
 
-        # If we have no response functions, just select a linear combination
+        # Without response functions, the model is a linear combination.
         if self.num_response_functions == 0:
             return weight['lin'] @ x
 

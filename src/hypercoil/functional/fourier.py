@@ -137,9 +137,9 @@ def product_filtfilt(
 
     .. note::
 
-        If the ``weight`` argument is strictly real, then the filter has no
-        phase delay component and it could make sense to simply use
-        :func:`product_filter` depending on the context.
+        A strictly real ``weight`` introduces no phase delay. In that case,
+        :func:`product_filter` with the squared weight gives the same output
+        in a single pass.
     \
     {freqfilter_dim_spec}
     \

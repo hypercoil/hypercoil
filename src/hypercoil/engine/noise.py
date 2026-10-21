@@ -1005,10 +1005,9 @@ class Symmetric(distrx.Distribution):
         return samples + samples.swapaxes(-2, -1)
 
     def log_prob(self, value: Tensor) -> Tensor:
-        # In the general continuous case we need to do a convolution, but we
-        # might not have access to the PDFs, and there's no guarantee that the
-        # source distribution is continuous anyway, so we're leaving this as
-        # NaN
+        # The density of the symmetrised sample is a convolution of source
+        # densities, which might be unavailable or not continuous. NaN is
+        # returned in place of an incorrect value.
         return float('nan') * value
 
     @property

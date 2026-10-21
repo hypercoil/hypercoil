@@ -424,8 +424,8 @@ def selfwmean(
         if softmax_invert:
             input = -input
         weight = jax.nn.softmax(input, axis=softmax_axis)
-    # I don't think this actually does what we want it to, but this function
-    # is actually unsupported, so we won't worry about it yet.
+    # The gradient path selection here might not stop the intended gradient.
+    # This function is unsupported.
     if gradpath == 'input':
         weight = jax.lax.stop_gradient(weight)
     elif gradpath == 'weight':

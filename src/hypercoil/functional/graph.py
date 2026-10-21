@@ -388,8 +388,8 @@ def graph_laplacian(
         Indicates that the Laplacian should be normalised using the degree
         matrix.
     topk : bool (default True)
-        Indicates that the input is a top-k sparse matrix. Has no effect if
-        ``W`` is not a sparse matrix.
+        Indicates that the input is a top-k sparse matrix. Ignored if ``W``
+        is not a sparse matrix.
     """
     W = delete_diagonal(W)
     deg = degree(W)

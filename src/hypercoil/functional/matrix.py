@@ -307,8 +307,8 @@ def recondition_eigenspaces(
     key: Tensor,
 ) -> Tensor:
     r"""
-    Recondition a positive semidefinite matrix such that it has no zero
-    eigenvalues, and all of its eigenspaces have dimension one.
+    Recondition a positive semidefinite matrix to remove zero eigenvalues and
+    give every eigenspace dimension one.
 
     This reconditioning operation should help stabilise differentiation
     through singular value decomposition.
@@ -476,7 +476,7 @@ def toeplitz(
         of each Toeplitz matrix if the specified row and column elements are
         extended to conform with the specified `dim`. If this is a tensor,
         then each entry corresponds to the fill value in a different data
-        channel. Has no effect if ``dim`` is None.
+        channel. Ignored if ``dim`` is None.
 
     Returns
     -------

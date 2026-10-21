@@ -314,8 +314,8 @@ def pairedcov(
     Empirical covariance between two sets of variables.
 
     .. danger::
-        The ``l2`` parameter has no effect on this function. It is included only
-        for conformance with the ``cov`` function.
+        The ``l2`` parameter is ignored. It is accepted for signature
+        conformance with :func:`cov`.
 
     :Dimension: {binary_dim_spec}
 
@@ -368,8 +368,8 @@ def pairedcorr(
     {corr_long_description}
 
     .. danger::
-        The ``l2`` parameter has no effect on this function. It is included only
-        for conformance with the ``cov`` function.
+        The ``l2`` parameter is ignored. It is accepted for signature
+        conformance with :func:`cov`.
 
     :Dimension: {binary_dim_spec}
 

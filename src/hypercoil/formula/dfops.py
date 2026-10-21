@@ -556,9 +556,8 @@ class InteractionNode(TransformPrimitive):
 
 # TODO: after adding support for logical composition in metadata filters,
 #       this should use a metadata filter instead of hard-coding to match
-#       the ``Mask`` field. This might actually have some application outside
-#       of confound regression, unlike CumulVar, so changing this is probably
-#       a good idea here.
+#       the ``Mask`` field. Unlike CumulVar, this literalisation might be
+#       useful outside confound regression.
 class FirstNLeafLiteralisation(Literalisation):
     affix: str = 'leaf'
     regex: str = (

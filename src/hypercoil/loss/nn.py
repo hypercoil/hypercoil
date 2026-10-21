@@ -251,8 +251,8 @@ class ParameterisedLoss(Loss):
     have a simple parameterisation, i.e. a fixed set of parameters that are
     passed to the scoring function. The parameters are specified using the
     ``params`` argument, which should be a mapping from parameter names to
-    values. Note that the class is immutable, so the parameters cannot be
-    changed after the class has been instantiated.
+    values. The class is immutable: parameters cannot be changed after
+    instantiation.
     \
     {param_spec}\
     {score_spec}\

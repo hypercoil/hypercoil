@@ -11,7 +11,7 @@ One common BCOO sparse format that is useful in many applications, such as
 connectopic mapping, is the top-k format. Sparse matrices in top-k format have
 the following properties:
 
-- Each row has no more than k non-zero entries.
+- Each row has at most k non-zero entries.
 - The indices of nonzero entries are shared across all batch elements.
 - The indexing tensor has shape (``...``, ``n_rows``, ``k``, 1) where ``...``
   indicates a number of leading singleton dimensions equal to the number of
