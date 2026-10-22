@@ -358,8 +358,32 @@ def wmean(
     keepdims: bool = False,
 ) -> Tensor:
     """
-    Rank-reducing function for scalarisation maps: weighted mean.
+    Compute the weighted mean over axes.
 
+    Parameters
+    ----------
+    input
+        Input tensor.
+    weight
+        Weights, with one axis for each axis in ``axis``, aligned with those
+        axes of ``input``.
+    axis
+        Axes to reduce. None reduces all axes.
+    keepdims
+        Keep the reduced axes with size 1.
+
+    Returns
+    -------
+    Tensor
+        Weighted mean of ``input`` over ``axis``.
+
+    Raises
+    ------
+    AssertionError
+        If ``weight`` does not have one axis for each reduced axis.
+
+    Examples
+    --------
     >>> wmean(jnp.array([1, 2, 3]), jnp.array([1, 0, 1]))
     Array(2., dtype=float32)
 
@@ -413,6 +437,29 @@ def selfwmean(
     Compute the self-weighted mean over axes.
 
     With the softmax enabled, the result approximates a soft maximum.
+
+    Parameters
+    ----------
+    input
+        Input tensor, which is also the weight.
+    axis
+        Axes to reduce. None reduces all axes.
+    keepdims
+        Keep the reduced axes with size 1.
+    gradpath
+        ``'input'`` stops the gradient through the weight; ``'weight'``
+        stops the gradient through the input; None keeps both.
+    softmax_axis
+        Axes of a softmax applied to the weight. True applies it over all
+        axes; False applies none.
+    softmax_invert
+        Negate ``input`` before the weighting; the result then approximates
+        the soft maximum of ``-input``.
+
+    Returns
+    -------
+    Tensor
+        Self-weighted mean of ``input`` over ``axis``.
     """
     if softmax_axis is False:
         weight = input

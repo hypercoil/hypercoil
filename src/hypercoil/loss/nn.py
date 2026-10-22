@@ -79,6 +79,7 @@ from .scalarise import (
 
 
 def document_loss(default_scalarise: str = 'mean'):
+    """Return a class decorator that fills the shared loss templates."""
     param_spec = """
     Parameters
     ----------
@@ -209,6 +210,7 @@ class Loss(eqx.Module):
 
     @property
     def nu(self) -> float:
+        """Loss multiplier, evaluated from the schedule if ``nu`` is one."""
         if isinstance(self._nu, _ScheduleContainer): # it's a schedule
             return self._nu[0](self._nu[1])
         return self._nu

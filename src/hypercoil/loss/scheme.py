@@ -20,6 +20,7 @@ from ..engine.argument import (
 
 
 LossReturn = namedtuple('LossReturn', ('value', 'nu'))
+"""Value of one loss in a scheme, and its multiplier ``nu``."""
 
 
 def unpack_or_noop(*pparams) -> Any:
@@ -37,6 +38,25 @@ def apply_and_evaluate(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Any:
+    """
+    Evaluate a loss on the output of an ``apply`` operation.
+
+    Parameters
+    ----------
+    loss
+        Loss function.
+    applied
+        Output of the ``apply`` operation. An
+        :class:`~hypercoil.engine.argument.UnpackingModelArgument` is passed
+        as keyword arguments; any other value as one positional argument.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Any
+        Output of ``loss``.
+    """
     if isinstance(applied, UnpackingLossArgument):
         return loss(**applied, key=key)
     return loss(applied, key=key)
@@ -90,9 +110,11 @@ class LossApply(eqx.Module):
 
     @property
     def nu(self) -> float:
+        """Multiplier of the wrapped loss, or ``None`` if it has none."""
         return getattr(self.loss, 'nu', None)
 
     def losses(self) -> Tuple[Callable, ...]:
+        """Return the losses that the wrapper contains, unnested."""
         if not (
             isinstance(self.loss, LossScheme) or
             isinstance(self.loss, LossApply)
@@ -101,6 +123,7 @@ class LossApply(eqx.Module):
         return self.loss.losses()
 
     def get_loss(self, name: Optional[str] = None) -> Callable:
+        """Return the wrapped loss, or the contained loss named ``name``."""
         if name is None:
             loss = self.loss
         else:
@@ -117,6 +140,23 @@ class LossApply(eqx.Module):
         where: str = '_nu',
         loss: Optional[str] = None,
     ) -> LossApply:
+        """
+        Return a copy with an attribute of a contained loss set to a value.
+
+        Parameters
+        ----------
+        value
+            New value.
+        where
+            Name of the attribute.
+        loss
+            Name of the contained loss; None selects the wrapped loss.
+
+        Returns
+        -------
+        LossApply
+            Copy with the attribute replaced.
+        """
         loss = self.get_loss(loss)
         return eqx.filter(
             self,
@@ -126,6 +166,7 @@ class LossApply(eqx.Module):
         )
 
     def step(self, count: Optional[int] = None) -> LossApply:
+        """Advance each loss schedule one step, or to step ``count``."""
         new = self
         for loss in self.losses():
             repl = loss.step(count=count)
@@ -140,6 +181,19 @@ class LossApply(eqx.Module):
 
 
 class LossScheme(eqx.Module):
+    """
+    Sum of several losses applied to the same inputs.
+
+    Calling a scheme returns the total loss and a dictionary of
+    :data:`LossReturn` values, one per loss, keyed by loss name.
+
+    Parameters
+    ----------
+    loss
+        Losses, :class:`LossApply` wrappers or nested schemes.
+    apply
+        Callable that pretransforms the inputs before every loss.
+    """
     loss: Tuple[Callable]
     apply: Callable = unpack_or_noop
     name = 'LossScheme'
@@ -194,6 +248,7 @@ class LossScheme(eqx.Module):
                 yield item
 
     def losses(self) -> Tuple[Callable, ...]:
+        """Return the losses of the scheme, with nested tuples flattened."""
         return tuple(LossScheme._unnest(tuple(
             loss if not (
                 isinstance(self.loss, LossScheme) or
@@ -203,6 +258,7 @@ class LossScheme(eqx.Module):
         )))
 
     def get_loss(self, name: str) -> Callable:
+        """Return the first loss of the scheme named ``name``."""
         return [loss for loss in self.losses() if loss.name == name][0]
 
     def cfg(
@@ -211,6 +267,28 @@ class LossScheme(eqx.Module):
         loss: str,
         where: str = '_nu',
     ) -> LossApply:
+        """
+        Return a copy with an attribute of a named loss set to a value.
+
+        Parameters
+        ----------
+        value
+            New value.
+        loss
+            Name of the loss.
+        where
+            Name of the attribute.
+
+        Returns
+        -------
+        LossScheme
+            Copy with the attribute replaced.
+
+        Raises
+        ------
+        IndexError
+            If the scheme contains no loss named ``loss``.
+        """
         loss = self.get_loss(loss)
         return eqx.filter(
             self,
@@ -220,6 +298,7 @@ class LossScheme(eqx.Module):
         )
 
     def step(self, count: Optional[int] = None) -> LossApply:
+        """Advance each loss schedule one step, or to step ``count``."""
         new = self
         for loss in self.losses():
             repl = loss.step(count=count)

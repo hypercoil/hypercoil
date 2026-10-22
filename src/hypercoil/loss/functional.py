@@ -75,6 +75,7 @@ def difference(
 
 
 def document_constraint_violation(func):
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This loss uses a set of constraint functions and evaluates them on its
     input. If a constraint evaluates to 0 or less, then it is considered to
@@ -187,6 +188,7 @@ def hinge_loss(
 
 
 def document_smoothness(func):
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This loss penalises large or sudden changes in the input tensor. It is
     currently a thin wrapper around ``jax.numpy.diff``.
@@ -247,6 +249,7 @@ def smoothness(
 
 
 def document_bimodal_symmetric(func):
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This function returns a score equal to the absolute difference between
     each element of the input tensor and whichever of the two specified modes
@@ -306,6 +309,7 @@ def bimodal_symmetric(
 
 
 def document_gramian_determinant(func: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This function computes the determinant of the Gram matrix of the input
     tensor, defined according to the kernel function ``op``. The kernel
@@ -468,6 +472,7 @@ def log_det_gram(
 
 
 def document_entropy(func: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``func``."""
     divergence_param_spec = """
     Parameters
     ----------
@@ -796,6 +801,7 @@ def js_divergence_logit(
 
 def document_bregman(func: Callable) -> Callable:
 
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This function computes the Bregman divergence between the input tensor
     and the target tensor, induced according to the convex function ``f``."""
@@ -892,6 +898,7 @@ def bregman_divergence_logit(
 
 def document_equilibrium(func: Callable) -> Callable:
 
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     The equilibrium scores the deviation of the total weight assigned to each
     parcel or level from the mean weight assigned to each parcel or level. It
@@ -1035,6 +1042,7 @@ def equilibrium_logit(
 
 def document_second_moment(func: Callable) -> Callable:
 
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = r"""
     Given an input matrix :math:`T` and a weight matrix :math:`A`, the second
     moment is computed as
@@ -1586,6 +1594,7 @@ def point_agreement(
 
 def document_batch_correlation(func):
 
+    """Fill the shared templates in the docstring of ``func``."""
     batch_correlation_spec = """
     tol
         Tolerance for correlations. Only correlation values above ``tol`` are
@@ -1731,6 +1740,7 @@ def qcfc(
 
 
 def document_spatial_loss(func):
+    """Fill the shared templates in the docstring of ``func``."""
     reference_tether_spec = """
     ref
         Coordinates of the reference points to which the centres of mass of
@@ -2026,6 +2036,7 @@ def dispersion(
 
 
 def document_mv_kurtosis(func):
+    """Fill the shared templates in the docstring of ``func``."""
     mv_kurtosis_spec = """
     l2
         L2 regularisation to be applied to the covariance matrix to ensure
@@ -2092,6 +2103,7 @@ def multivariate_kurtosis(
 
 def document_connectopy(func: Callable) -> Callable:
 
+    """Fill the shared templates in the docstring of ``func``."""
     connectopy_pparam_spec = r"""
     :Dimension: **Q :** :math:`(D, C)`
                     D denotes the number of vertices in the affinity matrix
