@@ -15,6 +15,26 @@ def neuromaps_fetch_fn(
     suffix: str,
     hemi: Optional[int] = None,
 ):
+    """
+    Fetch a surface template with a neuromaps-style fetcher.
+
+    Parameters
+    ----------
+    nmaps_fetch_fn
+        Fetcher, such as ``fetch_fsaverage``, that takes ``density`` and
+        returns a mapping of template files.
+    density
+        Template density, such as ``'41k'``.
+    suffix
+        Key of the template in the mapping that the fetcher returns.
+    hemi
+        ``'L'`` or ``'R'`` selects one hemisphere. None returns both.
+
+    Returns
+    -------
+    Any
+        The template files of both hemispheres, or of ``hemi``.
+    """
     template = nmaps_fetch_fn(density=density)[suffix]
     if hemi is not None:
         hemi_map = {
@@ -27,6 +47,7 @@ def neuromaps_fetch_fn(
 
 
 def template_dict():
+    """Return the template constants keyed by template name."""
     _fsLR = fsLR()
     _fsaverage = fsaverage()
     return {
@@ -37,6 +58,7 @@ def template_dict():
 
 
 class fsaverage:
+    """Query constants of the fsaverage surface template."""
     NMAPS_MASK_QUERY = {
         'nmaps_fetch_fn': fetch_fsaverage,
         'density': '41k',
@@ -64,6 +86,7 @@ class fsaverage:
 
 
 class fsLR:
+    """Query constants of the fsLR surface template."""
     TFLOW_MASK_QUERY = {
         'template': 'fsLR',
         'density': '32k',
@@ -82,5 +105,6 @@ class fsLR:
 
 
 class CIfTIStructures:
+    """CIfTI structure names of the left and right cortex."""
     LEFT = 'CIFTI_STRUCTURE_CORTEX_LEFT'
     RIGHT = 'CIFTI_STRUCTURE_CORTEX_RIGHT'

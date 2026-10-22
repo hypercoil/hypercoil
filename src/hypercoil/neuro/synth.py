@@ -46,6 +46,13 @@ def match_spectra(
         If True, indicates that the ``reference`` provided is a spectrum in
         the frequency domain. Otherwise, the spectrum is computed from the
         provided reference.
+
+    Returns
+    -------
+    Tensor
+        Matched signal of shape ``(D, 2 * (F - 1))``, where F is the
+        number of frequency bins, rescaled so that its mean amplitude
+        equals the mean amplitude of the reference.
     """
     if not frequencies:
         signal = jnp.fft.rfft(signal)
@@ -165,6 +172,11 @@ def match_reference(
         channel in the reference signal, all channels are matched to the mean
         spectrum across all reference channels.
 
+    Returns
+    -------
+    Tensor
+        Signal matched in spectrum and covariance to ``reference``.
+
     See also
     --------
     :func:`synthesise_matched`
@@ -202,6 +214,11 @@ def match_cov_and_spectrum(
         Spectrum to be matched.
     cov
         Covariance matrix to be matched.
+
+    Returns
+    -------
+    Tensor
+        Signal matched to ``spectrum`` and ``cov``.
 
     See also
     --------
@@ -249,10 +266,12 @@ def synthesise_matched(
         Indicates that, instead of matching the spectrum of the corresponding
         channel in the reference signal, all channels are matched to the mean
         spectrum across all reference channels.
+    key
+        Pseudo-random number generator key.
 
     Returns
     -------
-    tensor
+    Tensor
         Synthetic data matched in spectrum and covariance to the reference.
 
     See also
@@ -287,7 +306,7 @@ def synthesise_from_cov_and_spectrum(
                     the frequency dimension of the signal.
                 **cov :** :math:`(D, D)`
                     As above.
-                **output :** :math:`D, N`
+                **output :** :math:`(D, N)`
                     D as above. N is the time dimension of the signal, i.e.,
                     2 * (F - 1).
 
@@ -299,6 +318,11 @@ def synthesise_from_cov_and_spectrum(
         Covariance matrix to be matched.
     key
         Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Synthetic signal of shape ``(D, 2 * (F - 1))``.
 
     See also
     --------
