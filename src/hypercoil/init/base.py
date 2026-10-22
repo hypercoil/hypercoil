@@ -141,6 +141,28 @@ class Initialiser(eqx.Module):
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
+        """
+        Initialise the parameters at an address of a model.
+
+        Parameters
+        ----------
+        model
+            Model whose parameters to initialise.
+        where
+            String address, or callable that takes ``model`` and returns the
+            parameters. Each parameter at the address is initialised
+            separately.
+        key
+            Pseudo-random number generator key, split across the parameters.
+        **params
+            Keyword arguments forwarded to the initialisation of each
+            parameter.
+
+        Returns
+        -------
+        PyTree
+            ``model`` with the parameters at ``where`` replaced.
+        """
         init = cls()
         init = init(model=model, where=where, key=key, **params)
         return eqx.tree_at(
@@ -294,6 +316,7 @@ class DistributionInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` from ``distribution``."""
         init = cls(mapper=mapper, distribution=distribution)
         return super()._init_impl(
             init=init,
@@ -340,6 +363,7 @@ class ConstantInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` to ``value``."""
         init = cls(mapper=mapper, value=value)
         return super()._init_impl(
             init=init,
@@ -392,6 +416,7 @@ class IdentityInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` by :func:`identity_init`."""
         init = cls(mapper=mapper, scale=scale, shift=shift)
         return super()._init_impl(
             init=init,

@@ -112,6 +112,7 @@ class DeltaPlusInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` by :func:`deltaplus_init`."""
         init = cls(mapper=mapper, loc=loc, scale=scale, var=var)
         return super()._init_impl(
             init=init,

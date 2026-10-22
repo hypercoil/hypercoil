@@ -64,10 +64,12 @@ class MappedParameter(eqx.Module):
 
     @abstractmethod
     def preimage_map(self, param: Tensor) -> Tensor:
+        """Map a parameter value ``param`` to the stored preimage."""
         ...
 
     @abstractmethod
     def image_map(self, param: Tensor) -> Tensor:
+        """Map the stored preimage ``param`` to the parameter value."""
         ...
 
     def __jax_array__(self):
@@ -88,14 +90,18 @@ class MappedParameter(eqx.Module):
         ----------
         model
             The model to which the parameter belongs.
+        *pparams
+            Positional arguments forwarded to the constructor of the class.
         where
             The address of the parameter to be mapped, specified as a string
             or a function. For example: ``where = "weight"`` or
             ``where = lambda mlp: mlp.layers[-1].linear.weight``.
+        **params
+            Keyword arguments forwarded to the constructor of the class.
 
         Returns
         -------
-        model : PyTree
+        PyTree
             The updated model containing the mapped parameter.
         """
         # TODO: We're inefficiently making a lot of repeated calls to
@@ -215,10 +221,12 @@ class Renormalise(OutOfDomainHandler):
             Tensor whose out-of-domain entries are to be normalised.
         bound
             Minimum and maximum permitted values.
+        axis
+            Axes over which the range is computed. None takes all axes.
 
         Returns
         -------
-        out : Tensor
+        Tensor
             Copy of the input tensor with all entries normalised.
         """
         x = jax.lax.stop_gradient(x)
@@ -252,6 +260,11 @@ class ForcePositiveDefinite(OutOfDomainHandler):
         bound
             Only the minimal bound is used. It specifies the minimum
             permissible eigenvalue of each matrix slice.
+
+        Returns
+        -------
+        Tensor
+            Positive definite copy of ``x``, computed by :func:`spd`.
         """
         eps = bound[0]
         x = jax.lax.stop_gradient(x)
@@ -332,10 +345,12 @@ class DomainMappedParameter(MappedParameter):
 
     @abstractmethod
     def preimage_map_impl(self, param: Tensor) -> Tensor:
+        """Map ``param`` to its preimage, without bound handling."""
         raise NotImplementedError()
 
     @abstractmethod
     def image_map_impl(self, param: Tensor) -> Tensor:
+        """Map ``param`` to its image, without bound handling."""
         raise NotImplementedError()
 
     def test(self, param: Tensor):
@@ -436,19 +451,13 @@ class PhaseAmplitudeMixin:
     """
 
     def preimage_map(self, param: Tensor) -> Tensor:
-        """
-        Map the amplitude of a complex tensor to its preimage.
-
-        Out-of-range amplitudes are handled first.
-        """
+        """Map the amplitude of ``param`` to its preimage; keep the phase."""
         ampl, phase = complex_decompose(param)
         ampl = super().preimage_map(ampl)
         return complex_recompose(ampl, phase)
 
     def image_map(self, param: Tensor) -> Tensor:
-        """
-        Map the amplitude of a complex tensor to its image.
-        """
+        """Map the amplitude of ``param`` to its image; keep the phase."""
         ampl, phase = complex_decompose(param)
         ampl = super().image_map(ampl)
         return complex_recompose(ampl, phase)
@@ -458,9 +467,11 @@ class IdentityMappedParameter(MappedParameter):
     """Identity parameter mapper."""
 
     def preimage_map(self, param: Tensor) -> Tensor:
+        """Return ``param`` unchanged."""
         return param
 
     def image_map(self, param: Tensor) -> Tensor:
+        """Return ``param`` unchanged."""
         return param
 
 
@@ -468,9 +479,11 @@ class AffineMappedParameter(AffineDomainMappedParameter):
     """Affine parameter mapper."""
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:
+        """Return ``param``; the base class applies the affine terms."""
         return param
 
     def image_map_impl(self, param: Tensor) -> Tensor:
+        """Return ``param``; the base class applies the affine terms."""
         return param
 
 
@@ -521,9 +534,11 @@ class TanhMappedParameter(AffineDomainMappedParameter):
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:
+        """Return the inverse hyperbolic tangent of ``param``."""
         return jnp.arctanh(param)
 
     def image_map_impl(self, param: Tensor) -> Tensor:
+        """Return the hyperbolic tangent of ``param``."""
         return jnp.tanh(param)
 
 
@@ -611,9 +626,11 @@ class MappedLogits(AffineDomainMappedParameter):
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:
+        """Return the logit of ``param``."""
         return jax.scipy.special.logit(param)
 
     def image_map_impl(self, param: Tensor) -> Tensor:
+        """Return the logistic sigmoid of ``param``."""
         return jax.nn.sigmoid(param)
 
 
@@ -705,13 +722,16 @@ class NormSphereParameter(AffineDomainMappedParameter):
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:
+        """Return ``param`` unchanged."""
         return param
 
     def image_map_impl(self, param: Tensor) -> Tensor:
+        """Divide each slice of ``param`` along ``axis`` by its norm."""
         return self.normalise_fn(param)
 
 
 def paramlog(x: Tensor, temperature: float, smoothing: float) -> Tensor:
+    """Return ``temperature * log(x + smoothing)``."""
     return temperature * jnp.log(x + smoothing)
 
 
@@ -720,6 +740,7 @@ def paramsoftmax(
     temperature: float,
     axis: Union[int, Tuple[int, ...]],
 ) -> Tensor:
+    """Return the softmax of ``x / temperature`` along ``axis``."""
     return jax.nn.softmax(x / temperature, axis)
 
 
@@ -793,9 +814,11 @@ class ProbabilitySimplexParameter(DomainMappedParameter):
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:
+        """Return ``temperature * log(param + smoothing)``."""
         return self._preimage_map_impl(param)
 
     def image_map_impl(self, param: Tensor) -> Tensor:
+        """Return the softmax of ``param / temperature`` along ``axis``."""
         return self._image_map_impl(param)
 
 
@@ -868,9 +891,11 @@ class OrthogonalParameter(MappedParameter):
         )
 
     def preimage_map(self, param: Tensor) -> Tensor:
+        """Return the ``Q`` factor of the QR decomposition of ``param``."""
         return self.image_map(param)
 
     def image_map(self, param: Tensor) -> Tensor:
+        """Return the ``Q`` factor of the QR decomposition of ``param``."""
         return jnp.linalg.qr(param)[0]
 
 
@@ -910,6 +935,9 @@ class IsochoricParameter(DomainMappedParameter):
         If this is provided, then the eigenvalues of the original parameter
         are passed through a softmax with the specified temperature before any
         other processing.
+    spd_threshold
+        Minimum eigenvalue. Slices with a smaller eigenvalue are made
+        positive definite by :class:`ForcePositiveDefinite`.
     """
 
     volume: float = 1.0
@@ -938,9 +966,11 @@ class IsochoricParameter(DomainMappedParameter):
         )
 
     def preimage_map_impl(self, param: Tensor) -> Tensor:
+        """Map ``param`` by :func:`isochor`, as :meth:`image_map_impl`."""
         return self.image_map_impl(param)
 
     def image_map_impl(self, param: Tensor) -> Tensor:
+        """Map ``param`` to the set volume by :func:`isochor`."""
         return isochor(
             param,
             volume=self.volume,

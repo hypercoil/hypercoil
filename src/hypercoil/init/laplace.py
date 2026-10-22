@@ -159,6 +159,7 @@ class LaplaceInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` by :func:`laplace_init`."""
         init = cls(
             loc=loc,
             width=width,
@@ -188,12 +189,10 @@ def laplace_init_(
     """
     In-place double exponential initialisation; not currently implemented.
 
-    Use :func:`laplace_init` or :class:`LaplaceInitialiser`.
-
     Raises
     ------
     NotImplementedError
-        Always.
+        Always; use :func:`laplace_init` or :class:`LaplaceInitialiser`.
     """
     raise NotImplementedError
 

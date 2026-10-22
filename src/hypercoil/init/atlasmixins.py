@@ -57,6 +57,7 @@ from ..functional.utils import conform_mask
 
 
 class CiftiError(Exception):
+    """Exception for a reference image without a CIfTI header."""
     pass
 
 
@@ -66,6 +67,26 @@ def modelobj_from_dataobj_and_maskobj(
     mask: Optional['Mask'] = None,
     model_axis_out: Optional[int] = None,
 ) -> Tensor:
+    """
+    Flatten the model axes of a data array and apply a mask if it fits.
+
+    Parameters
+    ----------
+    dataobj
+        Data array.
+    model_axes
+        Axes of ``dataobj`` that are flattened into one model axis.
+    mask
+        Mask over the flattened model axis, applied only if the first mask
+        dimension equals the size of the flattened model axis.
+    model_axis_out
+        Position of the model axis in the output. None leaves it first.
+
+    Returns
+    -------
+    Tensor
+        Data array with the model axes flattened and masked.
+    """
     dataobj_model_shape = reduce(
         lambda x, y: x * y,
         (dataobj.shape[ax] for ax in model_axes),
@@ -98,6 +119,27 @@ def modelobj_from_dataobj(
     mask: Optional[Tensor] = None,
     model_axis_out: Optional[int] = None,
 ) -> Tensor:
+    """
+    Flatten the model axes of a data array into one axis.
+
+    Parameters
+    ----------
+    dataobj
+        Data array.
+    model_axes
+        Axes of ``dataobj`` that are flattened into one model axis.
+    mask
+        Boolean mask over the flattened model axis. The masked array is
+        not compatible with JIT compilation.
+    model_axis_out
+        Position of the model axis in the output. None leaves it first.
+
+    Returns
+    -------
+    Tensor
+        Data array with the model axes flattened, and masked if ``mask`` is
+        given.
+    """
     model_ndim = len(model_axes)
     axes = promote_axis(dataobj.ndim, model_axes)
     modelobj = dataobj.transpose(axes)
@@ -126,6 +168,25 @@ def _dataobj_from_imobj_default(x):
 
 
 class Reference(eqx.Module):
+    """
+    Reference image of an atlas, with cached data arrays.
+
+    Parameters
+    ----------
+    pointer
+        Path or object from which the image is loaded.
+    model_axes
+        Axes of the image that index spatial locations. ``'cifti'`` takes the
+        brain-model axes of a CIfTI image.
+    dataobj
+        Data array of the image. Defaults to ``dataobj_from_imobj(imobj)``.
+    imobj_from_pointer
+        Function that loads the image from ``pointer``. Defaults to the
+        identity.
+    dataobj_from_imobj
+        Function that reads the data array from the image. Defaults to
+        ``get_fdata``.
+    """
     pointer: Any
     model_axes: Sequence[int]
     imobj: Union['nb.Nifti1Image', 'nb.Cifti2Image', 'nb.GiftiImage']
@@ -171,6 +232,7 @@ class Reference(eqx.Module):
 
     @staticmethod
     def cache_dataobj(ref, dataobj_from_imobj: Callable) -> 'Reference':
+        """Return ``ref`` with the data array from ``dataobj_from_imobj``."""
         dataobj = dataobj_from_imobj(ref.imobj)
         return eqx.tree_at(
             where=lambda r: (r.dataobj, r._dataobj_from_imobj, r.cached),
@@ -186,6 +248,25 @@ class Reference(eqx.Module):
         mask: Optional[Any] = None,
         model_axis_out: Optional[int] = None,
     ) -> 'Reference':
+        """
+        Return a reference with the model-axis data array cached.
+
+        Parameters
+        ----------
+        ref
+            Reference.
+        modelobj_from_dataobj
+            Function that flattens the model axes of ``ref.dataobj``.
+        mask
+            Mask over the flattened model axis.
+        model_axis_out
+            Position of the model axis in the cached array.
+
+        Returns
+        -------
+        Reference
+            ``ref`` with ``modelobj`` set.
+        """
         modelobj = modelobj_from_dataobj(
             dataobj=ref.dataobj,
             model_axes=ref.model_axes,
@@ -201,6 +282,7 @@ class Reference(eqx.Module):
 
     @staticmethod
     def purge_cache(ref) -> 'Reference':
+        """Return ``ref`` with the cached data arrays removed."""
         return eqx.tree_at(
             where=lambda r: (r.dataobj, r.modelobj, r.cached),
             pytree=ref,
@@ -209,14 +291,17 @@ class Reference(eqx.Module):
 
     @property
     def header(self) -> Any:
+        """Header of the image."""
         return self.imobj.header
 
     @property
     def affine(self) -> Any:
+        """Affine matrix of the image."""
         return self.imobj.affine
 
     @property
     def nifti_header(self) -> Any:
+        """NIfTI header of the image, or its header if it has none."""
         try:
             return self.imobj.nifti_header
         except AttributeError:
@@ -237,6 +322,7 @@ class Reference(eqx.Module):
 
     @property
     def model_axobj(self) -> Any:
+        """CIfTI brain-model axis object of the image."""
         try:
             return tuple(
                 a
@@ -250,14 +336,17 @@ class Reference(eqx.Module):
 
     @property
     def ndim(self) -> Any:
+        """Number of dimensions of the image."""
         return self.imobj.ndim
 
     @property
     def shape(self) -> Any:
+        """Shape of the image."""
         return self.imobj.shape
 
     @property
     def data(self) -> Any:
+        """Data array of the image, from the cache if it is set."""
         if self.cached:
             return self.dataobj
         else:
@@ -272,30 +361,37 @@ class Reference(eqx.Module):
 
     @property
     def zooms(self) -> Sequence[float]:
+        """Voxel sizes of the image along every axis."""
         return self._zooms()
 
     @property
     def other_axes(self):
+        """Axes of the image that are not model axes."""
         return axis_complement(self.ndim, self.model_axes)
 
     @property
     def model_shape(self) -> Tuple[int, ...]:
+        """Shape of the image along the model axes."""
         return tuple(self.shape[ax] for ax in self.model_axes)
 
     @property
     def model_zooms(self) -> Sequence[float]:
+        """Voxel sizes of the image along the model axes."""
         return self._zooms(axes=self.model_axes)
 
     def imobj_from_pointer(self) -> Any:
+        """Load the image from ``pointer``."""
         return self._imobj_from_pointer(self.pointer)
 
     def dataobj_from_imobj(self) -> Tensor:
+        """Read the data array from the image."""
         return self._dataobj_from_imobj(self.imobj)
 
     def load_imobj(
         self,
         imobj_from_pointer: Optional[Callable] = None,
     ) -> Any:
+        """Load the image with ``imobj_from_pointer``, or the stored loader."""
         if imobj_from_pointer is None:
             imobj_from_pointer = self.imobj_from_pointer
         return imobj_from_pointer()
@@ -303,6 +399,7 @@ class Reference(eqx.Module):
     def cifti_model_axes(
         self,
     ) -> Sequence[int]:
+        """Return the indices of the brain-model axes of a CIfTI image."""
         return tuple(
             i
             for i, a in enumerate(self.axobj)
@@ -311,18 +408,22 @@ class Reference(eqx.Module):
 
 
 class Mask(eqx.Module):
+    """Boolean mask over the spatial locations of an atlas."""
     mask_array: Tensor
 
     @property
     def data(self):
+        """Mask array."""
         return self.mask_array
 
     @property
     def shape(self):
+        """Shape of the mask array."""
         return self.mask_array.shape
 
     @property
     def size(self):
+        """Number of locations in the mask."""
         return self.mask_array.sum()
 
     @staticmethod
@@ -383,6 +484,25 @@ class Mask(eqx.Module):
         model_axis_out: Optional[int] = None,
         out_mode: Literal['index', 'zero'] = 'index',
     ) -> Callable:
+        """
+        Return a function that restricts data to the locations in the mask.
+
+        Parameters
+        ----------
+        model_axes
+            Axes of the data that index spatial locations.
+        model_axis_out
+            Position of the flattened model axis in the output. None puts it
+            first.
+        out_mode
+            ``'index'`` keeps only the locations in the mask; ``'zero'`` keeps
+            every location and sets those outside the mask to 0.
+
+        Returns
+        -------
+        Callable
+            Function of a data array.
+        """
         mask_array = _to_jax_array(self.mask_array)
         return self._map_to_masked_impl(
             mask_array,
@@ -393,6 +513,21 @@ class Mask(eqx.Module):
 
 
 class Compartment(eqx.Module):
+    """
+    Contiguous compartment of the locations of an atlas.
+
+    Parameters
+    ----------
+    name
+        Name of the compartment.
+    slice_index
+        Index of the first location of the compartment in the masked
+        locations.
+    slice_size
+        Number of locations in the compartment.
+    mask_array
+        Boolean mask of the compartment over all locations.
+    """
     name: str
     slice_index: int
     slice_size: int
@@ -400,17 +535,21 @@ class Compartment(eqx.Module):
 
     @property
     def data(self):
+        """Mask array of the compartment."""
         return self.mask_array
 
     @property
     def shape(self):
+        """Shape ``(slice_size,)`` of the compartment."""
         return (self.slice_size,)
 
     @property
     def size(self):
+        """Number of locations in the compartment."""
         return self.slice_size
 
     def dynamic_slice_map(self) -> Callable:
+        """Return a function that slices the compartment from axis -2."""
         def dynamic_slice(data: Tensor) -> Tensor:
             indices, sizes = form_dynamic_slice(
                 shape=data.shape,
@@ -428,6 +567,25 @@ class Compartment(eqx.Module):
         model_axis_out: Optional[int] = None,
         out_mode: Literal['index', 'zero'] = 'index',
     ) -> Callable:
+        """
+        Return a function that restricts data to the compartment.
+
+        Parameters
+        ----------
+        model_axes
+            Axes of the data that index spatial locations.
+        model_axis_out
+            Position of the flattened model axis in the output. None puts it
+            first.
+        out_mode
+            ``'index'`` keeps only the locations in the compartment; ``'zero'``
+            keeps every location and sets those outside the compartment to 0.
+
+        Returns
+        -------
+        Callable
+            Function of a data array.
+        """
         mask_array = _to_jax_array(self.mask_array)
         return Mask._map_to_masked_impl(
             mask_array,
@@ -438,6 +596,17 @@ class Compartment(eqx.Module):
 
 
 class CompartmentSet(eqx.Module):
+    """
+    Ordered set of the compartments of an atlas.
+
+    Compartments are laid out contiguously in the order of
+    ``compartment_dict``.
+
+    Parameters
+    ----------
+    compartment_dict
+        Boolean mask of each compartment, keyed by name.
+    """
     compartments: Mapping[str, Compartment]
 
     def __init__(self, compartment_dict: Dict[str, Tensor]):
@@ -463,12 +632,15 @@ class CompartmentSet(eqx.Module):
         self.compartments = OrderedDict(compartments)
 
     def keys(self):
+        """Return the names of the compartments."""
         return self.compartments.keys()
 
     def values(self):
+        """Return the compartments."""
         return self.compartments.values()
 
     def items(self):
+        """Return the pairs of name and compartment."""
         return self.compartments.items()
 
     def __getitem__(self, key: str) -> Compartment:
@@ -484,10 +656,12 @@ class CompartmentSet(eqx.Module):
         return key in self.compartments
 
     def get(self, key: str, default: Any = None) -> Any:
+        """Return the compartment named ``key``, or ``default``."""
         return self.compartments.get(key, default)
 
     # TODO: this is totally broken. Fix it and add tests.
     def map_to_contiguous(self) -> Callable:
+        """Return a function that concatenates the compartments of data."""
         def make_contiguous(data: Tensor) -> Tensor:
             compartment_data = ()
             for compartment in self.compartments.values():
@@ -502,6 +676,7 @@ class CompartmentSet(eqx.Module):
         return make_contiguous
 
     def dynamic_slice_map(self, compartment: str) -> Callable:
+        """Return a function that slices ``compartment`` from axis -2."""
         return self[compartment].dynamic_slice_map()
 
 

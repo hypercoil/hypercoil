@@ -61,6 +61,7 @@ class ToeplitzInitialiser(MappedInitialiser):
         where: Union[str, Callable] = 'weight',
         key: Optional[jax.random.PRNGKey] = None,
     ):
+        """Initialise the parameters at ``where`` by :func:`toeplitz`."""
         init = cls(mapper=mapper, c=c, r=r, fill_value=fill_value)
         return super()._init_impl(
             init=init,

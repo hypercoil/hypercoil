@@ -112,6 +112,7 @@ class DirichletInitialiser(MappedInitialiser):
         #       e.g., if we subclass ProbabilitySimplexParameter, then this
         #       doesn't work. Or if we use a NormSphereParameter, then it is
         #       impossible to override the default axis value.
+        """Initialise the parameters at ``where`` by :func:`dirichlet_init`."""
         if mapper is ProbabilitySimplexParameter:
             params.update(axis=axis)
         init = cls(

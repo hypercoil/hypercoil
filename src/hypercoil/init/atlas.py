@@ -713,6 +713,46 @@ class CortexSubcortexGIfTIAtlas(
     _GIfTIOutputMixin,
     BaseAtlas,
 ):
+    """
+    Surface-based atlas loaded from one GIfTI file per cortical hemisphere.
+
+    The atlas has compartments for the left and right cortical hemispheres,
+    which are surfaces with a spherical coordinate system, and for the
+    subcortex.
+
+    Parameters
+    ----------
+    data_L
+        Path to a GIfTI file of the labels of the left cortical hemisphere.
+    data_R
+        Path to a GIfTI file of the labels of the right cortical hemisphere.
+    data_subcortex
+        Path to a GIfTI file of subcortical labels. If None, the subcortex is
+        empty.
+    mask_L
+        Path to a GIfTI file containing an atlas mask for the left cortical
+        hemisphere. If none is provided, the 32K-vertex fsLR mask excluding
+        medial wall vertices is used.
+    mask_R
+        Path to a GIfTI file containing an atlas mask for the right cortical
+        hemisphere. If none is provided, the 32K-vertex fsLR mask excluding
+        medial wall vertices is used.
+    surf_L
+        Path to a GIfTI file containing the mesh of the surface of the left
+        cortical hemisphere. If none is provided, the 32K-vertex spherical fsLR
+        surface is used.
+    surf_R
+        Path to a GIfTI file containing the mesh of the surface of the right
+        cortical hemisphere. If none is provided, the 32K-vertex spherical fsLR
+        surface is used.
+    subcortex
+        Not read.
+    clear_cache
+        Indicates that data loaded in from the reference should be cleared
+        away when atlas creation is complete.
+    name
+        Name of the atlas.
+    """
     surf: Dict[str, str]
 
     def __init__(
@@ -776,7 +816,7 @@ class CortexSubcortexCIfTIAtlas(
         Path to a GIfTI file containing the mesh of the surface of the left
         cortical hemisphere. If none is provided, the 32K-vertex spherical
         fsLR surface is used by default.
-    surf_L
+    surf_R
         Path to a GIfTI file containing the mesh of the surface of the right
         cortical hemisphere. If none is provided, the 32K-vertex spherical
         fsLR surface is used by default.
@@ -1212,20 +1252,35 @@ def atlas_init(
     uses an existing atlas with the option of blurring labels or injecting
     noise.
 
-    .. note::
-        The ``shape`` argument is unused and is only present for compatibility
-        with the initialisation API.
-
     Parameters
     ----------
+    shape
+        Not read; present for compatibility with the initialisation API.
     atlas
         Atlas object to use for tensor initialisation.
+    compartments
+        Compartments to map, as in :meth:`BaseAtlas.__call__`.
+    normalise
+        Normalise each map so that the assignments to each parcel sum to 1.
+    max_bin
+        Maximum number of spatial locations smoothed at a time.
+    spherical_scale
+        Scale of the smoothing kernel in spherical coordinate systems.
+    truncate
+        Maximum distance between smoothed locations.
     kernel_sigma
         If this is a float, then a Gaussian smoothing kernel with the
         specified width is applied to each label after it is extracted.
     noise_sigma
         If this is a float, then Gaussian noise with the specified standard
         deviation is added to the label.
+    key
+        Pseudo-random number generator key for the noise.
+
+    Returns
+    -------
+    dict
+        Map of each compartment, keyed by compartment name.
     """
     if noise_sigma is not None:
         distr = Normal(0.0, noise_sigma)
@@ -1364,6 +1419,7 @@ class AtlasInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` from ``atlas``."""
         init = cls(
             mapper=mapper,
             atlas=atlas,

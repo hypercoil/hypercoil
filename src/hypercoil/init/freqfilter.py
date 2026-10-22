@@ -29,6 +29,7 @@ from .mapparam import MappedParameter
 
 
 def document_frequency_spectrum(func):
+    """Fill the shared templates in the docstring of ``func``."""
     iir_warning = """
     .. warning::
 
@@ -883,6 +884,7 @@ class FreqFilterInitialiser(MappedInitialiser):
         key: 'jax.random.PRNGKey',
         **params,
     ):
+        """Initialise the parameters at ``where`` from ``filter_specs``."""
         init = cls(
             mapper=mapper,
             filter_specs=filter_specs,

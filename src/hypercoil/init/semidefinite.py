@@ -30,6 +30,7 @@ from .mapparam import MappedParameter
 
 
 def document_semidefinite_block_mean(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     semidefinite_block_mean_dim = """N denotes the number of observations over
                     which each mean is computed, ``*`` denotes any number of
                     preceding dimensions, and D denotes the size of each square
@@ -195,6 +196,7 @@ class TangencyInitialiser(MappedInitialiser):
         key: Optional[jax.random.PRNGKey] = None,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` by :func:`tangency_init`."""
         init = cls(
             mapper=mapper,
             init_data=init_data,

@@ -27,6 +27,22 @@ def corr_criterion(
 
     The correlation is computed between the vectorised original matrix and its
     reconstruction; lower scores are better.
+
+    Parameters
+    ----------
+    orig
+        Original symmetric matrix.
+    recon
+        Reconstruction of ``orig`` from its compression.
+    u
+        Not read; present for the criterion interface of
+        :func:`maximum_potential_bipartite_lattice`.
+
+    Returns
+    -------
+    float
+        Negative correlation of the upper triangles of ``orig`` and
+        ``recon``; 0 if the correlation is NaN.
     """
     q = -pairedcorr(
         sym2vec(recon).reshape(1, -1),
@@ -63,6 +79,25 @@ def propagate_matrix(
     mask_L: Tensor,
     mask_R: Tensor,
 ) -> Tensor:
+    """
+    Propagate a matrix to the compressed space of two assignment masks.
+
+    Parameters
+    ----------
+    A
+        Matrix of shape ``(H_in, W_in)``.
+    mask_L
+        Assignment of shape ``(H_out, H_in)``. Each row is divided by the sum
+        of the first row.
+    mask_R
+        Assignment of shape ``(W_out, W_in)``. Each row is divided by the sum
+        of the first row.
+
+    Returns
+    -------
+    Tensor
+        Propagated matrix of shape ``(H_out, W_out)``.
+    """
     prop_L = mask_L / mask_L.sum(1)[0]
     prop_R = mask_R / mask_R.sum(1)[0]
     return (prop_L @ A) @ prop_R.T
@@ -429,16 +464,41 @@ def maximum_potential_bipartite_lattice_autoselect_order(
 
     Parameters
     ----------
+    potentials
+        Potentials, as in :func:`maximum_potential_bipartite_lattice`.
+    n_out
+        Number of output vertices, as in
+        :func:`maximum_potential_bipartite_lattice`.
     order_min
         Minimum lattice order to consider.
     order_max
         Maximum lattice order to consider.
+    iters
+        Number of greedy iterations per order.
+    temperature
+        Softmax temperature for selecting the next vertex to fuse.
+    random_init
+        Begin each iteration from a random vertex.
+    objective
+        Tensor whose reconstruction scores each order. Defaults to
+        ``potentials``.
+    attenuation
+        Attenuation factor for the potentials, as in
+        :func:`maximum_potential_bipartite_lattice`.
     inner_criterion
         Same as ``criterion`` in
         :func:`maximum_potential_bipartite_lattice`.
     outer_criterion
         Criterion to use for order selection. Only :func:`corr_criterion` is
         currently supported.
+
+    Returns
+    -------
+    tuple
+        For the selected order: the assignment, the overall potential and the
+        propagated potentials of
+        :func:`maximum_potential_bipartite_lattice`; then the selected order
+        and the list of the ``outer_criterion`` score of each order.
     """
     symmetric = not isinstance(potentials, tuple)
     orders = range(order_min, order_max + 1)
