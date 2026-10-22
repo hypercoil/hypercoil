@@ -22,6 +22,32 @@ def cfg_banded_parameter(
     mode: Literal['weight', 'mask'] = 'weight',
     out_channels: int = 1,
 ):
+    """
+    Configure the row and column parameters of a banded Toeplitz matrix.
+
+    Parameters
+    ----------
+    max_lag
+        Largest lag in the band; entries above it are null.
+    min_lag
+        Smallest lag in the band; negative lags lie below the diagonal.
+    mode
+        ``'weight'`` gives weights :math:`e^{-|k|}` at lag :math:`k`;
+        ``'mask'`` gives a Boolean mask.
+    out_channels
+        Number of channels.
+
+    Returns
+    -------
+    tuple
+        Row and column parameters, each of shape ``(out_channels, n)``; lags
+        outside the band are 0 or False.
+
+    Raises
+    ------
+    ValueError
+        If ``min_lag`` exceeds ``max_lag``.
+    """
     mode_fn = {
         'weight': lambda x: jnp.exp(-jnp.arange(x)),
         'mask': lambda x: jnp.ones((x,), dtype=jnp.bool_),
@@ -54,19 +80,7 @@ def cfg_banded_parameter(
 
 
 def document_cov_nn(cls):
-    """
-    Decorator to document a covariance estimation module.
-
-    Parameters
-    ----------
-    cls
-        The class to document.
-
-    Returns
-    -------
-    type
-        The decorated class.
-    """
+    """Fill the shared templates in the docstring of ``cls``."""
     unary_nn_spec = """
     The input tensor is interpreted as a set of multivariate observations.
     A covariance estimator computes some measure of statistical dependence
@@ -245,6 +259,7 @@ class BaseCovariance(eqx.Module):
         weight: Optional[Tensor],
         mask: Optional[Tensor],
     ) -> Tensor:
+        """Return ``weight`` with the outer product of ``mask`` applied."""
         if weight is not None:
             weight = _to_jax_array(weight)
         if mask is not None:
@@ -516,6 +531,7 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
 
     @property
     def weight(self):
+        """Toeplitz weight of shape ``(dim, dim)``."""
         return toeplitz(
             c=_to_jax_array(self.weight_col),
             r=_to_jax_array(self.weight_row),

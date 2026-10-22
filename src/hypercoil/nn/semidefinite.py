@@ -34,6 +34,7 @@ from ..init.semidefinite import (
 
 
 def document_semidefinite_projection_module(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     long_description = r"""
     Data transported through the module is projected from the positive
     semidefinite cone into a proper subspace tangent to the cone at the
@@ -79,6 +80,7 @@ def document_semidefinite_projection_module(f: Callable) -> Callable:
 
 
 def document_semidefinite_init_from_spec(f: Callable) -> Callable:
+    """Set the docstring of ``f`` to the shared ``from_specs`` text."""
     f.__doc__ = """
     Initialise the reference point of tangency from a data sample.
 
@@ -387,6 +389,39 @@ class BatchTangentProject(_TangentProject):
         *,
         key: 'jax.random.PRNGKey',
     ):
+        """
+        Initialise the reference point of tangency from a data sample.
+
+        See :mod:`means on the semidefinite cone <hypercoil.init.semidefinite>`
+        for a list of available measures of central tendency, and
+        :class:`~hypercoil.init.semidefinite.TangencyInitialiser` for more
+        details on the initialisation procedure.
+
+        Parameters
+        ----------
+        mean_specs
+            Mean specifications from :mod:`hypercoil.init.semidefinite`, one
+            for each output channel.
+        init_data
+            Data sample from which each mean is computed; the last axis gives
+            the matrix size.
+        psi
+            Conditioning factor in [0, 1] that promotes positive definiteness.
+        inertia
+            Weight of the previous point of tangency in each update, in [0, 1].
+        dest
+            Target of the projection, ``'tangent'`` or ``'cone'``.
+        std
+            Standard deviation of the positive semidefinite noise added to each
+            channel of the initialised point of tangency.
+        key
+            Pseudo-random number generator key.
+
+        Returns
+        -------
+        Module
+            A module with initialised points of tangency.
+        """
         m_key, i_key = jax.random.split(key)
         out_channels = len(mean_specs)
         matrix_size = init_data.shape[-1]

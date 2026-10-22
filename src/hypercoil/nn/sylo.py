@@ -220,6 +220,7 @@ class Sylo(eqx.Module):
 
     @property
     def templates(self) -> Tensor:
+        """Low-rank templates expanded from the generators and the coupling."""
         weight_L = _to_jax_array(self.weight[0])
         if self.symmetry == 'psd':
             weight_R = weight_L

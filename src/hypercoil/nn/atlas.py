@@ -21,6 +21,7 @@ from ..init.mapparam import MappedParameter
 
 
 def document_atlas_lin_init(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     atlas_lin_init_param_spec = r"""
     normalisation
         Strategy for normalising across voxels and generating a representative
@@ -171,6 +172,7 @@ class AtlasLinear(eqx.Module):
     def set_default_limits(
         n_locations: Dict[str, int],
     ) -> Dict[str, Tuple[float, float]]:
+        """Return contiguous ``(start, size)`` limits for each compartment."""
         limits = {}
         index = 0
         for c in n_locations.keys():

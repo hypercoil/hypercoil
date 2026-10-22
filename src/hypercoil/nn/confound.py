@@ -120,6 +120,37 @@ class LinearRFNN(eqx.Module):
 
 
 class QCPredict(eqx.Module):
+    """
+    Predict quality-control measures from confound time series.
+
+    Three convolutional layers, each followed by a leaky ReLU at a learnable
+    threshold, map the confounds to the QC measures: response functions of
+    each confound, global patterns across confounds, and a final filter.
+
+    Parameters
+    ----------
+    num_columns
+        Number of confound time series.
+    basis_functions
+        Functions applied to the input before the response-function layer.
+        Defaults to the identity.
+    num_response_functions
+        Number of response functions.
+    response_duration
+        Duration of each response function, in time points.
+    num_global_patterns
+        Number of global patterns.
+    global_pattern_duration
+        Duration of each global pattern, in time points.
+    final_filter_duration
+        Duration of the final filter, in time points.
+    num_qc
+        Number of QC measures to predict.
+    leak
+        Negative slope of the leaky ReLU.
+    key
+        Pseudo-random number generator key for the weights.
+    """
     basis_functions: Sequence[Callable[[Tensor], Tensor]]
     leak: float = 0.05
     weight: Dict[str, Tensor]
@@ -221,6 +252,7 @@ class QCPredict(eqx.Module):
         weight: Tensor,
         thresh: Tensor,
     ) -> Tensor:
+        """Convolve ``x`` with ``weight``; apply a leaky ReLU at ``thresh``."""
         conv_out = conv(
             X=x,
             weight=weight,

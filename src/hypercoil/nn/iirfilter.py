@@ -29,6 +29,15 @@ from ..init.iirfilter import IIRFilterSpec
 # TODO: mark all code as experimental until the IIR filter module is properly
 #      differentiable and the zero-phase filtering is implemented.
 class DTDFCell(eqx.Module):
+    """
+    Recurrent cell of an IIR filter in transposed direct form II.
+
+    Parameters
+    ----------
+    init_spec
+        Filter specification whose ``coefs`` hold the numerator and
+        denominator coefficients.
+    """
     N: int
     multiplier: int
     b: Tensor
@@ -50,6 +59,7 @@ class DTDFCell(eqx.Module):
         self.b, self.a = b, a
 
     def init_states(self, shape: Tuple[int]) -> Tensor:
+        """Return zero filter states for inputs of batch shape ``shape``."""
         return jnp.zeros((*shape, self.multiplier * self.N))
 
     def __call__(self, input: Tensor, v: Tensor) -> Tuple[Tensor, Tensor]:
@@ -61,12 +71,26 @@ class DTDFCell(eqx.Module):
 
 
 class Spec(object):
+    """Minimal low-pass filter specification of order ``N``."""
     def __init__(self, N):
         self.N = N
         self.btype = 'lowpass'
 
 
 class DTDF(eqx.Module):
+    """
+    IIR filter in transposed direct form II, applied recurrently over time.
+
+    Calling the filter on an input with time on the last axis returns the
+    filtered input; with ``initial_states``, it also returns the final states.
+    An input with a final feature axis (``feature_ax=True``) raises
+    ``NotImplementedError``.
+
+    Parameters
+    ----------
+    spec
+        Filter specification.
+    """
     cell: DTDFCell
 
     def __init__(
@@ -115,6 +139,14 @@ class IIRFilter(DTDF):
 
 
 class IIRFiltFilt(IIRFilter):
+    """
+    Zero-phase IIR filter; not currently implemented.
+
+    Raises
+    ------
+    NotImplementedError
+        When called.
+    """
     def __call__(
         self,
         input: Tensor,

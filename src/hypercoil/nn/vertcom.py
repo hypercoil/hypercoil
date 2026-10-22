@@ -29,6 +29,24 @@ def random_bipartite_lattice(
     For many purposes, a more sophisticated initialisation might be desirable.
     As one example, see the maximum potential bipartite graph initialisation
     method.
+
+    Parameters
+    ----------
+    lattice_order
+        Lattice order: the number of edges is ``lattice_order`` times the
+        least common multiple of ``in_features`` and ``out_features``, at
+        most ``in_features * out_features``.
+    in_features
+        Number of input vertices.
+    out_features
+        Number of output vertices.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Biadjacency matrix of shape ``(out_features, in_features)``.
     """
     num_edges = lattice_order * jnp.lcm(in_features, out_features)
     num_edges = min(num_edges, in_features * out_features)
@@ -64,6 +82,31 @@ class VerticalCompression(eqx.Module):
     :math:`\left(C_{row} A\right) C_{col}^{\intercal}`, which maps an
     :math:`H_{in} \times W_{in}` matrix to an :math:`H_{out} \times W_{out}`
     matrix.
+
+    Parameters
+    ----------
+    in_features
+        Number of input vertices.
+    out_features
+        Number of output vertices.
+    lattice_order
+        Order of the random bipartite lattice that masks the weight, as in
+        :func:`random_bipartite_lattice`.
+    out_channels
+        Number of output channels.
+    renormalise
+        Rescale the output to the standard deviation of the input, as in
+        :func:`~hypercoil.functional.sylo.vertical_compression`.
+    fold_channels
+        Merge the channel axes of the output, as in
+        :func:`~hypercoil.functional.sylo.vertical_compression`.
+    forward_operation
+        Operation of a call: ``'compress'``, ``'uncompress'`` or
+        ``'reconstruct'``.
+    sign
+        Sign of the output: 1 or -1.
+    key
+        Pseudo-random number generator key.
     """
     in_features: int
     out_features: int
@@ -119,6 +162,7 @@ class VerticalCompression(eqx.Module):
 
     @property
     def weight(self) -> Tensor:
+        """Compression weight, zero outside the lattice mask."""
         mask, weight = _to_jax_array(self.mask), _to_jax_array(self._weight)
         return mask * weight
 
@@ -127,6 +171,7 @@ class VerticalCompression(eqx.Module):
         model: 'VerticalCompression',
         mode: Literal['train', 'eval'],
     ) -> 'VerticalCompression':
+        """Return ``model`` with ``forward_operation`` set to ``mode``."""
         return eqx.tree_at(
             lambda m: m.forward_operation,
             model,
@@ -134,6 +179,7 @@ class VerticalCompression(eqx.Module):
         )
 
     def uncompress(self, compressed: Tensor) -> Tensor:
+        """Map a compressed matrix back to the input size."""
         return vertical_compression(
             input=compressed,
             row_compressor=self.weight.swapaxes(-1, -2),
@@ -144,6 +190,7 @@ class VerticalCompression(eqx.Module):
         )
 
     def compress(self, input: Tensor) -> Tensor:
+        """Compress ``input`` by fusing vertices."""
         return vertical_compression(
             input=input,
             row_compressor=self.weight,
@@ -154,6 +201,7 @@ class VerticalCompression(eqx.Module):
         )
 
     def reconstruct(self, input: Tensor) -> Tensor:
+        """Compress ``input``, then uncompress the result."""
         return self.uncompress(self.compress(input=input))
 
     def __call__(

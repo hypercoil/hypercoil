@@ -111,6 +111,35 @@ class FrequencyDomainFilter(eqx.Module):
         key: 'jax.random.PRNGKey',
     ) -> 'FrequencyDomainFilter':
 
+        """
+        Create a filter initialised from filter specifications.
+
+        Parameters
+        ----------
+        filter_specs
+            Filter specifications; each critical frequency in each
+            specification gives one channel. Clamps in any specification are
+            applied.
+        freq_dim
+            Number of frequency bins.
+        time_dim
+            Number of time points; gives ``time_dim // 2 + 1`` frequency bins
+            if ``freq_dim`` is None.
+        filter
+            Filter function applied in the frequency domain.
+        key
+            Pseudo-random number generator key.
+
+        Returns
+        -------
+        FrequencyDomainFilter
+            Initialised filter.
+
+        Raises
+        ------
+        ValueError
+            If both ``freq_dim`` and ``time_dim`` are None.
+        """
         num_channels = sum([len(s.Wn) for s in filter_specs])
         clamp = any([s.clamps is not None for s in filter_specs])
         freq_dim = cls._set_dimension(freq_dim, time_dim)
@@ -170,6 +199,7 @@ class FrequencyDomainFilter(eqx.Module):
 
     @property
     def clamped_weight(self) -> Tensor:
+        """Weight with the clamped bins set to their clamped values."""
         weight = _to_jax_array(self.weight)
         if self.clamp is not None:
             clamp_points, clamp_values = self.clamp
