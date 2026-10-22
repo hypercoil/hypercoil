@@ -33,6 +33,7 @@ from .grammar import (
 
 
 def confound_formula_shorthand():
+    """Return the shorthand substitutions of confound formulae."""
     return {
         'wm': 'white_matter',
         'gsr': 'global_signal',
@@ -46,6 +47,7 @@ def confound_formula_shorthand():
 
 
 def collate_metadata(meta: Sequence[Optional[Dict]]) -> Any:
+    """Merge the metadata dictionaries of ``meta``; None if there are none."""
     meta = [m for m in meta if m is not None]
     if len(meta) == 0:
         return None
@@ -54,6 +56,31 @@ def collate_metadata(meta: Sequence[Optional[Dict]]) -> Any:
 
 
 class ConfoundFormulaGrammar(Grammar):
+    """
+    Grammar of confound model formulae over a confound DataFrame.
+
+    A compiled formula takes a DataFrame and its metadata dictionary and
+    returns the model DataFrame, without duplicate columns, and the metadata.
+
+    - ``name`` selects a column;
+    - ``a + b`` concatenates columns, and ``+{...}`` is its prefix form;
+    - ``a^n``, ``a^^n``, ``a^m-n`` and ``a^{m,n}`` add powers: order ``n``,
+      orders 1 to ``n``, orders ``m`` to ``n``, and the listed orders;
+    - ``dn(a)``, ``ddn(a)``, ``dm-n(a)`` and ``d{m,n}(a)`` add backward
+      differences in the same forms, where ``ddn`` includes order 0;
+    - ``1_[>t](a)`` gives an indicator of a comparison with threshold ``t``,
+      for ``>``, ``>=``, ``<``, ``<=``, ``==`` and ``!=``;
+    - ``[OR](a + b)``, ``[AND](a + b)`` and ``[NOT](a)`` combine Boolean
+      columns;
+    - ``[SCATTER](a)`` gives one column for each nonzero entry of each column;
+    - ``n_{{n;name}}`` selects the first ``n`` numbered columns ``name_i``, and
+      ``v_{{p;name}}`` the numbered columns up to ``p`` percent cumulative
+      variance explained, from the metadata; ``;Mask=A,B`` restricts either
+      to the listed masks;
+    - ``{{name;key=value}}`` selects the columns whose metadata matches.
+
+    The shorthand of :func:`confound_formula_shorthand` is expanded first.
+    """
     groupings: GroupingPool = GroupingPool(
         Grouping(open='(', close=')'),
     )
@@ -87,6 +114,7 @@ class ConfoundFormulaGrammar(Grammar):
 
 
 class ColumnSelectInterpreter(LeafInterpreter):
+    """Leaf interpreter that selects the DataFrame column named by the leaf."""
     def __call__(self, leaf: Any) -> Callable:
         def select_column(
             df: pd.DataFrame,
@@ -98,6 +126,7 @@ class ColumnSelectInterpreter(LeafInterpreter):
 
 
 class DeduplicateRootNode(TransformPrimitive):
+    """Root transform that drops duplicate columns from the model."""
     min_arity: int = 1
     max_arity: int = 1
     priority: float = float('inf')
@@ -123,22 +152,27 @@ class DeduplicateRootNode(TransformPrimitive):
 
 
 class ConcatenateInfixLiteralisation(Literalisation):
+    """Literal ``+`` of :class:`ConcatenateNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
     regex: str = r'\+'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class ConcatenatePrefixLiteralisation(Literalisation):
+    """Literal ``+{...}`` of :class:`ConcatenateNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = r'\+\{[^\{^\}]+\}'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class ConcatenateNode(TransformPrimitive):
+    """Transform that concatenates the columns of its arguments."""
     min_arity: int = 2
     max_arity: int = float('inf')
     priority: int = 3
@@ -150,6 +184,7 @@ class ConcatenateNode(TransformPrimitive):
     )
 
     def ascend(self, *pparams, **params) -> Callable:
+        """Return a function concatenating the columns of ``pparams``."""
         def concatenate(
             arg: Any,
             meta: Optional[Dict] = None,
@@ -164,43 +199,52 @@ class ConcatenateNode(TransformPrimitive):
 
 
 class BackwardDifferencePrefixLiteralisation(Literalisation):
+    """Literal ``dn`` of :class:`BackwardDifferenceNode`: order ``n``."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = r'd(?P<order>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the order into a one-element tuple."""
         params['order'] = (int(params['order']),)
         return params
 
 
 class BackwardDifferenceInclPrefixLiteralisation(Literalisation):
+    """Literal ``ddn`` (orders 0 to ``n``) of the backward difference."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = r'dd(?P<order>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the order ``n`` into the orders 0 to ``n``."""
         params['order'] = tuple(range(int(params['order']) + 1))
         return params
 
 
 class BackwardDifferenceRangePrefixLiteralisation(Literalisation):
+    """Literal ``dm-n`` (orders ``m`` to ``n``) of the backward difference."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = r'd(?P<order>[0-9]+\-[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the range into the orders ``m`` to ``n``."""
         lim = [int(z) for z in params['order'].split('-')]
         params['order'] = tuple(range(lim[0], lim[1] + 1))
         return params
 
 
 class BackwardDifferenceEnumPrefixLiteralisation(Literalisation):
+    """Literal ``d{m,n}`` of :class:`BackwardDifferenceNode`: listed orders."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = r'd\{(?P<order>[0-9\,]+)\}'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the listed orders into a tuple."""
         params['order'] = tuple(int(z) for z in params['order'].split(','))
         return params
 
 
 class BackwardDifferenceNode(TransformPrimitive):
+    """Transform that adds backward differences of its argument."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 2
@@ -213,6 +257,7 @@ class BackwardDifferenceNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function adding the backward differences of the orders."""
         f = pparams[0]
 
         def backward_difference(
@@ -241,43 +286,52 @@ class BackwardDifferenceNode(TransformPrimitive):
 
 
 class PowerSuffixLiteralisation(Literalisation):
+    """Literal ``^n`` of :class:`PowerNode`: order ``n``."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
     regex: str = r'\^(?P<order>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the order into a one-element tuple."""
         params['order'] = (int(params['order']),)
         return params
 
 
 class PowerInclSuffixLiteralisation(Literalisation):
+    """Literal ``^^n`` of :class:`PowerNode`: orders 1 to ``n``."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
     regex: str = r'\^\^(?P<order>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the order ``n`` into the orders 1 to ``n``."""
         params['order'] = tuple(range(1, int(params['order']) + 1))
         return params
 
 
 class PowerRangeSuffixLiteralisation(Literalisation):
+    """Literal ``^m-n`` of :class:`PowerNode`: orders ``m`` to ``n``."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
     regex: str = r'\^(?P<order>[0-9]+\-[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the range into the orders ``m`` to ``n``."""
         lim = [int(z) for z in params['order'].split('-')]
         params['order'] = tuple(range(lim[0], lim[1] + 1))
         return params
 
 
 class PowerEnumSuffixLiteralisation(Literalisation):
+    """Literal ``^{m,n}`` of :class:`PowerNode`: listed orders."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
     regex: str = r'\^\{(?P<order>[0-9\,]+)\}'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the listed orders into a tuple."""
         params['order'] = tuple(int(z) for z in params['order'].split(','))
         return params
 
 
 class PowerNode(TransformPrimitive):
+    """Transform that adds powers of its argument."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 1
@@ -290,6 +344,7 @@ class PowerNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function computing the powers of the orders."""
         f = pparams[0]
 
         def power(
@@ -311,12 +366,14 @@ class PowerNode(TransformPrimitive):
 
 
 class IndicatorPrefixLiteralisation(Literalisation):
+    """Literal ``1_[>t]`` of :class:`IndicatorNode`, with any comparison."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = (
         r'1_\[(?P<compare>[\>\<\=\!]+)' r'(?P<threshold>[0-9]+[\.]?[0-9]*)\]'
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the comparison into an indicator and a column suffix."""
         threshold = float(params['threshold'])
         compare = params['compare']
         if compare == '>':
@@ -341,6 +398,7 @@ class IndicatorPrefixLiteralisation(Literalisation):
 
 
 class IndicatorNode(TransformPrimitive):
+    """Transform that gives an indicator of a comparison with a threshold."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 1
@@ -348,6 +406,7 @@ class IndicatorNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function applying the indicator to each column."""
         f = pparams[0]
 
         def indicator(
@@ -366,14 +425,17 @@ class IndicatorNode(TransformPrimitive):
 
 
 class UnionPrefixLiteralisation(Literalisation):
+    """Literal ``[OR]`` of :class:`UnionNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = r'\[OR\]'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class UnionNode(TransformPrimitive):
+    """Transform that gives the logical OR of the columns of its argument."""
     min_arity: int = 1  # requires a concatenation but the concatenation
     # counts only as one argument
     max_arity: int = 1
@@ -382,6 +444,7 @@ class UnionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function computing the logical OR of the columns."""
         f = pparams[0]
 
         def union(
@@ -401,14 +464,17 @@ class UnionNode(TransformPrimitive):
 
 
 class IntersectionPrefixLiteralisation(Literalisation):
+    """Literal ``[AND]`` of :class:`IntersectionNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = r'\[AND\]'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class IntersectionNode(TransformPrimitive):
+    """Transform that gives the logical AND of the columns of its argument."""
     min_arity: int = 1  # requires a concatenation but the concatenation
     # counts only as one argument
     max_arity: int = 1
@@ -417,6 +483,7 @@ class IntersectionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function computing the logical AND of the columns."""
         f = pparams[0]
 
         def intersection(
@@ -436,14 +503,17 @@ class IntersectionNode(TransformPrimitive):
 
 
 class NegationPrefixLiteralisation(Literalisation):
+    """Literal ``[NOT]`` of :class:`NegationNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'prefix'
     regex: str = r'\[NOT\]'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class NegationNode(TransformPrimitive):
+    """Transform that gives the logical NOT of each column of its argument."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 1
@@ -451,6 +521,7 @@ class NegationNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function computing the logical NOT of each column."""
         f = pparams[0]
 
         def negation(
@@ -470,19 +541,23 @@ class NegationNode(TransformPrimitive):
 
 
 class LhsRhs(eqx.Module):
+    """Left-hand and right-hand sides of a formula ``lhs ~ rhs``."""
     lhs: pd.DataFrame
     rhs: pd.DataFrame
 
 
 class LhsRhsInfixLiteralisation(Literalisation):
+    """Literal ``~`` of :class:`LhsRhsNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
     regex: str = r'\~'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class LhsRhsNode(TransformPrimitive):
+    """Transform that evaluates both sides of a formula as :class:`LhsRhs`."""
     min_arity: int = 2
     max_arity: int = 2
     priority: int = 100
@@ -490,6 +565,7 @@ class LhsRhsNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function evaluating both sides into a :class:`LhsRhs`."""
         f_lhs, f_rhs = pparams
 
         def lhs_rhs(
@@ -517,14 +593,17 @@ class LhsRhsNode(TransformPrimitive):
 
 
 class InteractionInfixLiteralisation(Literalisation):
+    """Literal ``:`` of :class:`InteractionNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
     regex: str = r'\:'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class InteractionNode(TransformPrimitive):
+    """Transform that gives the product of its arguments."""
     min_arity: int = 2
     max_arity: int = float('inf')
     priority: int = 2
@@ -533,6 +612,7 @@ class InteractionNode(TransformPrimitive):
     commutative: bool = True
 
     def ascend(self, *pparams, **params) -> Callable:
+        """Return a function computing the product of the arguments."""
         def interaction(
             arg: Any,
             meta: Optional[Dict] = None,
@@ -557,6 +637,7 @@ class InteractionNode(TransformPrimitive):
 #       the ``Mask`` field. Unlike CumulVar, this literalisation might be
 #       useful outside confound regression.
 class FirstNLeafLiteralisation(Literalisation):
+    """Literal ``n_{{n;name}}`` of :class:`FirstNNode`."""
     affix: str = 'leaf'
     regex: str = (
         r'n_\{\{(?P<count>[0-9]+);(?P<variable>[a-zA-Z0-9_]+)'
@@ -564,6 +645,7 @@ class FirstNLeafLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the count and expand the shorthand in the column name."""
         shorthand = confound_formula_shorthand()
         params['count'] = int(params['count'])
         for k, v in shorthand.items():
@@ -572,6 +654,7 @@ class FirstNLeafLiteralisation(Literalisation):
 
 
 class FirstNNode(TransformPrimitive):
+    """Transform that selects the first ``n`` numbered columns of a name."""
     min_arity: int = 0
     max_arity: int = 0
     priority: int = 0
@@ -580,6 +663,7 @@ class FirstNNode(TransformPrimitive):
     commutative: bool = False
 
     def ascend(self, *pparams, **params) -> Callable:
+        """Return a function selecting the first ``count`` matching columns."""
         def first_n(
             df: 'pd.DataFrame',
             meta: Optional[Dict] = None,
@@ -610,6 +694,7 @@ class FirstNNode(TransformPrimitive):
 
 
 class CumulativeVarianceLeafLiteralisation(Literalisation):
+    """Literal ``v_{{p;name}}`` of :class:`CumulativeVarianceNode`."""
     affix: str = 'leaf'
     regex: str = (
         r'v_\{\{(?P<variance>[0-9\.]+);(?P<variable>[a-zA-Z0-9_]+)'
@@ -617,6 +702,7 @@ class CumulativeVarianceLeafLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the percentage into a fraction and expand the shorthand."""
         shorthand = confound_formula_shorthand()
         params['variance'] = float(params['variance']) / 100
         for k, v in shorthand.items():
@@ -625,6 +711,12 @@ class CumulativeVarianceLeafLiteralisation(Literalisation):
 
 
 class CumulativeVarianceNode(TransformPrimitive):
+    """
+    Transform that selects numbered columns up to a cumulative variance.
+
+    The columns are taken in numeric order, up to and including the first
+    whose ``CumulativeVarianceExplained`` metadata exceeds the fraction.
+    """
     min_arity: int = 0
     max_arity: int = 0
     priority: int = 0
@@ -635,6 +727,7 @@ class CumulativeVarianceNode(TransformPrimitive):
     commutative: bool = False
 
     def ascend(self, *pparams, **params) -> Callable:
+        """Return a function selecting the columns up to the fraction."""
         def cumulative_variance(
             df: 'pd.DataFrame',
             meta: Optional[Dict] = None,
@@ -675,6 +768,7 @@ class CumulativeVarianceNode(TransformPrimitive):
 # TODO: add simple logical composition (AND, OR, NOT) to filters.
 #       Currently everything is AND, which isn't always what we want.
 class MetadataFilterLeafLiteralisation(Literalisation):
+    """Literal ``{{name;key=value}}`` of :class:`MetadataFilterNode`."""
     affix: str = 'leaf'
     regex: str = (
         r'\{\{(?P<variable>[a-zA-Z0-9_]+)'
@@ -682,6 +776,7 @@ class MetadataFilterLeafLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the filters; numeric values become floats, others ``True``."""
         params['filters'] = [
             s.split('=') for s in params['filters'].split(';')
         ]
@@ -698,6 +793,7 @@ class MetadataFilterLeafLiteralisation(Literalisation):
 
 
 class MetadataFilterNode(TransformPrimitive):
+    """Transform that selects the columns whose metadata match all filters."""
     min_arity: int = 0
     max_arity: int = 0
     priority: int = 0
@@ -706,6 +802,7 @@ class MetadataFilterNode(TransformPrimitive):
     commutative: bool = False
 
     def ascend(self, *pparams, **params) -> Callable:
+        """Return a function selecting the columns that match the filters."""
         def filter_by_metadata(
             df: 'pd.DataFrame',
             meta: Optional[Dict] = None,
@@ -734,14 +831,17 @@ class MetadataFilterNode(TransformPrimitive):
 
 
 class ScatterPrefixLiteralisation(Literalisation):
+    """Literal ``[SCATTER]`` of :class:`ScatterNode`."""
     affix: str = 'prefix'
     regex: str = r'\[SCATTER\]'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class ScatterNode(TransformPrimitive):
+    """Transform that gives one column per nonzero entry of each column."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 1
@@ -751,6 +851,7 @@ class ScatterNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function scattering the nonzero entries into columns."""
         f = pparams[0]
 
         def scatter_columns(
@@ -813,6 +914,11 @@ def match_metadata(pattern, metadata):
         represents the pattern to be matched in the metadata keys.
     metadata
         Dictionary whose keys are to be searched for the specified pattern.
+
+    Returns
+    -------
+    list
+        Keys of ``metadata`` that ``pattern`` matches at the start.
     """
     return list(filter(pattern.match, metadata.keys()))
 
@@ -821,12 +927,10 @@ def successive_pad_search(df, key, pad=0, k=5):
     """
     Find the DataFrame column that matches a query, ignoring zero-padding.
 
-    This function is an unfortunate artefact of an inconsistency in the way
-    that an earlier version of fMRIPrep named metadata entries and data
-    columns. The metadata entries were named without zero-padding, while the
-    data columns were named with zero-padding. This function allows the
-    metadata entries to be matched to the data columns without regard to
-    zero-padding.
+    Some fMRIPrep versions name metadata entries without the zero-padding of
+    the matching data columns. When ``key`` is not a column, the search
+    retries with the numeric suffix of ``key`` padded with ``pad`` to widths
+    1 to ``k``.
 
     Parameters
     ----------
@@ -835,9 +939,19 @@ def successive_pad_search(df, key, pad=0, k=5):
     key
         Key to search for in the DataFrame.
     pad
-        Number whose padding to ignore in the search
+        Character that pads the numeric suffix.
     k
-        Maximum number of pads to try before a KeyError is raised.
+        Maximum number of widths to try.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The matching column.
+
+    Raises
+    ------
+    KeyError
+        If no width gives a column of ``df``.
     """
     for i in range(k):
         try:

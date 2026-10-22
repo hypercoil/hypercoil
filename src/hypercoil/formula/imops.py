@@ -35,6 +35,7 @@ from .grammar import (
 def image_leaf_ingress(
     arg: Any,
 ) -> Callable:
+    """Return the data array of a NIfTI image and its metadata."""
     return jnp.array(arg.get_fdata()), {
         'header': arg.header,
         'affine': arg.affine,
@@ -45,6 +46,7 @@ def image_leaf_ingress(
 def scalar_leaf_ingress(
     arg: Any,
 ) -> Callable:
+    """Return ``arg`` as a float, or else as a bool, with empty metadata."""
     try:
         out = float(arg)
     except ValueError:
@@ -57,6 +59,7 @@ def select_args(
     side: Literal['left', 'right'],
     num: int,
 ):
+    """Return the first or the last ``num`` arguments of ``args``."""
     if side == 'left':
         return args[:num]
     else:
@@ -64,6 +67,7 @@ def select_args(
 
 
 def sub_regex(s: str) -> str:
+    """Fill the number-type fields of ``s`` with their regular expressions."""
     i = r'\-?[0-9]*'
     f = r'\-?[0-9]*\.*[0-9]*'
     nni = r'[0-9]*'
@@ -84,6 +88,30 @@ def form_regex(
     unarised: Optional[str] = None,
     right: bool = False,
 ):
+    """
+    Form the regular expression of an ``fslmaths``-like command literal.
+
+    The literal is ``-cmd``, then optional parameters in square brackets
+    separated by ``|``, then an optional scalar in braces.
+
+    Parameters
+    ----------
+    cmd
+        Command name.
+    params
+        Type of each named parameter: ``'int'``, ``'float'``, ``'nnint'``,
+        ``'nnfloat'`` or ``'nnintseq'`` (nonnegative integers separated by
+        commas).
+    unarised
+        Type of the scalar operand of a unary form. None gives no scalar.
+    right
+        The scalar is followed by ``,...``: the scalar is the left operand.
+
+    Returns
+    -------
+    str
+        Regular expression.
+    """
     typedict = {
         'int': 'i',
         'float': 'f',
@@ -141,6 +169,22 @@ def morphology_rect_strel(
 ) -> Tensor:
     """
     Perform a morphological operation using a rectangular structuring element.
+
+    Parameters
+    ----------
+    image
+        Image.
+    strel_shape
+        Shape of the structuring element, one size per axis of ``image``.
+    op
+        ``'dilate'``, ``'erode'``, ``'open'`` or ``'close'``.
+    mask
+        If given, each step changes only the voxels where ``mask`` is True.
+
+    Returns
+    -------
+    Tensor
+        Transformed image, of the shape of ``image``.
     """
 
     op_series = {
@@ -187,6 +231,24 @@ def morphology_rect_strel_fill_holes(
 ) -> Tensor:
     """
     Fill holes in a binary image using a rectangular structuring element.
+
+    The background is grown inward from the border by masked dilation; voxels
+    that it does not reach are holes.
+
+    Parameters
+    ----------
+    image
+        Binary image.
+    strel_shape
+        Shape of the structuring element, one size per axis of ``image``.
+    num_iters
+        Number of dilations. Holes are filled only where the background reaches
+        within this number of steps.
+
+    Returns
+    -------
+    Tensor
+        Image with its holes filled.
     """
     padding = ((1, 1),) * image.ndim
     mask = jnp.logical_not(image)
@@ -200,6 +262,20 @@ def morphology_rect_strel_fill_holes(
 
 
 class ImageMathsGrammar(Grammar):
+    """
+    Grammar of ``fslmaths``-like image operations.
+
+    A compiled formula takes one argument per ``IMG`` leaf, in order, and
+    returns the result array and the metadata of the images. Leaves that do
+    not begin with ``IMG`` are scalars. Operations are written as suffixes,
+    such as ``IMG -thr{0.5}`` or ``IMG -bin``, or as infixes between operands,
+    such as ``IMG -add IMG``. Unary forms take a scalar in braces; the forms
+    ``{s,...}`` of ``-sub``, ``-div`` and ``-mod`` put the scalar on the left.
+
+    The operations are ``-bin``, ``-thr``, ``-uthr``, ``-dil``, ``-ero``,
+    ``-opening``, ``-closing``, ``-fillholes``, ``-neg``, ``-or``, ``-and``,
+    ``-add``, ``-sub``, ``-mul``, ``-div`` and ``-mod``.
+    """
     groupings: GroupingPool = GroupingPool(
         Grouping(open='(', close=')'),
     )
@@ -237,6 +313,7 @@ class ImageMathsGrammar(Grammar):
 
 
 class NiftiObjectInterpreter(LeafInterpreter):
+    """Leaf interpreter that reads each ``IMG`` leaf from a NIfTI image."""
     def __call__(self, leaf: Any) -> Callable:
         def img_and_meta(
             *args: Any,
@@ -252,6 +329,7 @@ class NiftiObjectInterpreter(LeafInterpreter):
 
 
 class NiftiFileInterpreter(LeafInterpreter):
+    """Leaf interpreter that loads each ``IMG`` leaf from a NIfTI file path."""
     def __call__(self, leaf: Any) -> Callable:
         def img_and_meta(
             *args: Any,
@@ -271,6 +349,7 @@ class NiftiFileInterpreter(LeafInterpreter):
 
 
 class BinariseSuffixLiteralisation(Literalisation):
+    """Literal ``-bin[t]`` of :class:`BinariseNode`; ``t`` defaults to 0."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -282,6 +361,7 @@ class BinariseSuffixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the threshold; it defaults to 0."""
         threshold = params['threshold']
         if threshold == '':
             params['threshold'] = 0.0
@@ -291,6 +371,7 @@ class BinariseSuffixLiteralisation(Literalisation):
 
 
 class BinariseNode(TransformPrimitive):
+    """Transform that binarises an image: True above the threshold."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -298,6 +379,7 @@ class BinariseNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled binarisation."""
         f = pparams[0]
         threshold = params['threshold']
         num_leaves = params['num_leaves']
@@ -317,6 +399,7 @@ class BinariseNode(TransformPrimitive):
 
 
 class UnaryThresholdSuffixLiteralisation(Literalisation):
+    """Literal ``-thr[fill]{t}`` of :class:`UnaryThresholdNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -329,6 +412,7 @@ class UnaryThresholdSuffixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the threshold and the fill value, which defaults to 0."""
         params['threshold'] = float(params['scalar'])
         fill_value = params['fill']
         if fill_value == '':
@@ -339,6 +423,7 @@ class UnaryThresholdSuffixLiteralisation(Literalisation):
 
 
 class UnaryThresholdNode(TransformPrimitive):
+    """Transform that sets voxels at or below a scalar to a fill value."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -348,6 +433,7 @@ class UnaryThresholdNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled threshold."""
         f = pparams[0]
         thresh = params['threshold']
         fill_value = params['fill']
@@ -365,6 +451,7 @@ class UnaryThresholdNode(TransformPrimitive):
 
 
 class BinaryThresholdInfixLiteralisation(Literalisation):
+    """Literal ``-thr[fill]`` of :class:`BinaryThresholdNode`."""
     affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -376,6 +463,7 @@ class BinaryThresholdInfixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the fill value, which defaults to 0."""
         fill_value = params['fill']
         if fill_value == '':
             params['fill'] = 0.0
@@ -385,6 +473,7 @@ class BinaryThresholdInfixLiteralisation(Literalisation):
 
 
 class BinaryThresholdNode(TransformPrimitive):
+    """Transform that fills left voxels at or below the right operand."""
     min_arity: int = 2  # arg 0 is the model, arg 1 is the threshold value
     max_arity: int = 2
     priority: int = 4
@@ -394,6 +483,7 @@ class BinaryThresholdNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled threshold."""
         f_lhs, f_rhs = pparams
         fill = params['fill']
         num_leaves = params['num_leaves']
@@ -408,6 +498,7 @@ class BinaryThresholdNode(TransformPrimitive):
 
 
 class UnaryUpperThresholdSuffixLiteralisation(Literalisation):
+    """Literal ``-uthr[fill]{t}`` of :class:`UnaryUpperThresholdNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -420,6 +511,7 @@ class UnaryUpperThresholdSuffixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the threshold and the fill value, which defaults to 0."""
         params['threshold'] = float(params['scalar'])
         fill_value = params['fill']
         if fill_value == '':
@@ -430,6 +522,7 @@ class UnaryUpperThresholdSuffixLiteralisation(Literalisation):
 
 
 class UnaryUpperThresholdNode(TransformPrimitive):
+    """Transform that sets voxels at or above a scalar to a fill value."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -439,6 +532,7 @@ class UnaryUpperThresholdNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled upper threshold."""
         f = pparams[0]
         thresh = params['threshold']
         fill_value = params['fill']
@@ -456,6 +550,7 @@ class UnaryUpperThresholdNode(TransformPrimitive):
 
 
 class UpperThresholdInfixLiteralisation(Literalisation):
+    """Literal ``-uthr[fill]`` of :class:`UpperThresholdNode`."""
     affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -467,6 +562,7 @@ class UpperThresholdInfixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the fill value, which defaults to 0."""
         fill_value = params['fill']
         if fill_value == '':
             params['fill'] = 0.0
@@ -476,6 +572,7 @@ class UpperThresholdInfixLiteralisation(Literalisation):
 
 
 class UpperThresholdNode(TransformPrimitive):
+    """Transform that fills left voxels at or above the right operand."""
     min_arity: int = 2  # arg 0 is the model, arg 1 is the threshold value
     max_arity: int = 2
     priority: int = 4
@@ -483,6 +580,7 @@ class UpperThresholdNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled upper threshold."""
         f_lhs, f_rhs = pparams
         fill = params['fill']
         num_leaves = params['num_leaves']
@@ -499,7 +597,9 @@ class UpperThresholdNode(TransformPrimitive):
 
 
 class MorphologicalSuffixLiteralisation(Literalisation):
+    """Base literal of the morphological transforms, with a kernel size."""
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the kernel half-widths; they default to ``(1,)``."""
         kernel_size = params['kernel_size']
         if kernel_size == '':
             params['kernel_size'] = (1,)
@@ -536,6 +636,7 @@ def _morphological_transform(
 
 
 class DilateSuffixLiteralisation(MorphologicalSuffixLiteralisation):
+    """Literal ``-dil[k]`` of :class:`DilateNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -548,6 +649,7 @@ class DilateSuffixLiteralisation(MorphologicalSuffixLiteralisation):
 
 
 class DilateNode(TransformPrimitive):
+    """Transform that dilates an image with a box of half-width ``k``."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -555,6 +657,7 @@ class DilateNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled dilation."""
         f = pparams[0]
         kernel_size = params['kernel_size']
         num_leaves = params['num_leaves']
@@ -579,6 +682,7 @@ class DilateNode(TransformPrimitive):
 
 
 class ErodeSuffixLiteralisation(MorphologicalSuffixLiteralisation):
+    """Literal ``-ero[k]`` of :class:`ErodeNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -591,6 +695,7 @@ class ErodeSuffixLiteralisation(MorphologicalSuffixLiteralisation):
 
 
 class ErodeNode(TransformPrimitive):
+    """Transform that erodes an image with a box of half-width ``k``."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -598,6 +703,7 @@ class ErodeNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled erosion."""
         f = pparams[0]
         kernel_size = params['kernel_size']
         num_leaves = params['num_leaves']
@@ -622,6 +728,7 @@ class ErodeNode(TransformPrimitive):
 
 
 class OpeningSuffixLiteralisation(MorphologicalSuffixLiteralisation):
+    """Literal ``-opening[k]`` of :class:`OpeningNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -634,6 +741,7 @@ class OpeningSuffixLiteralisation(MorphologicalSuffixLiteralisation):
 
 
 class OpeningNode(TransformPrimitive):
+    """Transform that opens an image with a box of half-width ``k``."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -641,6 +749,7 @@ class OpeningNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled opening."""
         f = pparams[0]
         kernel_size = params['kernel_size']
         num_leaves = params['num_leaves']
@@ -665,6 +774,7 @@ class OpeningNode(TransformPrimitive):
 
 
 class ClosingSuffixLiteralisation(MorphologicalSuffixLiteralisation):
+    """Literal ``-closing[k]`` of :class:`ClosingNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -677,6 +787,7 @@ class ClosingSuffixLiteralisation(MorphologicalSuffixLiteralisation):
 
 
 class ClosingNode(TransformPrimitive):
+    """Transform that closes an image with a box of half-width ``k``."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -684,6 +795,7 @@ class ClosingNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled closing."""
         f = pparams[0]
         kernel_size = params['kernel_size']
         num_leaves = params['num_leaves']
@@ -708,6 +820,7 @@ class ClosingNode(TransformPrimitive):
 
 
 class FillHolesSuffixLiteralisation(Literalisation):
+    """Literal ``-fillholes[k|n]`` of :class:`FillHolesNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -720,6 +833,7 @@ class FillHolesSuffixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the kernel half-widths and the number of iterations."""
         num_iters = params.get('num_iters', None)
         if num_iters is not None:
             num_iters = int(num_iters)
@@ -736,6 +850,7 @@ class FillHolesSuffixLiteralisation(Literalisation):
 
 
 class FillHolesNode(TransformPrimitive):
+    """Transform that fills the holes of a binary image."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -743,6 +858,7 @@ class FillHolesNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled hole filling."""
         f = pparams[0]
         kernel_size = params['kernel_size']
         num_iters = params['num_iters']
@@ -779,6 +895,7 @@ class FillHolesNode(TransformPrimitive):
 
 
 class NegationSuffixLiteralisation(Literalisation):
+    """Literal ``-neg`` of :class:`NegationNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -787,10 +904,12 @@ class NegationSuffixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class NegationNode(TransformPrimitive):
+    """Transform that gives the logical NOT of an image."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -798,6 +917,7 @@ class NegationNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled negation."""
         f = pparams[0]
         num_leaves = params['num_leaves']
 
@@ -816,6 +936,7 @@ class NegationNode(TransformPrimitive):
 
 
 def curry_transform(*pparams, **params):
+    """Return None."""
     return None
 
 
@@ -826,6 +947,25 @@ def binary_transform(
     *,
     num_leaves: int,
 ) -> Callable:
+    """
+    Compile a binary operation on the outputs of two compiled operands.
+
+    Parameters
+    ----------
+    transform
+        Function of the left and the right operand.
+    f_lhs
+        Compiled left operand.
+    f_rhs
+        Compiled right operand.
+    num_leaves
+        Number of leaves of the operation, which selects its arguments.
+
+    Returns
+    -------
+    Callable
+        Compiled operation, returning the result and the coalesced metadata.
+    """
     def transform_impl(
         *args,
         side: Literal['left', 'right'] = 'left',
@@ -845,6 +985,7 @@ def binary_transform(
 
 
 class UnionInfixLiteralisation(Literalisation):
+    """Literal ``-or`` of :class:`UnionNode`."""
     affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -853,10 +994,12 @@ class UnionInfixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class UnionNode(TransformPrimitive):
+    """Transform that gives the logical OR of two operands."""
     min_arity: int = 2
     max_arity: int = 2
     priority: int = 4
@@ -864,6 +1007,7 @@ class UnionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled union."""
         f_lhs, f_rhs = pparams
         num_leaves = params['num_leaves']
 
@@ -877,6 +1021,7 @@ class UnionNode(TransformPrimitive):
 
 
 class IntersectionInfixLiteralisation(Literalisation):
+    """Literal ``-and`` of :class:`IntersectionNode`."""
     affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -885,10 +1030,12 @@ class IntersectionInfixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class IntersectionNode(TransformPrimitive):
+    """Transform that gives the logical AND of two operands."""
     min_arity: int = 2
     max_arity: int = 2
     priority: int = 4
@@ -896,6 +1043,7 @@ class IntersectionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled intersection."""
         f_lhs, f_rhs = pparams
         num_leaves = params['num_leaves']
 
@@ -914,6 +1062,7 @@ class IntersectionNode(TransformPrimitive):
 
 
 class UnaryAdditionSuffixLiteralisation(Literalisation):
+    """Literal ``-add{s}`` of :class:`UnaryAdditionNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -923,11 +1072,13 @@ class UnaryAdditionSuffixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the scalar."""
         params['scalar'] = float(params['scalar'])
         return params
 
 
 class UnaryAdditionNode(TransformPrimitive):
+    """Transform that adds a scalar to an image."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -935,6 +1086,7 @@ class UnaryAdditionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled addition."""
         f = pparams[0]
         scalar = params['scalar']
         num_leaves = params['num_leaves']
@@ -951,6 +1103,7 @@ class UnaryAdditionNode(TransformPrimitive):
 
 
 class AdditionInfixLiteralisation(Literalisation):
+    """Literal ``-add`` of :class:`AdditionNode`."""
     affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -959,10 +1112,12 @@ class AdditionInfixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class AdditionNode(TransformPrimitive):
+    """Transform that adds two operands."""
     min_arity: int = 2
     max_arity: int = 2
     priority: int = 4
@@ -970,6 +1125,7 @@ class AdditionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled addition."""
         f_lhs, f_rhs = pparams
         num_leaves = params['num_leaves']
 
@@ -983,6 +1139,7 @@ class AdditionNode(TransformPrimitive):
 
 
 class UnarySubtractionSuffixLeftLiteralisation(Literalisation):
+    """Literal ``-sub{s}`` of :class:`UnarySubtractionNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -992,12 +1149,14 @@ class UnarySubtractionSuffixLeftLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the scalar, the right operand."""
         params['scalar'] = float(params['scalar'])
         params['side'] = 'left'
         return params
 
 
 class UnarySubtractionSuffixRightLiteralisation(Literalisation):
+    """Literal ``-sub{s,...}`` of :class:`UnarySubtractionNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1008,12 +1167,14 @@ class UnarySubtractionSuffixRightLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the scalar, the left operand."""
         params['scalar'] = float(params['scalar'])
         params['side'] = 'right'
         return params
 
 
 class UnarySubtractionNode(TransformPrimitive):
+    """Transform that subtracts a scalar from an image, or an image from it."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -1024,6 +1185,7 @@ class UnarySubtractionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled subtraction."""
         f = pparams[0]
         scalar = params['scalar']
         op_side = params['side']
@@ -1044,6 +1206,7 @@ class UnarySubtractionNode(TransformPrimitive):
 
 
 class SubtractionInfixLiteralisation(Literalisation):
+    """Literal ``-sub`` of :class:`SubtractionNode`."""
     affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1052,10 +1215,12 @@ class SubtractionInfixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class SubtractionNode(TransformPrimitive):
+    """Transform that subtracts the right operand from the left."""
     min_arity: int = 2
     max_arity: int = 2
     priority: int = 4
@@ -1063,6 +1228,7 @@ class SubtractionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled subtraction."""
         f_lhs, f_rhs = pparams
         num_leaves = params['num_leaves']
 
@@ -1076,6 +1242,7 @@ class SubtractionNode(TransformPrimitive):
 
 
 class UnaryMultiplicationSuffixLiteralisation(Literalisation):
+    """Literal ``-mul{s}`` of :class:`UnaryMultiplicationNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1085,11 +1252,13 @@ class UnaryMultiplicationSuffixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the scalar."""
         params['scalar'] = float(params['scalar'])
         return params
 
 
 class UnaryMultiplicationNode(TransformPrimitive):
+    """Transform that multiplies an image by a scalar."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -1099,6 +1268,7 @@ class UnaryMultiplicationNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled multiplication."""
         f = pparams[0]
         scalar = params['scalar']
         num_leaves = params['num_leaves']
@@ -1115,6 +1285,7 @@ class UnaryMultiplicationNode(TransformPrimitive):
 
 
 class MultiplicationInfixLiteralisation(Literalisation):
+    """Literal ``-mul`` of :class:`MultiplicationNode`."""
     affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1123,10 +1294,12 @@ class MultiplicationInfixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class MultiplicationNode(TransformPrimitive):
+    """Transform that multiplies two operands."""
     min_arity: int = 2
     max_arity: int = 2
     priority: int = 4
@@ -1134,6 +1307,7 @@ class MultiplicationNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled multiplication."""
         f_lhs, f_rhs = pparams
         num_leaves = params['num_leaves']
 
@@ -1147,6 +1321,7 @@ class MultiplicationNode(TransformPrimitive):
 
 
 class UnaryDivisionSuffixLeftLiteralisation(Literalisation):
+    """Literal ``-div{s}`` of :class:`UnaryDivisionNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1156,12 +1331,14 @@ class UnaryDivisionSuffixLeftLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the scalar, the right operand."""
         params['scalar'] = float(params['scalar'])
         params['side'] = 'left'
         return params
 
 
 class UnaryDivisionSuffixRightLiteralisation(Literalisation):
+    """Literal ``-div{s,...}`` of :class:`UnaryDivisionNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1172,12 +1349,14 @@ class UnaryDivisionSuffixRightLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the scalar, the left operand."""
         params['scalar'] = float(params['scalar'])
         params['side'] = 'right'
         return params
 
 
 class UnaryDivisionNode(TransformPrimitive):
+    """Transform that divides an image by a scalar, or a scalar by it."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -1188,6 +1367,7 @@ class UnaryDivisionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled division."""
         f = pparams[0]
         scalar = params['scalar']
         op_side = params['side']
@@ -1208,6 +1388,7 @@ class UnaryDivisionNode(TransformPrimitive):
 
 
 class DivisionInfixLiteralisation(Literalisation):
+    """Literal ``-div`` of :class:`DivisionNode`."""
     affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1216,10 +1397,17 @@ class DivisionInfixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class DivisionNode(TransformPrimitive):
+    """
+    Transform of the infix ``-div`` operation.
+
+    The compiled operation computes the product of the operands, not their
+    quotient.
+    """
     min_arity: int = 2
     max_arity: int = 2
     priority: int = 4
@@ -1227,6 +1415,7 @@ class DivisionNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled operation, which multiplies the operands."""
         f_lhs, f_rhs = pparams
         num_leaves = params['num_leaves']
 
@@ -1240,6 +1429,7 @@ class DivisionNode(TransformPrimitive):
 
 
 class UnaryRemainderSuffixLeftLiteralisation(Literalisation):
+    """Literal ``-mod{s}`` of :class:`UnaryRemainderNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1249,12 +1439,14 @@ class UnaryRemainderSuffixLeftLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the scalar, the right operand."""
         params['scalar'] = float(params['scalar'])
         params['side'] = 'left'
         return params
 
 
 class UnaryRemainderSuffixRightLiteralisation(Literalisation):
+    """Literal ``-mod{s,...}`` of :class:`UnaryRemainderNode`."""
     affix: str = 'suffix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1265,12 +1457,14 @@ class UnaryRemainderSuffixRightLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the scalar, the left operand."""
         params['scalar'] = float(params['scalar'])
         params['side'] = 'right'
         return params
 
 
 class UnaryRemainderNode(TransformPrimitive):
+    """Transform that gives an image modulo a scalar, or a scalar modulo it."""
     min_arity: int = 1
     max_arity: int = 1
     priority: int = 4
@@ -1281,6 +1475,7 @@ class UnaryRemainderNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled remainder."""
         f = pparams[0]
         scalar = params['scalar']
         op_side = params['side']
@@ -1301,6 +1496,7 @@ class UnaryRemainderNode(TransformPrimitive):
 
 
 class RemainderInfixLiteralisation(Literalisation):
+    """Literal ``-mod`` of :class:`RemainderNode`."""
     affix: str = 'infix'
     regex: str = field(
         default_factory=lambda: form_regex(
@@ -1309,10 +1505,12 @@ class RemainderInfixLiteralisation(Literalisation):
     )
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class RemainderNode(TransformPrimitive):
+    """Transform that gives the left operand modulo the right."""
     min_arity: int = 2
     max_arity: int = 2
     priority: int = 4
@@ -1320,6 +1518,7 @@ class RemainderNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return the compiled remainder."""
         f_lhs, f_rhs = pparams
         num_leaves = params['num_leaves']
 
