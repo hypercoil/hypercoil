@@ -23,21 +23,20 @@ def metric_tensor_field_diag_plus_low_rank(
     diag_model: Callable[[Tensor], Tensor],
 ) -> Tensor:
     """
-    Parameterise a metric tensor field as a sum of a diagonal and a low-rank
-    component.
+    Parameterise a metric tensor field as diagonal plus low rank.
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor containing the coordinates of each point in the metric tensor
         field. This is a tensor of shape `(*, p)`, where `*` denotes any number
         of batch and intervening dimensions, and `p` is the number of
         dimensions of the metric tensor field.
-    low_rank_model : callable
+    low_rank_model
         Callable that takes a tensor of shape `(*, p)` and returns a tensor of
         shape `(*, p, r)` where `r` is the rank of the low-rank component of
         the metric tensor field.
-    diag_model : callable
+    diag_model
         Callable that takes a tensor of shape `(*, p)` and returns a tensor of
         shape `(*, p)` containing the diagonal of the metric tensor field.
 
@@ -61,9 +60,9 @@ def quadratic_form(
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor of shape `(*, p)` containing the vector to multiply.
-    metric_tensor : Tensor
+    metric_tensor
         Tensor of shape `(*, p, p)` containing the metric tensor.
 
     Returns
@@ -80,14 +79,13 @@ def quadratic_form_low_rank_plus_diag(
     metric_tensor: Tuple[Tensor, Tensor],
 ) -> Tensor:
     """
-    Compute the quadratic form :math:`x^T A x` where :math:`A` is a sum of a
-    diagonal and a low-rank component.
+    Compute the quadratic form :math:`x^T A x` for diagonal plus low-rank A.
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor of shape `(*, p)` containing the vector to multiply.
-    metric_tensor : tuple of Tensors
+    metric_tensor
         Tuple containing the low-rank and diagonal components of the metric
         tensor. The low-rank component is a tensor of shape `(*, p, r)` and the
         diagonal component is a tensor of shape `(*, p)`. The sum of these two
@@ -142,20 +140,20 @@ def sample_along_line_segment(
     
     Parameters
     ----------
-    a : Tensor
+    a
         Tensor of shape `(*, p)` containing the coordinates of the start of the
         line segment.
-    b : Tensor
+    b
         Tensor of shape `(*, p)` containing the coordinates of the end of the
         line segment.
-    n_samples : int
+    n_samples
         Number of samples to take along the line segment.
-    even_sampling : bool (default True)
+    even_sampling
         Whether to sample evenly along the line segment. If this is False, then
         samples are drawn from a uniform distribution along the line segment.
-    include_endpoints : bool (default True)
+    include_endpoints
         Whether to include the endpoints of the line segment in the samples.
-    key : jax.random.PRNGKey
+    key
         Key to use for random number generation.
 
     Returns
@@ -188,26 +186,25 @@ def integrate_along_line_segment(
     """
     Approximately integrate a metric tensor field along a line segment.
 
-    It's generally challenging to find the geodesic distance between two
-    points on a Riemannian manifold. Here we use a crude approximation: we
-    sample points along a line segment between the two points, and then
-    approximate the integral of the metric tensor field along the line segment
-    as the average of the metric tensor field at the sampled points.
+    The geodesic distance between two points on a Riemannian manifold is
+    approximated by sampling points on the line segment between them and
+    averaging the norm under the metric tensor field over the samples. The
+    approximation is crude.
 
     Parameters
     ----------
-    a : Tensor
+    a
         Tensor of shape `(*, p)` containing the coordinates of the start of the
         line segment.
-    b : Tensor
+    b
         Tensor of shape `(*, p)` containing the coordinates of the end of the
         line segment.
-    metric_tensor_field : callable
+    metric_tensor_field
         Callable that takes a tensor of shape `(*, p)` and returns a tensor of
         shape `(*, p, p)` containing the metric tensor at that point.
-    n_samples : int
+    n_samples
         Number of samples to take along the line segment.
-    norm : callable (default quadratic_form)
+    norm
         Callable that takes a tensor of shape `(*, p)` and some representation
         of the metric tensor of shape `(*, p, p)` and returns a tensor of
         shape `(*, 1)` containing the norm of the vector under the metric
@@ -217,22 +214,28 @@ def integrate_along_line_segment(
             When approximating the metric tensor field as a sum of a diagonal
             and a low-rank component, the quadratic form can be computed more
             efficiently using :func:`quadratic_form_low_rank_plus_diag`.
-    even_sampling : bool (default True)
+    even_sampling
         Whether to sample evenly along the line segment. If this is False,
         then samples are drawn from a uniform distribution along the line
         segment.
-    include_endpoints : bool (default True)
+    include_endpoints
         Whether to include the endpoints of the line segment in the samples.
-    weight_by_euc_length : bool (default False)
+    weight_by_euc_length
         Whether to weight the estimated norm of each line segment by its
         Euclidean length.
-    weight_by_fraction : bool (default False)
+    weight_by_fraction
         Whether to weight each sample by the length of the line segment
         between it and the next sample, as a fraction of the total Euclidean
         length of the line segment. This is only relevant if `even_sampling`
         is False.
-    key : jax.random.PRNGKey
+    key
         Key to use for random number generation.
+
+    Returns
+    -------
+    Tensor
+        Approximate length of each segment under the metric, of shape
+        :math:`(*, 1)`.
     """
     rel = _obtain_relative_samples(
         n_samples=n_samples,

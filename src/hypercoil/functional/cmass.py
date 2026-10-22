@@ -27,9 +27,9 @@ def cmass(
     na_rm: bool = False,
 ) -> Tensor:
     r"""
-    Differentiably compute a weight's centre of mass. This can be used to
-    regularise the weight so that its centre of mass is close to a provided
-    coordinate.
+    Compute the centre of mass of a weight, differentiably.
+
+    A regulariser can use it to keep the centre of mass near a coordinate.
 
     :Dimension: **Input :** :math:`(*, k_1, k_2, ..., k_n)`
                     `*` denotes any number of batch and intervening
@@ -41,17 +41,17 @@ def cmass(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor containing the weights whose centres of mass are to be
         computed.
-    axes : iterable or None (default None)
+    axes
         Axes of the input tensor that together define each slice of the tensor
         within which a single centre-of-mass vector is computed. If this is
         set to None, then the centre of mass is computed across all axes. If
         this is [-3, -2, -1], then the centre of mass is computed separately
         for each 3-dimensional slice spanned by the last three axes of the
         tensor.
-    na_rm : float or False (default False)
+    na_rm
         If any single slice of the input tensor has zero mass, then the centre
         of mass within that slice is undefined and populated with NaN. The
         `na_rm` parameter specified how such undefined values are handled. If
@@ -95,9 +95,25 @@ def cmass_reference_displacement_grid(
     na_rm: bool = False,
 ) -> Tensor:
     """
-    Displacement of centres of mass from reference points -- grid version.
+    Compute the displacement of grid centres of mass from reference points.
 
-    See :func:`cmass` for parameter specifications.
+    Parameters
+    ----------
+    weight
+        Weights whose centres of mass are computed, as ``X`` in
+        :func:`cmass`.
+    refs
+        Reference points, broadcastable to the output of :func:`cmass`.
+    axes
+        Axes that span each slice, as in :func:`cmass`.
+    na_rm
+        Handling of the centres of slices with zero mass, as in
+        :func:`cmass`.
+
+    Returns
+    -------
+    Tensor
+        Centres of mass minus ``refs``, of shape ``(*, n)``.
     """
     cm = cmass(weight, axes=axes, na_rm=na_rm)
     return cm - refs
@@ -110,10 +126,24 @@ def cmass_reference_displacement(
     radius: Optional[float] = None,
 ) -> Tensor:
     """
-    Displacement of centres of mass from reference points -- explicit
-    coordinate version.
+    Compute the displacement of centres of mass from reference coordinates.
 
-    See :func:`cmass_coor` for parameter specifications.
+    Parameters
+    ----------
+    weight
+        Weights of shape ``(*, W, L)``, as ``X`` in :func:`cmass_coor`.
+    refs
+        Reference coordinates, broadcastable to ``(*, D, W)``.
+    coor
+        Coordinates of shape ``(*, D, L)`` of each location.
+    radius
+        If not None, the centres of mass are projected onto a sphere of this
+        radius before the displacement is computed.
+
+    Returns
+    -------
+    Tensor
+        Centres of mass minus ``refs``, of shape ``(*, D, W)``.
     """
     cm = cmass_coor(weight, coor, radius=radius)
     return cm - refs
@@ -137,11 +167,11 @@ def cmass_coor(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Weight whose centre of mass is to be computed.
-    coor : Tensor
+    coor
         Coordinates corresponding to each column (location/voxel) in X.
-    radius : float or None (default None)
+    radius
         If this is not None, then the computed centre of mass is projected
         onto a sphere with the specified radius.
 
@@ -184,16 +214,16 @@ def diffuse(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Weight for which the compactness score is to be computed.
-    coor : Tensor
+    coor
         Coordinates corresponding to each column (location/voxel) in X.
     norm
         Indicator of the type of norm to use for the distance function.
-    floor : float (default 0)
+    floor
         Any points closer to the centre of mass than the floor are assigned
         a compactness score of 0.
-    radius : float or None (default None)
+    radius
         If this is not None, then the centre of mass and distances are
         computed on a sphere with the specified radius.
 

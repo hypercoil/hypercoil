@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Crosshair-kernel similarity
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Localised similarity functions over a crosshair kernel.
 """
 from __future__ import annotations
@@ -21,6 +19,7 @@ from .crosshair import (
 
 
 def document_crosssim(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     crosssim_dim_spec = r"""
     :Dimension: **X :** :math:`(N, *, C_{in}, H, W)`
                     N denotes batch size, ``*`` denotes any number of
@@ -40,13 +39,13 @@ def document_crosssim(f: Callable) -> Callable:
     crosssim_param_spec = """
     Parameters
     ----------
-    X : Tensor
+    X
         Block of input tensors in which features should be identified. The last
         two axes correspond to the column and row dimensions of the matrices;
         the third to last axis corresponds to the data channels viewed by each
         reference template or filter. This is analogous to colour channels in a
         convolutional layer.
-    W : Tensor
+    W
         Block of reference or template tensors or filters. The last two axes
         correspond to row and column dimensions, and the third to last
         corresponds to the input data channels. The fourth to last axis
@@ -70,9 +69,8 @@ def document_crosssim(f: Callable) -> Callable:
 @document_crosssim
 def crosshair_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
-    Crosshair kernel inner product between a tensor block and a reference block
-    of template tensors.
-    \
+    Compute the crosshair kernel inner product with each template.
+
     {crosssim_rank_warning}
     \
     {crosssim_dim_spec}
@@ -87,9 +85,8 @@ def crosshair_similarity(X: Tensor, W: Tensor) -> Tensor:
 @document_crosssim
 def crosshair_cosine_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
-    Crosshair kernel cosine similarity between a tensor block and a reference
-    block of template tensors.
-    \
+    Compute the crosshair kernel cosine similarity with each template.
+
     {crosssim_rank_warning}
     \
     {crosssim_dim_spec}
@@ -109,9 +106,8 @@ def crosshair_cosine_similarity(X: Tensor, W: Tensor) -> Tensor:
 @document_crosssim
 def crosshair_l1_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
-    Crosshair kernel L1 distance between a tensor block and a reference block
-    of template tensors.
-    \
+    Compute the crosshair kernel L1 distance to each template.
+
     {crosssim_rank_warning}
     \
     {crosssim_dim_spec}
@@ -127,9 +123,8 @@ def crosshair_l1_similarity(X: Tensor, W: Tensor) -> Tensor:
 @document_crosssim
 def crosshair_l2_similarity(X: Tensor, W: Tensor) -> Tensor:
     """
-    Crosshair kernel L2 distance between a tensor block and a reference block
-    of template tensors.
-    \
+    Compute the crosshair kernel L2 distance to each template.
+
     {crosssim_rank_warning}
     \
     {crosssim_dim_spec}

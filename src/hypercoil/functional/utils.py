@@ -2,9 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-A hideous, disorganised group of utility functions. Hopefully someday they
-can disappear altogether or be moved elsewhere, but for now they exist, a sad
-blemish.
+Utility functions.
 """
 from __future__ import annotations
 from typing import Callable, Sequence, Tuple, Union
@@ -17,6 +15,7 @@ from ..engine.paramutil import Tensor
 
 # TODO: This will not work if JAX ever adds sparse formats other than BCOO.
 def is_sparse(X):
+    """Return whether ``X`` is a sparse ``BCOO`` array."""
     return isinstance(X, BCOO)
 
 
@@ -37,7 +36,23 @@ def conform_mask(
     """
     Conform a mask or weight for elementwise applying to a tensor.
 
-    There is almost certainly a better way to do this.
+    Parameters
+    ----------
+    tensor
+        Tensor to which the mask is applied.
+    mask
+        Mask or weight, aligned with ``axis`` of ``tensor``.
+    axis
+        Axes of ``tensor`` spanned by ``mask``. For an int, ``mask`` is tiled
+        over the leading axes.
+    batch
+        The first axis of ``mask`` is a batch axis aligned with the first
+        axis of ``tensor``.
+
+    Returns
+    -------
+    Tensor
+        ``mask`` tiled to the shape of ``tensor``.
 
     See also
     --------
@@ -79,13 +94,28 @@ def apply_mask(
 
     .. warning::
 
-        This function will only work if the mask is one-dimensional. For
-        multi-dimensional masks, use :func:`conform_mask`.
+        Only one-dimensional masks are supported. For multi-dimensional masks,
+        use :func:`conform_mask`.
 
     .. warning::
 
-        Use of this function is strongly discouraged. It is incompatible with
-        `jax.jit`.
+        Discouraged: incompatible with ``jax.jit``, because the output shape
+        depends on the mask.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to mask.
+    msk
+        Boolean mask over ``axis``.
+    axis
+        Axis to mask.
+
+    Returns
+    -------
+    Tensor
+        ``tensor`` with the entries along ``axis`` where ``msk`` is False
+        removed.
 
     See also
     --------
@@ -108,6 +138,26 @@ def mask_tensor(
     axis: Sequence[int],
     fill_value: Union[float, Tensor] = 0,
 ):
+    """
+    Replace the entries of a tensor outside a mask by a fill value.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to mask.
+    mask
+        Boolean mask, aligned with ``axis`` of ``tensor`` as in
+        :func:`conform_mask`.
+    axis
+        Axes of ``tensor`` spanned by ``mask``.
+    fill_value
+        Value of the entries where ``mask`` is False.
+
+    Returns
+    -------
+    Tensor
+        ``tensor`` where ``mask`` is True, and ``fill_value`` elsewhere.
+    """
     mask = conform_mask(tensor=tensor, mask=mask, axis=axis)
     return jnp.where(mask, tensor, fill_value)
 
@@ -121,7 +171,7 @@ def complex_decompose(complex: Tensor) -> Tuple[Tensor, Tensor]:
 
     Parameters
     ----------
-    complex : Tensor
+    complex
         Complex-valued tensor.
 
     Returns
@@ -142,8 +192,7 @@ def complex_decompose(complex: Tensor) -> Tuple[Tensor, Tensor]:
 
 def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
     """
-    Reconstitute a complex-valued tensor from real-valued tensors denoting its
-    amplitude and its phase.
+    Compose a complex tensor from its amplitude and phase.
 
     :Dimension:
         Both inputs must be the same shape (or broadcastable). The
@@ -151,9 +200,9 @@ def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
 
     Parameters
     ----------
-    ampl : Tensor
+    ampl
         Real-valued array storing complex number amplitudes.
-    phase : Tensor
+    phase
         Real-valued array storing complex number phases in radians.
 
     Returns
@@ -173,8 +222,7 @@ def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
 
 def amplitude_apply(func: Callable) -> Callable:
     """
-    Decorator for applying a function to the amplitude component of a complex
-    tensor.
+    Return a function applying ``func`` to the amplitude of a complex tensor.
     """
 
     def wrapper(complex: Tensor) -> Tensor:

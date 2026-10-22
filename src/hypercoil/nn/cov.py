@@ -22,6 +22,32 @@ def cfg_banded_parameter(
     mode: Literal['weight', 'mask'] = 'weight',
     out_channels: int = 1,
 ):
+    """
+    Configure the row and column parameters of a banded Toeplitz matrix.
+
+    Parameters
+    ----------
+    max_lag
+        Largest lag in the band; entries above it are null.
+    min_lag
+        Smallest lag in the band; negative lags lie below the diagonal.
+    mode
+        ``'weight'`` gives weights :math:`e^{-|k|}` at lag :math:`k`;
+        ``'mask'`` gives a Boolean mask.
+    out_channels
+        Number of channels.
+
+    Returns
+    -------
+    tuple
+        Row and column parameters, each of shape ``(out_channels, n)``; lags
+        outside the band are 0 or False.
+
+    Raises
+    ------
+    ValueError
+        If ``min_lag`` exceeds ``max_lag``.
+    """
     mode_fn = {
         'weight': lambda x: jnp.exp(-jnp.arange(x)),
         'mask': lambda x: jnp.ones((x,), dtype=jnp.bool_),
@@ -54,19 +80,7 @@ def cfg_banded_parameter(
 
 
 def document_cov_nn(cls):
-    """
-    Decorator to document a covariance estimation module.
-
-    Parameters
-    ----------
-    cls : type
-        The class to document.
-
-    Returns
-    -------
-    type
-        The decorated class.
-    """
+    """Fill the shared templates in the docstring of ``cls``."""
     unary_nn_spec = """
     The input tensor is interpreted as a set of multivariate observations.
     A covariance estimator computes some measure of statistical dependence
@@ -113,79 +127,81 @@ def document_cov_nn(cls):
     default initialisation will be equivalent to an unweighted covariance."""
 
     unary_estimator_spec = """
-    estimator : callable
+    estimator
         Covariance estimator, e.g. from
-        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
+        :mod:`~hypercoil.functional.cov`. The
         estimator must be unary: it should accept a single tensor rather than
         multiple tensors. Some available options are:
 
-        - :doc:`cov <hypercoil.functional.cov.cov>`: Raw empirical covariance.
-        - :doc:`corr  <hypercoil.functional.cov.corr>`: Pearson correlation.
-        - :doc:`precision  <hypercoil.functional.cov.precision>`: Precision.
-        - :doc:`partialcorr  <hypercoil.functional.cov.partialcorr>`:
+        - :func:`~hypercoil.functional.cov.cov`: Raw empirical covariance.
+        - :func:`~hypercoil.functional.cov.corr`: Pearson correlation.
+        - :func:`~hypercoil.functional.cov.precision`: Precision.
+        - :func:`~hypercoil.functional.cov.partialcorr`:
           Partial correlation."""
 
     binary_estimator_spec = """
-    estimator : callable
+    estimator
         Covariance estimator, e.g. from
-        :doc:`hypercoil.functional.cov <hypercoil.functional.cov>`. The
+        :mod:`~hypercoil.functional.cov`. The
         estimator must be binary: it should accept two tensors rather than
         one. Some available options are:
 
-        - :doc:`pairedcov <hypercoil.functional.cov.pairedcov>`:
+        - :func:`~hypercoil.functional.cov.pairedcov`:
           Empirical covariance between variables in tensor 1 and those in
           tensor 2.
-        - :doc:`pairedcorr <hypercoil.functional.cov.pairedcorr>`:
+        - :func:`~hypercoil.functional.cov.pairedcorr`:
           Pearson correlation between variables in tensor 1 and those in
           tensor 2.
-        - :doc:`conditionalcov <hypercoil.functional.cov.conditionalcov>`:
+        - :func:`~hypercoil.functional.cov.conditionalcov`:
           Covariance between variables in tensor 1 after conditioning on
           variables in tensor 2. Can be used to control for the effects of
           confounds and is equivalent to confound regression with the
           addition of an intercept term.
-        - :doc:`conditionalcorr <hypercoil.functional.cov.conditionalcorr>`:
+        - :func:`~hypercoil.functional.cov.conditionalcorr`:
           Pearson correlation between variables in tensor 1 after
           conditioning on variables in tensor 2."""
 
     param_spec = """
-    dim : int
+    dim
         Number of observations `O` per data instance. This determines the
         dimension of each slice of the covariance weight tensor.
-    min_lag , max_lag : int or None (default 0)
+    min_lag, max_lag
         Minimum and maximum lags to include in the weight matrix. If these
         parameters are not None, the structure of the weight matrix is
         constrained to allow nonzero entries only along diagonals that are a
         maximum offset of (``min_lag``, ``max_lag``) from the main diagonal.
         The default value of 0 permits weights only along the main diagonal.
-    out_channels : int (default 1)
+    out_channels
         Number of weight sets ``W`` to include. For each weight set, the
         module produces an output channel.
-    rowvar : bool (default True)
+    rowvar
         Indicates that the last axis of the input tensor is the observation
         axis and the penultimate axis is the variable axis. If False, then
         this relationship is transposed.
-    biased : bool (default False)
+    biased
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
         covariance is unbiased (i.e., division by `N - 1`).
-    ddof : int or None (default None)
+    ddof
         Degrees of freedom for normalisation. If this is specified, it
         overrides the normalisation factor automatically determined using the
         ``biased`` parameter.
-    l2 : nonnegative float (default 0)
+    l2
         L2 regularisation term to add to the maximum likelihood estimate of
         the covariance matrix. This can be set to a positive value to obtain
         intermediate for estimating the regularised inverse covariance or to
         an ensure that the covariance matrix is non-singular (if, for
         instance, it needs to be inverted or projected into a tangent
-        space)."""
+        space).
+        Nonnegative."""
 
     weighted_attr_spec = """
-    mask : Tensor :math:`(W, O, O)` or None
+    mask
         Boolean-valued tensor indicating the entries of the weight tensor that
         are permitted to take nonzero values. This is determined by the
         specified ``max_lag`` parameter at initialisation.
-    weight : Tensor :math:`(W, O, O)`
+        Shape :math:`(W, O, O)`.
+    weight
         Tensor containing importance or coupling weights for the observations.
         If this tensor is 1-dimensional, each entry weights the corresponding
         observation in the covariance computation. If it is 2-dimensional,
@@ -193,17 +209,19 @@ def document_cov_nn(cls):
         case, diagonal entries again correspond to relative importances, while
         off-diagonal entries indicate coupling factors. For instance, a banded
         or multi-diagonal tensor can be used to specify inter-temporal
-        coupling for a time series covariance."""
+        coupling for a time series covariance.
+        Shape :math:`(W, O, O)`."""
 
     toeplitz_attr_spec = """
-    weight_col, weight_row : Tensor :math:`(W, L)`
+    weight_col, weight_row
         Toeplitz matrix generators for the columns (lag) and rows (lead) of
         the weight matrix. L denotes the maximum lag. These parameters are
         repeated along each diagonal of the weight matrix up to the maximum
         lag. The weight generators are initialised as exponentials over
         negative integers with a maximum of 1 at the origin (zero lag;
         :math:`e^0`). The ``weight`` attribute is a property that is generated
-        from these parameters as needed."""
+        from these parameters as needed.
+        Each of shape :math:`(W, L)`."""
 
     fmt = NestedDocParse(
         unary_nn_spec=unary_nn_spec,
@@ -241,6 +259,7 @@ class BaseCovariance(eqx.Module):
         weight: Optional[Tensor],
         mask: Optional[Tensor],
     ) -> Tensor:
+        """Return ``weight`` with the outer product of ``mask`` applied."""
         if weight is not None:
             weight = _to_jax_array(weight)
         if mask is not None:
@@ -255,8 +274,7 @@ class BaseCovariance(eqx.Module):
 
 class UnaryCovMixin:
     """
-    Mixin for covariance estimators that operate on a single multivariate
-    tensor.
+    Mixin for covariance estimators of a single multivariate tensor.
 
     ``UnaryCovMixin`` provides an implementation of the forward pass through a
     covariance module, which takes as input a single multivariate tensor and
@@ -287,8 +305,7 @@ class UnaryCovMixin:
 
 class BinaryCovMixin:
     """
-    Base class for covariance estimators that operate on a pair of
-    multivariate tensors.
+    Base class for covariance estimators of a pair of multivariate tensors.
 
     ``BinaryCovMixin`` provides an implementation of the forward pass through
     a covariance module, which takes as input two multivariate tensors and
@@ -324,8 +341,7 @@ class BinaryCovMixin:
 
 class ParameterisedUnaryCovMixin(UnaryCovMixin):
     """
-    Like :class:`UnaryCovMixin`, but with weight and mask parameters that are
-    attributes of the module.
+    :class:`UnaryCovMixin` with weight and mask as module attributes.
     """
 
     def __call__(
@@ -349,8 +365,7 @@ class ParameterisedUnaryCovMixin(UnaryCovMixin):
 
 class ParameterisedBinaryCovMixin(BinaryCovMixin):
     """
-    Like :class:`BinaryCovMixin`, but with weight and mask parameters that are
-    attributes of the module.
+    :class:`BinaryCovMixin` with weight and mask as module attributes.
     """
 
     def __call__(
@@ -376,10 +391,9 @@ class ParameterisedBinaryCovMixin(BinaryCovMixin):
 
 class BaseWeightedCovariance(BaseCovariance):
     """
-    Base class for covariance estimators with a full complement of learnable
-    weights.
+    Base class for covariance estimators with fully learnable weights.
 
-    ``_WeightedCov`` extends ``BaseCovariance`` by providing a default
+    ``_WeightedCov`` extends :class:`BaseCovariance` by providing a default
     initialisation framework for the module's learnable parameters.
 
     Consult specific implementations for comprehensive documentation.
@@ -452,8 +466,7 @@ class BaseWeightedCovariance(BaseCovariance):
 
 class BaseToeplitzWeightedCovariance(BaseCovariance):
     """
-    Base class for covariance estimators with a single learnable weight for
-    each time lag.
+    Base class for covariance estimators with a learnable weight per lag.
     """
 
     weight_col: Tensor
@@ -518,6 +531,7 @@ class BaseToeplitzWeightedCovariance(BaseCovariance):
 
     @property
     def weight(self):
+        """Toeplitz weight of shape ``(dim, dim)``."""
         return toeplitz(
             c=_to_jax_array(self.weight_col),
             r=_to_jax_array(self.weight_row),
@@ -536,9 +550,8 @@ class UnaryCovariance(
     ParameterisedUnaryCovMixin,
 ):
     """
-    Covariance measures of a single tensor, with a full complement of
-    learnable weights.
-    \
+    Covariance of a single tensor, with fully learnable weights.
+
     {weighted_nn_spec}\
     {unary_nn_spec}
 
@@ -586,9 +599,8 @@ class UnaryCovarianceTW(
     ParameterisedUnaryCovMixin,
 ):
     """
-    Covariance measures of a single tensor, with a single learnable weight for
-    each time lag.
-    \
+    Covariance of a single tensor, with a learnable weight per time lag.
+
     {weighted_nn_spec}\
     {unary_nn_spec}
 
@@ -637,8 +649,8 @@ class UnaryCovarianceUW(
     UnaryCovMixin,
 ):
     """
-    Covariance measures of a single tensor, without learnable weights.
-    \
+    Covariance of a single tensor, without learnable weights.
+
     {unary_nn_spec}
 
     Parameters
@@ -680,9 +692,8 @@ class BinaryCovariance(
     ParameterisedBinaryCovMixin,
 ):
     r"""
-    Covariance measures using variables stored in two tensors, with a full
-    complement of learnable weights.
-    \
+    Covariance between two tensors, with fully learnable weights.
+
     {weighted_nn_spec}\
     {binary_nn_spec}
 
@@ -730,9 +741,8 @@ class BinaryCovarianceTW(
     ParameterisedBinaryCovMixin,
 ):
     r"""
-    Covariance measures using variables stored in two tensors, with a single
-    learnable weight for each time lag.
-    \
+    Covariance between two tensors, with a learnable weight per time lag.
+
     {weighted_nn_spec}\
     {binary_nn_spec}
 
@@ -781,9 +791,8 @@ class BinaryCovarianceUW(
     BinaryCovMixin,
 ):
     r"""
-    Covariance measures using variables stored in two tensors, without
-    learnable weights.
-    \
+    Covariance between two tensors, without learnable weights.
+
     {binary_nn_spec}
 
     Parameters

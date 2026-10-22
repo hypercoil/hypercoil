@@ -2,8 +2,9 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Differentiable computation of matrix logarithm, exponential, and square root.
-For use with symmetric (typically positive semidefinite) matrices.
+Differentiable matrix logarithm, exponential and square root.
+
+The functions are for symmetric, typically positive semidefinite, matrices.
 """
 from __future__ import annotations
 from typing import Callable, Literal, Optional
@@ -29,13 +30,15 @@ from . import recondition_eigenspaces, symmetric
 
 
 def document_symmetric_map(func):
+    """Fill the shared templates in the docstring of ``func``."""
     symmap_param_spec = r"""
-    psi : float in [0, 1]
+    psi
         Conditioning factor to promote positive definiteness.
-    key: Tensor or None (default None)
+        In [0, 1].
+    key
         Key for pseudo-random number generation. Required if ``recondition`` is
         set to ``'eigenspaces'`` and ``psi`` is in (0, 1].
-    recondition : ``'convexcombination'`` or ``'eigenspaces'`` (default ``'eigenspaces'``)
+    recondition
         Method for reconditioning.
 
         - ``'convexcombination'`` denotes that the original input will be
@@ -57,10 +60,10 @@ def document_symmetric_map(func):
           definiteness, this method promotes eigenspaces with dimension 1 (no
           degenerate/repeated eigenvalues). Nondegeneracy of eigenvalues is
           required for differentiation through SVD.
-    fill_nans : bool (default True)
+    fill_nans
         Indicates that any NaNs among the transformed eigenvalues should be
         replaced with zeros.
-    truncate_eigenvalues : bool (default False)
+    truncate_eigenvalues
         Indicates that very small eigenvalues, which might for instance occur
         due to numerical errors in the decomposition, should be truncated to
         zero. Note that you should not do this if you wish to differentiate
@@ -87,8 +90,9 @@ def symmap(
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
     r"""
-    Apply a specified matrix-valued transformation to a batch of symmetric
-    (probably positive semidefinite) tensors.
+    Apply a matrix function to a batch of symmetric matrices.
+
+    The matrices are typically positive semidefinite.
 
     .. note::
         This should be faster than using ``jax.scipy.linalg.funm`` for
@@ -104,11 +108,11 @@ def symmap(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Batch of symmetric tensors to transform.
-    map : dimension-conserving callable
+    map
         Transformation to apply as a matrix-valued function.
-    spd : bool (default True)
+    spd
         Indicates that the matrices in the input batch are symmetric positive
         semidefinite; guards against numerical rounding errors and ensures all
         eigenvalues are nonnegative.\
@@ -173,7 +177,7 @@ def symlog(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Batch of symmetric tensors to transform using the matrix logarithm.\
     {symmap_param_spec}
 
@@ -216,7 +220,7 @@ def symexp(input: Tensor) -> Tensor:
 
     Parameters
     ----------
-    input : Tensor
+    input
         Batch of symmetric tensors to transform using the matrix exponential.
 
     Returns
@@ -267,7 +271,7 @@ def symsqrt(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Batch of symmetric tensors to transform using the matrix square root.\
     {symmap_param_spec}
 

@@ -15,13 +15,13 @@ from ..functional.resid import document_linreg, residualise
 
 
 # TODO: assess backprop properties of this approach vs conditional correlation
-# TODO: Do we really need this, or can we just use eqx.nn.Lambda? Turns out we
-#      can't without making it ugly, so we'll keep this for now.
+# eqx.nn.Lambda was considered in place of this module and rejected on
+# account of readability.
 @document_linreg
 class Residualise(Module):
     """
-    Residualise a tensor block via ordinary linear least squares.
-    \
+    Module that residualises a tensor block by ordinary least squares.
+
     {regress_warning}
 
     Parameters

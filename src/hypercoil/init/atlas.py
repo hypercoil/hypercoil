@@ -7,70 +7,64 @@ Tools for initialising parameters corresponding to brain atlases.
 Neuroimaging atlases are principally defined and distributed with reference to
 either volumetric or surface-based coordinate spaces. Additionally, atlases
 might be either discrete-valued, hard-label parcellations or continuous-valued
-maps that can overlap with one another. The ``atlas`` initialisation module is
-designed to handle these use cases, together with random or unstructured
-initialisations that do not leverage prior knowledge and are thus unbiased by
-it.
+maps that can overlap with one another. This module handles these cases,
+together with random or unstructured initialisations that use no prior
+knowledge.
 
 The initialisation class itself,
-:doc:`AtlasInit <hypercoil.init.atlas.AtlasInit>`,
-takes as its main, non-optional argument an instance of an ``Atlas`` object.
+:class:`~hypercoil.init.atlas.AtlasInitialiser`,
+takes as its required argument an atlas object.
 All atlas objects subclass the abstract base class
-:doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
+:class:`~hypercoil.init.atlas.BaseAtlas`
 and incorporate a combination of
-:doc:`atlas mixins <hypercoil.init.atlasmixins>`
+:mod:`atlas mixins <hypercoil.init.atlasmixins>`
 to implement diverse functionalities. These subclasses generally take a
 pointer to a reference as an input argument; this reference either forms the
 base for the atlas (for classes that use previously existing knowledge
 annotations) or defines its dimensions (for classes based on random
 initialisations). Existing subclasses include
 
-- :doc:`DiscreteVolumetricAtlas <hypercoil.init.atlas.DiscreteVolumetricAtlas>`
+- :class:`~hypercoil.init.atlas.DiscreteVolumetricAtlas`
   implements a volumetric atlas with discrete parcels, loaded from a single
   reference image and a single volume in which each unique integer identifies
   a single parcel.
-- :doc:`MultiVolumetricAtlas <hypercoil.init.atlas.MultiVolumetricAtlas>`
+- :class:`~hypercoil.init.atlas.MultiVolumetricAtlas`
   implements a volumetric atlas whose parcels are each encoded in a separate
   volume of the reference image.
-- :doc:`MultifileVolumetricAtlas <hypercoil.init.atlas.MultifileVolumetricAtlas>`
+- :class:`~hypercoil.init.atlas.MultifileVolumetricAtlas`
   implements a volumetric atlas whose parcels (either discrete or continuous)
   are each encoded in a separate reference image file.
-- :doc:`CortexSubcortexCIfTIAtlas <hypercoil.init.atlas.CortexSubcortexCIfTIAtlas>`
+- :class:`~hypercoil.init.atlas.CortexSubcortexCIfTIAtlas`
   implements a surface-based atlas with discrete parcels, loaded from a CIfTI
   image. Parcels are compartmentalised into left and right cerebral cortex and
   subcortex.
-- :doc:`DirichletInitVolumetricAtlas <hypercoil.init.atlas.DirichletInitVolumetricAtlas>`
+- :class:`~hypercoil.init.atlas.DirichletInitVolumetricAtlas`
   implements a volumetric atlas whose voxel-label annotations are initialised
   as random, i.i.d. samples from a Dirichlet distribution.
-- :doc:`DirichletInitSurfaceAtlas <hypercoil.init.atlas.DirichletInitSurfaceAtlas>`
+- :class:`~hypercoil.init.atlas.DirichletInitSurfaceAtlas`
   implements a surface-based atlas compartmentalised into left and right
   cerebral cortex and subcortex. Voxel- and vertex-label annotations are
   initialised as random, i.i.d. samples from a Dirichlet distribution.
 
 .. note::
-    For cases not handled by the existing subclasses, we would eventually like
-    the :doc:`atlas mixins <hypercoil.init.atlasmixins>`
-    to be flexible and robust enough so that users can straightforwardly
-    design new atlas subclasses. In reality, we are not currently close to
-    this objective.
+    Composing the :mod:`atlas mixins <hypercoil.init.atlasmixins>` into a new
+    atlas subclass is not currently supported in general.
 
 .. image:: ../_images/atlas_linearmap.svg
   :width: 400
   :align: center
 
-Each subclass instance of ``BaseAtlas`` has a ``maps`` attribute that stores
-voxel-label annotations as a dictionary. The keys of this dictionary
+Each subclass instance of :class:`BaseAtlas` has a ``maps`` attribute that
+stores voxel-label annotations as a dictionary. The keys of this dictionary
 correspond to isolated compartments of the atlas. (The single key ``'all'`` is
 used for atlases not compartmentalised.) The dictionary values are
 :math:`L_{compartment} \times V_{compartment}` matrices, where
-:math:`V_{compartment}` is the number of spatial locations (voxels or
-vertices) in the compartment, and
-:math:`L_{compartment}` is the number of distinct parcel labels in the
-compartment. These matrices can be used in a linear mapping to reduce the
-dimension of an input time series from the number of voxels to the number of
-parcels. See
-:doc:`the linear atlas module <hypercoil.nn.atlas>`
-for more details.
+:math:`V_{compartment}` is the number of spatial locations (voxels or vertices)
+in the compartment, and :math:`L_{compartment}` is the number of distinct
+parcel labels in the compartment. These matrices can be used in a linear
+mapping to reduce the dimension of an input time series from the number of
+voxels to the number of parcels. See
+:mod:`the linear atlas module <hypercoil.nn.atlas>` for more details.
 """
 from __future__ import annotations
 from abc import abstractmethod
@@ -131,32 +125,34 @@ from .mapparam import MappedParameter, ProbabilitySimplexParameter
 
 class BaseAtlas(eqx.Module):
     """
-    Atlas object encoding linear mappings from voxels to labels.
-    Base class inherited by discrete and continuous atlas containers.
+    Base class for atlases: linear maps from spatial locations to labels.
+
+    Discrete and continuous atlas containers inherit from this class.
 
     Several atlas classes are included to cover frequent scenarios, but users
     can also create their own atlas class compositionally using the available
-    :doc:`mixins <hypercoil.init.atlasmixins>`.
-    Each atlas class must implement the following methods:
+    :mod:`mixins <hypercoil.init.atlasmixins>`.
+    Each atlas class implements the following methods, which the private
+    mixins of :mod:`~hypercoil.init.atlasmixins` supply:
 
     ``_load_reference``
-        Implemented by a ``~ReferenceMixin`` class.
+        Supplied by a ``_*ReferenceMixin`` class.
     ``_create_mask``
-        Implemented by a ``~MaskMixin`` class.
+        Supplied by a ``_*MaskMixin`` class.
     ``_compartment_names_dict``
-        Implemented by a ``~CompartmentMixin`` class.
+        Supplied by a ``_*CompartmentMixin`` class.
     ``_create_compartments``
-        Implemented by a ``~CompartmentMixin`` class.
+        Supplied by a ``_*CompartmentMixin`` class.
     ``_configure_decoders``
-        Implemented by a ``~LabelMixin`` class.
+        Supplied by a ``_*LabelMixin`` class.
     ``_populate_map_from_ref``
-        Implemented by a ``~LabelMixin`` class.
+        Supplied by a ``_*LabelMixin`` class.
     ``_init_coors``
-        Implemented by a ``~MeshMixin`` class.
+        Supplied by a ``_*MeshMixin`` class.
     ``_configure_sigma``
-        Implemented by a ``~ConvMixin`` class.
+        Supplied by a ``_*ConvMixin`` class.
     ``_convolve``
-        Implemented by a ``~ConvMixin`` class.
+        Supplied by a ``_*ConvMixin`` class.
 
     Abstractly, atlas creation proceeds through the following steps:
 
@@ -181,7 +177,7 @@ class BaseAtlas(eqx.Module):
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
@@ -189,23 +185,23 @@ class BaseAtlas(eqx.Module):
     ----------
     ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -311,38 +307,38 @@ class BaseAtlas(eqx.Module):
 
         Parameters
         ----------
-        compartments : iterable, False, or True (default True)
+        compartments
             Compartments for which transformed maps should be computed. If
             this is set to False, then a single transformed map is returned
             for the combined compartment containing all spatial locations. If
             this is set to True, then a transformed map is returned for every
             defined compartment.
-        normalise : bool (default False)
+        normalise
             Indicates that maps should be spatially normalised such that the
             sum over all assignments to a parcel is equal to 1. When the map
             is used as a linear transformation, this option results in
             computation of a weighted average over each parcel.
-        sigma : float or None (default None)
+        sigma
             If this is not None, then spatial smoothing using a Gaussian
             kernel is applied over each parcel's assignments. Distances are
             established by the atlas's coordinate system and the topology of
             each compartment. The value of sigma establishes the width of the
             Gaussian kernel.
-        noise : callable or None
+        noise
             If this is a callable, then it should be a mapping from a tensor
             to another tensor of the same dimensions. After spatial smoothing
             but before normalisation, this callable is applied to each map
             tensor to inject noise.
-        max_bin : int (default 10000)
+        max_bin
             Because spatial smoothing has substantial memory overhead, this
             flag sets a ceiling on the number of spatial locations to be
             smoothed at a time.
-        spherical_scale : float (default 1)
+        spherical_scale
             During spatial smoothing, the Gaussian kernel is scaled by this
             value for spherical coordinate systems only. This enables the use
             of different kernel widths for spherical and Euclidean
             coordinates.
-        truncate : float
+        truncate
             Maximum distance at which data points are convolved together
             during smoothing.
 
@@ -402,17 +398,16 @@ class DirichletInitBaseAtlas(
 ):
     """
     Abstract base class for atlases initialised from a Dirichlet distribution.
-    See
-    :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
-    for general details.
+
+    See :class:`BaseAtlas` for general details.
 
     Parameters
     ----------
     mask_source
         Source of data used to create an overall mask for the atlas.
-    compartment_labels : dict(int)
+    compartment_labels
         Number of labels to initialise for each compartment.
-    conc : float
+    conc
         If this is provided and ``init`` is not, then the Dirichlet
         distributions used to sample assignments of spatial locations to
         parcels are defined with the same concentration parameter, ``conc``,
@@ -421,7 +416,7 @@ class DirichletInitBaseAtlas(
         Template used to define the spatial dimensions and coordinates of the
         atlas. If this is not provided explicitly, then the mask source image
         is used by default.
-    init : dict(Dirichlet)
+    init
         Dict mapping from compartment names to the Dirichlet distributions
         used for parcel assignment initialisation in each compartment.
     """
@@ -514,9 +509,9 @@ class DiscreteVolumetricAtlas(
     BaseAtlas,
 ):
     """
-    Discrete atlas container object. Use for atlases stored in single-volume
-    images with non-overlapping, discrete-valued parcels. It is assumed that
-    a value of 0 in the reference image corresponds to no label.
+    Atlas with discrete, non-overlapping parcels in a single volume.
+
+    A value of 0 in the reference image is taken to mean no label.
 
     Parameters
     ----------
@@ -527,31 +522,31 @@ class DiscreteVolumetricAtlas(
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -581,12 +576,11 @@ class MultiVolumetricAtlas(
     BaseAtlas,
 ):
     """
-    Continuous atlas container object. Use for atlases whose labels overlap
-    and must therefore be stored across multiple image volumes -- for
-    instance, probabilistic segmentations or ICA results. If the labels are
-    stored across multiple files, use
-    :doc:`MultifileVolumetricAtlas <hypercoil.init.atlas.MultifileVolumetricAtlas>`
-    instead.
+    Continuous atlas with each label in a separate volume of one image.
+
+    Overlapping labels, such as probabilistic segmentations or ICA results, are
+    stored across volumes. For labels stored across multiple files, use
+    :class:`MultifileVolumetricAtlas`.
 
     Parameters
     ----------
@@ -597,31 +591,31 @@ class MultiVolumetricAtlas(
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -651,12 +645,11 @@ class MultifileVolumetricAtlas(
     BaseAtlas,
 ):
     """
-    Continuous atlas container object. Use for atlases whose labels overlap
-    and must therefore be stored across multiple image files -- for
-    instance, probabilistic segmentations or ICA results. If the labels are
-    stored across multiple volumes of a single file, use
-    :doc:`MultiVolumetricAtlas <hypercoil.init.atlas.MultiVolumetricAtlas>`
-    instead.
+    Continuous atlas with each label in a separate image file.
+
+    Overlapping labels, such as probabilistic segmentations or ICA results, are
+    stored across files. For labels stored across the volumes of one file, use
+    :class:`MultiVolumetricAtlas`.
 
     Parameters
     ----------
@@ -667,31 +660,31 @@ class MultifileVolumetricAtlas(
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -720,6 +713,46 @@ class CortexSubcortexGIfTIAtlas(
     _GIfTIOutputMixin,
     BaseAtlas,
 ):
+    """
+    Surface-based atlas loaded from one GIfTI file per cortical hemisphere.
+
+    The atlas has compartments for the left and right cortical hemispheres,
+    which are surfaces with a spherical coordinate system, and for the
+    subcortex.
+
+    Parameters
+    ----------
+    data_L
+        Path to a GIfTI file of the labels of the left cortical hemisphere.
+    data_R
+        Path to a GIfTI file of the labels of the right cortical hemisphere.
+    data_subcortex
+        Path to a GIfTI file of subcortical labels. If None, the subcortex is
+        empty.
+    mask_L
+        Path to a GIfTI file containing an atlas mask for the left cortical
+        hemisphere. If none is provided, the 32K-vertex fsLR mask excluding
+        medial wall vertices is used.
+    mask_R
+        Path to a GIfTI file containing an atlas mask for the right cortical
+        hemisphere. If none is provided, the 32K-vertex fsLR mask excluding
+        medial wall vertices is used.
+    surf_L
+        Path to a GIfTI file containing the mesh of the surface of the left
+        cortical hemisphere. If none is provided, the 32K-vertex spherical fsLR
+        surface is used.
+    surf_R
+        Path to a GIfTI file containing the mesh of the surface of the right
+        cortical hemisphere. If none is provided, the 32K-vertex spherical fsLR
+        surface is used.
+    subcortex
+        Not read.
+    clear_cache
+        Indicates that data loaded in from the reference should be cleared
+        away when atlas creation is complete.
+    name
+        Name of the atlas.
+    """
     surf: Dict[str, str]
 
     def __init__(
@@ -761,11 +794,11 @@ class CortexSubcortexCIfTIAtlas(
     BaseAtlas,
 ):
     """
-    CIfTI surface-based atlas container object. This class automatically
-    defines three subcompartments for the left and right hemispheric cortices
-    and for the subcortical grey matter. The cortical hemispheres are surfaces
-    endowed with a spherical coordinate system, while the subcortex uses a
-    volumetric, Euclidean coordinate system.
+    Surface-based atlas loaded from a CIfTI image.
+
+    The atlas has three compartments: the left and right cortical hemispheres,
+    which are surfaces with a spherical coordinate system, and the subcortical
+    grey matter, which has a volumetric Euclidean coordinate system.
 
     Parameters
     ----------
@@ -783,7 +816,7 @@ class CortexSubcortexCIfTIAtlas(
         Path to a GIfTI file containing the mesh of the surface of the left
         cortical hemisphere. If none is provided, the 32K-vertex spherical
         fsLR surface is used by default.
-    surf_L
+    surf_R
         Path to a GIfTI file containing the mesh of the surface of the right
         cortical hemisphere. If none is provided, the 32K-vertex spherical
         fsLR surface is used by default.
@@ -796,31 +829,31 @@ class CortexSubcortexCIfTIAtlas(
         created as part of the atlas.
     device
         Device on which all tensors created as part of the atlas reside.
-    clear_cache : bool (True)
+    clear_cache
         Indicates that data loaded in from the reference should be cleared
         away when atlas creation is complete.
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -864,24 +897,24 @@ class DirichletInitVolumetricAtlas(
     DirichletInitBaseAtlas,
 ):
     """
-    Volumetric atlas object created from random samples of a Dirichlet
-    distribution. Each spatial location's parcel assignment is a categorical
+    Volumetric atlas sampled from a Dirichlet distribution.
+
+    The parcel assignment of each spatial location is a categorical
     distribution sampled from a Dirichlet distribution. For a surface-based
-    Dirichlet atlas, use
-    :doc:`DirichletInitSurfaceAtlas <hypercoil.init.atlas.DirichletInitSurfaceAtlas>`.
+    atlas, use :class:`DirichletInitSurfaceAtlas`.
 
     Parameters
     ----------
     mask_source
         Source of data used to create an overall mask for the atlas.
-    n_labels : dict(int)
+    n_labels
         Number of labels to initialise for the atlas.
-    conc : float
+    conc
         If this is provided and `init` is not, then the Dirichlet
         distributions used to sample assignments of spatial locations to
         parcels are defined with the same concentration parameter, `conc`,
         for each parcel.
-    init : dict(Dirichlet)
+    init
         The Dirichlet distribution used for parcel assignment initialisation.
         If this is not provided, then a distribution with equal concentrations
         will be created using the `conc` parameter.
@@ -893,25 +926,25 @@ class DirichletInitVolumetricAtlas(
 
     Attributes
     ----------
-    ref : nb.Nifti1Image
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : None
+    cached_ref_data
         Nothing here. The field exists for consistency with other atlas
         classes.
     """
@@ -949,28 +982,27 @@ class DirichletInitSurfaceAtlas(
     DirichletInitBaseAtlas,
 ):
     """
-    Surface atlas object created from random samples of a Dirichlet
-    distribution. Each spatial location's parcel assignment is a categorical
-    distribution sampled from a Dirichlet distribution. This class
-    defines three subcompartments for the left and right hemispheric cortices
-    and for the subcortical grey matter. The cortical hemispheres are surfaces
-    endowed with a spherical coordinate system, while the subcortex uses a
-    volumetric, Euclidean coordinate system. For a volumetric Dirichlet atlas,
-    use
-    :doc:`DirichletInitVolumetricAtlas <hypercoil.init.atlas.DirichletInitVolumetricAtlas>`.
+    Surface atlas sampled from a Dirichlet distribution.
+
+    The parcel assignment of each spatial location is a categorical
+    distribution sampled from a Dirichlet distribution. The atlas has three
+    compartments: the left and right cortical hemispheres, which are surfaces
+    with a spherical coordinate system, and the subcortical grey matter, which
+    has a volumetric Euclidean coordinate system. For a volumetric atlas, use
+    :class:`DirichletInitVolumetricAtlas`.
 
     Parameters
     ----------
     cifti_template
         Template CIfTI for establishing compartment extents.
-    compartment_labels : dict(int)
+    compartment_labels
         Number of labels to initialise for each compartment.
-    conc : float
+    conc
         If this is provided and `init` is not, then the Dirichlet
         distributions used to sample assignments of spatial locations to
         parcels are defined with the same concentration parameter, `conc`,
         for each parcel.
-    init : dict(Dirichlet)
+    init
         Dict mapping from compartment names to the Dirichlet distributions
         used for parcel assignment initialisation in each compartment.
     mask_L
@@ -996,25 +1028,25 @@ class DirichletInitSurfaceAtlas(
 
     Attributes
     ----------
-    ref : nb.CiftiImage
+    ref
         The reference whose pointer was provided at construction time.
-    mask : bool tensor
+    mask
         Boolean tensor indicating the inclusion status of each spatial
         location in the atlas.
-    compartments : dict(bool tensor)
+    compartments
         Boolean tensor indicating the spatial extent of each atlas
         subcompartment.
-    decoder : dict(long tensor)
+    decoder
         Numerical identity of the parcel in each row of a subcompartment's
         map tensor.
-    maps : dict(tensor)
+    maps
         Assignment of each spatial location in each subcompartment to a set
         of regions.
-    coors : dict(tensor)
+    coors
         Spatial position of each location in the atlas.
-    topology : dict(str)
+    topology
         Type of topology (spherical or Euclidean) over each compartment.
-    cached_ref_data : ndarray
+    cached_ref_data
         Data loaded from the reference to enable construction. By default,
         this is purged when construction is complete.
     """
@@ -1067,23 +1099,23 @@ class IcosphereAtlas(
     BaseAtlas,
 ):
     """
-    Approximately geometrically uniform atlas container object. Use to create
-    atlases whose labels are approximately evenly spaced discs on a spherical
-    surface homeomorphic to the cortical sheet. The disc centres are defined
-    by a subdivision of an icosahedron.
+    Atlas of approximately evenly spaced discs on a spherical surface.
+
+    The surface is homeomorphic to the cortical sheet; the disc centres are the
+    vertices of a subdivided icosahedron.
 
     Parameters
     ----------
-    n_subdivisions : int
+    n_subdivisions
         Number of subdivisions of the icosahedron used to define disc centres.
         The default number of labels per hemisphere follows the formula
         ``12 + 10 * (n_subdivisions**2 -1)``. Then, the coordinates of each
         label are compared against the mask coordinates using a 1-nearest
         neighbour search to determine the inclusion status of each label.
-    rotation_target : Tensor or None (default None)
+    rotation_target
         If provided, the coordinates of the first vertex of the icosphere will be
         rotated to align with the provided target coordinate.
-    rotation_secondary : Tensor or None (default None)
+    rotation_secondary
         If provided, the coordinates of the second vertex of the icosphere will
         be rotated to align with the provided secondary coordinate.
     mask_L
@@ -1220,20 +1252,35 @@ def atlas_init(
     uses an existing atlas with the option of blurring labels or injecting
     noise.
 
-    .. note::
-        The ``shape`` argument is unused and is only present for compatibility
-        with the initialisation API.
-
     Parameters
     ----------
-    atlas : Atlas object
+    shape
+        Not read; present for compatibility with the initialisation API.
+    atlas
         Atlas object to use for tensor initialisation.
-    kernel_sigma : float or None (default None)
+    compartments
+        Compartments to map, as in :meth:`BaseAtlas.__call__`.
+    normalise
+        Normalise each map so that the assignments to each parcel sum to 1.
+    max_bin
+        Maximum number of spatial locations smoothed at a time.
+    spherical_scale
+        Scale of the smoothing kernel in spherical coordinate systems.
+    truncate
+        Maximum distance between smoothed locations.
+    kernel_sigma
         If this is a float, then a Gaussian smoothing kernel with the
         specified width is applied to each label after it is extracted.
-    noise_sigma : float or None (default None)
+    noise_sigma
         If this is a float, then Gaussian noise with the specified standard
         deviation is added to the label.
+    key
+        Pseudo-random number generator key for the noise.
+
+    Returns
+    -------
+    dict
+        Map of each compartment, keyed by compartment name.
     """
     if noise_sigma is not None:
         distr = Normal(0.0, noise_sigma)
@@ -1259,25 +1306,25 @@ class AtlasInitialiser(MappedInitialiser):
     matrices that each map a relevant subset of image voxels to a set of
     labels. The initialisation can use a previously existing atlas,
     instantiated as a subclass of
-    :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`
+    :class:`~hypercoil.init.atlas.BaseAtlas`
     with the option of blurring labels using pointwise spatial convolution or
     injecting noise.
 
     Parameters
     ----------
-    atlas : Atlas object
+    atlas
         Atlas object to use for tensor initialisation.
-    normalise : bool (default False)
+    normalise
         Indicates that maps should be spatially normalised such that the sum
         over all assignments to a parcel is equal to 1. When the map is used
         as a linear transformation, this option results in computation of a
         weighted average over each parcel.
-    kernel_sigma : float or None (default None)
+    kernel_sigma
         If this is not None, then spatial smoothing using a Gaussian kernel is
         applied over each parcel's assignments. Distances are established by
         the atlas's coordinate system and the topology of each compartment.
         The value of sigma establishes the width of the Gaussian kernel.
-    noise_sigma : float or None (default None)
+    noise_sigma
         If this is not None, then Gaussian noise with the specified standard
         deviation is added to each label.
     """
@@ -1372,6 +1419,7 @@ class AtlasInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` from ``atlas``."""
         init = cls(
             mapper=mapper,
             atlas=atlas,

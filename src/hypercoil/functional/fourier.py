@@ -16,6 +16,7 @@ from .utils import complex_decompose
 
 
 def document_frequency_filter(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     freqfilter_dim_spec = r"""
     :Dimension: **Input :** :math:`(N, *, obs)`
                     N denotes batch size, ``*`` denotes any number of
@@ -28,10 +29,10 @@ def document_frequency_filter(f: Callable) -> Callable:
     freqfilter_param_spec = """
     Parameters
     ----------
-    X : Tensor
+    X
         The (potentially multivariate) signal to be filtered. The final axis
         should correspond to the time domain of each signal or its analogue.
-    weight : Tensor
+    weight
         The filter gain at each frequency bin in the spectrum, ordered low to
         high along the last axis. Dimensions before the last can be used to
         apply different filters to different variables in the input signal
@@ -55,19 +56,20 @@ def document_frequency_filter(f: Callable) -> Callable:
 
 
 def document_analytic_signal(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     analytic_signal_base_spec = """
-    X : tensor
+    X
         Input tensor.
-    axis : int (default -1)
+    axis
         Axis along which the transform is applied.
-    n : int (default None)
+    n
         Number of frequency components; dimension of the Fourier transform.
         This defaults to the size of the input along the transform axis."""
     analytic_signal_sampling_freq = """
-    fs : float
+    fs
         Sampling frequency."""
     analytic_signal_period = """
-    period : float (default ``2 * pi``)
+    period
         Range over which the signal wraps. (See ``jax.numpy.unwrap``.)"""
     analytic_signal_return_spec = """
     Returns
@@ -128,8 +130,7 @@ def product_filtfilt(
     **params,
 ) -> Tensor:
     """
-    Perform zero-phase digital filtering of a signal via multiplication in the
-    frequency domain.
+    Filter a signal with zero phase by multiplication in the frequency domain.
 
     This function operates by first filtering the data and then filtering a
     time-reversed copy of the filtered data again. Note that the effect on the
@@ -137,9 +138,9 @@ def product_filtfilt(
 
     .. note::
 
-        If the ``weight`` argument is strictly real, then the filter has no
-        phase delay component and it could make sense to simply use
-        :func:`product_filter` depending on the context.
+        A strictly real ``weight`` introduces no phase delay. In that case,
+        :func:`product_filter` with the squared weight gives the same output
+        in a single pass.
     \
     {freqfilter_dim_spec}
     \
@@ -180,18 +181,19 @@ def unwrap(
 
     Parameters
     ----------
-    phase : tensor
+    phase
         Tensor containing phases, or other values to be unwrapped. Currently,
         tensors should be cast to some floating-point type before this
         operation.
-    axis : int (default -1)
+    axis
         Axis along which the maximum discontinuity is not be be exceeded after
         unwrapping.
-    discont : float (default ``period / 2``)
+    discont
         Maximum discontinuity between continuous tensor entries along the
         specified ``axis``. Note that this value can in effect be no smaller
         than ``period / 2``.
-    period : float (default ``(2 * pi)``)
+        None gives ``period / 2``.
+    period
         Size of the range over which the input tensor wraps.
 
     Returns
@@ -377,8 +379,10 @@ def env_inst(
     period: float = (2 * math.pi),
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
-    Compute the analytic signal, and then decompose it into the envelope and
-    instantaneous phase and frequency.
+    Decompose the analytic signal into envelope, phase and frequency.
+
+    The instantaneous phase and frequency are computed from the analytic
+    signal.
 
     Parameters
     ----------\
@@ -413,10 +417,31 @@ def ampl_phase_corr(
     **params,
 ) -> Tensor:
     """
-    Covariance among frequency bins, amplitude and phase. To run it across the
-    batch and region axes, use
-    ``ampl_phase_corr(X, weight=None, corr_axes=(0, -2))``
-    Be advised: there is no interesting structure here.
+    Compute the correlations among frequency bins of amplitude and of phase.
+
+    To correlate across the batch and region axes, use
+    ``ampl_phase_corr(X, weight=None, corr_axes=(0, -2))``.
+
+    Parameters
+    ----------
+    X
+        Time series, with observations on the last axis.
+    weight
+        Observation weights, forwarded to ``cov``.
+    corr_axes
+        Axes of ``X`` merged into the observations that ``cov`` correlates
+        over; the frequency bins are the variables.
+    cov
+        Function of the form ``cov(x, weight=weight)`` that computes the
+        correlations.
+    **params
+        Keyword arguments forwarded to :func:`jax.numpy.fft.rfft`.
+
+    Returns
+    -------
+    tuple
+        Correlation among the frequency bins of the amplitude, then of the
+        phase.
     """
     n = X.shape[-1]
     Xf = jnp.fft.rfft(X, n=n, **params)

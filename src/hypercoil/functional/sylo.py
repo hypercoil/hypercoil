@@ -68,45 +68,44 @@ def sylo(
 
     Parameters
     ----------
-    input : Tensor
+    X
         Input tensor of shape :math:`N \times C_{in} \times H \times W`.
-    L, R : Tensors
+    L, R
         Left and right precursors of a low-rank basis that transforms the input
         via a local similarity measure. The template basis itself is created
         as the outer product between the left (column) and right (row) weight
         vectors. One way to enforce symmetry and positive semidefiniteness of
         learned templates is by passing the same tensor as `L` and `R`; this is
         the default behaviour.
-    C : Tensor or None (default None)
+    C
         Coupling term. If this is specified, each template in the basis is
         modulated according to the coefficients in the coupling matrix.
         Providing a vector is equivalent to providing a diagonal coupling
         matrix. This term can, for instance, be used to toggle between
         positive and negative semidefinite templates.
-    bias: Tensor
+    bias
         Bias term to be added to the output.
-    symmetry : ``'cross'``, ``'skew'``, or other (default None)
+    symmetry
         Symmetry constraint imposed on the generated low-rank template matrix.
 
-        * ``cross`` enforces symmetry by replacing the initial expansion with
-          the average of the initial expansion and its transpose,
+        * ``cross`` replaces the expansion with the mean of the expansion and
+          the transpose of the expansion,
           :math:`\frac{1}{2} \left( L R^\intercal + R L^\intercal \right)`
-        * ``skew`` enforces skew-symmetry by subtracting from the initial
-          expansion its transpose,
+        * ``skew`` subtracts the transpose of the expansion from the
+          expansion,
           :math:`\frac{1}{2} \left( L R^\intercal - R L^\intercal \right)`
-        * Otherwise, no explicit symmetry constraint is imposed. Symmetry can
-          also be enforced by passing None for R or by passing the same input
-          for R and L. (This approach also guarantees that the output is
-          positive semidefinite.)
-        This option will result in an error for nonsquare matrices or bipartite
-        graphs. Note that the parameter count doubles if this is False.
-    similarity : function (default `crosshair_similarity`)
-        Definition of the similarity metric. This must be a function that takes
-        as its first input the input tensor :math:`X` and as its second input
-        the expanded (and potentially symmetrised) weight tensor. Similarity is
-        computed between each of the N matrices in the first input stack and
-        the weight. Uses the :func:`crosshair_similarity` measure by default.
-    remove_diagonal : bool (default False)
+        * Otherwise, no symmetry constraint is imposed. Passing None for R,
+          or the same tensor as R and L, gives a symmetric positive
+          semidefinite expansion.
+
+        ``cross`` and ``skew`` raise an error for nonsquare matrices or
+        bipartite graphs.
+    similarity
+        Similarity metric. A function of the input tensor :math:`X` and the
+        expanded (and possibly symmetrised) template tensor, which computes
+        the similarity between each of the N input matrices and each
+        template. Default :func:`crosshair_similarity`.
+    remove_diagonal
         If True, the diagonal of the input matrix is removed before computing
         the similarity measure. This is useful for graphs, where the diagonal
         is often used to encode node attributes, or might be 1 for all nodes.
@@ -138,32 +137,35 @@ def recombine(
     query_R: Optional[Tensor] = None,
     bias: Optional[Tensor] = None,
 ) -> Tensor:
-    """
+    r"""
     Create a new mixture of the input feature maps.
 
     Parameters
     ----------
-    input: Tensor ``(N x C_in x H x W)``
-        Stack of input matrices or feature maps.
-    mixture: Tensor ``(C_out x C_in)``
-        Mixture matrix or recombinator.
-    query: Tensor ``(N x C_in x C_in)``
+    input
+        Stack of input matrices or feature maps, of shape
+        :math:`(N, C_{in}, H, W)`.
+    mixture
+        Mixture matrix or recombinator, of shape :math:`(C_{out}, C_{in})`.
+    query
+        Query of shape :math:`(N, C_{in}, C_{in})`. If provided, the mixture
+        is recomputed as the dot product similarity between each mixture
+        vector and each query vector, and the softmax of the result forms
+        convex combinations of inputs.
+    query_L, query_R
+        Left and right query vectors, each of shape :math:`(C_{out}, C_{in})`.
         If provided, the mixture is recomputed as the dot product similarity
-        between each mixture vector and each query vector, and the softmax of
-        the result is used to form convex combinations of inputs.
-    query_L: Tensor ``(C_out x C_in)`` and ``query_R: Tensor ``(C_out x C_in)``
-        If provided, the mixture is recomputed as the dot product similarity
-        between each mixture vector and a low-rank expansion of the left and
-        right query vectors, and the softmax of the result is used to form
-        convex combinations of inputs. Only one of ``query`` and ``query_L`` +
-        ``query_R`` should be provided.
-    bias: Tensor ``(C_in)``
-        Bias term to apply after recombining.
+        between each mixture vector and a low-rank expansion of the query
+        vectors, and the softmax of the result forms convex combinations of
+        inputs. Provide either ``query`` or ``query_L`` and ``query_R``.
+    bias
+        Bias of shape :math:`(C_{out})`, added after recombining.
 
     Returns
     -------
-    output: Tensor ``(N x C_out x H x W)``
-        Stack of output matrices or feature maps.
+    Tensor
+        Stack of output matrices or feature maps, of shape
+        :math:`(N, C_{out}, H, W)`.
     """
     if query_L is not None:
         mixture = mixture @ query_L
@@ -190,37 +192,44 @@ def vertical_compression(
     sign: Optional[int] = None,
 ) -> Tensor:
     r"""
-    Vertically compress a matrix or matrix stack of dimensions
-    :math:`H_{in} \times W_{in} \rightarrow H_{out} \times W_{out}`.
+    Vertically compress a matrix or matrix stack.
+
+    The compression maps :math:`H_{in} \times W_{in}` to
+    :math:`H_{out} \times W_{out}`.
 
     Parameters
     ----------
-    input: Tensor
+    input
         Tensor to be compressed. This can be either a matrix of dimension
         :math:`H_{in} \times W_{in}` or a stack of such matrices, for
         instance of dimension :math:`N \times C \times H_{in} \times W_{in}`.
-    row_compressor: Tensor
+    row_compressor
         Compressor for the rows of the input tensor. This should be a matrix
         of dimension :math:`H_{out} \times H_{in}`.
-    col_compressor: Tensor or None
+    col_compressor
         Compressor for the columns of the input tensor. This should be a
         matrix of dimension :math:`W_{out} \times W_{in}`. If this is None,
         then symmetry is assumed: the column compressor and row compressor are
         the same.
-    renormalise: bool
+    renormalise
         If True, the output is renormalised to have standard deviation equal
         to that of the input. When ``remove_diagonal=True``, the standard
         deviation also ignores the diagonal elements.
-    remove_diagonal: bool
+    remove_diagonal
         If True, the diagonal elements of the input are removed before and
         after compression.
-    sign: int or None
+    fold_channels
+        If True, the axes before the matrix axes are merged into one channel
+        axis: the output has shape ``(N, -1, H_out, W_out)`` if the
+        compressed tensor has rank 5 or more, and ``(-1, H_out, W_out)``
+        otherwise.
+    sign
         If not None, this should be either 1 or -1. If -1, the output is
         multiplied by -1.
 
     Returns
     -------
-    output: Tensor
+    Tensor
         Compressed tensor.
     """
     if remove_diagonal:

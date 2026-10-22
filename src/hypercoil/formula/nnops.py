@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Parameters
-~~~~~~~~~~
 Transformations and grammar for addressing neural network parameters.
 """
 from __future__ import annotations
@@ -37,6 +35,22 @@ def retrieve_address(
     model: PyTree,
     where: Union[str, Callable],
 ):
+    """
+    Retrieve the parameters of a model at an address.
+
+    Parameters
+    ----------
+    model
+        Model.
+    where
+        Address string of :class:`ParameterAddressGrammar`, or a callable that
+        takes ``model`` and returns the parameters. None addresses ``model``.
+
+    Returns
+    -------
+    tuple
+        Parameters at the address.
+    """
     if where is None:
         return (model,)
     elif callable(where):
@@ -49,6 +63,24 @@ def transform_address(
     where: Union[str, Callable],
     replace_fn: Callable,
 ) -> PyTree:
+    """
+    Replace the parameters of a model at an address by a function of them.
+
+    Parameters
+    ----------
+    model
+        Model.
+    where
+        Address string of :class:`ParameterAddressGrammar`, or a callable that
+        takes ``model`` and returns the parameters. None returns ``model``.
+    replace_fn
+        Function applied to each parameter at the address.
+
+    Returns
+    -------
+    PyTree
+        ``model`` with the parameters replaced, by :func:`equinox.tree_at`.
+    """
     if where is None:
         return model
     elif callable(where):
@@ -62,6 +94,23 @@ def filter_address(
     model: PyTree,
     where: Union[str, Callable],
 ) -> PyTree:
+    """
+    Filter a model to the parameters at an address.
+
+    Parameters
+    ----------
+    model
+        Model.
+    where
+        Address string of :class:`ParameterAddressGrammar`, or a callable that
+        takes ``model`` and returns the parameters. None keeps no parameter.
+
+    Returns
+    -------
+    PyTree
+        ``model`` with every leaf that is not at the address set to None, by
+        :func:`equinox.filter`.
+    """
     def _f(matches):
         def __f(x):
             for m in matches:
@@ -82,6 +131,18 @@ def filter_address(
 
 
 class ParameterAddressGrammar(Grammar):
+    """
+    Grammar of parameter address strings.
+
+    An address names parameters of a model:
+
+    - ``name`` selects an attribute, or else an item;
+    - ``a.b`` and ``a$b`` select ``b`` of each parameter that ``a`` selects;
+    - ``a#i``, ``a#i,j`` and ``a#i:j`` select the items at the indices, or in
+      the inclusive range, of each parameter that ``a`` selects;
+    - ``a;b`` concatenates the selections of ``a`` and ``b``;
+    - parentheses group.
+    """
     groupings: GroupingPool = GroupingPool(
         Grouping(open='(', close=')'),
     )
@@ -103,6 +164,12 @@ class ParameterAddressGrammar(Grammar):
 
 
 class ParameterSelectInterpreter(LeafInterpreter):
+    """
+    Leaf interpreter that selects a named attribute or item of a model.
+
+    The compiled function raises ``AttributeError`` if a model has neither an
+    attribute nor an item of the name.
+    """
     def __call__(self, leaf: Any) -> Callable:
         def retrieve_parameter(model: PyTree) -> PyTree:
             if leaf is None:
@@ -129,6 +196,7 @@ class ParameterSelectInterpreter(LeafInterpreter):
 
 
 class ParameterAddressRootNode(TransformPrimitive):
+    """Root transform that applies a compiled address to a model."""
     min_arity: int = 1
     max_arity: int = 1
     priority: float = float('inf')
@@ -149,14 +217,17 @@ class ParameterAddressRootNode(TransformPrimitive):
 
 
 class ConcatenateInfixLiteralisation(Literalisation):
+    """Literal ``;`` of :class:`ConcatenateNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
     regex: str = r'\;'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class ConcatenateNode(TransformPrimitive):
+    """Transform that concatenates the selections of its arguments."""
     min_arity: int = 2
     max_arity: int = float('inf')
     priority: int = 4
@@ -165,6 +236,7 @@ class ConcatenateNode(TransformPrimitive):
     literals: Sequence[Literalisation] = (ConcatenateInfixLiteralisation(),)
 
     def ascend(self, *pparams, **params) -> Callable:
+        """Return a function concatenating the selections of ``pparams``."""
         def concatenate(arg: Any) -> PyTree:
             out = tuple(f(arg) for f in pparams)
             return reduce(lambda x, y: x + y, out)
@@ -176,22 +248,27 @@ class ConcatenateNode(TransformPrimitive):
 
 
 class StringKeyInfixLiteralisation(Literalisation):
+    """Literal ``$`` of :class:`KeyNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
     regex: str = r'\$'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class AttributeInfixLiteralisation(Literalisation):
+    """Literal ``.`` of :class:`KeyNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'infix'
     regex: str = r'\.'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Return ``params`` unchanged."""
         return params
 
 
 class KeyNode(TransformPrimitive):
+    """Transform that selects a named key of each selected parameter."""
     min_arity: int = 1
     max_arity: int = 2
     priority: int = 3
@@ -204,6 +281,7 @@ class KeyNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function that selects the key of each selection."""
         if len(pparams) == 2:
             f_acc, f_attr = pparams
         else:
@@ -221,28 +299,34 @@ class KeyNode(TransformPrimitive):
 
 
 class IntegerKeySuffixLiteralisation(Literalisation):
+    """Literal ``#i`` of :class:`IntegerKeyNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
     regex: str = r'\#(?P<index>[0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the index ``i`` into a one-element tuple."""
         params['index'] = (int(params['index']),)
         return params
 
 
 class IntegerKeyMultiSuffixLiteralisation(Literalisation):
+    """Literal ``#i,j,...`` of :class:`IntegerKeyNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
     regex: str = r'\#(?P<index>[0-9]+[\,[0-9]+]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the indices into a tuple of integers."""
         params['index'] = tuple(int(z) for z in params['index'].split(','))
         return params
 
 
 class IntegerKeyMultiRangeSuffixLiteralisation(Literalisation):
+    """Literal ``#i:j,...`` (inclusive ranges) of :class:`IntegerKeyNode`."""
     affix: Literal['prefix', 'suffix', 'infix', 'leaf'] = 'suffix'
     regex: str = r'\#(?P<index>[0-9]+[\:0-9]*[\,\:0-9]+)'
 
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse the indices and inclusive ranges into integers and slices."""
         keys = params['index'].split(',')
         index = []
         for key in keys:
@@ -260,6 +344,7 @@ class IntegerKeyMultiRangeSuffixLiteralisation(Literalisation):
 
 
 class IntegerKeyNode(TransformPrimitive):
+    """Transform that selects items by integer index or range."""
     min_arity: int = 0  # The index itself is parsed as a parameter
     # rather than an argument.
     max_arity: int = 1
@@ -274,6 +359,7 @@ class IntegerKeyNode(TransformPrimitive):
 
     def ascend(self, *pparams, **params) -> Callable:
 
+        """Return a function selecting the indexed items of each selection."""
         if pparams:
             f = pparams[0]
         else:

@@ -23,9 +23,26 @@ def corr_criterion(
     u: Any,
 ) -> float:
     """
-    Select the compression scheme that maximises the feature-wise
-    correlation between the original uncompressed matrix and its
-    reconstruction.
+    Score a compression by the negative correlation with the original.
+
+    The correlation is computed between the vectorised original matrix and its
+    reconstruction; lower scores are better.
+
+    Parameters
+    ----------
+    orig
+        Original symmetric matrix.
+    recon
+        Reconstruction of ``orig`` from its compression.
+    u
+        Not read; present for the criterion interface of
+        :func:`maximum_potential_bipartite_lattice`.
+
+    Returns
+    -------
+    float
+        Negative correlation of the upper triangles of ``orig`` and
+        ``recon``; 0 if the correlation is NaN.
     """
     q = -pairedcorr(
         sym2vec(recon).reshape(1, -1),
@@ -42,8 +59,7 @@ def potential_criterion(
     u: Tensor,
 ) -> float:
     """
-    Select the compression scheme that maximises the transmitted
-    potential.
+    Score a compression by the negative transmitted potential.
     """
     return -jnp.sum(u)
 
@@ -63,6 +79,25 @@ def propagate_matrix(
     mask_L: Tensor,
     mask_R: Tensor,
 ) -> Tensor:
+    """
+    Propagate a matrix to the compressed space of two assignment masks.
+
+    Parameters
+    ----------
+    A
+        Matrix of shape ``(H_in, W_in)``.
+    mask_L
+        Assignment of shape ``(H_out, H_in)``. Each row is divided by the sum
+        of the first row.
+    mask_R
+        Assignment of shape ``(W_out, W_in)``. Each row is divided by the sum
+        of the first row.
+
+    Returns
+    -------
+    Tensor
+        Propagated matrix of shape ``(H_out, W_out)``.
+    """
     prop_L = mask_L / mask_L.sum(1)[0]
     prop_R = mask_R / mask_R.sum(1)[0]
     return (prop_L @ A) @ prop_R.T
@@ -76,8 +111,7 @@ def _init_select(
     key: 'jax.random.PRNGKey',
 ) -> int:
     """
-    Make an initial selection of two input vertices to fuse into a new
-    output vertex.
+    Select the first two input vertices to fuse into an output vertex.
     """
     init_idx = jnp.nonzero(candidates)[0]
     if random_init:
@@ -231,8 +265,9 @@ def maximum_potential_bipartite_lattice(
     key: 'jax.random.PRNGKey',
 ) -> Tuple[Union[Tensor, Tuple[Tensor, Tensor]], Tensor, Tensor]:
     r"""
-    Estimates the maximum potential bipartite lattice using a greedy Monte
-    Carlo approach. A naive solution to the vertical compression problem.
+    Estimate the maximum potential bipartite lattice by greedy Monte Carlo.
+
+    This is a naive solution to the vertical compression problem.
 
     .. warning::
 
@@ -241,7 +276,7 @@ def maximum_potential_bipartite_lattice(
 
     Parameters
     ----------
-    potentials: Tensor or (Tensor, Tensor)
+    potentials
         Array of potentials to be maximised in the bipartition. This could,
         for instance, be the mutual information among vertices or the
         community allegiance matrix.
@@ -251,36 +286,36 @@ def maximum_potential_bipartite_lattice(
         be of dimension `H_in` x `H_in` and the second should be of dimension
         `W_in` x `W_in`, where the dimension of the `objective` matrix is
         `H_in` x `W_in`.
-    n_out: int or (int, int)
+    n_out
         Number of output vertices. Ideally, this should be selected such that
         there are many common multiples of ``n_out`` and the number of
         vertices in the input potentials.
-    order: int
+    order
         Lattice order of the bipartition.
         1: total number of edges is the least common multiple of `n_in` and
            `n_out`
         2: total number of edges is twice the least common multiple
-    iters: int
+    iters
         Number of iterations of the greedy approach to run. Only the result
         that maximises the final potential will be returned.
-    temperature: float
+    temperature
         Softmax temperature for selecting the next vertex to fuse.
         0 deterministically fuses the maximum (default).
         Infinity fuses randomly.
-    random_init: bool
+    random_init
         Procedural initialisation. True begins from a random vertex (default).
         False begins from a vertex connected to the edge with the maximum
         overall potential.
-    attenuation: float
+    attenuation
         Attenuation factor for the potentials matrix. The potentials joining
         each vertex set that is compressed into a single new vertex are
         divided by the attenuation factor. This helps to prevent redundancy in
         compressed sets.
-    objective: Tensor
+    objective
         Tensor whose reconstruction from vertical compression determines the
         best bipartite lattice. If none is provided, the algorithm defaults to
         the input potentials matrix.
-    criterion: function
+    criterion
         Objective function that accepts three parameters and returns a scalar
         value.
 
@@ -289,6 +324,8 @@ def maximum_potential_bipartite_lattice(
           (compressed and uncompressed).
         * `u` is the vector of potentials included in the compression.
         * The returned scalar is minimal for an optimum compression.
+    key
+        Pseudo-random number generator key for the Monte Carlo search.
 
     Returns
     -------
@@ -420,21 +457,48 @@ def maximum_potential_bipartite_lattice_autoselect_order(
     outer_criterion: Callable = corr_criterion,
 ) -> Tuple[Any, ...]:
     """
-    Automatically selects the lattice order for a maximum potential
-    bipartite lattice. That is to say, it runs the algorithm across a range
-    of orders and selects the one that optimises a specified criterion.
+    Select the order of a maximum potential bipartite lattice.
+
+    The algorithm runs over a range of orders, and the order that optimises
+    ``outer_criterion`` is selected.
 
     Parameters
     ----------
-    order_min: int
+    potentials
+        Potentials, as in :func:`maximum_potential_bipartite_lattice`.
+    n_out
+        Number of output vertices, as in
+        :func:`maximum_potential_bipartite_lattice`.
+    order_min
         Minimum lattice order to consider.
-    order_max: int
+    order_max
         Maximum lattice order to consider.
-    inner_criterion: function
-        Same as ``criterion`` in ``maximum_potential_bipartite_lattice``.
-    outer_criterion: function
-        Criterion to use for order selection. Only ``corr_criterion`` is
+    iters
+        Number of greedy iterations per order.
+    temperature
+        Softmax temperature for selecting the next vertex to fuse.
+    random_init
+        Begin each iteration from a random vertex.
+    objective
+        Tensor whose reconstruction scores each order. Defaults to
+        ``potentials``.
+    attenuation
+        Attenuation factor for the potentials, as in
+        :func:`maximum_potential_bipartite_lattice`.
+    inner_criterion
+        Same as ``criterion`` in
+        :func:`maximum_potential_bipartite_lattice`.
+    outer_criterion
+        Criterion to use for order selection. Only :func:`corr_criterion` is
         currently supported.
+
+    Returns
+    -------
+    tuple
+        For the selected order: the assignment, the overall potential and the
+        propagated potentials of
+        :func:`maximum_potential_bipartite_lattice`; then the selected order
+        and the list of the ``outer_criterion`` score of each order.
     """
     symmetric = not isinstance(potentials, tuple)
     orders = range(order_min, order_max + 1)
@@ -481,79 +545,15 @@ def maximum_potential_bipartite_lattice_autoselect_order(
 # TODO: a lot of this is not correctly implemented. Revisit when we work on
 # sylo net.
 class BipartiteLatticeInit(MappedInitialiser):
-    r"""
-    Initialiser for sparse and biregular compression matrices.
+    """
+    Initialiser for sparse, biregular compression matrices.
 
-    .. warning::
-        Much of this functionality is currently wrong. But then, there isn't
-        really any reason to use this initialiser right now anyway.
+    Not currently implemented.
 
-    Parameters
-    ----------
-    n_out: int or (int, int)
-        Number of output vertices. Ideally, this should be selected such that
-        there are many common multiples of ``n_out`` and the number of
-        vertices in the input potentials.
-    order: int
-        Lattice order of the bipartition.
-
-        - 1: total number of edges is the least common multiple of ``n_in``
-          and ``n_out``
-        - 2: total number of edges is twice the least common multiple
-    potentials: Tensor or (Tensor, Tensor)
-        Array of potentials to be maximised in the bipartition. This could,
-        for instance, be the mutual information among vertices or the
-        community allegiance matrix.
-
-        Size: :math:`n_{in} \times n_{in}`
-
-        If this is a tuple, then the algorithm will solve two different MPBL
-        problems: one for each tensor. In this case, the first tensor should
-        be of dimension :math:`H_{in} \times H_{in}` and the second should be
-        of dimension :math:`W_{in} \times W_{in}`, where the dimension of the
-        ``objective`` matrix is :math:`H_{in} \times W_{in}`.
-    objective: Tensor
-        Tensor whose reconstruction from vertical compression determines the
-        best bipartite lattice. If none is provided, the algorithm defaults to
-        the input potentials matrix.
-    n_lattices : int
-        Number of unique compression lattices to initialise.
-    residualise : bool
-        If this is true and multiple lattices are specified, the objective for
-        each lattice after the first is residualised with respect to the
-        reconstructed (compressed and then uncompressed) objective tensor.
-    svd : bool
-        If this is true, then the potentials for each succeeding lattice are
-        set using the next principal component of the potentials.
-    channel_multiplier : int
-        Number of outputs for each lattice.
-    sign : ``'+'`` or ``'-'``
-        Initialises the ``sign`` parameter of a vertical compression module.
-    iters : int
-        Number of iterations of the greedy approach to run. Only the result
-        that maximises the final potential will be returned.
-    temperature : float
-        Softmax temperature for selecting the next vertex to fuse.
-        0 deterministically fuses the maximum (default).
-        Infinity fuses randomly.
-    random_init : bool
-        Procedural initialisation. True begins from a random vertex (default).
-        False begins from a vertex connected to the edge with the maximum
-        overall potential.
-    attenuation : int
-        Attenuation factor for the potentials matrix. The potentials joining
-        each vertex set that is compressed into a single new vertex are
-        divided by the attenuation factor. This helps to prevent redundancy in
-        compressed sets.
-    next : None or ``BipartiteLatticeInit`` instance
-        If this is specified, the designated instance receives the compressed
-        potentials as input.
-    prev : None or ``BipartiteLatticeInit`` instance
-        If this is specified, then the current instance is designated as
-        ``next`` for the designated instance.
-    domain : Domain object
-        Used in conjunction with an activation function to constrain or
-        transform the values of the initialised tensor.
+    Raises
+    ------
+    NotImplementedError
+        On instantiation.
     """
 
     def __init__(

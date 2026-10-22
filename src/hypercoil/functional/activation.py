@@ -26,10 +26,10 @@ def laplace(
 
     :math:`e^{\frac{-|x - \mu|}{b}}`
 
-    to inputs x with centre :math:`\mu` and width b. It constrains its outputs
-    to the range (0, 1], mapping values closer to its centre to larger outputs.
-    It is Lipschitz continuous over the reals and differentiable except at its
-    centre.
+    to inputs :math:`x` with centre :math:`\mu` and width :math:`b`. Outputs
+    lie in (0, 1]; inputs closer to the centre map to larger outputs. The
+    function is Lipschitz continuous over the reals and differentiable except
+    at :math:`\mu`.
 
     :Dimension: As this activation function is applied elementwise, it
                 conserves dimension; the output will be of the same shape as
@@ -37,13 +37,15 @@ def laplace(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor to be transformed elementwise by the double exponential
         activation function.
-    loc : float or broadcastable Tensor (default 0)
+    loc
         Centre parameter :math:`\mu` of the double exponential function.
-    width : float or broadcastable Tensor (default 1)
+        A scalar or a tensor broadcastable against ``input``.
+    width
         Spread parameter b of the double exponential function.
+        A scalar or a tensor broadcastable against ``input``.
 
     Returns
     -------
@@ -64,9 +66,9 @@ def expbarrier(
 
     :math:`b \sqrt{1 - \exp{\frac{-|x|}{b^2}}}`
 
-    to inputs x with barrier b. It constrains its outputs to the range [0, b).
-    It is Lipschitz continuous over the reals and differentiable except at its
-    centre.
+    to inputs :math:`x` with barrier :math:`b`. Outputs lie in
+    :math:`[0, b)`. The function is Lipschitz continuous over the reals and
+    differentiable except at 0.
 
     :Dimension: As this activation function is applied elementwise, it
                 conserves dimension; the output will be of the same shape as
@@ -74,11 +76,12 @@ def expbarrier(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor to be transformed elementwise by the exponential barrier
         activation function.
-    barrier : float or broadcastable Tensor (default 0)
+    barrier
         Barrier parameter b of the exponential function.
+        A scalar or a tensor broadcastable against ``input``.
 
     Returns
     -------
@@ -96,6 +99,26 @@ def threshold(
     dead: Union[Tensor, int] = 0,
     leak: float = 0,
 ) -> Tensor:
+    """
+    Replace the entries at or below a threshold.
+
+    Parameters
+    ----------
+    input
+        Input tensor.
+    threshold
+        Entries greater than ``threshold`` are kept.
+    dead
+        Value that replaces the other entries.
+    leak
+        Slope of a leak: the other entries become ``dead + leak * input``.
+
+    Returns
+    -------
+    Tensor
+        ``input`` where it exceeds ``threshold``, and the replacement
+        elsewhere.
+    """
     if leak == 0:
         return jnp.where(input > threshold, input, dead)
     return jnp.where(input > threshold, input, dead + leak * input)
@@ -128,13 +151,15 @@ def amplitude_laplace(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor whose amplitude is to be transformed elementwise by the double
         exponential activation function.
-    loc : float or broadcastable Tensor (default 0)
+    loc
         Centre parameter :math:`\mu` of the double exponential function.
-    width : float or broadcastable Tensor (default 1)
+        A scalar or a tensor broadcastable against ``input``.
+    width
         Spread parameter b of the double exponential function.
+        A scalar or a tensor broadcastable against ``input``.
 
     Returns
     -------
@@ -167,11 +192,12 @@ def amplitude_expbarrier(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor whose amplitude is to be transformed elementwise by the double
         exponential activation function.
-    barrier : float or broadcastable Tensor (default 0)
+    barrier
         Barrier parameter b of the exponential function.
+        A scalar or a tensor broadcastable against ``input``.
 
     Returns
     -------
@@ -201,7 +227,7 @@ def amplitude_tanh(input: Tensor) -> Tensor:
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor whose amplitude is to be transformed elementwise by the
         hyperbolic tangent activation function.
 
@@ -216,8 +242,7 @@ def amplitude_tanh(input: Tensor) -> Tensor:
 
 def amplitude_atanh(input: Tensor) -> Tensor:
     r"""
-    Inverse hyperbolic tangent (hyperbolic arctangent) activation function
-    applied to the amplitude only.
+    Apply the inverse hyperbolic tangent to the amplitude of a tensor.
 
     The amplitude (absolute value) of the input is transformed according to
 
@@ -233,7 +258,7 @@ def amplitude_atanh(input: Tensor) -> Tensor:
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor whose amplitude is to be transformed elementwise by the
         hyperbolic arctangent function.
 
@@ -254,6 +279,7 @@ def _corrnorm_factor(input: Tensor) -> Tensor:
 
 
 def document_corrnorm(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     corrnorm_spec = r"""
     Divide each entry :math:`A_{ij}` of the input matrix :math:`A` by the
     product of the signed square roots of the corresponding diagonals:
@@ -274,9 +300,9 @@ def document_corrnorm(f: Callable) -> Callable:
 
     Parameters
     ----------
-    input : Tensor
+    input
         Tensor to be normalised.
-    factor : Tensor, iterable(Tensor, Tensor), or None (default None)
+    factor
         Normalisation factor.
 
         * If this is not explicitly specified, it follows the default
@@ -286,10 +312,11 @@ def document_corrnorm(f: Callable) -> Callable:
           with non-square inputs.
         * If this is a pair of tensors, then ``input`` is divided by their
           outer product.
-    gradpath : str ``'input'`` or ``'both'`` (default ``'both'``)
+    gradpath
         If this is set to ``'input'`` and the default normalisation behaviour
         is used, then gradient will be blocked from flowing backward through
         the computation of the normalisation factor from the input.
+        One of ``'input'`` and ``'both'``.
 
     Returns
     -------
@@ -309,8 +336,8 @@ def corrnorm(
     gradpath: Literal['input', 'both'] = 'both',
 ) -> Tensor:
     """
-    Correlation normalisation activation function.
-    \
+    Apply the correlation normalisation activation.
+
     {corrnorm_spec}
     """
     if isinstance(factor, jax.Array):
@@ -325,6 +352,7 @@ def corrnorm(
 
 
 def document_isochoric(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     isochoric_spec = r"""
     This activation function first finds the eigendecomposition of each input
     matrix. The eigenvalues are then each divided by
@@ -346,12 +374,12 @@ def document_isochoric(f: Callable) -> Callable:
 
     Parameters
     ----------
-    input : tensor
+    input
         Tensor containing symmetric, positive definite matrices.
-    volume : float (default 1)
+    volume
         Target volume for the normalisation procedure. All output tensors will
         have this determinant.
-    max_condition : float :math:`\in [1, \infty)` or None (default None)
+    max_condition
         Maximum permissible condition number among output tensors. This can be
         used to constrain the eccentricity of isochoric ellipsoids. To enforce
         this maximum, the eigenvalues of the input tensors are replaced with a
@@ -359,7 +387,8 @@ def document_isochoric(f: Callable) -> Callable:
         such that the largest eigenvalue is no more than ``max_condition``
         times the smallest eigenvalue. Note that a ``max_condition`` of 1
         will always return (a potentially isotropically scaled) identity.
-    softmax_temp : float or None (default None)
+        At least 1; None for no limit.
+    softmax_temp
         If this is provided, then the eigenvalues of the input tensor are
         passed through a softmax with the specified temperature before any
         other processing.
@@ -384,9 +413,8 @@ def isochor(
     softmax_temp: Optional[float] = None,
 ) -> Tensor:
     """
-    Volume-normalising activation function for symmetric, positive definite
-    matrices.
-    \
+    Normalise the volume of symmetric positive definite matrices.
+
     {isochoric_spec}
     """
     L, Q = jnp.linalg.eigh(input)

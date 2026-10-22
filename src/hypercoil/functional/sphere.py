@@ -16,26 +16,26 @@ from ..engine import Tensor
 # TODO: Switch to using kernel.gaussian_kernel instead of this everywhere
 def kernel_gaussian(x: Tensor, scale: float = 1) -> Tensor:
     """
-    An example of an isotropic kernel. Zero-centered Gaussian kernel with
-    specified scale parameter.
+    Evaluate a zero-centred isotropic Gaussian kernel with scale ``scale``.
     """
     return jnp.exp(-((x / scale) ** 2) / 2) / (scale * (2 * jnp.pi) ** 0.5)
 
 
 def sphere_to_normals(coor: Tensor, r: float = 1) -> Tensor:
     r"""
-    Convert spherical coordinates from latitude/longitude format to normal
-    vector format. Note this only works for 2-spheres as of now.
+    Convert latitude-longitude coordinates to normal vectors.
+
+    Only 2-spheres are supported.
 
     :Dimension: **Input :** :math:`(*, 2)`
                 **Output :** :math:`(*, 3)`
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor containing 2-tuple coordinates indicating the latitude and
         longitude of each point.
-    r : float (default 1)
+    r
         Radius of the sphere.
 
     Returns
@@ -54,15 +54,16 @@ def sphere_to_normals(coor: Tensor, r: float = 1) -> Tensor:
 
 def sphere_to_latlong(coor: Tensor) -> Tensor:
     r"""
-    Convert spherical coordinates from normal vector format to latitude/
-    longitude format. Note this only works for 2-spheres as of now.
+    Convert normal vectors to latitude-longitude coordinates.
+
+    Only 2-spheres are supported.
 
     :Dimension: **Input :** :math:`(*, 3)`
                 **Output :** :math:`(*, 2)`
 
     Parameters
     ----------
-    coor : Tensor
+    coor
         Tensor containing 3-tuple coordinates indicating x, y, and z values of
         each point on a sphere whose centre is the origin.
 
@@ -86,8 +87,7 @@ def spherical_geodesic(
     r: float = 1,
 ) -> Tensor:
     r"""
-    Geodesic great-circle distance between two sets of spherical coordinates
-    formatted as normal vectors.
+    Compute the great-circle distance between points given as normal vectors.
 
     This is not a haversine distance, although the result is identical. Please
     ensure that input vectors are expressed as normals and not as latitude/
@@ -100,14 +100,15 @@ def spherical_geodesic(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor containing coordinates on a sphere formatted as surface-normal
         vectors in Euclidean coordinates. Distances are computed between each
         coordinate in X and each coordinate in Y.
-    Y : Tensor or None (default X)
+    Y
         As X. If a second tensor is not provided, then distances are computed
         between every pair of points in X.
-    r : float
+        None gives ``X``.
+    r
         Radius of the sphere. We could just get this from X or Y, but we
         don't.
 
@@ -172,24 +173,24 @@ def spatial_conv(
 
     Parameters
     ----------
-    data : Tensor
+    data
         Tensor containing data observations, which might be arrayed into
         channels.
-    coor : Tensor
+    coor
         Tensor containing the spatial coordinates associated with each
         observation in `data`.
-    kernel : callable
+    kernel
         Function that maps a distance to a weight. Typically, shorter distances
         correspond to larger weights.
-    metric : callable
+    metric
         Function that takes as parameters two :math:`(*, N_i, D)` tensors
         containing coordinates and returns the pairwise distance between each
         pair of tensors. In Euclidean space, this could be the L2 norm; in
         spherical space, this could be the great-circle distance.
-    max_bin : int
+    max_bin
         Maximum number of points to include in a distance computation. If you
         run out of memory, try decreasing this.
-    truncate : float or None (default None)
+    truncate
         Maximum distance at which data points can be convolved together.
 
     Returns
@@ -225,10 +226,9 @@ def spherical_conv(
     r"""
     Convolve data on a 2-sphere with an isotropic Gaussian kernel.
 
-    This is implemented in pretty much the dumbest possible way, but it works.
-    Here is a likely more efficient method that requires Lie groups or some
-    such thing:
-    https://openreview.net/pdf?id=Hkbd5xZRb
+    The implementation is direct rather than efficient; spherical
+    convolution through group representations
+    (https://openreview.net/pdf?id=Hkbd5xZRb) is likely faster.
 
     See :func:`spatial_conv` for implementation details.
 
@@ -243,20 +243,20 @@ def spherical_conv(
 
     Parameters
     ----------
-    data : Tensor
+    data
         Tensor containing data observations, which might be arrayed into
         channels.
-    coor : Tensor
+    coor
         Tensor containing the spatial coordinates associated with each
         observation in `data`.
-    scale : float (default 1)
+    scale
         Scale parameter of the Gaussian kernel.
-    r : float (default 1)
+    r
         Radius of the sphere.
-    max_bin : int
+    max_bin
         Maximum number of points to include in a distance computation. If you
         run out of memory, try decreasing this.
-    truncate : float or None (default None)
+    truncate
         Maximum distance at which data points can be convolved together.
 
     Returns
@@ -297,9 +297,28 @@ def euclidean_conv(
     truncate: Optional[float] = None,
 ):
     """
-    Spatial convolution using the standard L2 metric and a Gaussian kernel.
+    Convolve data in Euclidean space with an isotropic Gaussian kernel.
 
-    See :func:`spatial_conv` for implementation details.
+    See :func:`spatial_conv` for the algorithm and shapes.
+
+    Parameters
+    ----------
+    data
+        Data observations, of shape :math:`(*, N, C)`.
+    coor
+        Euclidean coordinates of each observation, of shape :math:`(*, N, D)`.
+    scale
+        Scale (standard deviation) of the Gaussian kernel.
+    max_bin
+        Maximum number of points in one distance computation; decrease it to
+        reduce memory use.
+    truncate
+        Maximum distance at which data points are convolved together.
+
+    Returns
+    -------
+    Tensor
+        The convolved data.
     """
     kernel = partial(kernel_gaussian, scale=scale)
     return spatial_conv(
@@ -313,6 +332,25 @@ def euclidean_conv(
 
 
 def rotation_matrix(axis: Tensor, angle: Tensor) -> Tensor:
+    r"""
+    Return the 3-D rotation matrix for a rotation about an axis.
+
+    The matrix follows Rodrigues' formula,
+    :math:`I + \sin\theta K + (1 - \cos\theta) K^2`, where :math:`K` is the
+    cross-product matrix of ``axis``.
+
+    Parameters
+    ----------
+    axis
+        Unit vector of shape ``(3,)``; the axis is not normalised.
+    angle
+        Rotation angle :math:`\theta`, in radians.
+
+    Returns
+    -------
+    Tensor
+        Rotation matrix of shape ``(3, 3)``.
+    """
     cpix = jnp.asarray((
         (
             (0, 0, 0),
@@ -339,6 +377,23 @@ def rotation_matrix(axis: Tensor, angle: Tensor) -> Tensor:
 
 
 def rotate_axis_angle(src: Tensor, axis: Tensor, angle: Tensor) -> Tensor:
+    """
+    Rotate points about an axis.
+
+    Parameters
+    ----------
+    src
+        Points of shape ``(*, 3)``.
+    axis
+        Unit vector of shape ``(3,)``; the axis is not normalised.
+    angle
+        Rotation angle, in radians.
+
+    Returns
+    -------
+    Tensor
+        Rotated points, of the shape of ``src``.
+    """
     rmat = rotation_matrix(axis, angle)
     return src @ rmat.T
 
@@ -355,13 +410,13 @@ def icosphere(
 
     Parameters
     ----------
-    subdivisions : int
+    subdivisions
         Number of subdivisions to perform. For example, a value of 1 will
         return the coordinates for a 12-vertex icosphere.
-    target : Tensor or None (default None)
+    target
         If provided, the coordinates of the first vertex of the icosphere will be
         rotated to align with the provided target coordinate.
-    secondary : Tensor or None (default None)
+    secondary
         If provided, the coordinates of the second vertex of the icosphere will
         be rotated to align with the provided secondary coordinate.
 

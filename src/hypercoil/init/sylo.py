@@ -21,9 +21,29 @@ def calculate_gain(
     negative_slope: Optional[float] = None,
 ) -> float:
     """
-    Port from PyTorch.
+    Return the recommended gain for a nonlinearity, as in PyTorch.
 
-    See ``torch.nn.init.calculate_gain``.
+    The values follow ``torch.nn.init.calculate_gain``.
+
+    Parameters
+    ----------
+    nonlinearity
+        One of ``'linear'``, ``'conv1d'``, ``'conv2d'``, ``'conv3d'``,
+        ``'conv_transpose1d'``, ``'conv_transpose2d'``,
+        ``'conv_transpose3d'``, ``'tanh'``, ``'selu'`` and ``'leaky_relu'``;
+        case is ignored.
+    negative_slope
+        Negative slope of ``'leaky_relu'``; required for ``'leaky_relu'``.
+
+    Returns
+    -------
+    float
+        Gain.
+
+    Raises
+    ------
+    ValueError
+        If ``nonlinearity`` is not supported.
     """
     nonlinearity = nonlinearity.lower()
     gain_map = {
@@ -58,6 +78,42 @@ def sylo_init(
     key: jax.random.PRNGKey,
 ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
 
+    r"""
+    Sample the generators of a sylo layer with a fan-scaled variance.
+
+    The standard deviation is
+    :math:`g / \sqrt{\sqrt{f_c f_e}}` for gain :math:`g`
+    (:func:`calculate_gain`). The crosshair fan :math:`f_c` is
+    :math:`C_{in} (H + H_R - 1)` for ``'fan_in'`` and
+    :math:`C_{out} (H + H_R - 1)` for ``'fan_out'``. The expansion fan
+    :math:`f_e` is the rank :math:`r`, or :math:`r + r^2 / H` if ``psd``.
+
+    Parameters
+    ----------
+    shape
+        Shape ``(C_out, C_in, H, r)`` of the left generator.
+    shape_R
+        Shape of the right generator. Defaults to ``shape``.
+    negative_slope
+        Negative slope of a leaky ReLU nonlinearity.
+    mode
+        ``'fan_in'`` or ``'fan_out'``: the fan that scales the variance.
+    init_distr
+        ``'uniform'`` (bounds :math:`\pm \sqrt{3}` times the standard
+        deviation) or ``'normal'``.
+    nonlinearity
+        Nonlinearity whose gain scales the standard deviation.
+    psd
+        Sample one generator, for a symmetric positive semidefinite template.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor or tuple
+        The generator of shape ``shape`` if ``psd``; otherwise the left and
+        right generators.
+    """
     if shape_R is None:
         shape_R = shape
     gain = calculate_gain(
@@ -124,6 +180,26 @@ def _calculate_fan_in_expansion(shape: Tuple[int, ...], psd: bool) -> float:
 
 
 class SyloInitialiser(MappedInitialiser):
+    """
+    Initialiser for the generators of a sylo layer.
+
+    See :func:`sylo_init` and :class:`MappedInitialiser` for argument details.
+
+    Parameters
+    ----------
+    negative_slope
+        Negative slope of a leaky ReLU nonlinearity.
+    mode
+        ``'fan_in'`` or ``'fan_out'``: the fan that scales the variance.
+    init_distr
+        ``'uniform'`` or ``'normal'``.
+    nonlinearity
+        Nonlinearity whose gain scales the standard deviation.
+    psd
+        Sample one generator, for a symmetric positive semidefinite template.
+    mapper
+        Parameter map applied after initialisation.
+    """
     negative_slope: float = 0
     mode: Literal['fan_in', 'fan_out'] = 'fan_in'
     init_distr: Literal['uniform', 'normal'] = 'uniform'
@@ -208,6 +284,7 @@ class SyloInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
         **params,
     ):
+        """Initialise the parameters at ``where`` by :func:`sylo_init`."""
         init = cls(
             mapper=mapper,
             negative_slope=negative_slope,

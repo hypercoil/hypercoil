@@ -20,7 +20,7 @@ def document_window_fn(fn: Callable) -> Callable:
 
     Parameters
     ----------
-    fn : callable
+    fn
         The function to document.
 
     Returns
@@ -33,15 +33,15 @@ def document_window_fn(fn: Callable) -> Callable:
 
     Parameters
     ----------
-    tensor : Tensor
+    tensor
         The tensor to sample from.
-    window_size : int
+    window_size
         The size of the window(s) to sample.
-    num_windows : int, optional
+    num_windows
         The number of windows to sample. Default: 1.
-    windowing_axis : int, optional
+    windowing_axis
         The axis along which to sample windows. Default: -1.
-    multiplying_axis : int, optional
+    multiplying_axis
         The axis along which to multiply the windows. Default: 0.
 
     Returns
@@ -164,6 +164,30 @@ def sample_nonoverlapping_windows_existing_ax(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
+    """
+    Sample non-overlapping windows, concatenated along an existing axis.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to sample from.
+    window_size
+        Size of each window along ``windowing_axis``.
+    num_windows
+        Number of windows. ``window_size * num_windows`` must not exceed
+        the size of ``windowing_axis``.
+    windowing_axis
+        Axis along which to sample windows.
+    multiplying_axis
+        Axis along which the windows are concatenated.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Windows of ``tensor``, concatenated along ``multiplying_axis``.
+    """
     return _sample_window_impl(
         tensor,
         window_size=window_size,
@@ -186,6 +210,30 @@ def sample_nonoverlapping_windows_new_ax(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
+    """
+    Sample non-overlapping windows, stacked along a new axis.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to sample from.
+    window_size
+        Size of each window along ``windowing_axis``.
+    num_windows
+        Number of windows. ``window_size * num_windows`` must not exceed
+        the size of ``windowing_axis``.
+    windowing_axis
+        Axis along which to sample windows.
+    multiplying_axis
+        Axis along which the windows are stacked.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Windows of ``tensor``, stacked along ``multiplying_axis``.
+    """
     return _sample_window_impl(
         tensor,
         window_size=window_size,
@@ -208,6 +256,29 @@ def sample_overlapping_windows_existing_ax(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
+    """
+    Sample windows that can overlap, concatenated along an existing axis.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to sample from.
+    window_size
+        Size of each window along ``windowing_axis``.
+    num_windows
+        Number of windows.
+    windowing_axis
+        Axis along which to sample windows.
+    multiplying_axis
+        Axis along which the windows are concatenated.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Windows of ``tensor``, concatenated along ``multiplying_axis``.
+    """
     return _sample_window_impl(
         tensor,
         window_size=window_size,
@@ -230,6 +301,29 @@ def sample_overlapping_windows_new_ax(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tensor:
+    """
+    Sample windows that can overlap, stacked along a new axis.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to sample from.
+    window_size
+        Size of each window along ``windowing_axis``.
+    num_windows
+        Number of windows.
+    windowing_axis
+        Axis along which to sample windows.
+    multiplying_axis
+        Axis along which the windows are stacked.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Windows of ``tensor``, stacked along ``multiplying_axis``.
+    """
     return _sample_window_impl(
         tensor,
         window_size=window_size,
@@ -251,9 +345,9 @@ def sample_windows(
 
     Parameters
     ----------
-    allow_overlap : bool (default: False)
+    allow_overlap
         Whether to allow windows to overlap.
-    create_new_axis : bool (default: False)
+    create_new_axis
         Whether to create a new axis for the windows. Default: False.
         If this is True, the new axis will be inserted at
         ``multiplying_axis``. Otherwise, the windows will be multiplied along

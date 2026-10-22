@@ -2,9 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Window amplification
-~~~~~~~~~~~~~~~~~~~~
-Rebatching or channel amplification through data windowing.
+Rebatching or channel amplification by data windowing.
 """
 from __future__ import annotations
 from typing import Callable, Optional, Sequence, Union
@@ -17,6 +15,32 @@ from ..functional.window import sample_windows
 
 
 class WindowAmplifier(eqx.Module):
+    """
+    Rebatch or amplify channels by sampling windows of the input.
+
+    Calling the module samples ``augmentation_factor`` windows from each input
+    with :func:`~hypercoil.functional.window.sample_windows`. The call takes a
+    tensor or a sequence of tensors; ``split_key=True`` gives each tensor its
+    own key, and otherwise every tensor is windowed at the same positions.
+
+    Parameters
+    ----------
+    window_size
+        Size of each window along ``windowing_axis``.
+    allow_overlap
+        Windows can overlap.
+    create_new_axis
+        Stack the windows along a new axis at ``augmentation_axis``; otherwise
+        concatenate them along that existing axis.
+    augmentation_factor
+        Number of windows per input.
+    augmentation_axis
+        Axis along which the windows are stacked or concatenated.
+    windowing_axis
+        Axis along which windows are sampled.
+    key
+        Not read.
+    """
     window_fn: Callable
     window_size: int
     augmentation_factor: int = 1

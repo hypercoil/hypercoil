@@ -2,8 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Modules that project data between the positive semidefinite cone and proper
-subspaces tangent to the cone.
+Projection between the positive semidefinite cone and tangent subspaces.
 """
 from __future__ import annotations
 from typing import Callable, Literal, Optional, Sequence, Tuple
@@ -35,6 +34,7 @@ from ..init.semidefinite import (
 
 
 def document_semidefinite_projection_module(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     long_description = r"""
     Data transported through the module is projected from the positive
     semidefinite cone into a proper subspace tangent to the cone at the
@@ -58,15 +58,16 @@ def document_semidefinite_projection_module(f: Callable) -> Callable:
                     tangency)."""
 
     tangent_projection_mean_specs_spec = """
-    mean_specs : list(``_SemidefiniteMean`` object)
+    mean_specs
         Objects encoding a measure of central tendency in the positive
         semidefinite cone. Used to initialise the reference points of
         tangency. Selected from
-        :doc:`means on the semidefinite cone <hypercoil.init.semidefinite>`."""
+        :mod:`means on the semidefinite cone <hypercoil.init.semidefinite>`."""
 
     tangent_projection_dest_spec = """
-    dest : ``'tangent'`` or ``'cone'``
-        Target space/manifold of the projection operation."""
+    dest
+        Target space/manifold of the projection operation.
+        One of ``'tangent'`` and ``'cone'``."""
 
     fmt = NestedDocParse(
         tangent_projection_long_description=long_description,
@@ -79,21 +80,47 @@ def document_semidefinite_projection_module(f: Callable) -> Callable:
 
 
 def document_semidefinite_init_from_spec(f: Callable) -> Callable:
+    """Set the docstring of ``f`` to the shared ``from_specs`` text."""
     f.__doc__ = """
     Initialise the reference point of tangency from a data sample.
 
-    See :doc:`means on the semidefinite cone <hypercoil.init.semidefinite>`
+    See :mod:`means on the semidefinite cone <hypercoil.init.semidefinite>`
     for a list of available measures of central tendency, and
-    :doc:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
+    :class:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
     for more details on the initialisation procedure.
+
+    Parameters
+    ----------
+    mean_specs
+        Mean specifications from :mod:`hypercoil.init.semidefinite`, one for
+        each output channel.
+    init_data
+        Data sample from which each mean is computed; the last axis gives
+        the matrix size.
+    psi
+        Conditioning factor in [0, 1] that promotes positive definiteness.
+    inertia
+        Weight of the previous point of tangency in each update, in [0, 1];
+        :class:`BatchTangentProject` only.
+    dest
+        Target of the projection, ``'tangent'`` or ``'cone'``.
+    std
+        Standard deviation of the positive semidefinite noise added to each
+        channel of the initialised point of tangency.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Module
+        A module with initialised points of tangency.
     """
     return f
 
 
 class _TangentProject(eqx.Module):
     """
-    Base class for modules that project symmetric matrix data between the
-    positive semidefinite cone and proper subspaces tangent to the cone.
+    Base class for projection between the semidefinite cone and a subspace.
     """
 
     dest: Literal['tangent', 'cone']
@@ -167,21 +194,22 @@ class TangentProject(_TangentProject):
 
     Parameters
     ----------
-    init_data : Tensor
+    init_data
         Data sample whose central tendency initialises the reference point of
         tangency.\
     {tangent_projection_mean_specs_spec}\
     {semidefinite_mean_psi_spec}
-    scale : float
+    scale
         Scaling factor for the initialisation of the reference point of
         tangency.\
     {tangent_projection_dest_spec}
 
     Attributes
     ----------
-    weight : Tensor :math:`(*, C, N, N)`
+    weight
         Reference point of tangency for the projection between the
         semidefinite cone and a tangent subspace.
+        Shape :math:`(*, C, N, N)`.
     """
 
     weight: Tensor
@@ -222,11 +250,34 @@ class TangentProject(_TangentProject):
         """
         Initialise the reference point of tangency from a data sample.
 
-        See :doc:`means on the semidefinite cone <hypercoil.init.semidefinite>`
+        See :mod:`means on the semidefinite cone <hypercoil.init.semidefinite>`
         for a list of available measures of central tendency, and
-        :doc:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
+        :class:`the initialiser class <hypercoil.init.semidefinite.TangencyInitialiser>`
         for more details on the initialisation procedure.
-        """
+
+        Parameters
+        ----------
+        mean_specs
+            Mean specifications from :mod:`hypercoil.init.semidefinite`, one
+            for each output channel.
+        init_data
+            Data sample from which each mean is computed; the last axis gives
+            the matrix size.
+        psi
+            Conditioning factor in [0, 1] that promotes positive definiteness.
+        dest
+            Target of the projection, ``'tangent'`` or ``'cone'``.
+        std
+            Standard deviation of the positive semidefinite noise added to each
+            channel of the initialised point of tangency.
+        key
+            Pseudo-random number generator key.
+
+        Returns
+        -------
+        TangentProject
+            A module with initialised points of tangency.
+    """
         m_key, i_key = jax.random.split(key)
         out_channels = len(mean_specs)
         matrix_size = init_data.shape[-1]
@@ -258,12 +309,11 @@ class TangentProject(_TangentProject):
 @document_semidefinite_mean
 @document_semidefinite_projection_module
 class BatchTangentProject(_TangentProject):
-    """
+    r"""
     Tangent/cone projection with a new tangency point computed for each batch.
 
     .. warning::
-        Initialise this only using the ``from_specs`` class method.
-    \
+        Initialise this only using the :meth:`from_specs` class method.
     {tangent_projection_long_description}
 
     Here, the tangency point is computed as a convex combination of the
@@ -278,25 +328,23 @@ class BatchTangentProject(_TangentProject):
     :math:`\bar{\Theta}`, the weight is updated as
 
     :math:`\Omega_t := \eta \Omega_{t-1} + (1 - \eta) \bar{\Theta}`
-    \
     {tangent_projection_dim}
 
     Parameters
-    ----------\
-    {tangent_projection_mean_specs_spec}\
-    {semidefinite_mean_psi_spec}
-    inertia : float in [0, 1]
+    ----------{tangent_projection_mean_specs_spec}{semidefinite_mean_psi_spec}
+    inertia
         Parameter :math:`\eta` describing the relative weighting of the
         historical tangencypoint and the current batch mean. Zero inertia
         strictly uses the current batch mean. High inertia prevents the
-        tangency point from skipping by heavily weighting the history.\
-    {tangent_projection_dest_spec}
+        tangency point from skipping by heavily weighting the history.
+        In [0, 1].{tangent_projection_dest_spec}
 
     Attributes
     ----------
-    weight : Tensor :math:`(*, C, N, N)`
+    weight
         Current reference point of tangency :math:`\Omega` for the projection
         between the semidefinite cone and a tangent subspace.
+        Shape :math:`(*, C, N, N)`.
     """
 
     inertia: float
@@ -341,6 +389,39 @@ class BatchTangentProject(_TangentProject):
         *,
         key: 'jax.random.PRNGKey',
     ):
+        """
+        Initialise the reference point of tangency from a data sample.
+
+        See :mod:`means on the semidefinite cone <hypercoil.init.semidefinite>`
+        for a list of available measures of central tendency, and
+        :class:`~hypercoil.init.semidefinite.TangencyInitialiser` for more
+        details on the initialisation procedure.
+
+        Parameters
+        ----------
+        mean_specs
+            Mean specifications from :mod:`hypercoil.init.semidefinite`, one
+            for each output channel.
+        init_data
+            Data sample from which each mean is computed; the last axis gives
+            the matrix size.
+        psi
+            Conditioning factor in [0, 1] that promotes positive definiteness.
+        inertia
+            Weight of the previous point of tangency in each update, in [0, 1].
+        dest
+            Target of the projection, ``'tangent'`` or ``'cone'``.
+        std
+            Standard deviation of the positive semidefinite noise added to each
+            channel of the initialised point of tangency.
+        key
+            Pseudo-random number generator key.
+
+        Returns
+        -------
+        Module
+            A module with initialised points of tangency.
+        """
         m_key, i_key = jax.random.split(key)
         out_channels = len(mean_specs)
         matrix_size = init_data.shape[-1]

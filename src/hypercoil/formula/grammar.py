@@ -2,10 +2,9 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Grammar
-~~~~~~~
-Elementary formula grammar. For use with the confound modelling and parameter
-specification subsystems.
+Elementary formula grammar.
+
+The grammar underlies confound modelling and parameter specification.
 """
 from __future__ import annotations
 import re
@@ -30,27 +29,62 @@ import equinox as eqx
 
 
 class UnparsedTreeError(Exception):
+    """Exception for a parse-tree node that is neither transform nor leaf."""
     pass
 
 
 class TransformArityError(Exception):
+    """Exception for a transform with too few or too many arguments."""
     pass
 
 
 class Literalisation(eqx.Module):
+    """
+    Literal form of a transform in a formula.
+
+    A subclass sets ``affix`` (``'prefix'``, ``'suffix'``, ``'infix'`` or
+    ``'leaf'``) and ``regex``, whose named groups capture the parameters of the
+    transform, and implements :meth:`parse_params`.
+    """
     affix: Literal['prefix', 'suffix', 'infix', 'leaf']
     regex: str
 
     @abstractmethod
     def parse_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert the groups captured by ``regex`` to transform parameters."""
         pass
 
     def parameterise(self, string: str) -> Dict[str, Any]:
+        """Return the parameters of the literal ``string``."""
         params = re.search(self.regex, string).groupdict()
         return self.parse_params(params)
 
 
 class TransformPrimitive(eqx.Module):
+    """
+    Transform of a formula grammar.
+
+    A subclass implements ``ascend``, which takes the compiled function of each
+    argument and the parameters of the literal, and returns the compiled
+    function of the transform.
+
+    Parameters
+    ----------
+    min_arity
+        Minimum number of arguments.
+    max_arity
+        Maximum number of arguments.
+    priority
+        Parse priority; transforms of lower priority are parsed first.
+    literals
+        Literal forms of the transform. The first is canonical: it identifies
+        the transform.
+    associative
+        The transform is associative.
+    commutative
+        The transform is commutative. A transform that is associative and
+        commutative absorbs the arguments of nested instances of itself.
+    """
     min_arity: int
     max_arity: int
     priority: int
@@ -71,6 +105,7 @@ class TransformPrimitive(eqx.Module):
 
 
 class LeafTransform(TransformPrimitive):
+    """Terminal of a parse tree, holding the leaf string ``leaf``."""
     leaf: Any = None
     min_arity: int = 0
     max_arity: int = 0
@@ -81,12 +116,33 @@ class LeafTransform(TransformPrimitive):
 
 
 class LeafInterpreter(eqx.Module):
+    """
+    Interpreter that compiles each leaf of a formula into a function.
+
+    Calling an interpreter on a leaf string returns a function; a subclass
+    implements the call.
+    """
     @abstractstaticmethod
     def __call__(leaf: Any) -> Callable:
         pass
 
 
 class IndexedNestedString(eqx.Module):
+    """
+    Sequence of characters and tokens, indexed by source position.
+
+    Each entry of ``index`` maps a character position of the source string to a
+    position in ``content``, so that a token that replaces several characters
+    keeps the positions of the characters around it.
+
+    Parameters
+    ----------
+    content
+        Characters and tokens.
+    index
+        Position in ``content`` of each source position, with a final
+        terminator. Defaults to the identity over the total length.
+    """
     content: Tuple[Any]
     index: Tuple[int]
 
@@ -115,6 +171,7 @@ class IndexedNestedString(eqx.Module):
         return iter(self.content)
 
     def idx(self, key: Union[int, slice]) -> Any:
+        """Return the content at content position ``key``."""
         return self.content.__getitem__(key)
 
     def substitute(
@@ -124,6 +181,28 @@ class IndexedNestedString(eqx.Module):
         end: Optional[int] = None,
         loc_type: Literal['index', 'content'] = 'index',
     ) -> 'IndexedNestedString':
+        """
+        Replace a span of the content.
+
+        Parameters
+        ----------
+        content
+            Replacement content.
+        start
+            Start of the span.
+        end
+            End of the span. Defaults to ``start + len(content)``.
+        loc_type
+            ``'index'`` reads ``start`` and ``end`` as source positions;
+            ``'content'`` as content positions.
+
+        Returns
+        -------
+        IndexedNestedString
+            The string with the span replaced, or the string itself if the span
+            is
+            empty.
+        """
         if end is None:
             end = start + len(content)
         if loc_type == 'index':
@@ -148,6 +227,16 @@ class IndexedNestedString(eqx.Module):
 
 
 class ChildToken:
+    """
+    Placeholder for a child subtree in the content of a syntactic tree.
+
+    Parameters
+    ----------
+    hash
+        Hash of the child, which keys the child in the parent tree.
+    length
+        Number of source characters that the token replaces.
+    """
     def __init__(
         self,
         hash: str,
@@ -170,6 +259,19 @@ class ChildToken:
 
 
 class TransformToken:
+    """
+    Token of a transform literal in the content of a syntactic tree.
+
+    Parameters
+    ----------
+    string
+        Literal string.
+    metadata
+        The transform and its literal form, keyed ``'transform'`` and
+        ``'literal'``.
+    length
+        Number of source characters that the token replaces.
+    """
     def __init__(
         self,
         string: str,
@@ -194,6 +296,18 @@ class TransformToken:
 
 
 class SyntacticTree:
+    """
+    Parse tree of a formula string.
+
+    Parameters
+    ----------
+    content
+        Formula string, or a tree whose content and children are reused.
+    circumfix
+        Grouping delimiters around the content, such as ``('(', ')')``.
+    hashfn
+        Hash function that keys the children.
+    """
     def __init__(
         self,
         content: Union[str, 'SyntacticTree'],
@@ -220,6 +334,7 @@ class SyntacticTree:
         content: Sequence[Any],
         children: Dict[str, 'SyntacticTree'],
     ) -> str:
+        """Return the string of ``content`` with each child expanded."""
         content = [
             c.string if isinstance(c, TransformToken) else c for c in content
         ]
@@ -235,6 +350,7 @@ class SyntacticTree:
 
     @staticmethod
     def materialise_masked(content: Sequence[Any]) -> str:
+        """Return the string of ``content`` with each token masked."""
         content = [
             '▒'
             if isinstance(c, ChildToken) or isinstance(c, TransformToken)
@@ -245,6 +361,7 @@ class SyntacticTree:
 
     @staticmethod
     def materialise_repr(content: Sequence[Any]) -> str:
+        """Return the string of ``content`` with each token by its repr."""
         content = [
             repr(c)
             if isinstance(c, ChildToken) or isinstance(c, TransformToken)
@@ -258,6 +375,7 @@ class SyntacticTree:
         repr: bool = False,
         recursive: bool = False,
     ) -> str:
+        """Return the string of the tree: masked, by repr, or expanded."""
         if repr:
             return self.materialise_repr(self.content)
         elif recursive:
@@ -266,6 +384,7 @@ class SyntacticTree:
             return self.materialise_masked(self.content)
 
     def apply_circumfix(self, s: str) -> str:
+        """Return ``s`` enclosed in the circumfix of the tree."""
         return self.circumfix[0] + s + self.circumfix[1]
 
     def _scan_content_and_embed_child(
@@ -340,6 +459,27 @@ class SyntacticTree:
         nest: bool = True,
         drop_circumfix: bool = False,
     ) -> str:
+        """
+        Move each occurrence of a substring into a child subtree.
+
+        Parameters
+        ----------
+        query
+            Substring to move.
+        recursive
+            Match ``query`` against the fully expanded string.
+        nest
+            Carry the tokens of the matched span into the child; otherwise the
+            child is parsed from the text of ``query``.
+        drop_circumfix
+            Strip the first and last characters of ``query`` into the circumfix
+            of the child.
+
+        Returns
+        -------
+        str
+            Hash of the child.
+        """
         child_text = query
         circumfix = ('', '')
         if drop_circumfix:
@@ -376,6 +516,18 @@ class SyntacticTree:
         metadata: Sequence[Dict[str, Any]] = None,
         recursive: bool = False,
     ) -> None:
+        """
+        Replace the first match of each pattern by a transform token.
+
+        Parameters
+        ----------
+        queries
+            Regular expressions to match.
+        metadata
+            Metadata of the token for each pattern.
+        recursive
+            Match against the fully expanded string.
+        """
         content = self.content
         for i, query in enumerate(queries):
             contentstr = self.materialise(recursive=recursive)
@@ -391,6 +543,7 @@ class SyntacticTree:
 
     @staticmethod
     def find_present_children(content: IndexedNestedString) -> Tuple[str]:
+        """Return the hashes of the children referenced in ``content``."""
         return tuple([c.hash for c in content if isinstance(c, ChildToken)])
 
     @staticmethod
@@ -398,10 +551,12 @@ class SyntacticTree:
         content: IndexedNestedString,
         children: Dict[str, 'SyntacticTree'],
     ) -> Dict[str, 'SyntacticTree']:
+        """Return the entries of ``children`` referenced in ``content``."""
         present = SyntacticTree.find_present_children(content)
         return {c: v for c, v in children.items() if c in present}
 
     def prune(self):
+        """Remove unreferenced children, recursively."""
         self.children = SyntacticTree.prune_children(
             self.content, self.children
         )
@@ -416,6 +571,25 @@ class SyntacticTree:
         circumfix: Tuple[str, str] = ('', ''),
         hashfn: Callable = sha256,
     ) -> 'SyntacticTree':
+        """
+        Create a tree from parsed content without parsing it.
+
+        Parameters
+        ----------
+        content
+            Parsed content.
+        children
+            Children referenced in ``content``; others are dropped.
+        circumfix
+            Grouping delimiters around the content.
+        hashfn
+            Hash function that keys the children.
+
+        Returns
+        -------
+        SyntacticTree
+            The tree.
+        """
         if children is None:
             children = {}
         children = cls.prune_children(content, children)
@@ -432,6 +606,18 @@ class SyntacticTree:
 
 
 class TransformTree(eqx.Module):
+    """
+    Tree of transforms produced from a parse tree.
+
+    Parameters
+    ----------
+    transform
+        Transform at the root.
+    parameters
+        Parameters of the root transform.
+    children
+        Subtrees of the arguments.
+    """
     transform: TransformPrimitive
     parameters: Dict[str, Any]
     children: List['TransformTree']
@@ -440,6 +626,7 @@ class TransformTree(eqx.Module):
         self,
         interpreter: Optional[LeafInterpreter] = None,
     ) -> Callable:
+        """Compile the tree, with ``interpreter`` for the leaves."""
         if isinstance(self.transform, LeafTransform):
             return interpreter(self.transform.leaf)
         functions = [c.descend(interpreter=interpreter) for c in self.children]
@@ -450,17 +637,20 @@ class TransformTree(eqx.Module):
         interpreter: Optional[LeafInterpreter] = None,
         root_transform: Optional[TransformPrimitive] = None,
     ) -> Callable:
+        """Compile the tree, then apply ``root_transform`` if it is given."""
         if root_transform is None:
             return self.descend(interpreter=interpreter)
         return root_transform(self.descend(interpreter=interpreter))
 
 
 class Grouping(eqx.Module):
+    """Pair of grouping delimiters, ``open`` and ``close``."""
     open: str
     close: str
 
 
 class GroupingPool(eqx.Module):
+    """Set of grouping delimiters of a grammar."""
     groupings: Sequence[Grouping]
     open: Tuple[str]
     close: Tuple[str]
@@ -474,10 +664,33 @@ class GroupingPool(eqx.Module):
         self.close_to_open = dict(zip(self.close, self.open))
 
     def open_and_close(self):
+        """Return the opening and the closing delimiters."""
         open, close = zip(*[(g.open, g.close) for g in self.groupings])
         return tuple(open), tuple(close)
 
     def eval_stack(self, stack: List[str], char: str) -> Tuple[int, Sequence]:
+        """
+        Update the grouping stack with one character.
+
+        Parameters
+        ----------
+        stack
+            Open delimiters, innermost last.
+        char
+            Character.
+
+        Returns
+        -------
+        tuple
+            1 if ``char`` opens a group, -1 if it closes the innermost group,
+            and
+            0 otherwise; then the updated stack.
+
+        Raises
+        ------
+        ValueError
+            If ``char`` closes a group and ``stack`` is empty.
+        """
         if char in self.open:
             return 1, stack + [char]
         elif char in self.close:
@@ -489,6 +702,7 @@ class GroupingPool(eqx.Module):
 
 
 class TransformPool(eqx.Module):
+    """Set of the transforms of a grammar, grouped by priority."""
     transforms: Sequence[TransformPrimitive]
     transform_to_priority: Dict[TransformPrimitive, int]
     priority_to_transform: List[Sequence[TransformPrimitive]]
@@ -508,6 +722,7 @@ class TransformPool(eqx.Module):
         affix: Literal['prefix', 'suffix', 'infix'],
         pointer: int,
     ) -> Tuple[Tuple[int, Sequence, int], ...]:
+        """Return the start, stack and direction of each argument search."""
         pfx = (pointer, [], 1)
         sfx = (pointer, [], -1)
         if affix == 'prefix':
@@ -532,6 +747,27 @@ class TransformPool(eqx.Module):
         incr: str,
         stack: List[str],
     ) -> Tuple[List[str], int]:
+        """
+        Collect the content of one argument of a transform.
+
+        Parameters
+        ----------
+        tree
+            Syntactic tree.
+        pointer
+            Content position of the transform token.
+        incr
+            Direction of the search: 1 forward, -1 backward.
+        stack
+            Content collected so far.
+
+        Returns
+        -------
+        list
+            Content of the argument; the search stops at another transform
+            token
+            or at the end of the content.
+        """
         accounted = set(tree.content[pointer])
         pointer += incr
         while True:
@@ -551,6 +787,26 @@ class TransformPool(eqx.Module):
         incr: int,
         accounted: Set,
     ) -> Tuple[int, List[str], Set]:
+        """
+        Add one item of content to an argument stack.
+
+        Parameters
+        ----------
+        stack
+            Content collected so far.
+        char
+            Character or token.
+        incr
+            Direction of the search: 1 forward, -1 backward.
+        accounted
+            Tokens already in the argument.
+
+        Returns
+        -------
+        tuple
+            Direction of the next step (0 to stop), the stack and the updated
+            ``accounted``.
+        """
         if isinstance(char, TransformToken):
             if char not in accounted:
                 return 0, stack, accounted
@@ -573,6 +829,23 @@ class TransformPool(eqx.Module):
         pointer: int,
         affix: str,
     ) -> List:
+        """
+        Collect the arguments of a transform token, as child subtrees.
+
+        Parameters
+        ----------
+        tree
+            Syntactic tree. Arguments of more than one item become children.
+        pointer
+            Content position of the transform token.
+        affix
+            Affix of the literal.
+
+        Returns
+        -------
+        list
+            Content of each argument.
+        """
         search = self.specify_transform_arg_search(affix, pointer)
         args = []
 
@@ -594,6 +867,7 @@ class TransformPool(eqx.Module):
         affix: Literal['prefix', 'suffix', 'infix'],
         args: Sequence,
     ) -> str:
+        """Return the string of a transform token with its arguments."""
         if affix == 'prefix':
             expr = tree.materialise_recursive((token, *args[0]), tree.children)
         elif affix == 'suffix':
@@ -609,6 +883,28 @@ class TransformPool(eqx.Module):
 
 
 class Grammar(eqx.Module):
+    """
+    Formula grammar: groupings, transforms and leaf interpretation.
+
+    :meth:`compile` parses a formula, builds its transform tree and compiles it
+    into a function.
+
+    Parameters
+    ----------
+    groupings
+        Grouping delimiters.
+    transforms
+        Transforms.
+    whitespace
+        Whitespace is significant: runs of whitespace are reduced to one space.
+        Otherwise whitespace is deleted.
+    shorthand
+        Regular-expression substitutions applied to a formula before parsing.
+    default_interpreter
+        Leaf interpreter of :meth:`compile`.
+    default_root_transform
+        Transform applied to the compiled function by :meth:`compile`.
+    """
     groupings: GroupingPool
     transforms: TransformPool
     whitespace: bool = False
@@ -618,17 +914,20 @@ class Grammar(eqx.Module):
 
     @staticmethod
     def delete_whitespace(s: str) -> str:
+        """Return ``s`` without whitespace."""
         whitespace = r'[\s]+'
         whitespace = re.compile(whitespace)
         return re.sub(whitespace, '', s)
 
     @staticmethod
     def sanitise_whitespace(s: str) -> str:
+        """Return ``s`` stripped, with whitespace runs as single spaces."""
         whitespace = r'[\s]+'
         whitespace = re.compile(whitespace)
         return re.sub(whitespace, ' ', s.strip())
 
     def expand_shorthand(self, s: str) -> str:
+        """Return ``s`` with the shorthand substitutions applied."""
         if not self.shorthand:
             return s
         for k, v in self.shorthand.items():
@@ -639,6 +938,7 @@ class Grammar(eqx.Module):
         self,
         s: Union[str, SyntacticTree],
     ) -> SyntacticTree:
+        """Move each outermost group of ``s`` into a child subtree."""
         tree = SyntacticTree(s)
         stack = []
         pointer = 0
@@ -659,6 +959,7 @@ class Grammar(eqx.Module):
         self,
         s: Union[str, SyntacticTree],
     ) -> SyntacticTree:
+        """Replace each transform literal of ``s`` by a transform token."""
         tree = SyntacticTree(s)
         for transform in self.transforms.transforms:
             content = tree.content.content
@@ -683,6 +984,7 @@ class Grammar(eqx.Module):
         self,
         tree: SyntacticTree,
     ) -> Dict[str, TransformPrimitive]:
+        """Return the content positions of the tokens of each transform."""
         ledger = defaultdict(list)
         accounted = set()
         for i, ix in enumerate(tree.content.index[:-1]):  # null terminator
@@ -698,6 +1000,25 @@ class Grammar(eqx.Module):
         ledger: Dict[str, TransformPrimitive],
         parse_order: Literal['left', 'right'] = 'right',
     ) -> SyntacticTree:
+        """
+        Move the arguments of each transform of a tree into child subtrees.
+
+        Parameters
+        ----------
+        tree
+            Tokenised tree.
+        ledger
+            Content positions of the tokens of each transform, from
+            :meth:`make_transform_ledger`.
+        parse_order
+            ``'right'`` processes the tokens of equal priority in order of
+            position; ``'left'`` in reverse order.
+
+        Returns
+        -------
+        SyntacticTree
+            The tree, with the transform at the root of each subtree recorded.
+        """
         for priority in self.transforms.priority_to_transform:
             idx = []
             for transform in priority:
@@ -729,6 +1050,23 @@ class Grammar(eqx.Module):
         f: Callable,
         skip_transform_roots: bool = False,
     ) -> 'SyntacticTree':
+        """
+        Apply a function to a tree and its descendants, depth first.
+
+        Parameters
+        ----------
+        tree
+            Tree.
+        f
+            Function of a tree that returns a tree.
+        skip_transform_roots
+            Skip the trees whose transform root is set.
+
+        Returns
+        -------
+        SyntacticTree
+            The transformed tree, with unreferenced children pruned.
+        """
         if (not skip_transform_roots) or (tree.transform_root is None):
             tree = f(tree)
         tree.children = tree.prune_children(tree.content, tree.children)
@@ -744,6 +1082,7 @@ class Grammar(eqx.Module):
         self,
         tree: SyntacticTree,
     ) -> SyntacticTree:
+        """Parse the groups and transforms of one level of ``tree``."""
         tree = self.parse_groups(tree)
         tree = self.tokenise_transforms(tree)
         ledger = self.make_transform_ledger(tree)
@@ -754,6 +1093,7 @@ class Grammar(eqx.Module):
         self,
         s: str,
     ) -> SyntacticTree:
+        """Parse the formula ``s`` into a syntactic tree."""
         s = self.expand_shorthand(s)
         if not self.whitespace:
             s = self.delete_whitespace(s)
@@ -771,6 +1111,14 @@ class Grammar(eqx.Module):
         self,
         tree: SyntacticTree,
     ) -> SyntacticTree:
+        """
+        Check that each node without a transform root is a leaf.
+
+        Raises
+        ------
+        UnparsedTreeError
+            If the node has children.
+        """
         if len(tree.children) != 0:
             raise UnparsedTreeError(
                 f'Unparsed non-transform node {tree} '
@@ -784,6 +1132,14 @@ class Grammar(eqx.Module):
         self,
         tree: SyntacticTree,
     ) -> None:
+        """
+        Check that every node of a parse tree is a transform or a leaf.
+
+        Raises
+        ------
+        UnparsedTreeError
+            If a node is neither.
+        """
         Grammar.recur_depth_first(
             tree=tree,
             f=self.verify_level,
@@ -794,6 +1150,16 @@ class Grammar(eqx.Module):
         self,
         tree: SyntacticTree,
     ) -> TransformTree:
+        """
+        Build the transform tree of a parse tree.
+
+        Raises
+        ------
+        TransformArityError
+            If a transform has fewer than ``min_arity`` or more than
+            ``max_arity``
+            arguments.
+        """
         if tree.transform_root:
             transform = tree.transform_root.metadata['transform']
             if len(tree.children) > transform.max_arity:
@@ -867,6 +1233,7 @@ class Grammar(eqx.Module):
 
     @staticmethod
     def annotate_leaf_count(tree):
+        """Add ``num_leaves`` to the parameters of each node of ``tree``."""
         def leaf_tree(tree):
             if len(tree.children) == 0:
                 return (1, None)
@@ -899,6 +1266,16 @@ class Grammar(eqx.Module):
         self,
         tree: SyntacticTree,
     ) -> TransformTree:
+        """
+        Build the transform tree of a parse tree, with leaf counts.
+
+        Raises
+        ------
+        UnparsedTreeError
+            If a node of ``tree`` is neither a transform nor a leaf.
+        TransformArityError
+            If a transform has too few or too many arguments.
+        """
         self.verify_parse(tree)
         tree = self.transform_impl(tree)
         return Grammar.annotate_leaf_count(tree)
@@ -909,6 +1286,31 @@ class Grammar(eqx.Module):
         interpreter: Optional[LeafInterpreter] = None,
         root_transform: Optional[TransformPrimitive] = None,
     ) -> Callable:
+        """
+        Compile a formula into a function.
+
+        Parameters
+        ----------
+        s
+            Formula.
+        interpreter
+            Leaf interpreter. Defaults to ``default_interpreter``.
+        root_transform
+            Transform applied to the compiled function. Defaults to
+            ``default_root_transform``.
+
+        Returns
+        -------
+        Callable
+            Compiled function.
+
+        Raises
+        ------
+        UnparsedTreeError
+            If the formula does not parse into transforms and leaves.
+        TransformArityError
+            If a transform has too few or too many arguments.
+        """
         if interpreter is None:
             interpreter = self.default_interpreter
         if root_transform is None:

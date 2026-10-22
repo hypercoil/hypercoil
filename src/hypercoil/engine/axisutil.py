@@ -59,6 +59,19 @@ def _seq_pad(
 
 
 def atleast_4d(*pparams) -> Tensor:
+    """
+    Prepend singleton axes to an array until it has at least four axes.
+
+    Parameters
+    ----------
+    *pparams
+        Arrays to promote. Only the first is processed and returned.
+
+    Returns
+    -------
+    Tensor
+        The first array, with leading singleton axes up to rank 4.
+    """
     res = []
     for p in pparams:
         if p.ndim == 0:
@@ -83,10 +96,23 @@ def broadcast_ignoring(
     axis: Union[int, Tuple[int, ...]],
 ) -> Tensor:
     """
-    Broadcast two tensors, ignoring the axis or axes specified.
+    Broadcast two tensors over all axes except ``axis``.
 
     This can be useful, for instance, when concatenating tensors along
     the ignored axis.
+
+    Parameters
+    ----------
+    x, y
+        Tensors to broadcast.
+    axis
+        Axis or axes excluded from broadcasting; each tensor keeps its own
+        size along them.
+
+    Returns
+    -------
+    tuple(Tensor, Tensor)
+        ``x`` and ``y`` after broadcasting.
     """
 
     def _form_reduced_shape(axes, shape, ndim):
@@ -145,7 +171,34 @@ def apply_vmap_over_outer(
     structuring_arg: Optional[Union[Callable, int]] = None,
 ) -> Tensor:
     """
-    Apply a function across the outer dimensions of a tensor.
+    Apply a function across the outer dimensions of the arguments ``x``.
+
+    ``f`` is vectorised with ``jax.vmap`` over every axis of each argument
+    except the last ``f_dim``.
+
+    Parameters
+    ----------
+    x
+        Tuple of positional arguments to ``f``.
+    f
+        Function of the inner axes of each argument.
+    f_dim
+        Number of inner axes of each argument passed to ``f``: an int for
+        all arguments, or a PyTree matching ``x``.
+    align_outer
+        Align the outer axes of arguments of different rank from the
+        outermost axis. By default they are aligned from the innermost, as in
+        broadcasting. A bool for all arguments, or a PyTree matching ``x``.
+    structuring_arg
+        Argument whose outer axes set the outer axes of the output: the
+        index of the argument in ``x``, or a function that selects the
+        argument from ``x``. None gives
+        the outer axes of the highest-rank argument.
+
+    Returns
+    -------
+    Tensor
+        Output of ``f``, stacked over the outer axes.
     """
     if isinstance(f_dim, int):
         f_dim = tree_map(lambda _: f_dim, x)
@@ -205,7 +258,17 @@ def vmap_over_outer(
     structuring_arg: Optional[Union[Callable, int]] = None,
 ) -> Callable:
     """
-    Transform a function to apply to the outer dimensions of a tensor.
+    Transform a function to apply to the outer dimensions of its arguments.
+
+    Parameters
+    ----------
+    f, f_dim, align_outer, structuring_arg
+        As for :func:`apply_vmap_over_outer`.
+
+    Returns
+    -------
+    Callable
+        Function of a tuple of positional arguments to ``f``.
     """
     return partial(
         apply_vmap_over_outer,
@@ -221,7 +284,7 @@ def axis_complement(
     axis: Union[int, Tuple[int, ...]],
 ) -> Tuple[int, ...]:
     """
-    Return the complement of the axis or axes for a tensor of dimension ndim.
+    Return the axes of an ``ndim``-axis tensor that are not in ``axis``.
     """
     if isinstance(axis, int):
         axis = (axis,)
@@ -234,7 +297,7 @@ def axis_complement(
 
 def standard_axis_number(axis: int, ndim: int) -> int:
     """
-    Convert an axis number to a standard axis number.
+    Return ``axis`` as a nonnegative index into ``ndim`` axes, or None.
     """
     if axis < 0 and axis >= -ndim:
         axis += ndim
@@ -245,7 +308,7 @@ def standard_axis_number(axis: int, ndim: int) -> int:
 
 def negative_axis_number(axis: int, ndim: int) -> int:
     """
-    Convert a standard axis number to a negative axis number.
+    Return ``axis`` as a negative index into ``ndim`` axes.
     """
     if axis >= 0:
         axis -= ndim
@@ -257,7 +320,7 @@ def promote_axis(
     axis: Union[int, Tuple[int, ...]],
 ) -> Tuple[int, ...]:
     """
-    Promote an axis or axes to the outermost dimension.
+    Return the permutation of ``ndim`` axes that moves ``axis`` to the front.
     """
     if isinstance(axis, int):
         axis = (axis,)
@@ -283,6 +346,7 @@ def demote_axis(
     ndim: int,
     axis: Union[int, Tuple[int, ...]],
 ) -> Tuple[int, ...]:
+    """Return the permutation that moves the leading axes back to ``axis``."""
     if isinstance(axis, int):
         axis = (axis,)
     axis = [standard_axis_number(ax, ndim) for ax in axis]
@@ -292,7 +356,7 @@ def demote_axis(
 @partial(jax.jit, static_argnames=('axis', 'n_folds'))
 def fold_axis(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     """
-    Fold the specified axis into the specified number of folds.
+    Split ``axis`` of ``tensor`` into ``(size // n_folds, n_folds)``.
     """
     axis = standard_axis_number(axis, tensor.ndim)
     shape = tensor.shape
@@ -329,9 +393,21 @@ def _reduce_cond(acc, x, f, identity):
 @partial(jax.jit, static_argnames=('axes',))
 def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
     """
-    Unfold the specified consecutive axes into a single new axis.
+    Merge consecutive axes into a single axis.
 
-    This function will fail if the specified axes are not consecutive.
+    Parameters
+    ----------
+    tensor
+        Tensor to reshape.
+    axes
+        Consecutive axes to merge. A single int returns ``tensor``
+        unchanged.
+
+    Returns
+    -------
+    Tensor
+        ``tensor`` with ``axes`` merged into one axis at the position of the
+        first.
     """
     if isinstance(axes, int):
         return tensor
@@ -352,8 +428,7 @@ def unfold_axes(tensor: Tensor, axes: Union[int, Tuple[int, ...]]) -> Tensor:
 @partial(jax.jit, static_argnames=('axis', 'n_folds'))
 def fold_and_promote(tensor: Tensor, axis: int, n_folds: int) -> Tensor:
     """
-    Fold the specified axis into the specified number of folds, and promote
-    the new axis across the number of folds to the outermost dimension.
+    Split ``axis`` of ``tensor`` into ``n_folds`` and move the folds first.
     """
     axis = standard_axis_number(axis, tensor.ndim)
     folded = fold_axis(tensor, axis, n_folds)
@@ -366,6 +441,25 @@ def demote_and_unfold(
     target_address: int,
     axes: Union[int, Tuple[int, ...]],
 ):
+    """
+    Move the leading axes of ``tensor`` back to their places and merge axes.
+
+    Parameters
+    ----------
+    tensor
+        Tensor to reshape.
+    target_address
+        Axis or axes to which the leading axes of ``tensor`` return, as in
+        :func:`demote_axis`.
+    axes
+        Consecutive axes of the demoted tensor to merge, as in
+        :func:`unfold_axes`.
+
+    Returns
+    -------
+    Tensor
+        ``tensor`` with its leading axes demoted and ``axes`` merged.
+    """
     demoted = jnp.transpose(tensor, demote_axis(tensor.ndim, target_address))
     return unfold_axes(demoted, axes)
 
@@ -376,6 +470,7 @@ def argsort(seq):
     #     equivalent-of-numpy-argsort-in-basic-python
     # (2) http://stackoverflow.com/questions/3071415/ ...
     #     efficient-method-to-calculate-the-rank-vector-of-a-list-in-python
+    """Return the indices that sort the sequence ``seq``."""
     return sorted(range(len(seq)), key=seq.__getitem__)
 
 
@@ -386,8 +481,7 @@ def orient_and_conform(
     dim: Optional[int] = None,
 ) -> Tensor:
     """
-    Orient an input tensor along a set of axes, and conform its overall
-    dimension to equal that of a reference.
+    Orient a tensor along a set of axes and conform its rank to a reference.
 
     .. warning::
 
@@ -396,19 +490,19 @@ def orient_and_conform(
 
     Parameters
     ----------
-    input : tensor
+    input
         Input tensor.
-    axis : tuple
+    axis
         Output axes along which the tensor's input dimensions should be
         reoriented. This should be an n-tuple, where n is the number of axes
         in the input tensor. These axes must be in the same order in the input
         tensor; if they are not, the input must be transposed before being
         oriented.
-    reference : tensor or None
+    reference
         Reference tensor. The output is unsqueezed so that its total
         dimension equals that of the reference. Either a reference or an
         explicit output dimension (``dim``) must be provided.
-    dim : int or None
+    dim
         Number of tensor axes in the desired output.
 
     Returns
@@ -440,8 +534,7 @@ def orient_and_conform(
 
 def promote_to_rank(tensor: Tensor, rank: int) -> Tensor:
     """
-    Promote a tensor to a rank-``rank`` tensor by prepending singleton
-    dimensions. If the tensor is already rank-``rank``, this is a no-op.
+    Prepend singleton axes to ``tensor`` up to rank ``rank``.
     """
     ndim = tensor.ndim
     if ndim == rank:
@@ -455,9 +548,7 @@ def extend_to_size(
     fill: float = float('nan'),
 ) -> Tensor:
     """
-    Extend a tensor in the positive direction until its size matches the
-    specification. Any new entries created via extension are populated with
-    ``fill``.
+    Pad ``tensor`` at the end of each axis with ``fill`` to ``shape``.
     """
     tensor = promote_to_rank(tensor, len(shape))
     out = jnp.full(shape, fill, dtype=tensor.dtype)
@@ -469,9 +560,21 @@ def extend_to_max_size(
     fill: float = float('nan'),
 ) -> Tensor:
     """
-    Extend all tensors in a sequence until their sizes are equal to the size
-    of the largest tensor along each axis. Any new entries created via
-    extension are populated with ``fill``.
+    Extend every tensor in a sequence to the largest size along each axis.
+
+    Tensors of lower rank are first promoted by prepending singleton axes.
+
+    Parameters
+    ----------
+    tensors
+        Tensors to extend.
+    fill
+        Value of the new entries.
+
+    Returns
+    -------
+    tuple(Tensor, ...)
+        The extended tensors, all of the same shape.
     """
     ndim_max = max(t.ndim for t in tensors)
     tensors = tuple(promote_to_rank(t, ndim_max) for t in tensors)

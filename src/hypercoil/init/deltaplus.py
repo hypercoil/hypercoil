@@ -33,20 +33,20 @@ def deltaplus_init(
 
     Parameters
     ----------
-    shape : tuple
+    shape
         Shape of the tensor to initialise.
-    loc : tuple or None (default None)
+    loc
         Location of the delta function expressed as an n-tuple of array
         coordinates along the last n axes of the tensor. Defaults to the
         centre of the tensor.
-    scale : float (default 1)
+    scale
         Magnitude of the delta function. Defaults to 1.
-    var : float or Tensor (default 0.2)
+    var
         Variance of the Gaussian distribution from which the random noise is
         sampled. By default, noise is sampled i.i.d. for all entries in the
         tensor. To change the i.i.d. behaviour, use a tensor of floats that
         is broadcastable to the specified shape.
-    key : jax.random.PRNGKey
+    key
         Pseudo-random number generator key for sampling the Gaussian noise.
 
     Returns
@@ -66,7 +66,7 @@ class DeltaPlusInitialiser(MappedInitialiser):
 
     Initialise a tensor as a delta function added to Gaussian noise.
 
-    See :func:`deltaplus_init_` and :class:`MappedInitialiser` for usage
+    See :func:`deltaplus_init` and :class:`MappedInitialiser` for usage
     details.
     """
 
@@ -112,6 +112,7 @@ class DeltaPlusInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` by :func:`deltaplus_init`."""
         init = cls(mapper=mapper, loc=loc, scale=scale, var=var)
         return super()._init_impl(
             init=init,

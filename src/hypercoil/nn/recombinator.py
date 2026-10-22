@@ -2,8 +2,9 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Linear recombinator layer for feature-map learning networks.
-A 1x1 conv layer by another name.
+Linear recombinator layer for feature maps.
+
+The layer is equivalent to a 1x1 convolution.
 """
 from __future__ import annotations
 from typing import Optional
@@ -19,31 +20,32 @@ from ..functional.sylo import recombine
 
 class Recombinator(eqx.Module):
     r"""
-    Linear recombinator layer for feature maps. It should also be possible
-    to substitute a 1x1 convolutional layer with similar results.
+    Linear recombinator layer for feature maps.
+
+    A 1x1 convolutional layer gives similar results.
 
     Parameters
     ----------
-    in_channels: int
+    in_channels
         Number of channels or feature maps input to the recombinator layer.
-    out_channels: int
+    out_channels
         Number of recombined channels or feature maps output by the
         recombinator layer.
-    bias: bool
+    bias
         If True, adds a learnable bias to the output.
-    positive_only: bool (default False)
+    positive_only
         If True, initialise with only positive weights.
-    init: dict
+    init
         Dictionary of parameters to pass to the Kaiming initialisation
         function.
         Default: ``{'nonlinearity': 'linear'}``
 
     Attributes
     ----------
-    weight: Tensor
+    weight
         The learnable mixture matrix of the module of shape
         :math:``C_{in} \times C_{out}``.
-    bias: Tensor
+    bias
         The learnable bias of the module of shape ``out_channels``.
     """
     in_channels: int

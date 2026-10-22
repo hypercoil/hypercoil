@@ -21,8 +21,9 @@ from ..init.mapparam import MappedParameter
 
 
 def document_atlas_lin_init(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     atlas_lin_init_param_spec = r"""
-    normalisation : ``'mean'``, ``'absmean'``, ``'zscore'``, ``'psc'``, or None (default ``'mean'``)
+    normalisation
         Strategy for normalising across voxels and generating a representative
         time series for each label.
 
@@ -35,7 +36,7 @@ def document_atlas_lin_init(f: Callable) -> Callable:
           mean is 0 and its temporal standard deviation is 1.
         * ``psc``: Transform the time series such that its value indicates the
           percent signal change from the mean.
-    forward_mode : ``'map'`` or ``'project'``
+    forward_mode
         Strategy for extracting regional time series from parcels.
 
         * ``'map'``: Simple linear map. Given a compartment atlas
@@ -57,7 +58,7 @@ def document_atlas_lin_init(f: Callable) -> Callable:
 
             &= \left(A A^\intercal\right)^{-1} A T_{in}
             \end{aligned}
-    concatenate : bool, optional (default=True)
+    concatenate
         Whether to concatenate the output time series across compartments."""
 
     fmt = NestedDocParse(
@@ -92,17 +93,17 @@ class AtlasLinear(eqx.Module):
 
     Parameters
     ----------
-    n_locations : Dict[str, int]
+    n_locations
         Number of locations (e.g., voxels or vertices) in each compartment.
-    n_labels : Dict[str, int]
+    n_labels
         Number of labels in each compartment.
-    limits : Dict[str, Tuple[int, int]], optional (default=None)
+    limits
         Limits of each compartment. The first element of the tuple denotes the
         lower limit and the second element denotes the size, i.e., the number
         of locations in the compartment -- *not* the upper limit. If None, the
         limits are set to the default values, which are defined using the
         cumulative sum of the number of locations in each compartment.
-    decoder : Optional[Dict[str, Tensor]], optional (default=None)
+    decoder
         Decoder for labels in each compartment. The decoder is an
         integer-valued tensor that defines the map from row numbers to label
         numbers. If None, the decoder corresponds to the identity map -- i.e.,
@@ -171,6 +172,7 @@ class AtlasLinear(eqx.Module):
     def set_default_limits(
         n_locations: Dict[str, int],
     ) -> Dict[str, Tuple[float, float]]:
+        """Return contiguous ``(start, size)`` limits for each compartment."""
         limits = {}
         index = 0
         for c in n_locations.keys():
@@ -202,15 +204,17 @@ class AtlasLinear(eqx.Module):
         **params,
     ) -> PyTree:
         """
-        Initialise the atlas module from an instance of a ``BaseAtlas``
-        subclass, perhaps representing *a priori* knowledge about the
-        functional organisation of the brain.
+        Initialise the module from an atlas.
+
+        ``atlas`` is an instance of a :class:`~hypercoil.init.atlas.BaseAtlas`
+        subclass, which might encode prior knowledge of the functional
+        organisation of the brain.
 
         Parameters
         ----------
-        atlas : Atlas object
+        atlas
             A neuroimaging atlas, implemented as an instance of a subclass of
-            :doc:`BaseAtlas <hypercoil.init.atlas.BaseAtlas>`.
+            :class:`~hypercoil.init.atlas.BaseAtlas`.
             This initialises the atlas labels from which representative time
             series are extracted.\
         {atlas_lin_init_param_spec}
@@ -264,10 +268,26 @@ class AtlasLinear(eqx.Module):
         concatenate: Optional[bool] = None,
     ) -> Mapping[str, Tensor]:
         """
-        Encode the input time series into the atlas's connectivity space.
+        Encode a time series by its correlation with the atlas time series.
 
-        If you wish to encode the reference time series, use the instance as
-        a callable instead with ``encode=True``.
+        The atlas maps ``ref`` to regional time series, and ``input`` is
+        encoded by its Pearson correlation with each of them. To encode the
+        reference itself, call the module with ``encode=True``.
+
+        Parameters
+        ----------
+        input
+            Time series to encode.
+        ref
+            Reference time series from which the regional time series are
+            computed.
+        normalisation, forward_mode, decode_labels, concatenate
+            As for calling the module.
+
+        Returns
+        -------
+        Mapping[str, Tensor]
+            Encoded input.
         """
         basis = self(
             ref,

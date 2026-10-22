@@ -2,7 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-The von Mises-Fisher distribution on the sphere
+The von Mises-Fisher distribution on the sphere.
 """
 from functools import partial
 from math import prod
@@ -27,9 +27,33 @@ def random_VMF(
     key: 'jax.random.PRNGKey',
 ) -> Tuple[Tensor, Tensor]:
     """
-    Von Mises-Fisher distribution sampler with
-    mean direction mu and concentration kappa.
-    Adapted from source: https://hal.science/hal-04004568
+    Sample from a von Mises-Fisher distribution.
+
+    The distribution has mean direction ``mu`` and concentration ``kappa``. The
+    sampler is adapted from https://hal.science/hal-04004568. The angle to the
+    mean direction is drawn by rejection sampling with a fixed number of
+    proposals (:func:`random_VMF_angle`).
+
+    Parameters
+    ----------
+    mu
+        Mean directions: unit vectors of shape ``(*, d)``.
+    kappa
+        Concentration, broadcastable to ``mu.shape[:-1]``.
+    shape
+        Sample shape. ``None`` draws one sample.
+    max_iter
+        Number of proposals per sample. A sample without an accepted proposal
+        keeps the last proposal.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    tuple
+        Samples of shape ``(*shape, *mu.shape)``, with a 1-D ``mu`` read as
+        ``(1, d)``; and, of shape ``(prod(shape), *mu.shape[:-1])``, True where
+        a proposal was accepted.
     """
     key_radial, key_angular = jax.random.split(key, 2)
 
@@ -69,11 +93,35 @@ def random_VMF_angle(
     *,
     key: 'jax.random.PRNGKey',
 ) -> Tuple[Tensor, Tensor]:
-    """
-    Generate n iid samples t with density function given by
-    p(t) = C * (1 - t ** 2) ** ((d - 3) / 2) * exp(kappa * t)
-    for some constant C
-    Adapted from source: https://hal.science/hal-04004568
+    r"""
+    Sample the sine and cosine of the angle to the mean direction.
+
+    Each sample :math:`t` has density
+    :math:`p(t) = C (1 - t^2)^{(d - 3) / 2} e^{\kappa t}` for a normalising
+    constant :math:`C`. The sampler is adapted from
+    https://hal.science/hal-04004568.
+
+    Parameters
+    ----------
+    d
+        Dimension :math:`d` of the space that contains the sphere.
+    k
+        Concentration :math:`\kappa`, broadcastable to ``event_shape``.
+    batch_size
+        Number of samples.
+    event_shape
+        Shape of the batch of distributions.
+    max_iter
+        Number of rejection-sampling proposals per sample. A sample without an
+        accepted proposal keeps the last proposal.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    tuple
+        Sine, cosine and acceptance flag (True where a proposal was accepted)
+        of each sample, each of shape ``(batch_size, *event_shape)``.
     """
     shape = (batch_size, *event_shape)
     alpha = (d - 1) / 2
@@ -107,21 +155,33 @@ def random_VMF_angle(
 
 def log_bessel(order: int, kappa: Tensor) -> Tensor:
     """
-    Approximation to the logarithm of a modified Bessel function of the first
-    kind. We use this to normalise the vMF distribution.
+    Approximate the logarithm of a modified Bessel function of the first kind.
+
+    The approximation normalises the von Mises-Fisher distribution.
 
     See Appendix B of:
     Fröhlich J and Spencer T (1981) "The Kosterlitz-Thouless Transition in
     Two-Dimensional Abelian Spin Systems and the Coulomb Gas".
     Commun. Math. Phys. 81, 527-602.
-    The notation in this paper is a bit different, but the approximation is
-    for large values of kappa. We should run some Monte Carlo integration
-    simulations to assess this approximation in practice for the range of
-    values of kappa we expect to encounter.
+    The approximation is asymptotic in large ``kappa``; its accuracy for
+    small ``kappa`` has not been assessed.
 
     This asymptotic approximation returns results approximately equivalent to
     the implementation in the HierarchBayesParcel package:
     https://github.com/DiedrichsenLab/HierarchBayesParcel/blob/main/emissions.py#L1473
+
+    Parameters
+    ----------
+    order
+        Order of the Bessel function.
+    kappa
+        Argument of the Bessel function; positive.
+
+    Returns
+    -------
+    Tensor
+        Approximate logarithm of the Bessel function of order ``order`` at
+        ``kappa``, of the shape of ``kappa``.
     """
     ratio = order / kappa
     radicand = 1 + ratio**2
@@ -134,6 +194,24 @@ def log_bessel(order: int, kappa: Tensor) -> Tensor:
 
 
 def log_prob_vmf(X: Tensor, mu: Tensor, kappa: Tensor) -> Tensor:
+    """
+    Compute the log-density of points under von Mises-Fisher distributions.
+
+    Parameters
+    ----------
+    X
+        Unit vectors of shape ``(*, n, d)``.
+    mu
+        Mean directions of shape ``(*, l, d)``.
+    kappa
+        Concentrations of shape ``(*, l)``.
+
+    Returns
+    -------
+    Tensor
+        Log-density of each point under each distribution, of shape
+        ``(*, n, l)``.
+    """
     d = X.shape[-1]
     log_norm = (
         (d / 2 - 1) * jnp.log(kappa) -
@@ -150,12 +228,35 @@ def log_prob_vmf(X: Tensor, mu: Tensor, kappa: Tensor) -> Tensor:
 
 
 def vmf_logpdf(mu: Tensor, kappa: Tensor) -> callable:
+    """Return the function ``X -> log_prob_vmf(X, mu, kappa)``."""
     def logpdf(X: Tensor) -> Tensor:
         return log_prob_vmf(X=X, mu=mu, kappa=kappa)
     return logpdf
 
 
 class VonMisesFisher(Distribution):
+    """
+    Von Mises-Fisher distribution on the unit sphere.
+
+    Parameters
+    ----------
+    mu
+        Mean directions: unit vectors of shape ``(*, d)``. The leading axes
+        are the batch shape.
+    kappa
+        Concentration of each distribution.
+    sample_max_iter
+        Number of rejection-sampling proposals per sample, as ``max_iter`` in
+        :func:`random_VMF`.
+    sample_return_valid
+        :meth:`sample` also returns the acceptance flags of
+        :func:`random_VMF`.
+    explicit_normalisation
+        :meth:`log_prob` scales each value to unit norm first.
+    parameterise
+        Wrap ``mu`` in a :class:`NormSphereParameter`, which keeps ``mu`` on
+        the unit sphere.
+    """
     support = constraints.sphere
     pytree_data_fields = ('mu', 'kappa')
     pytree_aux_fields = (
@@ -198,6 +299,7 @@ class VonMisesFisher(Distribution):
     ) -> Tensor:
         #TODO: See if we can implement reparameterisations so that we can
         # differentiate through this. Low priority since we don't use this
+        """Draw samples with :func:`random_VMF`."""
         sample, check = random_VMF(
             mu=_to_jax_array(self.mu),
             kappa=_to_jax_array(self.kappa),
@@ -210,6 +312,7 @@ class VonMisesFisher(Distribution):
         return sample
 
     def log_prob(self, value: Tensor) -> Tensor:
+        """Return the log-density of ``value``, by :func:`log_prob_vmf`."""
         if self.explicit_normalisation:
             value = value / jnp.linalg.norm(value, axis=-1, keepdims=True)
         return vmf_logpdf(

@@ -28,9 +28,16 @@ torch_dims = {
     2: ('NCHW', 'OIHW', 'NCHW'),
     3: ('NCHWD', 'OIHWD', 'NCHWD'),
 }
+"""
+Convolution dimension numbers, keyed by number of spatial axes.
+
+Each value gives the input, kernel and output layouts for
+:func:`jax.lax.conv_general_dilated`.
+"""
 
 
 def document_time_series_convolution(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     ts_conv_dim = r"""
     :Dimension: **Input :** :math:`(N, *, C, obs)`
                     N denotes batch size, ``*`` denotes any number of
@@ -47,11 +54,11 @@ def document_time_series_convolution(f: Callable) -> Callable:
                     As above."""
 
     basis_conv_spec = """
-    X : Tensor
+    X
         Input dataset to the basis functions. The last two dimensions are
         seen by each kernel channel. For time series data, these could be
         variables and sequential observations.
-    weight : Tensor
+    weight
         Basis convolution kernel. The first dimension corresponds to the
         output channels and the second to the input channels, each of which
         corresponds to the evaluation of a basis function over ``X``. The
@@ -64,13 +71,13 @@ def document_time_series_convolution(f: Callable) -> Callable:
         number of variables). To permit some diversity in kernels while
         enforcing consistency across variables, it is possible to penalise
         a measure of spread such as the variance across the variable axis.
-    include_const : bool (default False)
+    include_const
         Indicates that a constant or intercept term should be included. The
         first channel of the weight sees the constant term.
-    bias : Tensor or None
+    bias
         Bias term for convolution. See ``torch.conv2d`` documentation for
         details.
-    padding : 2-tuple or None
+    padding
         Padding for convolution, as for ``torch.conv2d``. If not explicitly
         specified, this will default to ``'time series'`` padding: no padding
         in the penultimate axis, and ``R // 2`` in the final axis.
@@ -100,11 +107,31 @@ def conv(
     padding: Union[int, Sequence[Tuple[int, int]]] = 0,
     dilation: Union[int, Sequence[int]] = 1,
 ) -> Tensor:
-    """
-    ``torch``-like API for convolution.
-    The implementation is basically pilfered from
-    https://stackoverflow.com/questions/69571976/ ...
-    ... how-to-use-grad-convolution-in-google-jax
+    r"""
+    Convolve with a ``torch``-like interface.
+
+    Adapted from https://stackoverflow.com/questions/69571976/.
+
+    Parameters
+    ----------
+    input
+        Input of shape :math:`(N, C_{in}, *)`, with up to three spatial axes.
+    weight
+        Kernel of shape :math:`(C_{out}, C_{in}, *)`.
+    bias
+        Bias added to the output; None for no bias.
+    stride
+        Stride along each spatial axis, or one stride for all.
+    padding
+        ``(before, after)`` padding for each spatial axis, or one symmetric
+        padding for all.
+    dilation
+        Kernel dilation along each spatial axis, or one dilation for all.
+
+    Returns
+    -------
+    Tensor
+        Output of shape :math:`(N, C_{out}, *)`.
     """
     # TODO: Compare against
     # https://github.com/patrick-kidger/equinox/blob/main/equinox/nn/conv.py#L104
@@ -242,7 +269,7 @@ def polyconv2d(
     .. warning::
         This function automatically creates a channel for each specified
         power. If your input already includes a channel for each power, you
-        should use ``tsconv2d`` instead.
+        should use :func:`tsconv2d` instead.
     \
     {ts_conv_dim}
 
@@ -312,16 +339,21 @@ def basischan(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Dataset to expand with basis functions. A new channel will be created
         containing the same dataset transformed using each basis function.
-    basis_functions : list(callable)
+    basis_functions
        Functions to use to constitute the basis. Each function's signature
        must map a single input to a single output of the same dimension. Use
        partial functions as appropriate to conform function signatures to this
        requirement.
-    include_const : bool (default False)
+    include_const
         Indicates that a constant or intercept term should be included.
+
+    Returns
+    -------
+    Tensor
+        The basis expansion of ``X``, with the basis on axis 1.
     """
     X = _configure_input_for_ts_conv(X)
     if include_const:
@@ -353,13 +385,14 @@ def polychan(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Dataset to expand as a polynomial basis. A new channel will be created
         containing the same dataset raised to each power up to the specified
         degree.
-    degree : int >= 2 (default 2)
+    degree
         Maximum polynomial degree to be included in the output basis.
-    include_const : bool (default False)
+        At least 2.
+    include_const
         Indicates that a constant or intercept term corresponding to the zeroth
         power should be included.
 

@@ -21,8 +21,7 @@ from ..init.mapparam import MappedLogits
 
 class LinearRFNN(eqx.Module):
     """
-    Model selection as a linear combination, with convolutional model
-    augmentation.
+    Model selection by linear combination, with convolutional augmentation.
     """
 
     model_dim: int
@@ -92,7 +91,7 @@ class LinearRFNN(eqx.Module):
         weight = {k: _to_jax_array(v) for k, v in self.weight.items()}
         x = atleast_4d(x)
 
-        # If we have no response functions, just select a linear combination
+        # Without response functions, the model is a linear combination.
         if self.num_response_functions == 0:
             return weight['lin'] @ x
 
@@ -121,6 +120,37 @@ class LinearRFNN(eqx.Module):
 
 
 class QCPredict(eqx.Module):
+    """
+    Predict quality-control measures from confound time series.
+
+    Three convolutional layers, each followed by a leaky ReLU at a learnable
+    threshold, map the confounds to the QC measures: response functions of
+    each confound, global patterns across confounds, and a final filter.
+
+    Parameters
+    ----------
+    num_columns
+        Number of confound time series.
+    basis_functions
+        Functions applied to the input before the response-function layer.
+        Defaults to the identity.
+    num_response_functions
+        Number of response functions.
+    response_duration
+        Duration of each response function, in time points.
+    num_global_patterns
+        Number of global patterns.
+    global_pattern_duration
+        Duration of each global pattern, in time points.
+    final_filter_duration
+        Duration of the final filter, in time points.
+    num_qc
+        Number of QC measures to predict.
+    leak
+        Negative slope of the leaky ReLU.
+    key
+        Pseudo-random number generator key for the weights.
+    """
     basis_functions: Sequence[Callable[[Tensor], Tensor]]
     leak: float = 0.05
     weight: Dict[str, Tensor]
@@ -222,6 +252,7 @@ class QCPredict(eqx.Module):
         weight: Tensor,
         thresh: Tensor,
     ) -> Tensor:
+        """Convolve ``x`` with ``weight``; apply a leaky ReLU at ``thresh``."""
         conv_out = conv(
             X=x,
             weight=weight,
@@ -300,14 +331,14 @@ class LinearCombinationSelector(LinearRFNN):
 
     Parameters
     ----------
-    model_dim : int
+    model_dim
         Dimension of the model to be learned.
-    n_columns : int
+    n_columns
         Number of input vectors to be combined linearly to form the model.
 
     Attributes
     ----------
-    weight : tensor
+    weight
         Tensor of shape :math:`(I, O)` `n_columns` x `model_dim`.
     """
 
@@ -333,12 +364,10 @@ class EliminationSelector(eqx.Module):
     Begin with a full complement of model vectors, then eliminate them by
     placing an L1 penalty on the weight of this layer.
 
-    .. danger::
+    .. warning::
 
-        Do not use this model! It once performed well as a fluke of
-        initialisation, but testing it across multiple random seeds has shown
-        that it is not a good model. It is included here as part of the
-        synthetic data experiments, but should not be used in practice.
+        Not for practical use. Across random seeds this model performs
+        poorly; it is retained for the synthetic data experiments.
 
     The internal weights of this module are passed through a parameterised
     sigmoid function and then thresholded at 0. Any variables corresponding
@@ -353,32 +382,26 @@ class EliminationSelector(eqx.Module):
 
     Parameters
     ----------
-    n_columns : int
+    num_columns
         Number of candidate vectors for the model.
-    infimum : float (default -1.5)
-        Infimum of the thresholded sigmoid function, pre-thresholding. Note
-        that an infimum closer to 0 results in a gentler slope close to the
-        elimination threshold.
-    supremum : float (default 2.5)
-        Supremum of the thresholded sigmoid function.
-    or_dim : int
-        If this is greater than 1, then `or_dim` separate vectors are learned,
-        and a variable is only eliminated if every one learns a 0 weight for
-        that variable.
-        During testing, we did not find a practical use for this. We didn't
-        look very carefully, and it's possible that someone might find a use.
-    and_dim : int
-        If this is greater than 1, then `and_dim` separate vectors are
-        learned, and a variable is eliminated if any one learns a 0 weight for
-        that variable.
-        If both `or_dim` and `and_dim` are set, then the selector first takes
-        the union across the `or` dimension and then takes the intersection
-        across the `and` dimension.
-        During testing, we did not find a practical use for this. We didn't
-        look very carefully, and it's possible that someone might find a use.
-    init : callable
-        Initialisation function for the layer weight. Defaults to values
-        randomly sampled from Uniform(0, 1).
+    infimum
+        Infimum of the sigmoid before thresholding. An infimum closer to 0
+        gives a gentler slope near the elimination threshold.
+    supremum
+        Supremum of the sigmoid.
+    or_dim
+        Number of weight vectors learned in the ``or`` dimension. A variable
+        is eliminated only if every one of them gives the variable a 0
+        weight.
+    and_dim
+        Number of weight vectors learned in the ``and`` dimension. A variable
+        is eliminated if any one of them gives the variable a 0 weight. With
+        both ``or_dim`` and ``and_dim`` greater than 1, the union over the
+        ``or`` dimension is taken first, then the intersection over the
+        ``and`` dimension.
+    key
+        Pseudo-random number generator key. The weight is initialised from
+        Uniform(0, 1).
     """
     num_columns: int
     or_dim: int = 1

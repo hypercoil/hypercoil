@@ -14,14 +14,13 @@ from numpyro.distributions import Distribution as Distr
 
 # TODO: replace with jaxtyping at some point
 Tensor = Union[jax.Array, np.ndarray]
+"""Array type of the API: a JAX or NumPy array."""
 PyTree = Any
 Distribution = Distr
 
 
-# From ``equinox``:
-# TODO: remove this once JAX fixes the issue.
-# Working around JAX not always properly respecting __jax_array__ . . .
-# See JAX issue #10065
+# Adapted from equinox. JAX does not always respect ``__jax_array__``:
+# https://github.com/google/jax/issues/10065
 def _to_jax_array(param: Tensor) -> Tensor:
     if hasattr(param, '__jax_array__'):
         return param.__jax_array__()
@@ -30,4 +29,5 @@ def _to_jax_array(param: Tensor) -> Tensor:
 
 
 def where_weight(model: PyTree) -> Tensor:
+    """Return the ``weight`` attribute of ``model``."""
     return model.weight

@@ -19,14 +19,13 @@ from ..init.freqfilter import FreqFilterInitialiser, FreqFilterSpec
 
 class FrequencyDomainFilter(eqx.Module):
     r"""
-    Filtering or convolution via transfer function multiplication in the
-    frequency domain.
+    Filter bank applied by multiplication in the frequency domain.
 
-    Each time series in the input dataset is transformed into the frequency
-    domain, where it is multiplied by the complex-valued transfer function of
-    each filter in the module's bank. Each filtered frequency spectrum is then
-    transformed back into the time domain. To ensure a zero-phase filter, the
-    filtered time series are reversed and the process is repeated.
+    Each input time series is transformed into the frequency domain,
+    multiplied by the transfer function of each filter in the bank, and
+    transformed back. With the default ``filter``, :func:`product_filtfilt`,
+    the filtered series is reversed and filtered again, giving a zero-phase
+    filter. :meth:`from_specs` builds a bank from filter specifications.
 
     :Dimension: **Input :** :math:`(N, *, C, T)`
                     N denotes batch size, ``*`` denotes any number of
@@ -38,62 +37,34 @@ class FrequencyDomainFilter(eqx.Module):
 
     Parameters
     ----------
-    filter_specs : list(FreqFilterSpec)
-        A list of filter specifications implemented as
-        :doc:`FreqFilterSpec <hypercoil.init.FreqFilterSpec>`
-        objects. These determine the filter bank that
-        is applied to the input. Consult the ``FreqFilterSpec`` documentation
-        for further details.
-    dim : int or None
-        Number of frequency bins. This must be conformant with the time series
-        supplied as input. If you are uncertain about the dimension in the
-        frequency domain, it is possible to instead provide the ``time_dim``
-        argument (the length of the time series), but either ``time_dim`` or
-        ``dim`` (but not both) must be specified.
-    time_dim : int or None
-        Number of time points in the input time series. Either ``time_dim`` or
-        ``dim`` (but not both) must be specified.
-    filter : callable (default ``product_filtfilt``)
-        Callable function that takes as its arguments an input time series and
-        a set of transfer functions. It transforms the input into the frequency
-        domain, multiplies it by the transfer function bank, and transforms it
-        back. By default, the ``product_filtfilt`` function is used to ensure a
-        zero-phase filter.
-    domain : Domain object (default ``AmplitudeAtanh``)
-        A domain object from ``hypercoil.init.domain``, used to specify
-        the domain of the filter spectrum. An
-        :doc:`Identity <hypercoil.init.domainbase.Identity>` object yields the
-        raw transfer function, while an
-        :doc:`AmplitudeAtanh <hypercoil.init.domain.AmplitudeAtanh>` object
-        transforms the amplitudes of each bin by the inverse tanh (atanh)
-        function prior to convolution with the input. Using the
-        ``AmplitudeAtanh`` domain thereby constrains transfer function
-        amplitudes to [0, 1) and prevents explosive gain. An
-        :doc:`AmplitudeMultiLogit <hypercoil.init.domain.AmplitudeMultiLogit>`
-        domain can be used to instantiate and learn a parcellation over
-        frequencies.
+    num_channels
+        Number of filters in the bank, :math:`F`.
+    clamp_points
+        Boolean mask of shape :math:`(F, D)` marking transfer function bins
+        held at ``clamp_values``; clamped bins are not learnable. The clamp
+        is applied only if both ``clamp_points`` and ``clamp_values`` are
+        given.
+    clamp_values
+        Values of the clamped bins, broadcastable to :math:`(F, D)`.
+    freq_dim
+        Number of frequency bins, :math:`D`. Takes precedence over
+        ``time_dim``.
+    time_dim
+        Number of time points :math:`T` in the input; gives
+        :math:`D = \lfloor T / 2 \rfloor + 1`. One of ``freq_dim`` and
+        ``time_dim`` is required.
+    filter
+        Function of the input time series and the transfer function bank
+        that returns the filtered series.
+    key
+        Pseudo-random number generator key. Transfer function amplitudes are
+        initialised as :math:`0.5 + 0.01 \epsilon` with standard normal
+        :math:`\epsilon`.
 
-    Attributes
-    ----------
-    preweight : Tensor :math:`(F, D)`
-        Filter bank transfer functions in the module's domain. F denotes the
-        total number of filters in the bank, and D denotes the dimension of
-        the input dataset in the frequency domain. The weights are initialised
-        to emulate each  of the filters specified in the ``filter_specs``
-        parameter following the ``freqfilter_init_`` function.
-    weight : Tensor :math:`(F, D)`
-        The transfer function weights as seen by the input dataset in the
-        frequency domain. This entails mapping the weights out of the
-        specified predomain and applying any clamps declared in the input
-        specifications.
-    clamp_points : Tensor :math:`(F, D)`
-        Boolean-valued tensor mask indexing points in the transfer function
-        that should be clamped to particular values. Any points so indexed
-        will not be learnable. If this is None, then no clamp is applied.
-    clamp_values : Tensor :math:`(V)`
-        Tensor containing values to which the transfer functions are clamped.
-        `V` denotes the total number of values to be clamped across all
-        transfer functions. If this is None, then no clamp is applied.
+    Raises
+    ------
+    ValueError
+        If neither ``freq_dim`` nor ``time_dim`` is given.
     """
     weight: Tensor
     clamp: Optional[Tuple[Tensor, Tensor]]
@@ -140,6 +111,35 @@ class FrequencyDomainFilter(eqx.Module):
         key: 'jax.random.PRNGKey',
     ) -> 'FrequencyDomainFilter':
 
+        """
+        Create a filter initialised from filter specifications.
+
+        Parameters
+        ----------
+        filter_specs
+            Filter specifications; each critical frequency in each
+            specification gives one channel. Clamps in any specification are
+            applied.
+        freq_dim
+            Number of frequency bins.
+        time_dim
+            Number of time points; gives ``time_dim // 2 + 1`` frequency bins
+            if ``freq_dim`` is None.
+        filter
+            Filter function applied in the frequency domain.
+        key
+            Pseudo-random number generator key.
+
+        Returns
+        -------
+        FrequencyDomainFilter
+            Initialised filter.
+
+        Raises
+        ------
+        ValueError
+            If both ``freq_dim`` and ``time_dim`` are None.
+        """
         num_channels = sum([len(s.Wn) for s in filter_specs])
         clamp = any([s.clamps is not None for s in filter_specs])
         freq_dim = cls._set_dimension(freq_dim, time_dim)
@@ -199,6 +199,7 @@ class FrequencyDomainFilter(eqx.Module):
 
     @property
     def clamped_weight(self) -> Tensor:
+        """Weight with the clamped bins set to their clamped values."""
         weight = _to_jax_array(self.weight)
         if self.clamp is not None:
             clamp_points, clamp_values = self.clamp

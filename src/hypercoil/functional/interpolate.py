@@ -2,8 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Methods for interpolating, extrapolating, and imputing unseen or censored
-frames.
+Interpolation, extrapolation and imputation of unseen or censored frames.
 """
 from __future__ import annotations
 from functools import partial
@@ -34,10 +33,12 @@ from .utils import conform_mask
 
 
 class InterpolationError(Exception):
+    """Exception for a failed interpolation."""
     pass
 
 
 def document_interpolation(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     hybrid_interpolate_long_desc = """
     Hybrid interpolation uses the :func:`linear <linear_interpolate>`
     method for unseen frames that are no more than ``max_consecutive_linear``
@@ -101,50 +102,50 @@ def document_interpolation(f: Callable) -> Callable:
         observations, then the output time series will be identical to the
         input time series."""
     interpolate_base_spec = """
-    data : tensor
+    data
         Time series data.
-    mask : boolean tensor
+    mask
         Boolean tensor indicating whether the value in each frame of the input
         time series is observed. ``True`` indicates that the original data are
         "good" or observed, while ``False`` indicates that they are "bad" or
         missing and flags them for interpolation."""
     interpolate_hybrid_spec = """
-    max_consecutive_linear : int or None (default 3)
+    max_consecutive_linear
         The maximum number of consecutive frames for which the linear method
         will be used; any unseen frames that cannot be imputed using this
         maximum are instead imputed using the spectral approach."""
     interpolate_spectral_spec = """
-    oversampling_frequency : float (default 8)
+    oversampling_frequency
         Determines the number of frequency bins to use when estimating the
         sine and cosine spectra. 1 indicates that the number of bins should be
         the same as in a Fourier transform, while larger values indicate that
         frequency bins should be oversampled.
-    maximum_frequency : float (default 1)
+    maximum_frequency
         Maximum frequency bin to consider in the fit, as a fraction of
         Nyquist.
-    sampling_period : float (default 1)
+    sampling_period
         Period separating consecutive samples in ``data``.
-    frequency_thresh : float (default 0.3)
+    frequency_thresh
         Because of the non-orthogonality of the basis functions, spurious
         variance will often be captured in the spectral estimates. To control
         this spurious variance, all frequency bins whose estimates are less
         than ``frequency_thresh``, as a fraction of the maximum estimate
         across all bins, are set to 0."""
     interpolate_weighted_spec = """
-    start_stage : int
+    start_stage
         The first stage of weighted interpolation. The meaning of this is
         governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
         argument is otherwise specified, it sets the initial size of a boxcar
         window for averaging. (A value of 1 corresponds to averaging over the
         current frame, together with 1 frame in each of the forward and
         reverse directions.)
-    max_stage : int or None (default None)
+    max_stage
         The final stage of weighted interpolation. The meaning of this is
         governed by the ``map_to_kernel`` argument. If no ``map_to_kernel``
         argument is otherwise specified, it sets the maximum size of a boxcar
         window for averaging. By default, no maximum size is specified, and
         iteration proceeds until every unseen time point is imputed.
-    map_to_kernel : callable(int -> tensor)
+    map_to_kernel
         A function that uses the integer value of the current stage to create
         a convolutional kernel for weighting of neighbours. By default, a
         boxcar window that includes the current frame, together with ``stage``
@@ -152,7 +153,7 @@ def document_interpolation(f: Callable) -> Callable:
     # This is no longer used, but I'm leaving it here for now in case we want
     # to add it back in.
     handle_fail_spec = """
-    handle_fail : ``'raise'`` or ``'orig'`` (default ``'orig'``)
+    handle_fail
         Specifies behaviour if the interpolation fails (which typically occurs
         if every frame is labelled as unseen). ``'raise'`` raises an
         exception, while ``'orig'`` returns values from the input time series
@@ -184,19 +185,23 @@ def _number_consecutive_impl(carry: int, x: Tensor) -> Tuple[int, int]:
 
 
 def number_consecutive(x: Tensor) -> Tensor:
+    """Return the length of the run of True values ending at each entry."""
     return jax.lax.scan(_number_consecutive_impl, 0, x)[1]
 
 
 def max_number_consecutive(x: Tensor) -> Tensor:
+    """Return the length of the longest run of True values in ``x``."""
     return number_consecutive(x).max()
 
 
 def first(x: Tensor, mask: Tensor) -> Tensor:
+    """Return ``x`` at the first index where ``mask`` is True, as a slice."""
     idx = jnp.argwhere(mask, size=1)[0, -1]
     return x[..., [idx]]
 
 
 def first_and_last(x: Tensor, mask: Tensor) -> Tensor:
+    """Return ``x`` at the first and the last index where ``mask`` is True."""
     frst = first(x, mask)
     last = jnp.flip(
         first(jnp.flip(x, axis=-1), jnp.flip(mask, axis=-1)), axis=-1
@@ -215,11 +220,10 @@ def hybrid_interpolate(
     frequency_thresh: float = 0.3,
 ) -> Tensor:
     """
-    Interpolate unseen time frames using a hybrid approach that combines
-    :func:`linear <linear_interpolate>` and
-    :func:`spectral <spectral_interpolate>`
-    methods.
-    \
+    Interpolate unseen time frames by combining linear and spectral methods.
+
+    See :func:`linear_interpolate` and :func:`spectral_interpolate`.
+
     {hybrid_interpolate_long_desc}
 
     Parameters
@@ -278,6 +282,24 @@ def branched_cond(
     branches: Sequence[Tensor],
     *operands: PyTree,
 ) -> Tensor:
+    """
+    Evaluate the first branch whose predicate holds.
+
+    Parameters
+    ----------
+    preds
+        Predicates, one per branch. The predicate of the last branch is not
+        read: the last branch is the default.
+    branches
+        Callables, evaluated on ``operands``.
+    *operands
+        Arguments of each branch.
+
+    Returns
+    -------
+    Tensor
+        Output of the selected branch.
+    """
     if len(preds) == 1:
         return branches[0](*operands)
     return jax.lax.cond(
@@ -315,8 +337,9 @@ def linear_interpolate(
     mask: Tensor,
 ) -> Tensor:
     """
-    Interpolate unseen time frames as a proximity-weighted convex combination
-    of nearest neighbours.
+    Interpolate unseen time frames from proximity-weighted nearest neighbours.
+
+    The interpolant is a convex combination of the nearest seen neighbours.
 
     Parameters
     ----------\
@@ -409,6 +432,26 @@ def delta_lookahead(
     data_mask: Tensor,
     frames: Tensor,
 ) -> Tensor:
+    """
+    Compute the per-frame increments that interpolate linearly across gaps.
+
+    Parameters
+    ----------
+    data
+        Time series, with frames on the last axis.
+    diff_mask
+        True at each seen frame that a run of unseen frames follows.
+    data_mask
+        True at each seen frame.
+    frames
+        Number of consecutive unseen frames that follow each frame.
+
+    Returns
+    -------
+    Tensor
+        Increment of each frame over its predecessor, with frames on the last
+        axis; 0 outside the gaps.
+    """
     f = partial(
         _delta_lookahead_impl,
         lookahead_fn=partial(_delta_lookahead_fn, data=data, mask=data_mask),
@@ -457,7 +500,7 @@ def weighted_interpolate(
 ) -> Tensor:
     """
     Interpolate unseen time frames as a weighted average of neighbours.
-    \
+
     {weighted_interpolate_long_desc}
 
     Parameters
@@ -494,6 +537,7 @@ def make_kernels(
     stages: Sequence[int],
     map_to_kernel: Callable,
 ) -> Sequence[Tensor]:
+    """Return ``map_to_kernel(stage)`` for each stage in ``stages``."""
     return [map_to_kernel(stage) for stage in stages]
 
 
@@ -502,6 +546,24 @@ def all_stages(
     max_stage: Union[int, Literal['auto']] = 'auto',
     mask: Optional[Tensor] = None,
 ) -> Sequence[int]:
+    """
+    Return the stages of a weighted interpolation.
+
+    Parameters
+    ----------
+    start_stage
+        First stage.
+    max_stage
+        Last stage. ``'auto'`` takes the length of the longest run of unseen
+        frames in ``mask``.
+    mask
+        True at each seen frame; required if ``max_stage`` is ``'auto'``.
+
+    Returns
+    -------
+    range
+        Stages ``start_stage`` to ``max_stage``, inclusive.
+    """
     if max_stage == 'auto':
         max_stage = vmap_over_outer(max_number_consecutive, 1)((~mask,)).max()
     return range(start_stage, max_stage + 1)
@@ -518,6 +580,22 @@ def _weighted_interpolate_stage(
 
 
 def centred_square_kernel(stage: int, max_stage: int) -> Tensor:
+    """
+    Return a centred box kernel.
+
+    Parameters
+    ----------
+    stage
+        Half-width of the box: the kernel is 1 on ``2 * stage + 1`` entries.
+    max_stage
+        Half-width of the kernel.
+
+    Returns
+    -------
+    Tensor
+        Kernel of size ``2 * max_stage + 1``, 1 within ``stage`` of the centre
+        and 0 elsewhere.
+    """
     kernel = jnp.zeros(2 * max_stage + 1)
     midpt = max_stage
     return kernel.at[(midpt - stage) : (midpt + stage + 1)].set(1)
@@ -539,6 +617,24 @@ def reconstruct_weighted(
     mask: Tensor,
     kernel: Tensor,
 ) -> Tensor:
+    """
+    Reconstruct each frame as the kernel-weighted mean of the seen frames.
+
+    Parameters
+    ----------
+    data
+        Time series, with frames on the last axis.
+    mask
+        True at each seen frame.
+    kernel
+        Convolution kernel over frames, as in :func:`tsconv2d`.
+
+    Returns
+    -------
+    Tensor
+        Weighted mean of the seen frames in each window; NaN where no seen
+        frame falls in the window.
+    """
     val = tsconv2d(jnp.where(mask, data, 0), kernel)
     wt = tsconv2d(jnp.where(mask, 1.0, 0.0), kernel)
     return val / wt  # (wt + jnp.finfo(wt.dtype).eps)
@@ -554,8 +650,8 @@ def spectral_interpolate(
     frequency_thresh: float = 0,
 ) -> Tensor:
     """
-    Spectral interpolation based on basis function projection.
-    \
+    Interpolate unseen time frames by projection onto basis functions.
+
     {spectral_interpolate_long_desc}
 
     Parameters
@@ -671,12 +767,11 @@ def _fit_spectrum(
     thresh: float = 0,
 ) -> Tensor:
     """
-    Compute the transform from seen data for sin and cos terms.
-    Here we project the data onto each of the sine and cosine bases.
-    Note that, due to missing observations, the basis functions are not
-    exactly orthogonal. Thus, we will have some shared variance captured by
-    our estimates. We can potentially mitigate this using a threshold or
-    lateral inhibition.
+    Fit sine and cosine coefficients to the seen data.
+
+    The seen data are projected onto each sine and cosine basis function.
+    With missing observations the basis functions are not exactly orthogonal,
+    and the estimates share some variance.
     """
     num = basis @ data.swapaxes(-1, -2)
     # There seems to be a missing square here in the original implementation.
@@ -715,14 +810,11 @@ def _interpolate_spectral(
     thresh: float = 0,
 ) -> Tensor:
     """
-    Temporally interpolate over unseen (masked) values in a dataset using an
-    approach loosely inspired by the Lomb-Scargle periodogram. Modified from
-    code originally written in MATLAB by Anish Mitra and Jonathan Power that
-    likely followed the original periodogram more closely:
-    https://www.ncbi.nlm.nih.gov/pubmed/23994314
-    The original code can be found in the function `getTransform` here:
-        https://github.com/MidnightScanClub/MSC_Gratton2018_Codebase/blob/ ...
-        master/FCProcessing/FCPROCESS_MSC_task.m
+    Interpolate unseen (masked) values by a Lomb-Scargle-like periodogram.
+
+    Adapted from MATLAB code by Anish Mitra and Jonathan Power
+    (https://www.ncbi.nlm.nih.gov/pubmed/23994314); see ``getTransform`` in
+    https://github.com/MidnightScanClub/MSC_Gratton2018_Codebase/blob/master/FCProcessing/FCPROCESS_MSC_task.m.
 
     In summary, the approach involves first projecting seen data onto sine and
     cosine bases evaluated at the seen time points in order to estimate fit
@@ -731,17 +823,17 @@ def _interpolate_spectral(
 
     Parameters
     ----------
-    data : numpy array
+    data
         Seen data to use as a reference for reconstruction of unseen data.
-    sine_basis : numpy array
+    sine_basis
         Sine basis term for the periodogram.
-    cosine_basis : numpy array
+    cosine_basis
         Cosine basis term for the periodogram.
-    angular_frequencies: numpy array
+    angular_frequencies
         Angular frequencies for computing the periodogram.
-    all_samples : numpy array
+    all_samples
         Temporal indices of all samples, seen and unseen.
-    thresh : float
+    thresh
         Threshold applied to sine and cosine spectral terms to remove weak or
         spurious bands.
 

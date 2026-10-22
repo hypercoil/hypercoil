@@ -25,6 +25,7 @@ from .utils import is_sparse
 
 
 def document_modularity(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     girvan_newman_long_desc = r"""
     The Girvan-Newman null model is defined as the expected connection weight
     between each pair of vertices if all edges are cut and the resulting stubs
@@ -87,41 +88,43 @@ def document_modularity(f: Callable) -> Callable:
                 **Output :** :math:`(*, I, O)`
                     As above."""
     adjacency_param_spec = """
-    A : Tensor
+    A
         Block of adjacency matrices for which the quantity of interest is to
         be computed."""
     modularity_matrix_param_spec = """
-    gamma : nonnegative float (default 1)
+    gamma
         Resolution parameter for the modularity matrix. A smaller value assigns
         maximum modularity to partitions with large communities, while a larger
         value assigns maximum modularity to partitions with many small
         communities.
-    null : callable(A) (default ``girvan_newman_null``)
+        Nonnegative.
+    null
         Function of ``A`` that returns, for each adjacency matrix in the input
         tensor block, a suitable null model. By default, the
-        :doc:`Girvan-Newman null model <hypercoil.functional.graph.girvan_newman_null>`
+        :func:`Girvan-Newman null model <hypercoil.functional.graph.girvan_newman_null>`
         is used.
-    normalise_modularity : bool (default False)
+    normalise_modularity
         Indicates that the resulting matrix should be normalised by the total
         matrix degree. This may not be necessary for many use cases -- for
         instance, where the arg max of a function of the modularity matrix is
         desired.
-    sign : ``'+'``, ``'-'``, or None (default ``'+'``)
+    sign
         Sign of connections to be considered in the modularity.
+        One of ``'+'``, ``'-'`` and None.
     **params
         Any additional parameters are passed to the null model."""
     coaffiliation_param_spec = r"""
-    C : Tensor
+    C
         Community affiliation of vertices in the source set. Each slice is a
         matrix :math:`C^{(i)} \in \mathbb{R}^{I \ times C}` that encodes the
         uncertainty in each vertex's community assignment. :math:`C^{(i)}_{jk}`
         denotes the probability that vertex j is assigned to community k. If
         this is binary-valued, then it reflects a deterministic assignment.
-    C_o : Tensor or None (default None)
+    C_o
         Community affiliation of vertices in the sink set. If None, then it is
         assumed that the source and sink sets are the same, and ``C_o`` is set
         equal to ``C_i``.
-    L : Tensor or None (default None)
+    L
         The inter-community coupling matrix :math:`\Omega`, mapping the
         probability of affiliation between communities. Each entry
         :math:`L_{ij}` encodes the probability of a vertex in community i
@@ -129,9 +132,9 @@ def document_modularity(f: Callable) -> Callable:
         assortative structure is assumed (equivalent to L equals identity),
         under which nodes in the same community preferentially coaffiliate
         while nodes in different communities remain disaffiliated.
-    exclude_diag : bool (default True)
+    exclude_diag
         Indicates that self-links are not factored into the coaffiliation.
-    normalise_coaffiliation : bool (default False)
+    normalise_coaffiliation
         Normalise all community assignment weights to max out at 1."""
 
     fmt = NestedDocParse(
@@ -154,8 +157,8 @@ def document_modularity(f: Callable) -> Callable:
 @document_modularity
 def girvan_newman_null(A: Tensor) -> Tensor:
     """
-    Girvan-Newman null model for a tensor block.
-    \
+    Compute the Girvan-Newman null model for a tensor block.
+
     {girvan_newman_long_desc}
 
     :Dimension: {adjacency_dim_spec}\
@@ -187,8 +190,8 @@ def modularity_matrix(
     **params,
 ) -> Tensor:
     """
-    Modularity matrices for a tensor block.
-    \
+    Compute the modularity matrices for a tensor block.
+
     {modularity_matrix_long_desc}
 
     :Dimension: {adjacency_dim_spec}\
@@ -229,8 +232,8 @@ def coaffiliation(
     normalise_coaffiliation: bool = False,
 ) -> Tensor:
     """
-    Coaffiliation of vertices under a community structure.
-    \
+    Compute the coaffiliation of vertices under a community structure.
+
     {coaffiliation_long_desc}
 
     :Dimension: {coaffiliation_dim_spec}\
@@ -278,8 +281,8 @@ def relaxed_modularity(
     **params,
 ) -> Tensor:
     """
-    A relaxation of the modularity of a network given a community partition.
-    \
+    Compute a relaxed modularity of a network given a community partition.
+
     {relaxed_modularity_long_desc}
 
     :Dimension: {adjacency_dim_spec}
@@ -291,7 +294,7 @@ def relaxed_modularity(
     ----------
     {adjacency_param_spec}\
     {coaffiliation_param_spec}
-    directed : bool (default False)
+    directed
         Indicates that the input adjacency matrices should be considered as a
         directed graph.\
     {modularity_matrix_param_spec}
@@ -326,6 +329,7 @@ def degree(W: Tensor) -> Tensor:
     # TODO: technically, we *have* implemented this for sparse graphs in the
     # ``_sparse_laplacian`` function, but it involves some overhead that makes
     # a separate implementation useless for our purposes.
+    """Return the row sums of the dense adjacency matrix ``W``."""
     if is_sparse(W):
         raise NotImplementedError
     return W.sum(-1)
@@ -367,29 +371,29 @@ def graph_laplacian(
         either the in-degree Laplacian or the out-degree Laplacian, depending
         on the convention adopted for the input.
 
-    :Dimension: **W :** :math:`(*, N, N)` or :math:`(*, E)`
-                    ``*`` denotes any number of preceding dimensions, N
-                    denotes number of vertices, and E denotes number of edges.
-                    The shape should be :math:`(*, N, N)` if ``edge_index`` is
-                    not provided and :math:`(*, E)` if ``edge_index`` is
-                    provided.
-                **edge_index :** :math:`(*, 2, E)`
-                    As above.
-                **Output :** :math:`(*, N, N)` or tuple(:math:`(*, E)`, :math:`(*, 2, E)`)
+    :Dimension: **W :** :math:`(*, N, N)`
+                    ``*`` denotes any number of preceding dimensions and N
+                    denotes number of vertices.
+                **Output :** :math:`(*, N, N)`
                     As above.
 
     Parameters
     ----------
-    W : tensor
-        Edge weight tensor. If ``edge_index`` is not provided, then this
-        should be the graph adjacency matrix; otherwise, it should be a
-        list of weights corresponding to the edges in ``edge_index``.
-    normalise : bool (default True)
+    W
+        Graph adjacency matrix, dense or in top-k sparse format. Its
+        diagonal is ignored.
+    normalise
         Indicates that the Laplacian should be normalised using the degree
-        matrix.
-    topk : bool (default True)
-        Indicates that the input is a top-k sparse matrix. Has no effect if
-        ``W`` is not a sparse matrix.
+        matrix. Vertices of degree 0 are left unscaled.
+    topk
+        Indicates that the input is a top-k sparse matrix. Ignored if ``W``
+        is not a sparse matrix.
+
+    Returns
+    -------
+    Tensor
+        Laplacian, in the format of ``W``. The diagonal of a normalised
+        dense Laplacian is set to 1.
     """
     W = delete_diagonal(W)
     deg = degree(W)

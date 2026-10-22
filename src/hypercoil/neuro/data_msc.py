@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Minimal MSC dataset
-~~~~~~~~~~~~~~~~~~~
 Minimal MSC dataset for testing or rapid prototyping.
 """
 from __future__ import annotations
@@ -24,6 +22,7 @@ from ..engine import extend_to_max_size
 
 
 def get_msc_dir() -> str:
+    """Return the directory of the minimal MSC dataset in the package."""
     output = pkgrf(
         'hypercoil',
         'neuro/datasets',
@@ -32,6 +31,22 @@ def get_msc_dir() -> str:
 
 
 def minimal_msc_download(delete_if_exists: bool = False) -> str:
+    """
+    Download the minimal MSC dataset into the package.
+
+    An existing dataset directory is returned without a check of its
+    contents.
+
+    Parameters
+    ----------
+    delete_if_exists
+        Delete an existing dataset directory and download again.
+
+    Returns
+    -------
+    str
+        Path to the dataset directory.
+    """
     output = pkgrf(
         'hypercoil',
         'neuro/datasets',
@@ -70,6 +85,26 @@ def minimal_msc_all_pointers(
     task: Optional[str] = None,
     ses: Optional[str] = None,
 ) -> Sequence[Tuple[str, str]]:
+    """
+    List the time series and motion files of the minimal MSC dataset.
+
+    Parameters
+    ----------
+    dir
+        Dataset directory. Defaults to :func:`get_msc_dir`.
+    sub
+        Subject label, or a glob pattern. None matches all subjects.
+    task
+        Task label, or a glob pattern. None matches all tasks.
+    ses
+        Session label, or a glob pattern. None matches all sessions.
+
+    Returns
+    -------
+    tuple
+        Sorted pairs of paths: the time series file and its relative RMS
+        motion file.
+    """
     if dir is None:
         dir = get_msc_dir()
     if sub is None:
@@ -175,6 +210,7 @@ class MSCMinimal:
         shuffle: bool,
         key: Optional['jax.random.PRNGKey'] = None,
     ):
+        """Restart iteration, shuffled with ``key`` if ``shuffle``."""
         self.idx = -self.batch_size
         idxmap = jnp.arange(self.max)
         if shuffle:

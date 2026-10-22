@@ -10,9 +10,10 @@ from collections import UserDict
 
 class NestedDocParse(UserDict):
     """
-    Enable multiple documentation decorators to be applied to a single
-    function, with each pass leaving intact any cells that are not specified
-    in the current decorator.
+    Format mapping that leaves unknown fields intact.
+
+    Several documentation decorators can then be applied to one function in
+    turn.
     """
 
     def __missing__(self, key):

@@ -25,21 +25,25 @@ from ..engine.paramutil import _to_jax_array
 
 
 def normalise_mean(data: Tensor, weight: Tensor) -> Tensor:
+    """Divide ``data`` by the row sums of ``weight``."""
     norm_fact = weight.sum(-1, keepdims=True)
     return data / norm_fact
 
 
 def normalise_absmean(data: Tensor, weight: Tensor) -> Tensor:
+    """Divide ``data`` by the row sums of the absolute ``weight``."""
     norm_fact = jnp.abs(weight).sum(-1, keepdims=True)
     return data / norm_fact
 
 
 def normalise_zscore(data: Tensor, weight: Optional[Tensor] = None) -> Tensor:
+    """Z-score ``data`` along the last axis; ``weight`` is unused."""
     mean, std = data.mean(-1, keepdims=True), data.std(-1, keepdims=True)
     return (data - mean) / std
 
 
 def normalise_psc(data: Tensor, weight: Optional[Tensor] = None) -> Tensor:
+    """Convert ``data`` to percent change from its mean; ``weight`` unused."""
     mean = data.mean(-1, keepdims=True)
     return 100 * (data - mean) / mean
 
@@ -59,6 +63,26 @@ def form_dynamic_slice(
     slice_index: int,
     slice_size: int,
 ) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
+    """
+    Form the start indices and sizes of a slice along one axis.
+
+    Parameters
+    ----------
+    shape
+        Shape of the tensor to slice.
+    slice_axis
+        Axis along which to slice.
+    slice_index
+        Start index of the slice along ``slice_axis``.
+    slice_size
+        Size of the slice along ``slice_axis``.
+
+    Returns
+    -------
+    tuple
+        Start indices and slice sizes for :func:`jax.lax.dynamic_slice`: 0 and
+        the full size on every axis but ``slice_axis``.
+    """
     ndim = len(shape)
     slice_axis = standard_axis_number(slice_axis, ndim)
     indices = tuple(0 if i != slice_axis else slice_index for i in range(ndim))
@@ -72,6 +96,7 @@ def select_compartment(
     input: Tensor,
     limit: Tuple[int, int],
 ) -> Tensor:
+    """Slice ``limit = (start, size)`` from axis -2 of ``input``."""
     shape = input.shape
     index, size = limit
     indices, sizes = form_dynamic_slice(shape, -2, index, size)
@@ -83,6 +108,25 @@ def linear_call(
     weight: Tensor,
     forward_mode: Literal['map', 'project'] = 'map',
 ) -> Tensor:
+    """
+    Apply a linear map to an input, or project the input onto the map.
+
+    Parameters
+    ----------
+    input
+        Input of shape ``(*, V, obs)``.
+    weight
+        Linear map of shape ``(L, V)``.
+    forward_mode
+        ``'map'`` returns ``weight @ input``; ``'project'`` returns the
+        least-squares solution of ``weight.T @ out = input``.
+
+    Returns
+    -------
+    Tensor
+        Output of shape ``(*, L, obs)``; ``None`` for any other
+        ``forward_mode``.
+    """
     if forward_mode == 'map':
         return weight @ input
     elif forward_mode == 'project':
@@ -113,6 +157,27 @@ def concatenate_and_decode(
     shape: Optional[Tuple[int, ...]] = None,
     concatenate: bool = True,
 ) -> Tensor:
+    """
+    Concatenate per-compartment outputs, optionally in decoder order.
+
+    Parameters
+    ----------
+    data
+        Output of each compartment, keyed by compartment name, with labels on
+        axis -2.
+    decoder
+        For each compartment, the 1-based positions of its labels in the
+        output. If ``None``, the compartments are concatenated in order.
+    shape
+        Shape of the output; required with ``decoder``.
+    concatenate
+        If False, ``data`` is returned unchanged.
+
+    Returns
+    -------
+    Tensor or Mapping
+        The concatenated output, or ``data`` if ``concatenate`` is False.
+    """
     if not concatenate:
         return data
     if decoder is not None:
@@ -133,6 +198,32 @@ def encode_and_bias(
     bias: Optional[Tensor] = None,
     encode: bool = False,
 ) -> Tensor:
+    """
+    Optionally correlate a basis with an input, then add a bias.
+
+    Parameters
+    ----------
+    basis
+        Tensor, or mapping of tensors keyed by compartment.
+    input
+        Input whose compartments are correlated with ``basis`` if ``encode``.
+    limits
+        ``(start, size)`` of each compartment along axis -2 of ``input``.
+    weight
+        Mapping keyed by compartment; its keys select the compartments when
+        ``basis`` is a single tensor and ``limits`` is given.
+    bias
+        Bias added along the last axis, or a mapping of biases keyed by
+        compartment.
+    encode
+        Replace ``basis`` by its correlation (:func:`pairedcorr`) with each
+        compartment of ``input``.
+
+    Returns
+    -------
+    Tensor or Mapping
+        The encoded and biased basis, in the form of ``basis``.
+    """
     out = basis
     if encode:
         from .cov import pairedcorr
@@ -172,20 +263,26 @@ def compartmentalised_linear(
 
     Parameters
     ----------
-    input : Tensor
+    input
         Input data.
-    weight : Mapping[str, Tensor]
+    weight
         Compartment-specific weights.
-    limits : Mapping[str, Tuple[int, int]]
+    limits
         Indices denoting the start and size of each compartment.
-    decoder : Optional[Mapping[str, Tensor]] (default: None)
+    decoder
         Decoder for compartment-specific weights.
-    bias : Optional[Tensor] (default: None)
+    bias
         Bias term.
-    normalisation : Optional[Literal['mean', 'absmean', 'zscore', 'psc']] (default: None)
+    normalisation
         Normalisation approach for output.
-    forward_mode : Literal['map', 'project', 'encode'] (default: 'map')
+    forward_mode
         Forward mode for linear mapping.
+    concatenate
+        Concatenate the compartment outputs into one tensor; otherwise return
+        a mapping by compartment.
+    encode
+        Encode ``input`` by its Pearson correlation with each mapped
+        time series.
 
     Returns
     -------

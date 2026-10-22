@@ -14,9 +14,9 @@ of interest to functional brain mapping and other contexts.
 Helper wrappers allow packaging of multiple loss objectives in a single call.
 Each wrapped objective can be selectively applied to a subset of input tensors
 using
-:doc:`LossApply <hypercoil.loss.base.LossApply>`,
-:doc:`LossArgument <hypercoil.engine.argument.ModelArgument>`, and
-:doc:`LossScheme <hypercoil.loss.base.LossScheme>`
+:class:`~hypercoil.loss.scheme.LossApply`,
+:class:`LossArgument <hypercoil.engine.argument.ModelArgument>`, and
+:class:`~hypercoil.loss.scheme.LossScheme`
 functionality.
 """
 from .functional import (

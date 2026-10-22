@@ -2,8 +2,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Differentiable projection from the positive semidefinite cone into a proper
-subspace tangent to the Riemann manifold.
+Differentiable projection between the semidefinite cone and tangent spaces.
 
 .. warning::
     Nearly all operations here, as currently implemented, exhibit numerical
@@ -26,6 +25,7 @@ from ..engine import NestedDocParse, Tensor
 
 
 def document_semidefinite_projection(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     tangent_project_long_desc = r"""
     Given a tangency point :math:`\Omega`, each input :math:`\Theta` is
     projected as:
@@ -58,10 +58,10 @@ def document_semidefinite_projection(f: Callable) -> Callable:
                 **Output :** :math:`(N, *, D, D)`
                     As above."""
     tangency_base_spec = """
-    input : Tensor
+    input
         Batch of symmetric positive definite matrices to project into the
         tangent subspace.
-    reference : Tensor
+    reference
         Point of tangency. This is an element of the positive semidefinite
         cone at which the projection occurs. It should be representative of
         the sample being projected (for instance, some form of mean)."""
@@ -77,10 +77,9 @@ def document_semidefinite_projection(f: Callable) -> Callable:
 
 
 def document_semidefinite_mean(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     euclidean_mean_desc = r"""
-    Batch-wise Euclidean mean of tensors in the positive semidefinite cone.
-
-    This is the familiar arithmetic mean:
+    The Euclidean mean is the arithmetic mean:
 
     :math:`\frac{1}{N}\sum_{i=1}^N X_{i}`"""
 
@@ -91,8 +90,6 @@ def document_semidefinite_mean(f: Callable) -> Callable:
     :math:`\bar{X} = \left(\frac{1}{N}\sum_{i=1}^N X_{i}^{-1}\right)^{-1}`"""
 
     logeuc_mean_desc = r"""
-    Batch-wise log-Euclidean mean of tensors in the positive semidefinite cone.
-
     The log-Euclidean mean is computed as the matrix exponential of the mean of
     matrix logarithms.
 
@@ -107,8 +104,6 @@ def document_semidefinite_mean(f: Callable) -> Callable:
                     As above."""
 
     geometric_mean_desc = r"""
-    Batch-wise geometric mean of tensors in the positive semidefinite cone.
-
     The geometric mean is computed via gradient descent along the geodesic on
     the manifold. In brief:
 
@@ -128,18 +123,18 @@ def document_semidefinite_mean(f: Callable) -> Callable:
        been attained."""
 
     semidefinite_mean_input_spec = """
-    input : Tensor
+    input
         Batch of matrices over which the Euclidean mean is to be computed."""
     semidefinite_mean_axis_spec = """
-    axis : int
+    axis
         Axis or axes over which the mean is computed."""
     semidefinite_mean_nonsingular_spec = """
-    require_nonsingular : bool (default True)
+    require_nonsingular
         Indicates that the input matrix must be nonsingular. If this is
         False, then the Moore-Penrose pseudoinverse is computed instead of
         the inverse."""
     semidefinite_mean_psi_spec = r"""
-    psi : float in [0, 1]
+    psi
         Conditioning factor to promote positive definiteness. If this is in
         (0, 1], the original input will be replaced with a convex combination
         of the input and an identity matrix.
@@ -148,11 +143,13 @@ def document_semidefinite_mean(f: Callable) -> Callable:
 
         A suitable value can be used to ensure that all eigenvalues are
         positive and therefore guarantee that the matrix is in the domain of
-        projection operations."""
+        projection operations.
+        In [0, 1]."""
     semidefinite_mean_maxiter_spec = """
-    max_iter : nonnegative int
+    max_iter
         The maximum number of iterations of gradient descent to run before
-        termination."""
+        termination.
+        Nonnegative."""
     semidefinite_mean_return_spec = """
     Returns
     -------
@@ -188,9 +185,8 @@ def tangent_project_spd(
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
     """
-    Project a batch of symmetric matrices from the positive semidefinite cone
-    into a tangent subspace.
-    \
+    Project symmetric matrices from the semidefinite cone to a tangent space.
+
     {tangent_project_long_desc}
     \
     {tangency_project_dim}
@@ -240,9 +236,8 @@ def cone_project_spd(
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
     """
-    Project a batch of symmetric matrices from a tangent subspace into the
-    positive semidefinite cone.
-    \
+    Project symmetric matrices from a tangent space to the semidefinite cone.
+
     {cone_project_long_desc}
     \
     {tangency_project_dim}
@@ -282,7 +277,9 @@ def mean_euc_spd(
     input: Tensor,
     axis: Union[int, Sequence[int]] = 0,
 ) -> Tensor:
-    """\
+    """
+    Compute the batch-wise Euclidean mean of semidefinite matrices.
+
     {euclidean_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -303,7 +300,9 @@ def mean_harm_spd(
     axis: Union[int, Sequence[int]] = 0,
     require_nonsingular: bool = True,
 ) -> Tensor:
-    """\
+    """
+    Compute the batch-wise harmonic mean of semidefinite matrices.
+
     {harmonic_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -331,7 +330,9 @@ def mean_logeuc_spd(
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
-    """\
+    """
+    Compute the batch-wise log-Euclidean mean of semidefinite matrices.
+
     {logeuc_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -372,7 +373,9 @@ def mean_geom_spd(
     fill_nans: bool = True,
     truncate_eigenvalues: bool = False,
 ) -> Tensor:
-    """\
+    """
+    Compute the batch-wise geometric mean of semidefinite matrices.
+
     {geometric_mean_desc}
     \
     {semidefinite_mean_dim}
@@ -412,6 +415,29 @@ def mean_geom_spd(
 
 # TODO: marking this as an experimental function
 def mean_kullback_spd(input, alpha, recondition=0):
+    r"""
+    Compute a Kullback-type mean of positive definite matrices.
+
+    With the Euclidean mean :math:`E` and the harmonic mean :math:`H` of the
+    input, the mean is
+    :math:`E^{1/2} (E^{-1/2} H E^{-1/2})^{\alpha} E^{1/2}`.
+
+    Parameters
+    ----------
+    input
+        Positive definite matrices of shape ``(N, *, D, D)``, averaged over
+        the first axis.
+    alpha
+        Exponent :math:`\alpha`; 0 gives :math:`E` and 1 gives :math:`H`.
+    recondition
+        Reconditioning factor ``psi`` for the square root and the inverse
+        square root of :math:`E`, as in :func:`symmap`.
+
+    Returns
+    -------
+    Tensor
+        Mean of shape ``(*, D, D)``.
+    """
     S = symsqrt(mean_euc_spd(input), recondition)
     R = symmap(mean_euc_spd(input), lambda X: X**-0.5, psi=recondition)
     T = R @ mean_harm_spd(input) @ R

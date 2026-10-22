@@ -25,18 +25,22 @@ def from_distr_init(
     key: jax.random.PRNGKey,
 ) -> Tensor:
     """
-    Sample a tensor from a specified distribution.
-
-    Thin wrapper around ``numpyro``.
+    Sample a tensor from a distribution.
 
     Parameters
     ----------
-    shape : Tensor
-        Shape of the tensor to populate or initialise from the specified
-        distribution.
-    distr : Distribution
-        Numpyro distribution object from which to sample values used to
-        populate the tensor.
+    shape
+        Sample shape.
+    distr
+        Distribution with a ``sample(key, sample_shape)`` method, such as a
+        ``numpyro`` distribution.
+    key
+        Pseudo-random number generator key.
+
+    Returns
+    -------
+    Tensor
+        Sample of shape ``shape`` followed by the event shape of ``distr``.
     """
     return distr.sample(key=key, sample_shape=shape)
 
@@ -48,9 +52,7 @@ def constant_init(
     key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
-    Initialise a tensor to a constant value throughout. (The specified value
-    doesn't actually have to be scalar as long as it is broadcastable to the
-    tensor being initialised.)
+    Initialise a tensor of shape ``shape`` to ``value``; ``key`` is unused.
     """
     return jnp.full(shape, value)
 
@@ -63,10 +65,24 @@ def identity_init(
     key: Optional[jax.random.PRNGKey] = None,
 ) -> Tensor:
     """
-    Initialise a tensor such that each of its slices is an identity matrix.
-    Currently this sets each slice defined by the last two axes to identity.
-    If there is a use case for other slices, it can be made more flexible in
-    the future.
+    Initialise a tensor with scaled identity matrices over the last two axes.
+
+    Parameters
+    ----------
+    shape
+        Shape of the tensor; the last two axes must be equal.
+    scale
+        Value of the diagonal entries before ``shift``.
+    shift
+        Value added to every entry.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        :math:`s I + c` in each slice, for ``scale`` :math:`s` and ``shift``
+        :math:`c`.
     """
     return jnp.tile(jnp.eye(shape[-1]) * scale + shift, (*shape[:-2], 1, 1))
 
@@ -81,8 +97,8 @@ class Initialiser(eqx.Module):
     requested shape.
 
     To use an initialiser, do not instantiate it directly, but instead use the
-    ``init`` method of the module class that uses it. This will apply the
-    initialiser to the model parameter specified by ``where``.
+    :meth:`~Initialiser.init` method of the module class that uses it. This
+    will apply the initialiser to the model parameter specified by ``where``.
     """
 
     def __call__(
@@ -125,6 +141,28 @@ class Initialiser(eqx.Module):
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
+        """
+        Initialise the parameters at an address of a model.
+
+        Parameters
+        ----------
+        model
+            Model whose parameters to initialise.
+        where
+            String address, or callable that takes ``model`` and returns the
+            parameters. Each parameter at the address is initialised
+            separately.
+        key
+            Pseudo-random number generator key, split across the parameters.
+        **params
+            Keyword arguments forwarded to the initialisation of each
+            parameter.
+
+        Returns
+        -------
+        PyTree
+            ``model`` with the parameters at ``where`` replaced.
+        """
         init = cls()
         init = init(model=model, where=where, key=key, **params)
         return eqx.tree_at(
@@ -136,34 +174,29 @@ class Initialiser(eqx.Module):
 
 class MappedInitialiser(Initialiser):
     """
-    Parameter initialiser base class that also admits an optional
-    :doc:`parameter map <api/hypercoil.init.mapparam>`.
+    Initialiser base class with an optional parameter map.
 
-    This is useful for combining initialisation and re-parameterisation into a
-    single step. The supplied parameter map should not be an instance but a
-    class. If no map is supplied, the initialiser is applied as normal.
+    The :mod:`parameter map <hypercoil.init.mapparam>` combines
+    initialisation and re-parameterisation in one step. The map is given as
+    a class, not an instance. Without a map, the initialiser is applied as
+    normal.
 
-    This class must be subclassed to be used. Subclasses must implement the
-    ``_init`` method, which takes a desired output shape (``shape``) and a
-    random number generator key (``key``) and returns a tensor of the
-    requested shape.
+    A subclass implements ``_init``, which takes an output shape (``shape``)
+    and a random number generator key (``key``) and returns a tensor of that
+    shape.
 
     .. warning::
-        To use an initialiser, do not instantiate it directly, but instead use
-        the ``init`` method of the module class that uses it. This will apply
-        the initialiser to the model parameter specified by ``where``.
+        Do not call an instance directly. The classmethod :meth:`init` applies
+        the initialiser to the model parameter at ``where``.
 
     .. note::
-        The initialiser is first used to initialise the requested parameter,
-        and the mapping function is thereafter applied to the resulting
-        tensor. If the initialisation produces out-of-domain values for the
-        mapping function, the tensor that is ultimately instantiated might
-        not reflect the specifications of the initialiser, as the mapping
-        function will automatically apply any out-of-domain handlers.
+        The initialiser fills the parameter first, and the map is then
+        applied to the result. Because the map's out-of-domain handler
+        transforms any out-of-domain values, the instantiated tensor might
+        not match the initialiser's specification.
 
     .. note::
-        Any extra keyword arguments to the ``init`` method are passed to the
-        mapping function when it is applied.
+        Extra keyword arguments to :meth:`init` are passed to the map.
     """
 
     mapper: Optional[Type[MappedParameter]] = None
@@ -216,20 +249,20 @@ class MappedInitialiser(Initialiser):
 
         Parameters
         ----------
-        model : PyTree
+        model
             Model whose parameter to initialise.
-        mapper : Optional[Type[MappedParameter]] (default: None)
+        mapper
             Mapping function to apply to the initialised parameter. This
             should be a subclass of
-            :doc:`MappedParameter <api/hypercoil.init.mapparam.MappedParameter>`.
+            :class:`~hypercoil.init.mapparam.MappedParameter`.
             If this is ``None``, the initialiser is applied as normal.
-        where : str or callable (default: "weight")
+        where
             Address of the parameter to initialise. This can be a string
             address or a callable that takes a model and returns a
             parameter.
-        key : jax.random.PRNGKey
+        key
             Pseudo-random number generator key to use for initialisation.
-        **params : Any
+        **params
             Extra keyword arguments; these are forwarded to the mapper when it
             is instantiated and applied.
         """
@@ -283,6 +316,7 @@ class DistributionInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` from ``distribution``."""
         init = cls(mapper=mapper, distribution=distribution)
         return super()._init_impl(
             init=init,
@@ -329,6 +363,7 @@ class ConstantInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` to ``value``."""
         init = cls(mapper=mapper, value=value)
         return super()._init_impl(
             init=init,
@@ -341,8 +376,7 @@ class ConstantInitialiser(MappedInitialiser):
 
 class IdentityInitialiser(MappedInitialiser):
     """
-    Initialise a parameter such that all slices along the final two axes are
-    identity matrices.
+    Initialiser that sets each slice over the last two axes to identity.
 
     See :func:`identity_init` and :class:`MappedInitialiser` for argument
     details.
@@ -382,6 +416,7 @@ class IdentityInitialiser(MappedInitialiser):
         key: jax.random.PRNGKey = None,
         **params,
     ) -> PyTree:
+        """Initialise the parameters at ``where`` by :func:`identity_init`."""
         init = cls(mapper=mapper, scale=scale, shift=shift)
         return super()._init_impl(
             init=init,

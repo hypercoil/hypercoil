@@ -57,6 +57,7 @@ from ..functional.utils import conform_mask
 
 
 class CiftiError(Exception):
+    """Exception for a reference image without a CIfTI header."""
     pass
 
 
@@ -66,6 +67,26 @@ def modelobj_from_dataobj_and_maskobj(
     mask: Optional['Mask'] = None,
     model_axis_out: Optional[int] = None,
 ) -> Tensor:
+    """
+    Flatten the model axes of a data array and apply a mask if it fits.
+
+    Parameters
+    ----------
+    dataobj
+        Data array.
+    model_axes
+        Axes of ``dataobj`` that are flattened into one model axis.
+    mask
+        Mask over the flattened model axis, applied only if the first mask
+        dimension equals the size of the flattened model axis.
+    model_axis_out
+        Position of the model axis in the output. None leaves it first.
+
+    Returns
+    -------
+    Tensor
+        Data array with the model axes flattened and masked.
+    """
     dataobj_model_shape = reduce(
         lambda x, y: x * y,
         (dataobj.shape[ax] for ax in model_axes),
@@ -98,6 +119,27 @@ def modelobj_from_dataobj(
     mask: Optional[Tensor] = None,
     model_axis_out: Optional[int] = None,
 ) -> Tensor:
+    """
+    Flatten the model axes of a data array into one axis.
+
+    Parameters
+    ----------
+    dataobj
+        Data array.
+    model_axes
+        Axes of ``dataobj`` that are flattened into one model axis.
+    mask
+        Boolean mask over the flattened model axis. The masked array is
+        not compatible with JIT compilation.
+    model_axis_out
+        Position of the model axis in the output. None leaves it first.
+
+    Returns
+    -------
+    Tensor
+        Data array with the model axes flattened, and masked if ``mask`` is
+        given.
+    """
     model_ndim = len(model_axes)
     axes = promote_axis(dataobj.ndim, model_axes)
     modelobj = dataobj.transpose(axes)
@@ -126,6 +168,25 @@ def _dataobj_from_imobj_default(x):
 
 
 class Reference(eqx.Module):
+    """
+    Reference image of an atlas, with cached data arrays.
+
+    Parameters
+    ----------
+    pointer
+        Path or object from which the image is loaded.
+    model_axes
+        Axes of the image that index spatial locations. ``'cifti'`` takes the
+        brain-model axes of a CIfTI image.
+    dataobj
+        Data array of the image. Defaults to ``dataobj_from_imobj(imobj)``.
+    imobj_from_pointer
+        Function that loads the image from ``pointer``. Defaults to the
+        identity.
+    dataobj_from_imobj
+        Function that reads the data array from the image. Defaults to
+        ``get_fdata``.
+    """
     pointer: Any
     model_axes: Sequence[int]
     imobj: Union['nb.Nifti1Image', 'nb.Cifti2Image', 'nb.GiftiImage']
@@ -171,6 +232,7 @@ class Reference(eqx.Module):
 
     @staticmethod
     def cache_dataobj(ref, dataobj_from_imobj: Callable) -> 'Reference':
+        """Return ``ref`` with the data array from ``dataobj_from_imobj``."""
         dataobj = dataobj_from_imobj(ref.imobj)
         return eqx.tree_at(
             where=lambda r: (r.dataobj, r._dataobj_from_imobj, r.cached),
@@ -186,6 +248,25 @@ class Reference(eqx.Module):
         mask: Optional[Any] = None,
         model_axis_out: Optional[int] = None,
     ) -> 'Reference':
+        """
+        Return a reference with the model-axis data array cached.
+
+        Parameters
+        ----------
+        ref
+            Reference.
+        modelobj_from_dataobj
+            Function that flattens the model axes of ``ref.dataobj``.
+        mask
+            Mask over the flattened model axis.
+        model_axis_out
+            Position of the model axis in the cached array.
+
+        Returns
+        -------
+        Reference
+            ``ref`` with ``modelobj`` set.
+        """
         modelobj = modelobj_from_dataobj(
             dataobj=ref.dataobj,
             model_axes=ref.model_axes,
@@ -201,6 +282,7 @@ class Reference(eqx.Module):
 
     @staticmethod
     def purge_cache(ref) -> 'Reference':
+        """Return ``ref`` with the cached data arrays removed."""
         return eqx.tree_at(
             where=lambda r: (r.dataobj, r.modelobj, r.cached),
             pytree=ref,
@@ -209,14 +291,17 @@ class Reference(eqx.Module):
 
     @property
     def header(self) -> Any:
+        """Header of the image."""
         return self.imobj.header
 
     @property
     def affine(self) -> Any:
+        """Affine matrix of the image."""
         return self.imobj.affine
 
     @property
     def nifti_header(self) -> Any:
+        """NIfTI header of the image, or its header if it has none."""
         try:
             return self.imobj.nifti_header
         except AttributeError:
@@ -225,8 +310,7 @@ class Reference(eqx.Module):
     @property
     def axobj(self) -> Any:
         """
-        Thanks to Chris Markiewicz for tutorials that shaped this
-        implementation.
+        CIfTI axis objects of the reference image.
         """
         try:
             hdr = self.header
@@ -238,6 +322,7 @@ class Reference(eqx.Module):
 
     @property
     def model_axobj(self) -> Any:
+        """CIfTI brain-model axis object of the image."""
         try:
             return tuple(
                 a
@@ -251,14 +336,17 @@ class Reference(eqx.Module):
 
     @property
     def ndim(self) -> Any:
+        """Number of dimensions of the image."""
         return self.imobj.ndim
 
     @property
     def shape(self) -> Any:
+        """Shape of the image."""
         return self.imobj.shape
 
     @property
     def data(self) -> Any:
+        """Data array of the image, from the cache if it is set."""
         if self.cached:
             return self.dataobj
         else:
@@ -273,30 +361,37 @@ class Reference(eqx.Module):
 
     @property
     def zooms(self) -> Sequence[float]:
+        """Voxel sizes of the image along every axis."""
         return self._zooms()
 
     @property
     def other_axes(self):
+        """Axes of the image that are not model axes."""
         return axis_complement(self.ndim, self.model_axes)
 
     @property
     def model_shape(self) -> Tuple[int, ...]:
+        """Shape of the image along the model axes."""
         return tuple(self.shape[ax] for ax in self.model_axes)
 
     @property
     def model_zooms(self) -> Sequence[float]:
+        """Voxel sizes of the image along the model axes."""
         return self._zooms(axes=self.model_axes)
 
     def imobj_from_pointer(self) -> Any:
+        """Load the image from ``pointer``."""
         return self._imobj_from_pointer(self.pointer)
 
     def dataobj_from_imobj(self) -> Tensor:
+        """Read the data array from the image."""
         return self._dataobj_from_imobj(self.imobj)
 
     def load_imobj(
         self,
         imobj_from_pointer: Optional[Callable] = None,
     ) -> Any:
+        """Load the image with ``imobj_from_pointer``, or the stored loader."""
         if imobj_from_pointer is None:
             imobj_from_pointer = self.imobj_from_pointer
         return imobj_from_pointer()
@@ -304,6 +399,7 @@ class Reference(eqx.Module):
     def cifti_model_axes(
         self,
     ) -> Sequence[int]:
+        """Return the indices of the brain-model axes of a CIfTI image."""
         return tuple(
             i
             for i, a in enumerate(self.axobj)
@@ -312,18 +408,22 @@ class Reference(eqx.Module):
 
 
 class Mask(eqx.Module):
+    """Boolean mask over the spatial locations of an atlas."""
     mask_array: Tensor
 
     @property
     def data(self):
+        """Mask array."""
         return self.mask_array
 
     @property
     def shape(self):
+        """Shape of the mask array."""
         return self.mask_array.shape
 
     @property
     def size(self):
+        """Number of locations in the mask."""
         return self.mask_array.sum()
 
     @staticmethod
@@ -384,6 +484,25 @@ class Mask(eqx.Module):
         model_axis_out: Optional[int] = None,
         out_mode: Literal['index', 'zero'] = 'index',
     ) -> Callable:
+        """
+        Return a function that restricts data to the locations in the mask.
+
+        Parameters
+        ----------
+        model_axes
+            Axes of the data that index spatial locations.
+        model_axis_out
+            Position of the flattened model axis in the output. None puts it
+            first.
+        out_mode
+            ``'index'`` keeps only the locations in the mask; ``'zero'`` keeps
+            every location and sets those outside the mask to 0.
+
+        Returns
+        -------
+        Callable
+            Function of a data array.
+        """
         mask_array = _to_jax_array(self.mask_array)
         return self._map_to_masked_impl(
             mask_array,
@@ -394,6 +513,21 @@ class Mask(eqx.Module):
 
 
 class Compartment(eqx.Module):
+    """
+    Contiguous compartment of the locations of an atlas.
+
+    Parameters
+    ----------
+    name
+        Name of the compartment.
+    slice_index
+        Index of the first location of the compartment in the masked
+        locations.
+    slice_size
+        Number of locations in the compartment.
+    mask_array
+        Boolean mask of the compartment over all locations.
+    """
     name: str
     slice_index: int
     slice_size: int
@@ -401,17 +535,21 @@ class Compartment(eqx.Module):
 
     @property
     def data(self):
+        """Mask array of the compartment."""
         return self.mask_array
 
     @property
     def shape(self):
+        """Shape ``(slice_size,)`` of the compartment."""
         return (self.slice_size,)
 
     @property
     def size(self):
+        """Number of locations in the compartment."""
         return self.slice_size
 
     def dynamic_slice_map(self) -> Callable:
+        """Return a function that slices the compartment from axis -2."""
         def dynamic_slice(data: Tensor) -> Tensor:
             indices, sizes = form_dynamic_slice(
                 shape=data.shape,
@@ -429,6 +567,25 @@ class Compartment(eqx.Module):
         model_axis_out: Optional[int] = None,
         out_mode: Literal['index', 'zero'] = 'index',
     ) -> Callable:
+        """
+        Return a function that restricts data to the compartment.
+
+        Parameters
+        ----------
+        model_axes
+            Axes of the data that index spatial locations.
+        model_axis_out
+            Position of the flattened model axis in the output. None puts it
+            first.
+        out_mode
+            ``'index'`` keeps only the locations in the compartment; ``'zero'``
+            keeps every location and sets those outside the compartment to 0.
+
+        Returns
+        -------
+        Callable
+            Function of a data array.
+        """
         mask_array = _to_jax_array(self.mask_array)
         return Mask._map_to_masked_impl(
             mask_array,
@@ -439,6 +596,17 @@ class Compartment(eqx.Module):
 
 
 class CompartmentSet(eqx.Module):
+    """
+    Ordered set of the compartments of an atlas.
+
+    Compartments are laid out contiguously in the order of
+    ``compartment_dict``.
+
+    Parameters
+    ----------
+    compartment_dict
+        Boolean mask of each compartment, keyed by name.
+    """
     compartments: Mapping[str, Compartment]
 
     def __init__(self, compartment_dict: Dict[str, Tensor]):
@@ -464,12 +632,15 @@ class CompartmentSet(eqx.Module):
         self.compartments = OrderedDict(compartments)
 
     def keys(self):
+        """Return the names of the compartments."""
         return self.compartments.keys()
 
     def values(self):
+        """Return the compartments."""
         return self.compartments.values()
 
     def items(self):
+        """Return the pairs of name and compartment."""
         return self.compartments.items()
 
     def __getitem__(self, key: str) -> Compartment:
@@ -485,10 +656,12 @@ class CompartmentSet(eqx.Module):
         return key in self.compartments
 
     def get(self, key: str, default: Any = None) -> Any:
+        """Return the compartment named ``key``, or ``default``."""
         return self.compartments.get(key, default)
 
     # TODO: this is totally broken. Fix it and add tests.
     def map_to_contiguous(self) -> Callable:
+        """Return a function that concatenates the compartments of data."""
         def make_contiguous(data: Tensor) -> Tensor:
             compartment_data = ()
             for compartment in self.compartments.values():
@@ -503,6 +676,7 @@ class CompartmentSet(eqx.Module):
         return make_contiguous
 
     def dynamic_slice_map(self, compartment: str) -> Callable:
+        """Return a function that slices ``compartment`` from axis -2."""
         return self[compartment].dynamic_slice_map()
 
 
@@ -904,9 +1078,9 @@ class _PhantomReferenceMixin:
 
 class _PhantomDataobj(eqx.Module):
     """
-    For tricking ``nibabel`` into instantiating ``Nifti1Image`` objects
-    without any real data. Used to reduce data overhead when initialising
-    atlases from distributions.
+    Stand-in data object for a ``nibabel`` image without data.
+
+    Atlases initialised from distributions use it to avoid loading image data.
     """
 
     shape: tuple
@@ -926,15 +1100,10 @@ def _dict_to_gifti_label_table(
     dictionary: Dict[str, int]
 ) -> nb.GiftiLabelTable:
     """
-    The GiftiLabelTable is a horribly inconvenient data structure that we're
-    stuck with because it's the only way to store a label table in a GIfTI
-    file. This is in part because it's actually designed to be a colourmap,
-    but we're trying to use it as a label table.
-
-    This function converts a dictionary of labels to a
-    GiftiLabelTable so that we don't have to deal with this inconvenience
-    elsewhere.
+    Convert a dictionary of labels to a GIfTI label table.
     """
+    # GiftiLabelTable is designed as a colourmap, but it is the only way to
+    # store a label table in a GIfTI file.
     labeltable = nb.gifti.GiftiLabelTable()
     for k, v in dictionary.items():
         v = {
@@ -1088,8 +1257,7 @@ class _CIfTIOutputMixin:
 
 class _LogicMaskMixin:
     """
-    Use to create an overall mask that specifies atlas inclusion status of
-    spatial locations.
+    Mixin that creates the atlas inclusion mask over spatial locations.
 
     For use when the mask source is either a path on the file system
     containing Boolean-valued data or a nested logical expression tree
@@ -1133,8 +1301,7 @@ class _LogicMaskMixin:
 
 class _CortexSubcortexCIfTIMaskMixin:
     """
-    Use to create an overall mask that specifies atlas inclusion status of
-    spatial locations.
+    Mixin that creates the atlas inclusion mask from a CIfTI reference.
 
     For use when creating a CIfTI atlas with separate cortical and subcortical
     compartments, and when the provided mask source indicates medial wall
@@ -1170,8 +1337,7 @@ class _CortexSubcortexCIfTIMaskMixin:
 
 class _FromNullMaskMixin:
     """
-    Use to create an overall mask that specifies atlas inclusion status of
-    spatial locations.
+    Mixin that creates the atlas inclusion mask by excluding null locations.
 
     For use when automatically creating a mask by excluding all background-
     or null-valued (typically 0-valued) spatial locations from the reference.
@@ -1195,8 +1361,7 @@ class _FromNullMaskMixin:
 
 class _SingleCompartmentMixin:
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that defines a single compartment covering the whole atlas.
 
     For use when no isolation is desired, and the entire atlased region is a
     single compartment.
@@ -1224,8 +1389,7 @@ class _SingleCompartmentMixin:
 #       cortex/subcortex.
 class _MultiCompartmentMixin:
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that divides the atlas into compartments with separate label sets.
 
     For use when isolation into multiple compartments is desired. With this
     mixin, each extra keyword argument passed to the atlas constructor is
@@ -1263,8 +1427,7 @@ class _MultiCompartmentMixin:
 
 class _CortexSubcortexSurfaceCompartmentMixin:
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that divides a surface atlas into cortical and subcortical parts.
 
     For use when creating an atlas based on cortical surface data in either
     CIfTI or GIfTI format, with separate subcompartments for the left and
@@ -1310,8 +1473,7 @@ class _CortexSubcortexCIfTICompartmentMixin(
     _CortexSubcortexSurfaceCompartmentMixin
 ):
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that divides a CIfTI atlas into cortical and subcortical parts.
 
     For use when creating a CIfTI-based atlas with separate subcompartments
     for the left and right cortical hemispheres and for subcortical locations.
@@ -1357,8 +1519,7 @@ class _CortexSubcortexGIfTICompartmentMixin(
     _CortexSubcortexSurfaceCompartmentMixin
 ):
     """
-    Use to isolate spatial subcompartments of the overall atlas such that each
-    has separate label sets.
+    Mixin that divides a GIfTI atlas into cortical and subcortical parts.
 
     For use when creating a GIfTI-based atlas with separate subcompartments
     for the left and right cortical hemispheres and for subcortical locations.
@@ -1391,8 +1552,7 @@ class _CortexSubcortexGIfTICompartmentMixin(
 
 class _DiscreteLabelMixin:
     """
-    Use to decode label sets present in an atlas and to create a linear map
-    representation of the atlas.
+    Mixin that decodes discrete labels into a linear map.
 
     For use when the label sets are encoded as discrete values in a single
     reference volume or surface.
@@ -1441,8 +1601,7 @@ class _DiscreteLabelMixin:
 
 class _ContinuousLabelMixin:
     """
-    Use to decode label sets present in an atlas and to create a linear map
-    representation of the atlas.
+    Mixin that decodes continuous labels into a linear map.
 
     For use when the label sets are encoded across multiple volumes. This is
     necessary for continuous-valued atlases or atlases with overlapping
@@ -1487,8 +1646,7 @@ class _ContinuousLabelMixin:
 
 class _DirichletLabelMixin:
     """
-    Use to decode label sets present in an atlas and to create a linear map
-    representation of the atlas.
+    Mixin that samples labels from a Dirichlet distribution as a linear map.
 
     For use when the linear map is to be initialised from a Dirichlet
     distribution rather than a reference. This requires the prior existence of
@@ -1537,8 +1695,7 @@ class _DirichletLabelMixin:
 
 class _VolumetricMeshMixin:
     """
-    Used to establish a coordinate system over the linear map representations
-    of the atlas.
+    Mixin that sets volumetric coordinates for the linear map.
 
     For use when the atlas reference comprises evenly spaced volumetric
     samples (i.e., voxels).
@@ -1564,8 +1721,7 @@ class _VolumetricMeshMixin:
 
 class _VertexCIfTIMeshMixin:
     """
-    Used to establish a coordinate system over the linear map representations
-    of the atlas.
+    Mixin that sets coordinates from a CIfTI reference for the linear map.
 
     For use when the atlas reference is a CIfTI that includes some samples
     associated to cortical surface meshes. This mixin establishes a spherical
@@ -1612,8 +1768,7 @@ class _VertexCIfTIMeshMixin:
 
 class _VertexGIfTIMeshMixin:
     """
-    Used to establish a coordinate system over the linear map representations
-    of the atlas.
+    Mixin that sets coordinates from GIfTI surfaces for the linear map.
 
     For use when the atlas reference is a set of GIfTI files that includes
     some samples associated to cortical surface meshes. This mixin establishes

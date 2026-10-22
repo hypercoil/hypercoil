@@ -40,7 +40,7 @@ def identity(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Identity function.
+    Return ``X`` unchanged; ``key`` is unused.
     """
     return X
 
@@ -52,7 +52,7 @@ def zero(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Zero function.
+    Return 0, or zeros like ``X`` if ``broadcast``; ``key`` is unused.
     """
     if broadcast:
         return jnp.zeros_like(X)
@@ -66,7 +66,7 @@ def difference(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Difference score function.
+    Return ``X - Y``; ``key`` is unused.
     """
     return X - Y
 
@@ -75,6 +75,7 @@ def difference(
 
 
 def document_constraint_violation(func):
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This loss uses a set of constraint functions and evaluates them on its
     input. If a constraint evaluates to 0 or less, then it is considered to
@@ -108,9 +109,9 @@ def document_constraint_violation(func):
 
         1 - Y \hat{Y}"""
     constraint_violation_spec = """
-    constraints : Sequence[Callable[[Tensor], Tensor]]
+    constraints
         Iterable containing constraint functions.
-    broadcast_against_input : bool, optional (default: ``False``)
+    broadcast_against_input
         If ``True``, broadcast all constraint outputs against the input shape."""
     fmt = NestedDocParse(
         long_description=long_description,
@@ -131,13 +132,13 @@ def constraint_violation(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Constraint violation score function.
-    \
+    Compute the constraint violation score.
+
     {long_description}
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {constraint_violation_spec}
 
@@ -160,8 +161,8 @@ def unilateral_loss(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Unilateral loss function.
-    \
+    Compute the unilateral loss.
+
     {long_description_unil}
     """
     return constraint_violation(X, constraints=(identity,))
@@ -175,8 +176,8 @@ def hinge_loss(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Hinge loss function.
-    \
+    Compute the hinge loss.
+
     {long_description_hinge}
     """
     score = 1 - Y * Y_hat
@@ -187,6 +188,7 @@ def hinge_loss(
 
 
 def document_smoothness(func):
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This loss penalises large or sudden changes in the input tensor. It is
     currently a thin wrapper around ``jax.numpy.diff``.
@@ -199,13 +201,13 @@ def document_smoothness(func):
         ``meansq_scalarise`` or ``vnorm_scalarise`` with either the ``p=1``
         or ``p=inf`` options might be more appropriate."""
     smoothness_spec = """
-    n: int, optional (default: 1)
+    n
         Number of times to differentiate using the backwards differences
         method.
-    axis : int, optional (default: -1)
+    axis
         Axis defining the slice of the input tensor over which differences
         are computed
-    pad_value : float, optional (default: None)
+    pad_value
         Arguments to ``jnp.diff``. Values to prepend to the input along the
         specified axis before computing the difference."""
     fmt = NestedDocParse(
@@ -227,13 +229,13 @@ def smoothness(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Smoothness score function.
-    \
+    Compute the smoothness score.
+
     {long_description}
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {smoothness_spec}
     """
@@ -247,13 +249,14 @@ def smoothness(
 
 
 def document_bimodal_symmetric(func):
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This function returns a score equal to the absolute difference between
     each element of the input tensor and whichever of the two specified modes
     is closer. Penalising this quantity can be used to concentrate weights at
     two modes, for instance 0 and 1 or -1 and 1."""
     bimodal_symmetric_spec = """
-    modes : tuple(float, float) (default (0, 1))
+    modes
         Modes of the loss."""
     fmt = NestedDocParse(
         long_description=long_description,
@@ -271,8 +274,10 @@ def _bimodal_symmetric_impl(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Bimodal symmetric score function. This parameterisation is used internally
-    by :func:`bimodal_symmetric` and the version in ``loss.nn``.
+    Compute the bimodal symmetric score from a mean and a step.
+
+    Used by :func:`bimodal_symmetric` and
+    :class:`~hypercoil.loss.nn.BimodalSymmetricLoss`.
     """
     return jnp.abs(jnp.abs(X - mean) - step)
 
@@ -285,13 +290,13 @@ def bimodal_symmetric(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Bimodal symmetric score function.
-    \
+    Compute the bimodal symmetric score.
+
     {long_description}
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {bimodal_symmetric_spec}
     """
@@ -304,13 +309,14 @@ def bimodal_symmetric(
 
 
 def document_gramian_determinant(func: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This function computes the determinant of the Gram matrix of the input
     tensor, defined according to the kernel function ``op``. The kernel
     function should always be a positive semi-definite function, and
     additional arguments are provided to ensure a non-singular (i.e.,
     strictly positive definite) matrix."""
-    ultra_long_description = """
+    ultra_long_description = r"""
     .. admonition:: Log-det-Gram
 
         The log-det-Gram loss among a set of vectors :math:`X` is defined as
@@ -361,27 +367,27 @@ def document_gramian_determinant(func: Callable) -> Callable:
         singular values of the input matrix are close together, the gradient
         can become unstable (and undefined if the singular values are
         identical). A simple
-        :doc:`matrix reconditioning <hypercoil.functional.matrix.recondition_eigenspaces>`
+        :func:`matrix reconditioning <hypercoil.functional.matrix.recondition_eigenspaces>`
         procedure is available for all operations involving the determinant to
         reduce the occurrence of degenerate eigenvalues."""
     det_gram_spec = r"""
-    theta : Tensor, optional (default: ``None``)
+    theta
         Kernel parameter tensor. If ``None``, then the kernel is assumed to
         be isotropic.
-    op : Callable, optional (default: :func:`corr_kernel`)
+    op
         Kernel function. By default, the Pearson correlation kernel is used.
-    psi : float, optional (default: ``0.``)
+    psi
         Kernel regularisation parameter. If ``psi > 0``, then the kernel
         matrix is regularised by adding ``psi`` to the diagonal. This can be
         used to ensure that the matrix is strictly positive definite.
-    xi : float, optional (default: ``0.``)
+    xi
         Kernel regularisation parameter. If ``xi > 0``, then the kernel
         matrix is regularised by stochastically adding samples from a uniform
         distribution with support :math:`\psi - \xi, \xi` to the diagonal.
         This can be used to ensure that the matrix does not have degenerate
         eigenvalues. If ``xi > 0``, then ``psi`` must also be greater than
         ``xi`` and a key must be provided.
-    key: PRNGKey, optional (default: ``None``)
+    key
         Random number generator key. This is only required if ``xi > 0``."""
     return_spec = """
     Returns
@@ -410,13 +416,13 @@ def det_gram(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Gramian determinant score function.
-    \
+    Compute the Gramian determinant score.
+
     {long_description}
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {det_gram_spec}
     \
@@ -441,13 +447,13 @@ def log_det_gram(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Gramian log-determinant score function.
-    \
+    Compute the Gramian log-determinant score.
+
     {long_description}
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.\
     {det_gram_spec}
     \
@@ -466,40 +472,41 @@ def log_det_gram(
 
 
 def document_entropy(func: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``func``."""
     divergence_param_spec = """
     Parameters
     ----------
-    P : Tensor
+    P
         Input tensor parameterising the first categorical distribution.
-    Q : Tensor
+    Q
         Input tensor parameterising the second categorical distribution."""
 
     entropy_spec = """
-    axis : int or sequence of ints, optional (default: ``-1``)
+    axis
         Axis or axes over which to compute the entropy.
-    keepdims : bool, optional (default: ``True``)
+    keepdims
         As in ``jax.numpy.sum``.
-    reduce : bool, optional (default: ``True``)
+    reduce
         If this is False, then the unsummed probability-weighted surprise is
         computed for each element of the input tensor. Otherwise, the entropy
         is computed over the specified axis or axes."""
 
     kl_spec = """
-    axis : int or sequence of ints, optional (default: ``-1``)
+    axis
         Axis or axes over which to compute the KL divergence.
-    keepdims : bool, optional (default: ``True``)
+    keepdims
         As in ``jax.numpy.sum``.
-    reduce : bool, optional (default: ``True``)
+    reduce
         If this is False, then the unsummed KL divergence is computed for
         each element of the input tensor. Otherwise, the KL divergence is
         computed over the specified axis or axes."""
 
     js_spec = """
-    axis : int or sequence of ints, optional (default: ``-1``)
+    axis
         Axis or axes over which to compute the JS divergence.
-    keepdims : bool, optional (default: ``True``)
+    keepdims
         As in ``jax.numpy.sum``.
-    reduce : bool, optional (default: ``True``)
+    reduce
         If this is False, then the unsummed JS divergence is computed for
         each element of the input tensor. Otherwise, the JS divergence is
         computed over the specified axis or axes."""
@@ -536,7 +543,7 @@ def document_entropy(func: Callable) -> Callable:
         certainly undesirable. For this reason, it is recommended that some
         constraint be imposed on the input set when placing a penalty on
         entropy. One possibility is using a
-        :doc:`probability simplex parameter mapper <hypercoil.init.mapparam.ProbabilitySimplexParameter>`
+        :class:`probability simplex parameter mapper <hypercoil.init.mapparam.ProbabilitySimplexParameter>`
         to first project the input weights onto the probability simplex."""
 
     kl_long_description = r"""
@@ -610,7 +617,7 @@ def entropy(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor containing probabilities or logits for each category.\
     {entropy_spec}
     \
@@ -634,15 +641,16 @@ def entropy_logit(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Project logits in the input matrix onto the probability simplex, and then
-    compute the entropy of the resulting categorical distribution.
+    Compute the entropy of the categorical distribution given by logits.
+
+    The logits are projected onto the probability simplex first.
 
     This function operates on logit tensors. For a version that operates on
     probabilities, see :func:`entropy`.
 
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor containing probabilities or logits for each category.\
     {entropy_spec}
     \
@@ -654,8 +662,9 @@ def entropy_logit(
 
 def _mul_exp(x: Tensor, logp: Tensor) -> Tensor:
     """
-    Shamelessly pilfered from ``distrax``.
+    Compute ``x * exp(logp)``, with 0 wherever ``exp(logp)`` is 0.
     """
+    # Adapted from distrax.
     p = jnp.exp(logp)
     x = jnp.where(p == 0, 0.0, x)
     return x * p
@@ -792,6 +801,7 @@ def js_divergence_logit(
 
 def document_bregman(func: Callable) -> Callable:
 
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     This function computes the Bregman divergence between the input tensor
     and the target tensor, induced according to the convex function ``f``."""
@@ -799,13 +809,13 @@ def document_bregman(func: Callable) -> Callable:
     bregman_spec = """
     Parameters
     ----------
-    X : Tensor
+    X
         Input tensor.
-    Y : Tensor
+    Y
         Target tensor.
-    f : Callable
+    f
         Convex function to induce the Bregman divergence.
-    f_dim : int
+    f_dim
         Dimension of arguments to ``f``.
 
     Returns
@@ -829,8 +839,7 @@ def _bregman_divergence_impl(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Bregman divergence score function for a single pair of distributions or
-    observations.
+    Compute the Bregman divergence for one pair of distributions.
     """
     df = jax.grad(f)
     return (f(Y) - f(X)) - df(X).ravel() @ (Y - X).ravel()
@@ -846,8 +855,8 @@ def bregman_divergence(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Bregman divergence score function.
-    \
+    Compute the Bregman divergence score.
+
     {long_description}
 
     For a version of this function that operates on logits, see
@@ -869,8 +878,8 @@ def bregman_divergence_logit(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Bregman divergence score function for logits.
-    \
+    Compute the Bregman divergence score for logits.
+
     {long_description}
 
     This function operates on logits. For the standard version of this
@@ -889,6 +898,7 @@ def bregman_divergence_logit(
 
 def document_equilibrium(func: Callable) -> Callable:
 
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = """
     The equilibrium scores the deviation of the total weight assigned to each
     parcel or level from the mean weight assigned to each parcel or level. It
@@ -918,7 +928,7 @@ def document_equilibrium(func: Callable) -> Callable:
         unnormalised loss could be improved by simply shrinking all weights.)
         For this reason, we can either normalise the loss or situate the
         parcellation tensor in the probability simplex using a
-        :doc:`multi-logit (softmax) domain mapper <hypercoil.init.mapparam.ProbabilitySimplexParameter>`.
+        :class:`multi-logit (softmax) domain mapper <hypercoil.init.mapparam.ProbabilitySimplexParameter>`.
 
         The equilibrium loss attains a minimum when parcels are equal in their
         total weight. It has a trivial and uninteresting minimum where all
@@ -926,30 +936,30 @@ def document_equilibrium(func: Callable) -> Callable:
         which might be of greater interest, occur where each feature is
         deterministically assigned to a single parcel. These minima can be
         favoured by using the equilibrium in conjunction with a penalty on the
-        :doc:`entropy <hypercoil.loss.entropy>`.
+        :func:`~hypercoil.loss.functional.entropy`.
     """
 
     equilibrium_spec = """
-    level_axis: int or sequence of ints, optional
+    level_axis
         The axis or axes over which to compute the equilibrium. Within each
         data instance or weight channel, all elements along the specified axis
         or axes should correspond to a single level or parcel. The default is
         -1.
-    prob_axis: int or sequence of ints, optional
+    prob_axis
         The axis or axes over which to compute the probabilities (logit version
         only). The default is -2. In general the union of ``level_axis`` and
         ``prob_axis`` should be the same as ``instance_axes``.
-    instance_axes: int or sequence of ints, optional
+    instance_axes
         The axis or axes corresponding to a single data instance or weight
         channel. This should be a superset of `level_axis`. The default is
         (-1, -2).
-    keepdims: bool, optional
+    keepdims
         As in :func:`jax.numpy.sum`. The default is True."""
 
     input_spec = """
     Parameters
     ----------
-    X: Tensor
+    X
         A tensor of probabilities (or masses of another kind)."""
 
     return_spec = """
@@ -979,7 +989,7 @@ def equilibrium(
 ) -> Tensor:
     """
     Compute the parcel equilibrium.
-    \
+
     {long_description}
 
     This function operates on probability tensors. For a version that operates
@@ -1005,9 +1015,10 @@ def equilibrium_logit(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Project logits in the input matrix onto the probability simplex, and then
-    compute the parcel equilibrium.
-    \
+    Compute the parcel equilibrium of logits.
+
+    The logits are projected onto the probability simplex first.
+
     {long_description}
 
     This function operates on logits. For a version that operates on
@@ -1031,6 +1042,7 @@ def equilibrium_logit(
 
 def document_second_moment(func: Callable) -> Callable:
 
+    """Fill the shared templates in the docstring of ``func``."""
     long_description = r"""
     Given an input matrix :math:`T` and a weight matrix :math:`A`, the second
     moment is computed as
@@ -1087,23 +1099,20 @@ def document_second_moment(func: Callable) -> Callable:
 
         When using this loss to learn a parcellation on voxelwise time series,
         the full computation will certainly be much too large to fit in GPU
-        memory. Fortunately, because much of the computation is elementwise, it
-        can be broken down along multiple axes without affecting the result.
-        This tensor slicing is implemented automatically in the
-        :doc:`ReactiveTerminal <hypercoil.engine.terminal.ReactiveTerminal>`
-        class. Use extreme caution with ``ReactiveTerminals``, as improper use
-        can result in destruction of the computational graph."""
+        memory. Because much of the computation is elementwise, the
+        computation can be sliced along multiple axes without changing the
+        result."""
 
     pparam_spec = """
     Parameters
     ----------
-    X: Tensor
+    X
         A tensor of observations.
-    weight: Tensor
+    weight
         A tensor of weights."""
 
     second_moment_spec = """
-    skip_normalise: bool, optional
+    skip_normalise
         If True, do not include normalisation by the sum of the weights in the
         computation. In practice, this seems to work better than computing the
         actual second moment. Instead of computing the second moment, this
@@ -1117,15 +1126,15 @@ def document_second_moment(func: Callable) -> Callable:
         Tensor of second moments."""
 
     std_spec_nomean = """
-    standardise: bool, optional
+    standardise
         If True, z-score the input matrix before computing the second moment.
         The default is False."""
 
     std_spec_mean = """
-    standardise_data: bool, optional
+    standardise_data
         If True, z-score the input matrix before computing the second moment.
         The default is False.
-    standardise_mu: bool, optional
+    standardise_mu
         If True, z-score the mean matrix ``mu`` before computing the second
         moment. The default is False."""
 
@@ -1172,8 +1181,7 @@ def _second_moment_lowmem_impl(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Core computation for second-moment loss, with memory-efficient
-    implementation.
+    Compute the second moment with a memory-efficient implementation.
     """
     weight = jnp.abs(weight)
     if not skip_normalise:
@@ -1195,7 +1203,7 @@ def second_moment(
 ) -> Tensor:
     """
     Compute the second moment of a dataset.
-    \
+
     {long_description}
     \
     {pparam_spec}\
@@ -1223,7 +1231,7 @@ def second_moment_centred(
 ) -> Tensor:
     """
     Compute the second moment of a dataset about a specified mean.
-    \
+
     {long_description}
     \
     {pparam_spec}\
@@ -1286,8 +1294,36 @@ def functional_homogeneity(
     use_schaefer: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
-    """
+    r"""
     Compute the functional homogeneity of a dataset.
+
+    The homogeneity of a parcel is the weighted mean product of the time
+    series of pairs of distinct locations in the parcel, averaged over
+    time; with standardised time series this is a mean correlation.
+
+    Parameters
+    ----------
+    X
+        Time series of shape :math:`(*, N, T)`.
+    weight
+        Assignment weights of shape :math:`(*, N, P)`.
+    standardise
+        Standardise ``X`` over the last axis first.
+    skip_normalise
+        Use ``weight`` as given; otherwise normalise each parcel's weights to
+        sum to 1.
+    use_geom_mean
+        Use the square root of ``weight``.
+    use_schaefer
+        Return the mean homogeneity over parcels, weighted by parcel size.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        Homogeneity of each parcel, of shape :math:`(*, P)`, or its weighted
+        mean if ``use_schaefer``.
     """
     orig_weight = weight
     X, weight = _homogeneity_prepare_args(
@@ -1358,8 +1394,33 @@ def point_homogeneity(
     standardise: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
-    """
+    r"""
     Compute the functional homogeneity of a dataset at a set of points.
+
+    The homogeneity is the product of the time series of each reference
+    point and its neighbours, weighted by the similarity of their assignment
+    weights, averaged over time and normalised by the total similarity.
+
+    Parameters
+    ----------
+    X
+        Time series of shape :math:`(*, N, T)`.
+    weight
+        Assignment weights of shape :math:`(*, N, P)`.
+    neighbourhood
+        Integer indices of shape :math:`(n, D)`: the :math:`D` neighbours of
+        each of the :math:`n` reference points.
+    reference
+        Indices of the :math:`n` reference points; None uses every location.
+    standardise
+        Standardise ``X`` over the last axis first.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        The homogeneity, reduced over all axes but the batch axes.
     """
     X, _ = _homogeneity_prepare_args(
         X,
@@ -1392,12 +1453,35 @@ def point_similarity(
     rectify_at: Union[float, Literal['auto']] = 'auto',
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
-    """
+    r"""
     Compute the local similarity of a weight assignment at a set of points.
 
-    This loss primarily exists as an ablation for the ``point_agreement``
-    function. It is equivalent to the agreement loss with the functional
-    homogeneity term removed (i.e., ``kappa=1``).
+    This loss is an ablation of :func:`point_agreement`: the agreement loss
+    without the functional homogeneity term (``kappa=1``). The similarity
+    :math:`s` of a reference point and a neighbour is the inner product of
+    their assignment weights.
+
+    Parameters
+    ----------
+    weight
+        Assignment weights of shape :math:`(*, N, P)`: the weight of each of
+        :math:`N` locations over :math:`P` parcels.
+    neighbourhood
+        Integer indices of shape :math:`(n, D)`: the :math:`D` neighbours of
+        each of the :math:`n` reference points.
+    reference
+        Indices of the :math:`n` reference points; None uses every location.
+    rectify_at
+        Similarity above which no penalty is applied. ``'auto'`` gives
+        :math:`1 / P`, the similarity of uniform assignments.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        :math:`\max(r - s, 0)` for threshold :math:`r` (``rectify_at``), of
+        shape :math:`(*, n, D)`.
     """
     if rectify_at == 'auto':
         # This blocks penalisation when the similarity kernel is any better
@@ -1424,9 +1508,49 @@ def point_agreement(
     rescale_result: bool = False,
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
-    """
-    Compute a homogeneity-derived measure of agreement for a dataset at a set
-    of points, penalising boundaries.
+    r"""
+    Compute a homogeneity-based agreement at a set of points.
+
+    The score combines a boundary term, which penalises low assignment
+    similarity :math:`s` between each reference point and its neighbours,
+    and an agreement term, which penalises low functional homogeneity
+    :math:`h`: the product of the reference and neighbour time series
+    weighted by :math:`s`, averaged over time and normalised by the total
+    similarity.
+
+    Parameters
+    ----------
+    X
+        Time series of shape :math:`(*, N, T)`.
+    weight
+        Assignment weights of shape :math:`(*, N, P)`: the weight of each of
+        :math:`N` locations over :math:`P` parcels.
+    neighbourhood
+        Integer indices of shape :math:`(n, D)`: the :math:`D` neighbours of
+        each of the :math:`n` reference points.
+    reference
+        Indices of the :math:`n` reference points; None uses every location.
+    kappa
+        Weight :math:`\kappa` of the boundary term; the agreement term has
+        weight :math:`1 - \kappa`. ``'auto'`` gives
+        :math:`r_a / (r_a + r_b)`.
+    rectify_agreement
+        Homogeneity :math:`r_a` above which the agreement term is 0.
+    rectify_boundaries
+        Similarity :math:`r_b` above which the boundary term is 0. ``'auto'``
+        gives :math:`1 / P`.
+    standardise
+        Standardise ``X`` over the last axis first.
+    rescale_result
+        Divide the score by :math:`\kappa r_b + (1 - \kappa) r_a`.
+    key
+        Unused.
+
+    Returns
+    -------
+    Tensor
+        :math:`\kappa \max(r_b - s, 0) + (1 - \kappa) \max(r_a - h, 0)`, of
+        shape :math:`(*, n, D)`.
     """
     X, _ = _homogeneity_prepare_args(
         X,
@@ -1470,15 +1594,18 @@ def point_agreement(
 
 def document_batch_correlation(func):
 
+    """Fill the shared templates in the docstring of ``func``."""
     batch_correlation_spec = """
-    tol : nonnegative float or ``'auto'`` (default 0)
+    tol
         Tolerance for correlations. Only correlation values above ``tol`` are
         counted. If this is set to ``'auto'``, a tolerance is computed for the
         batch size given the significance level in ``tol_sig``.
-    tol_sig : float in (0, 1)
+        Nonnegative, or ``'auto'`` to set the tolerance from ``tol_sig``.
+    tol_sig
         Significance level for correlation tolerance. Used only if ``tol`` is
         set to ``'auto'``.
-    abs : bool (default True)
+        In (0, 1).
+    abs
         Use the absolute value of correlations. If this is being used as a loss
         function, the model's weights will thus be updated to shrink all
         batchwise correlations toward zero."""
@@ -1506,8 +1633,7 @@ def auto_tol(
     tails: int = 2,
 ) -> float:
     r"""
-    Automatically set the tolerance for batch-dimension correlations based on
-    a significance level.
+    Set the batch correlation tolerance from a significance level.
 
     From the t-value associated with the specified significance level, the
     tolerance is computed as
@@ -1522,11 +1648,12 @@ def auto_tol(
 
     Parameters
     ----------
-    batch_size : int
+    batch_size
         Number of observations in the batch.
-    significance : float in (0, 1) (default 0.1)
+    significance
         Significance level at which the tolerance should be computed.
-    tails : 1 or 2 (default 2)
+        In (0, 1).
+    tails
         Number of tails for the t-test.
 
     Returns
@@ -1555,9 +1682,9 @@ def batch_corr(
 
     Parameters
     ----------
-    X : tensor
+    X
         Tensor block containing measures to be correlated with those in ``N``.
-    N : tensor
+    N
         Vector of measures with which the measures in ``X`` are to be
         correlated.\
     {batch_correlation_spec}
@@ -1590,14 +1717,16 @@ def qcfc(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Alias for :func:`batch_corr`. Quality control-functional connectivity
-    correlation.
+    Compute the QC-FC correlation; an alias of :func:`batch_corr`.
+
+    QC-FC is the correlation between quality control measures and functional
+    connectivity.
 
     Parameters
     ----------
-    FC : tensor
+    FC
         Tensor block containing functional connectivity measures.
-    QC : tensor
+    QC
         Vector of quality control measures with which the FC measures are to
         be correlated.\
     {batch_correlation_spec}
@@ -1611,19 +1740,20 @@ def qcfc(
 
 
 def document_spatial_loss(func):
+    """Fill the shared templates in the docstring of ``func``."""
     reference_tether_spec = """
-    ref : Tensor
+    ref
         Coordinates of the reference points to which the centres of mass of
         the objects in ``X`` should be tethered. Each object or parcel should
         have a single corresponding reference point.
-    coor : Tensor
+    coor
         Coordinates of the spatial locations in each of the columns of ``X``.
-    radius : float or None (default 100)
+    radius
         Radius of the spherical manifold on which the coordinates are
         located. If this is specified as None, it is assumed that the
         coordinates are in Euclidean space."""
 
-    interhemispheric_long_description = """
+    interhemispheric_long_description = r"""
     Displacement of centres of mass in one cortical hemisphere from
     corresponding centres of mass in the other cortical hemisphere.
 
@@ -1652,26 +1782,27 @@ def document_spatial_loss(func):
         Currently, this loss only works in spherical surface space."""
 
     interhemispheric_tether_spec = """
-    lh_coor : Tensor
+    lh_coor
         Coordinates of the spatial locations in each of the columns of ``lh``.
-    rh_coor : Tensor
+    rh_coor
         Coordinates of the spatial locations in each of the columns of ``rh``.
-    radius : float (default 100)
+    radius
         Radius of the spherical manifold on which the coordinates are
         located."""
 
     compactness_spec = """
-    coor : Tensor
+    coor
         Coordinates of the spatial locations in each of the columns of ``X``.
-    radius : float or None (default 100)
+    radius
         Radius of the spherical manifold on which the coordinates are
         located. If this is specified as None, it is assumed that the
         coordinates are in a space induced by the ``norm`` parameter.
-    norm : int, float or 'inf' (default 2)
+    norm
         The norm to use to calculate the distance between the centres of mass
         and the masses. Ignored if ``radius`` is specified; in this case, the
         spherical geodesic distance is used.
-    floor : float (default 0)
+        An int, a float or ``'inf'``.
+    floor
         Minimum distance to be penalised. This can be used to avoid penalising
         masses that are already very close to the centre of mass."""
 
@@ -1709,7 +1840,7 @@ def document_spatial_loss(func):
     """
 
     dispersion_spec = """
-    metric : Callable
+    metric
         Function to calculate the distance between centres of mass. This
         should take either one or two arguments, and should return the
         distance between each pair of observations."""
@@ -1732,8 +1863,8 @@ def document_spatial_loss(func):
     separation, imposed by the ``VectorDispersion`` loss) while also promoting
     proximity between observations and their closest centroids (within-cluster
     closeness, for instance using a
-    :doc:`norm loss <hypercoil.loss.norm>` or
-    :doc:`compactness <hypercoil.loss.cmass.Compactness>`
+    :class:`norm loss <hypercoil.loss.nn.NormedLoss>` or
+    :class:`compactness <hypercoil.loss.nn.CompactnessLoss>`
     if the clusters are associated with spatial coordinates)."""
 
     fmt = NestedDocParse(
@@ -1766,7 +1897,7 @@ def reference_tether(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor block containing the data to be tethered. Each row is a
         collection of masses assigned to the single object or parcel, and each
         column denotes the distribution of masses across objects or parcels at
@@ -1798,8 +1929,9 @@ def interhemispheric_tether(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Distance of centres of mass of left-hemisphere parcels from corresponding
-    right-hemisphere parcels. This can be used to promote a symmetric atlas.
+    Compute the distance between matched parcel centres across hemispheres.
+
+    The score promotes a symmetric atlas.
 
     .. note::
 
@@ -1809,12 +1941,12 @@ def interhemispheric_tether(
 
     Parameters
     ----------
-    lh : Tensor
+    lh
         Tensor block containing the data for the left hemisphere. Each row is a
         collection of masses assigned to the single object or parcel, and each
         column denotes the distribution of masses across objects or parcels at
         a single spatial location.
-    rh : Tensor
+    rh
         Tensor block containing the data for the right hemisphere.\
     {interhemispheric_tether_spec}
 
@@ -1856,7 +1988,7 @@ def compactness(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor block containing the data to be evaluated. Each row is a
         collection of masses assigned to the single object or parcel, and each
         column denotes the distribution of masses across objects or parcels at
@@ -1887,7 +2019,7 @@ def dispersion(
 
     Parameters
     ----------
-    X : Tensor
+    X
         Tensor block containing the data to be evaluated. Each row contains
         the centre of mass of a single object or parcel.\
     {dispersion_spec}
@@ -1904,11 +2036,12 @@ def dispersion(
 
 
 def document_mv_kurtosis(func):
+    """Fill the shared templates in the docstring of ``func``."""
     mv_kurtosis_spec = """
-    l2 : float (default 0)
+    l2
         L2 regularisation to be applied to the covariance matrix to ensure
         that it is invertible.
-    dimensional_scaling : bool (default False)
+    dimensional_scaling
         The expected value of the multivariate kurtosis for a normally
         distributed, stationary process of infinite duration with d channels
         (or variables) is :math:`d (d + 2)`. Setting this to true normalises
@@ -1938,13 +2071,13 @@ def multivariate_kurtosis(
     key: Optional['jax.random.PRNGKey'] = None,
 ) -> Tensor:
     """
-    Multivariate kurtosis of a time series.
-    \
+    Compute the multivariate kurtosis of a time series.
+
     {mv_kurtosis_long_description}
 
     Parameters
     ----------
-    ts : Tensor
+    ts
         Multivariate time series to be evaluated. Each row is a channel or
         variable, and each column is a time point.\
     {mv_kurtosis_spec}
@@ -1970,7 +2103,8 @@ def multivariate_kurtosis(
 
 def document_connectopy(func: Callable) -> Callable:
 
-    connectopy_pparam_spec = """
+    """Fill the shared templates in the docstring of ``func``."""
+    connectopy_pparam_spec = r"""
     :Dimension: **Q :** :math:`(D, C)`
                     D denotes the number of vertices in the affinity matrix
                     and C denotes the number of proposed maps.
@@ -1983,11 +2117,11 @@ def document_connectopy(func: Callable) -> Callable:
 
     Parameters
     ----------
-    Q : tensor
+    Q
         Proposed connectopies or maps.
-    A : tensor
+    A
         Affinity matrix.
-    D : tensor or None (default None)
+    D
         If this argument is provided, then the affinity matrix is first
         transformed as :math:`D A D^\intercal`. For instance, setting D to
         a diagonal matrix whose entries are the reciprocal of the square root
@@ -1995,30 +2129,30 @@ def document_connectopy(func: Callable) -> Callable:
         graph Laplacian."""
 
     connectopy_spec = """
-    theta : tensor, float, or None (default None)
+    theta
         Parameterisation of the pairwise dissimilarity function.
-    omega : tensor, float, or None (default None)
+    omega
         Optional parameterisation of the affinity function, if one is
         provided.
-    dissimilarity : callable
+    dissimilarity
         Function to compute dissimilarity between latent coordinates induced
         by the proposed connectopies. By default, the square of the L2
         distance is used. The callable must accept ``Q`` and ``theta`` as
         arguments. (``theta`` may be unused.)
-    affinity : callable or None (default None)
+    affinity
         If an affinity function is provided, then the image of argument A
         under this function is the affinity matrix. Otherwise, argument A is
         the affinity matrix."""
 
     modularity_spec = """
-    gamma : float (default 1.)
+    gamma
         Modularity parameter. Takes the place of the ``omega`` argument in
-        ``connectopy``.
-    exclude_diag : bool (default True)
+        :func:`~hypercoil.loss.functional.connectopy`.
+    exclude_diag
         If True, then the diagonal of the affinity matrix is set to zero."""
 
     prog_theta_spec = """
-    progressive_theta : bool (default False)
+    progressive_theta
         When this is True, a ``theta`` is generated such that the last map in
         ``Q`` has a weight of 1, the second-to-last has a weight of 2, and so
         on. This can be used to encourage the last column to correspond to the
@@ -2049,7 +2183,7 @@ def document_connectopy(func: Callable) -> Callable:
         projection, it is more prone to misalignment than a projective approach
         for eigendecomposition-based maps.
 
-    .. danger::
+    .. warning::
         Note that a connectopic loss is often insufficient on its own as a
         loss. It should be combined with appropriate projections and
         constraints, for instance to ensure the learned maps are zero-centred
@@ -2121,23 +2255,23 @@ def document_connectopy(func: Callable) -> Callable:
         function, parameters representing the community affiliation :math:`C`
         and coupling :math:`L` matrices can be pre-transformed. Mapping the
         community affiliation matrix :math:`C` through a
-        :doc:`softmax <hypercoil.init.domain.MultiLogit>`
+        :class:`softmax <hypercoil.init.mapparam.ProbabilitySimplexParameter>`
         function along the community axis lends the affiliation matrix the
         intuitive interpretation of distributions over communities, or a
         quantification of the uncertainty of each vertex's community
         assignment. Similarly, the coupling matrix can be pre-transformed
         through a
-        :doc:`sigmoid <hypercoil.init.domain.Logit>`
+        :class:`sigmoid <hypercoil.init.mapparam.MappedLogits>`
         to constrain inter-community couplings to :math:`(0, 1)`.
     .. note::
         Because the community affiliation matrices :math:`C` induce
         parcellations, we can regularise them using parcellation losses. For
         instance, penalising the
-        :doc:`entropy <hypercoil.loss.entropy>`
+        :func:`~hypercoil.loss.functional.entropy`
         will promote a solution wherein each node's community assignment
         probability distribution is concentrated in a single community.
         Similarly, using parcel
-        :doc:`equilibrium <hypercoil.loss.equilibrium>` will favour a solution
+        :func:`~hypercoil.loss.functional.equilibrium` will favour a solution
         wherein communities are of similar sizes."""
 
     return_spec = """
@@ -2179,9 +2313,10 @@ def connectopy(
     key: Optional['jax.random.PRNGKey'] = None,
 ):
     """
-    Generalised connectopic functional, for computing different kinds of
-    connectopic maps.
-    \
+    Compute the generalised connectopic functional.
+
+    The functional gives different kinds of connectopic maps.
+
     {connectopy_long_description}
     \
     {connectopy_pparam_spec}\
@@ -2291,15 +2426,15 @@ def eigenmaps(
         This function is provided as an illustrative example of how to
         parameterise the connectopy functional. It is not recommended for
         practical use, because it is incredibly inefficient and numerically
-        unstable. Instead, use the ``laplacian_eigenmaps`` function from
-        ``hypercoil.functional``.
+        unstable. Instead, use
+        :func:`~hypercoil.functional.connectopy.laplacian_eigenmaps`.
     \
     {connectopy_pparam_spec}\
     {connectopy_spec}
     normalise : bool (default True)
         If True, then the graph Laplacian is normalised by the vertex degrees.
         Takes the place of the ``D`` and ``omega`` arguments in
-        ``connectopy``.
+        :func:`~hypercoil.loss.functional.connectopy`.
     \
     {return_spec}
     """

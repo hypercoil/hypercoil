@@ -18,6 +18,7 @@ from ..engine import (
 
 
 def document_linreg(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     regress_warning = """
     .. warning::
         When using ``torch``, we have found in some cases that the
@@ -42,14 +43,14 @@ def document_linreg(f: Callable) -> Callable:
                     As above."""
 
     regress_param_spec = """
-    rowvar : bool (default True)
+    rowvar
         Indicates that the last axis of the input tensor is the observation
         axis and the penultimate axis is the variable axis. If False, then this
         relationship is transposed.
-    l2 : float (default 0.0)
+    l2
         L2 regularisation parameter. If non-zero, the least-squares solution
         will be regularised by adding a penalty term to the cost function.
-    return_mode : Literal['residual', 'orthogonal'] (default 'residual')
+    return_mode
         Indicates whether the residual or orthogonal tensor should be
         returned. The orthogonal tensor is the projection of `Y` onto the
         span of `X` (i.e., the least-squares solution)."""
@@ -71,24 +72,24 @@ def residualise(
     return_mode: str = 'residual',
 ) -> Tensor:
     r"""
-    Residualise a tensor block via ordinary linear least squares.
-    \
+    Residualise a tensor block by ordinary least squares.
+
     {regress_warning}
 
     .. note::
-        The :doc:`conditional covariance <hypercoil.functional.cov.conditionalcov>`
-        or :doc:`conditional correlation <hypercoil.functional.cov.conditionalcorr>`
+        The :func:`conditional covariance <hypercoil.functional.cov.conditionalcov>`
+        or :func:`conditional correlation <hypercoil.functional.cov.conditionalcorr>`
         may be used instead where appropriate.
     \
     {regress_dim}
 
     Parameters
     ----------
-    Y : Tensor
+    Y
         Tensor to be residualised or orthogonalised with respect to `X`. The
         vector of observations in each channel is projected into a subspace
         orthogonal to the span of `X`.
-    X : Tensor
+    X
         Tensor containing explanatory variables. Any variance in `Y` that can
         be explained by variables in `X` will be removed from `Y`.\
     {regress_param_spec}

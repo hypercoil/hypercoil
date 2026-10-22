@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Atlases
-~~~~~~~
 Standard brain atlases.
 """
 from __future__ import annotations
@@ -15,6 +13,25 @@ from ..neuro.const import fsLR
 
 
 class fsLRAtlas(CortexSubcortexCIfTIAtlas):
+    """
+    Atlas on the 32K-vertex fsLR surface, loaded from a CIfTI file.
+
+    The surfaces and medial wall masks are fetched from TemplateFlow.
+
+    Parameters
+    ----------
+    ref_pointer
+        Path to a CIfTI file containing the atlas.
+    name
+        Name of the atlas.
+    clear_cache
+        Indicates that data loaded in from the reference should be cleared
+        away when atlas creation is complete.
+    dtype
+        Datatype of the atlas tensors.
+    device
+        Device of the atlas tensors.
+    """
     def __init__(
         self, ref_pointer, name=None, clear_cache=True, dtype=None, device=None
     ):

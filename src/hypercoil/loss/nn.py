@@ -79,16 +79,17 @@ from .scalarise import (
 
 
 def document_loss(default_scalarise: str = 'mean'):
+    """Return a class decorator that fills the shared loss templates."""
     param_spec = """
     Parameters
     ----------
-    name: str
+    name
         Designated name of the loss function. It is not required that this be
         specified, but it is recommended to ensure that the loss function can
         be identified in the context of a reporting utilities. If not
         explicitly specified, the name will be inferred from the class name
         and the name of the scoring function.
-    nu: float
+    nu
         Loss strength multiplier. This is a scalar multiplier that is applied
         to the loss value before it is returned. This can be used to
         modulate the relative contributions of different loss functions to
@@ -96,13 +97,13 @@ def document_loss(default_scalarise: str = 'mean'):
         schedule for the loss function, by dynamically adjusting the
         multiplier over the course of training."""
     score_spec = """
-    score: Callable
+    score
         The scoring function to be used to compute the loss value. This
         function should take a single argument, which is a tensor of
         arbitrary shape, and return a score value for each (potentially
         multivariate) observation in the tensor."""
     scalarisation_spec = f"""
-    scalarisation: Callable
+    scalarisation
         The scalarisation function to be used to aggregate the values
         returned by the scoring function. This function should take a
         single argument, which is a tensor of arbitrary shape, and return
@@ -124,10 +125,7 @@ def document_loss(default_scalarise: str = 'mean'):
 
 class _ScheduleContainer:
     """
-    A dumb container for a schedule. This is used to make the schedule
-    *not* be a PyTree, so that we don't have to use a hacky `is_leaf` call
-    in the `eqx.filter` function. The container is mutable, but it doesn't
-    really matter since it's only used internally.
+    Mutable container that keeps a schedule out of the PyTree.
     """
     def __init__(self, schedule: Tuple[Callable[[int], float], int]):
         self.schedule = schedule
@@ -212,15 +210,14 @@ class Loss(eqx.Module):
 
     @property
     def nu(self) -> float:
+        """Loss multiplier, evaluated from the schedule if ``nu`` is one."""
         if isinstance(self._nu, _ScheduleContainer): # it's a schedule
             return self._nu[0](self._nu[1])
         return self._nu
 
     def cfg(self, value: Any, where: str = '_nu') -> Loss:
         """
-        Return a copy of the loss function with the specified attribute
-        modified. By default, this modifies the loss multiplier (``nu``), but
-        this can be changed by specifying the ``where`` argument.
+        Return a copy of the loss with attribute ``where`` set to ``value``.
         """
         return eqx.filter(
             self,
@@ -231,8 +228,18 @@ class Loss(eqx.Module):
 
     def step(self, count: Optional[int] = None) -> Loss:
         """
-        If the loss multiplier is a schedule, this will advance the schedule
-        by one step.
+        Advance the multiplier schedule by one step, or to step ``count``.
+
+        Parameters
+        ----------
+        count
+            Step to set; None advances by one step.
+
+        Returns
+        -------
+        Loss
+            A copy of the loss with the schedule advanced. A loss whose
+            multiplier is not a schedule is returned unchanged.
         """
         if not isinstance(self._nu, _ScheduleContainer):
             return self
@@ -251,8 +258,8 @@ class ParameterisedLoss(Loss):
     have a simple parameterisation, i.e. a fixed set of parameters that are
     passed to the scoring function. The parameters are specified using the
     ``params`` argument, which should be a mapping from parameter names to
-    values. Note that the class is immutable, so the parameters cannot be
-    changed after the class has been instantiated.
+    values. The class is immutable: parameters cannot be changed after
+    instantiation.
     \
     {param_spec}\
     {score_spec}\
@@ -346,35 +353,23 @@ class MSELoss(Loss):
 
 @document_loss()
 class NormedLoss(Loss):
-    """
+    r"""
     :math:`L_p` norm regulariser.
 
     An example of how to compose elements to define a loss function. By
-    default, this function flattens the input tensor and computes the
-    :math:`L_2` norm of the resulting vector. The dimensions to be flattened
-    and the norm order can be specified using the ``axis`` and ``p`` arguments
-    respectively. If the norm is computed over only a subset of axes, the
-    remaining axes can be further reduced by specifying a scalarisation
-    function using the ``outer_scalarise`` argument. By default, the outer
-    scalarisation function is the mean function. Setting this to an identity
-    function will result in a loss function that returns a vector of values
-    for each observation.
-    \
-    {param_spec}\
-    {score_spec}\
-    p: float
-        The order of the norm to be computed. If ``p = 1``, the function
-        computes the :math:`L_1` Manhattan / city block norm. If ``p = 2``,
-        the function computes the :math:`L_2` Euclidean norm. If ``p = inf``,
-        the function computes the :math:`L_\infty` maximum norm.
-    axis: Optional[Union[int, Sequence[int]]]
-        The axes to be flattened. If ``None``, all axes are flattened.
-    outer_scalarise: Optional[Callable]
-        The scalarisation function to be applied to any dimensions that are
-        not flattened (i.e., those not specified in ``axis``). If ``None``,
-        the mean function is used. If ``axis`` is ``None``, this argument is
-        ignored. To return a vector of values for each observation, explicitly
-        set this to an identity function.
+    default, the loss flattens the input tensor and computes the
+    :math:`L_2` norm of the resulting vector. ``axis`` selects the axes to
+    flatten and ``p`` the norm order. The axes not in ``axis`` are reduced by
+    ``outer_scalarise``.
+    {param_spec}{score_spec}
+    p
+        Norm order: 1 for the :math:`L_1` norm, 2 for the :math:`L_2` norm,
+        ``inf`` for the :math:`L_\infty` norm.
+    axis
+        Axes to flatten; None flattens all axes.
+    outer_scalarise
+        Scalarisation map over the axes not in ``axis``. An identity map
+        returns a value for each observation.
     """
 
     p: float
@@ -409,8 +404,8 @@ class NormedLoss(Loss):
 @document_loss()
 class ConstraintViolationLoss(Loss):
     """
-    Loss function for constraint violations.
-    \
+    Loss for constraint violations.
+
     {long_description}
     \
     {param_spec}\
@@ -461,8 +456,8 @@ class ConstraintViolationLoss(Loss):
 @document_loss()
 class UnilateralLoss(Loss):
     """
-    Loss function corresponding to a single soft nonpositivity constraint.
-    \
+    Loss for a single soft nonpositivity constraint.
+
     {long_description_unil}
     \
     {param_spec}\
@@ -500,8 +495,8 @@ class UnilateralLoss(Loss):
 @document_loss(default_scalarise='sum')
 class HingeLoss(Loss):
     """
-    Hinge loss function.
-    \
+    Hinge loss.
+
     {long_description_hinge}
     \
     {param_spec}\
@@ -540,8 +535,8 @@ class HingeLoss(Loss):
 @document_loss(default_scalarise='L1 norm')
 class SmoothnessLoss(Loss):
     """
-    Smoothness loss function.
-    \
+    Smoothness loss.
+
     {long_description}
     \
     {param_spec}\
@@ -597,8 +592,8 @@ class SmoothnessLoss(Loss):
 @document_loss()
 class BimodalSymmetricLoss(Loss):
     """
-    Loss based on the minimum distance from either of two modes.
-    \
+    Loss on the distance from the nearer of two modes.
+
     {long_description}
     \
     {param_spec}\
@@ -699,8 +694,8 @@ class _GramDeterminantLoss(Loss):
 @document_loss()
 class GramDeterminantLoss(_GramDeterminantLoss):
     """
-    Loss based on the determinant of the Gram matrix.
-    \
+    Loss on the determinant of the Gram matrix.
+
     {long_description}
     \
     {param_spec}\
@@ -739,8 +734,8 @@ class GramDeterminantLoss(_GramDeterminantLoss):
 @document_loss()
 class GramLogDeterminantLoss(_GramDeterminantLoss):
     """
-    Loss based on the log-determinant of the Gram matrix.
-    \
+    Loss on the log-determinant of the Gram matrix.
+
     {long_description}
     {ultra_long_description}
     \
@@ -777,8 +772,9 @@ class GramLogDeterminantLoss(_GramDeterminantLoss):
 
 
 class _InformationLoss(Loss):
-    """Base implementation for loss functions based on information theoretic
-    quantities."""
+    """
+    Base class for losses based on information-theoretic quantities.
+    """
 
     axis: Union[int, Tuple[int, ...]]
     keepdims: bool
@@ -907,8 +903,7 @@ class EntropyLogitLoss(_InformationLoss):
 @document_loss()
 class KLDivergenceLoss(_InformationLoss):
     """
-    Loss based on the Kullback-Leibler divergence between two categorical
-    distributions.
+    Loss on the Kullback-Leibler divergence of two categorical distributions.
 
     This operates on probability tensors. For a version that operates on
     logits, see :class:`KLDivergenceLogitLoss`.
@@ -949,8 +944,7 @@ class KLDivergenceLoss(_InformationLoss):
 @document_loss()
 class KLDivergenceLogitLoss(_InformationLoss):
     """
-    Loss based on the Kullback-Leibler divergence between two categorical
-    distributions.
+    Kullback-Leibler divergence loss for categorical distributions as logits.
 
     This operates on logit tensors. For a version that operates on
     probabilities, see :class:`KLDivergenceLoss`.
@@ -991,8 +985,7 @@ class KLDivergenceLogitLoss(_InformationLoss):
 @document_loss()
 class JSDivergenceLoss(_InformationLoss):
     """
-    Loss based on the Jensen-Shannon divergence between two categorical
-    distributions.
+    Loss on the Jensen-Shannon divergence of two categorical distributions.
 
     This operates on probability tensors. For a version that operates on
     logits, see :class:`JSDivergenceLogitLoss`.
@@ -1033,8 +1026,7 @@ class JSDivergenceLoss(_InformationLoss):
 @document_loss()
 class JSDivergenceLogitLoss(_InformationLoss):
     """
-    Loss based on the Jensen-Shannon divergence between two categorical
-    distributions.
+    Jensen-Shannon divergence loss for categorical distributions as logits.
 
     This operates on logit tensors. For a version that operates on
     probabilities, see :class:`JSDivergenceLoss`.
@@ -1120,8 +1112,7 @@ class _BregmanDivergenceLoss(Loss):
 @document_loss()
 class BregmanDivergenceLoss(_BregmanDivergenceLoss):
     """
-    Loss based on the Bregman divergence between two categorical
-    distributions.
+    Loss on the Bregman divergence of two categorical distributions.
 
     This operates on unmapped tensors. For a version that operates on logits
     logits, see :class:`BregmanDivergenceLogitLoss`.
@@ -1160,8 +1151,7 @@ class BregmanDivergenceLoss(_BregmanDivergenceLoss):
 @document_loss()
 class BregmanDivergenceLogitLoss(_BregmanDivergenceLoss):
     """
-    Loss based on the Bregman divergence between two categorical
-    distributions.
+    Bregman divergence loss for categorical distributions as logits.
 
     This operates on logits. For a version that operates on unmapped
     probabilities, see :class:`BregmanDivergenceLoss`.
@@ -1319,7 +1309,7 @@ class EquilibriumLogitLoss(Loss):
 class SecondMomentLoss(Loss):
     """
     Second moment loss.
-    \
+
     {long_description}
     \
     {ultra_long_description}
@@ -1375,8 +1365,8 @@ class SecondMomentLoss(Loss):
 @document_loss()
 class SecondMomentCentredLoss(Loss):
     """
-    Second moment loss centred on a precomputed mean.
-    \
+    Second moment loss about a precomputed mean.
+
     {long_description}
     \
     {ultra_long_description}
@@ -1645,7 +1635,7 @@ class PointAgreementLoss(Loss):
 class BatchCorrelationLoss(Loss):
     """
     Batch correlation loss.
-    \
+
     {param_spec}\
     {batch_correlation_spec}\
     {scalarisation_spec}
@@ -1701,7 +1691,7 @@ class BatchCorrelationLoss(Loss):
 class QCFCLoss(BatchCorrelationLoss):
     """
     QC-FC loss.
-    \
+
     {param_spec}\
     {batch_correlation_spec}\
     {scalarisation_spec}
@@ -1725,8 +1715,8 @@ class QCFCLoss(BatchCorrelationLoss):
 @document_loss()
 class ReferenceTetherLoss(Loss):
     """
-    Loss function penalising distance from a tethered reference point.
-    \
+    Loss on the distance from a tethered reference point.
+
     {param_spec}\
     {spatial_loss_spec}\
     {scalarisation_spec}
@@ -1785,9 +1775,8 @@ class ReferenceTetherLoss(Loss):
 @document_loss()
 class InterhemisphericTetherLoss(Loss):
     """
-    Loss function penalising distance between matched parcels or objects on
-    opposite hemispheres.
-    \
+    Loss on the distance between matched objects on opposite hemispheres.
+
     {interhemispheric_long_description}
     \
     {param_spec}\
@@ -1850,9 +1839,8 @@ class InterhemisphericTetherLoss(Loss):
 @document_loss()
 class CompactnessLoss(Loss):
     """
-    Loss function penalising distances between locations in a mass and the
-    centroid of that mass.
-    \
+    Loss on the distances between locations in a mass and its centroid.
+
     {compactness_long_description}
     \
     {param_spec}\
@@ -1914,8 +1902,8 @@ class CompactnessLoss(Loss):
 @document_loss()
 class DispersionLoss(Loss):
     """
-    Loss function penalising proximity between vectors.
-    \
+    Loss penalising proximity between vectors.
+
     {dispersion_long_description}
 
     {param_spec}\
@@ -1959,7 +1947,7 @@ class DispersionLoss(Loss):
 class MultivariateKurtosis(Loss):
     """
     Multivariate kurtosis loss for a time series.
-    \
+
     {mv_kurtosis_long_description}
     \
     {param_spec}\
@@ -2010,9 +1998,8 @@ class MultivariateKurtosis(Loss):
 @document_loss()
 class ConnectopyLoss(Loss):
     """
-    Generalised connectopic functional, for computing different kinds of
-    connectopic maps.
-    \
+    Loss on the generalised connectopic functional.
+
     {connectopy_long_description}
     \
     {param_spec}\
@@ -2099,7 +2086,9 @@ class ConnectopyLoss(Loss):
 @document_connectopy
 @document_loss()
 class ModularityLoss(Loss):
-    """\
+    """
+    Modularity loss.
+
     {modularity_long_description}
     \
     {param_spec}\
@@ -2169,8 +2158,8 @@ class EigenmapsLoss(Loss):
         This function is provided as an illustrative example of how to
         parameterise the connectopy functional. It is not recommended for
         practical use, because it is incredibly inefficient and numerically
-        unstable. Instead, use the ``laplacian_eigenmaps`` function from
-        ``hypercoil.functional``.
+        unstable. Instead, use
+        :func:`~hypercoil.functional.connectopy.laplacian_eigenmaps`.
     \
     {param_spec}\
     {connectopy_spec}\

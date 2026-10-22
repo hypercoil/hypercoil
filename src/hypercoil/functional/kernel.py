@@ -32,6 +32,7 @@ def _default_gamma(X: Tensor, *, gamma: Optional[float]) -> float:
 
 
 def document_param_pairwise(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     linear_kernel_long_desc = r"""
     For tensors :math:`X_0` and :math:`X_1` containing features in column
     vectors, the parameterised linear kernel is
@@ -131,12 +132,12 @@ def document_param_pairwise(f: Callable) -> Callable:
                     As above."""
 
     pairwise_base_spec = """
-    X0 : tensor
+    X0
         A feature tensor.
-    X1 : tensor or None
+    X1
         Second feature tensor. If not explicitly provided, the kernel of
         ``X`` with itself is computed.
-    theta : tensor or None
+    theta
         Kernel parameter (generally a representation of a positive definite
         matrix). If not provided, defaults to identity (an unparameterised
         kernel). If the last two dimensions are the same size, they are used
@@ -144,21 +145,21 @@ def document_param_pairwise(f: Callable) -> Callable:
         used as the diagonal of the matrix."""
 
     kernel_gamma_spec = r"""
-    gamma : float or None (default None)
+    gamma
         Scaling coefficient. If not explicitly specified, this is
         automatically set to :math:`\frac{1}{P}`."""
 
     kernel_sigma_spec = r"""
-    sigma : float or None (default None)
+    sigma
         Isotropic standard deviation.
     """
 
     kernel_order_spec = """
-    order : int (default 3)
+    order
         Maximum degree of the polynomial."""
 
     kernel_r_spec = r"""
-    r : float (default 0)
+    r
         Offset coefficient."""
 
     kernel_return_spec = """
@@ -197,8 +198,8 @@ def linear_kernel(
     intermediate_indices: None = None,
 ) -> Tensor:
     """
-    Parameterised linear kernel between input tensors.
-    \
+    Compute the parameterised linear kernel between input tensors.
+
     {linear_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -266,8 +267,8 @@ def param_norm(
     squared: bool = False,
 ) -> Tensor:
     """
-    Parameterised norm of observation vectors in an input tensor.
-    \
+    Compute the parameterised norm of observation vectors in a tensor.
+
     {norm_long_desc}
     \
     {kernel_fmt_note}
@@ -385,8 +386,8 @@ def polynomial_kernel(
     r: float = 0,
 ) -> Tensor:
     """
-    Parameterised polynomial kernel between input tensors.
-    \
+    Compute the parameterised polynomial kernel between input tensors.
+
     {polynomial_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -416,8 +417,8 @@ def sigmoid_kernel(
     r: float = 0,
 ) -> Tensor:
     """
-    Parameterised sigmoid kernel between input tensors.
-    \
+    Compute the parameterised sigmoid kernel between input tensors.
+
     {sigmoid_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -445,8 +446,8 @@ def gaussian_kernel(
     sigma: Optional[float] = None,
 ) -> Tensor:
     """
-    Parameterised Gaussian kernel between input tensors.
-    \
+    Compute the parameterised Gaussian kernel between input tensors.
+
     {gaussian_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -474,8 +475,8 @@ def rbf_kernel(
     gamma: Optional[float] = None,
 ) -> Tensor:
     """
-    Parameterised RBF kernel between input tensors.
-    \
+    Compute the parameterised RBF kernel between input tensors.
+
     {rbf_kernel_long_desc}
     \
     {kernel_fmt_note}
@@ -501,8 +502,8 @@ def cosine_kernel(
     theta: Optional[Tensor] = None,
 ) -> Tensor:
     """
-    Parameterised cosine kernel between input tensors.
-    \
+    Compute the parameterised cosine kernel between input tensors.
+
     {cosine_kernel_long_desc}
     \
     {kernel_fmt_note}

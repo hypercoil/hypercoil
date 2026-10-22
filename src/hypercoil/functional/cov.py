@@ -20,20 +20,21 @@ from .utils import _conform_vector_weight
 
 
 def document_covariance(func):
+    """Fill the shared templates in the docstring of ``func``."""
     param_spec = """
-    rowvar : bool (default True)
+    rowvar
         Indicates that the last axis of the input tensor is the observation
         axis and the penultimate axis is the variable axis. If False, then this
         relationship is transposed.
-    bias : bool (default False)
+    bias
         Indicates that the biased normalisation (i.e., division by `N` in the
         unweighted case) should be performed. By default, normalisation of the
         covariance is unbiased (i.e., division by `N - 1`).
-    ddof : int or None (default None)
+    ddof
         Degrees of freedom for normalisation. If this is specified, it
         overrides the normalisation factor automatically determined using the
         `bias` parameter.
-    weight : Tensor or None (default None)
+    weight
         Tensor containing importance or coupling weights for the observations.
         If this tensor is 1-dimensional, each entry weights the corresponding
         observation in the covariance computation. If it is 2-dimensional,
@@ -42,37 +43,38 @@ def document_covariance(func):
         off-diagonal entries indicate coupling factors. For instance, a banded
         or multi-diagonal tensor can be used to specify inter-temporal
         coupling for a time series covariance.
-    l2 : nonnegative float (default 0)
+    l2
         L2 regularisation term to add to the maximum likelihood estimate of
         the covariance matrix. This can be set to a positive value to obtain
-        an intermediate for estimating the regularised inverse covariance."""
+        an intermediate for estimating the regularised inverse covariance.
+        Nonnegative."""
     unary_param_spec = """
-    X : Tensor
+    X
         Tensor containing a sample of multivariate observations. Each slice
         along the last axis corresponds to an observation, and each slice along
         the penultimate axis corresponds to a data channel or more generally a
         variable."""
     binary_param_spec = """
-    X, Y : Tensors
+    X, Y
         Tensors containing samples of multivariate observations. Each slice
         along the last axis corresponds to an observation, and each slice along
         the penultimate axis corresponds to a data channel or more generally a
         variable."""
     conditional_param_spec = """
-    X : Tensor
+    X
         Tensor containing samples of multivariate observations, with those
         variables whose influence we wish to control for removed and separated
         out into tensor Y. Each slice along the last axis corresponds to an
         observation, and each slice along the penultimate axis corresponds to a
         data channel or more generally a variable.
-    Y : Tensor
+    Y
         Tensor containing samples of multivariate observations, limited to
         nuisance or confound variables whose influence we wish to control for.
         Each slice along the last axis corresponds to an observation, and each
         slice along the penultimate axis corresponds to a data channel or more
         generally a variable."""
     inverting_param_spec = """
-    require_nonsingular : bool
+    require_nonsingular
         Indicates that the covariance must be nonsingular. If this is False,
         then the Moore-Penrose pseudoinverse is computed instead of the
         inverse."""
@@ -193,8 +195,8 @@ def corr(
     **params,
 ) -> Tensor:
     """
-    Pearson correlation of variables in a tensor batch.
-    \
+    Compute the Pearson correlation of variables in a tensor batch.
+
     {corr_long_description}
 
     :Dimension: {unary_dim_spec}
@@ -313,9 +315,9 @@ def pairedcov(
     """
     Empirical covariance between two sets of variables.
 
-    .. danger::
-        The ``l2`` parameter has no effect on this function. It is included only
-        for conformance with the ``cov`` function.
+    .. warning::
+        The ``l2`` parameter is ignored. It is accepted for signature
+        conformance with :func:`cov`.
 
     :Dimension: {binary_dim_spec}
 
@@ -363,13 +365,13 @@ def pairedcorr(
     **params,
 ) -> Tensor:
     """
-    Empirical Pearson correlation between variables in two tensor batches.
-    \
+    Compute the Pearson correlation between variables in two tensor batches.
+
     {corr_long_description}
 
-    .. danger::
-        The ``l2`` parameter has no effect on this function. It is included only
-        for conformance with the ``cov`` function.
+    .. warning::
+        The ``l2`` parameter is ignored. It is accepted for signature
+        conformance with :func:`cov`.
 
     :Dimension: {binary_dim_spec}
 
@@ -402,8 +404,8 @@ def conditionalcov(
     **params,
 ) -> Tensor:
     """
-    Conditional covariance of variables in a tensor batch.
-    \
+    Compute the conditional covariance of variables in a tensor batch.
+
     {conditional_cov_long_description}
 
     :Dimension: {binary_dim_spec}
@@ -439,8 +441,8 @@ def conditionalcorr(
     **params,
 ) -> Tensor:
     """
-    Conditional Pearson correlation of variables in a tensor batch.
-    \
+    Compute the conditional Pearson correlation of variables in a batch.
+
     {conditional_cov_long_description}
     \
     {corr_long_description}
@@ -523,7 +525,7 @@ def corrnorm(A: Tensor) -> Tensor:
 
     Parameters
     ----------
-    A : Tensor
+    A
         Batch of covariance or unnormalised correlation matrices.
 
     Returns
@@ -538,39 +540,38 @@ def corrnorm(A: Tensor) -> Tensor:
 
 
 def covariance(*pparams, **params):
-    """Alias for :func:`cov`."""
+    """Compute the covariance; an alias of :func:`cov`."""
     return cov(*pparams, **params)
 
 
 def correlation(*pparams, **params):
-    """Alias for :func:`corr`."""
+    """Compute the Pearson correlation; an alias of :func:`corr`."""
     return corr(*pparams, **params)
 
 
 def corrcoef(*pparams, **params):
-    """Alias for :func:`corr`."""
+    """Compute the Pearson correlation; an alias of :func:`corr`."""
     return corr(*pparams, **params)
 
 
 def pcorr(*pparams, **params):
-    """Alias for :func:`partialcorr`."""
+    """Compute the partial correlation; an alias of :func:`partialcorr`."""
     return partialcorr(*pparams, **params)
 
 
 def ccov(*pparams, **params):
-    """Alias for :func:`conditionalcov`."""
+    """Compute the conditional covariance; alias of :func:`conditionalcov`."""
     return conditionalcov(*pparams, **params)
 
 
 def ccorr(*pparams, **params):
-    """Alias for :func:`conditionalcorr`."""
+    """Compute the conditional correlation (:func:`conditionalcorr`)."""
     return conditionalcorr(*pparams, **params)
 
 
 def _prepare_input(X: Tensor, rowvar: bool = True) -> Tensor:
     """
-    Ensure that the input is conformant with the transposition expected by the
-    covariance function.
+    Transpose the input as the covariance function expects.
     """
     X = jnp.atleast_2d(X)
     if not rowvar and X.shape[-2] != 1:
@@ -588,10 +589,9 @@ def _prepare_weight_and_avg(
     Sequence[Tensor],
 ]:
     """
-    Set the weights for the covariance computation based on user input and
-    determine the sum of weights for normalisation. If weights are not
-    provided, the sum is simply the count of data observations. Compute the
-    first moment or its weighted analogue.
+    Compute the weights, their sum, and the weighted first moment.
+
+    Without weights, the sum is the number of observations.
     """
     if weight is not None:
         if weight.ndim == 1 or weight.shape[-1] != weight.shape[-2]:
@@ -621,8 +621,7 @@ def _prepare_denomfact(
     weight: Optional[Tensor] = None,
 ) -> Tensor:
     """
-    Determine the factor we should divide by to obtain the (un)biased
-    covariance from the sum over observations.
+    Compute the divisor that gives the biased or unbiased covariance.
     """
     if ddof is None:
         ddof = int(not bias)

@@ -2,8 +2,6 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 """
-Crosshair kernel
-~~~~~~~~~~~~~~~~
 Elementary operations over a crosshair kernel.
 """
 from __future__ import annotations
@@ -15,6 +13,7 @@ from ..engine import NestedDocParse, Tensor
 
 
 def document_crosshair(f: Callable) -> Callable:
+    """Fill the shared templates in the docstring of ``f``."""
     crosshair_inner_long = """
     For each entry of the input matrices :math:`X_{ij}`, the crosshair product
     is the scalar sum over elements in either the same row or column as the
@@ -32,17 +31,17 @@ def document_crosshair(f: Callable) -> Callable:
     The dimension of the output tensor exactly equals the dimension of the
     input tensor."""
     crosshair_unary_pparams = """
-    A: Tensor
+    A
         Input tensor."""
     crosshair_binary_pparams = """
-    A: Tensor
+    A
         First input tensor.
-    B: Tensor
+    B
         Second input tensor."""
     crosshair_rc_spec = """
-    row: int
+    row
         Axis of the input tensors over which the row index increases.
-    col: int
+    col
         Axis of the input tensors over which the column index increases."""
     crosshair_return_spec = """
     Returns
@@ -71,8 +70,8 @@ def crosshair_dot(
     col: int = -1,
 ) -> Tensor:
     """
-    Local dot product between two matrices over a crosshair kernel.
-    \
+    Compute the local dot product of two matrices over a crosshair kernel.
+
     {crosshair_inner_long}
     \
     {crosshair_dim_spec}
@@ -101,8 +100,8 @@ def crosshair_norm_l2(
     col: int = -1,
 ) -> Tensor:
     """
-    Compute the local L2 norm on a matrix over a crosshair kernel.
-    \
+    Compute the local L2 norm of a matrix over a crosshair kernel.
+
     {crosshair_norm_long}
     \
     {crosshair_dim_spec}
@@ -124,8 +123,8 @@ def crosshair_norm_l1(
     col: int = -1,
 ) -> Tensor:
     """
-    Compute the local L1 norm on a matrix over a crosshair kernel.
-    \
+    Compute the local L1 norm of a matrix over a crosshair kernel.
+
     {crosshair_norm_long}
     \
     {crosshair_dim_spec}
@@ -150,10 +149,25 @@ def crosshair_dot_gen(
     axes: Tuple[int, int] = (-2, -1),
 ) -> Tensor:
     """
-    A generalised version of the crosshair dot product where the crosshair can
-    be extended over any number of dimensions. As it suffers poor performance
-    relative to the 2-D implementation and as its use cases are likely narrow,
-    its correctness has not been tested.
+    Compute the crosshair dot product over any number of axes.
+
+    .. warning::
+        Experimental and untested. Slower than the 2-D implementation,
+        :func:`crosshair_dot`.
+
+    Parameters
+    ----------
+    A, B
+        Tensors of the same shape.
+    axes
+        Axes spanned by each crosshair.
+
+    Returns
+    -------
+    Tensor
+        At each position, the sum of ``A * B`` over the lines through that
+        position along each of ``axes``, with the position itself counted
+        once.
     """
     prod = A * B
     repeats = len(axes) - 1

@@ -23,33 +23,35 @@ class IIRFilterSpec(eqx.Module):
 
     Parameters
     ----------
-    Wn : float or tuple(float, float)
+    Wn
         Critical or cutoff frequency. If this is a band-pass filter, then this
         should be a tuple, with the first entry specifying the high-pass cutoff
         and the second entry specifying the low-pass frequency. This should be
         specified relative to the Nyquist frequency if ``fs`` is not provided,
         and should be in the same units as ``fs`` if it is provided.
-    N : int or Tensor (default 1)
+    N
         Filter order.
-    ftype : one of (``'butter'``, ``'cheby1'``, ``'cheby2'``, ``'ellip'``, ``'bessel'``, ``'kuznetsov'``)
+    ftype
         Filter class to initialise: Butterworth, Chebyshev I, Chebyshev II,
         elliptic, or Bessel-Thompson.
 
         .. note::
             To initialise an ideal filter, use a
-            :doc:`frequency product filter <hypercoil.init.freqfilter>`
+            :mod:`frequency product filter <hypercoil.init.freqfilter>`
             instead.
-    btype : ``'bandpass'`` (default) or ``'bandstop'`` or ``'lowpass'`` or ``'highpass'``
+        One of ``'butter'``, ``'cheby1'``, ``'cheby2'``, ``'ellip'``,
+        ``'bessel'`` and ``'kuznetsov'``.
+    btype
         Filter pass-band to emulate: low-pass, high-pass, or band-pass. The
         interpretation of the critical frequency changes depending on the
         filter type.
-    fs : float or None (default None)
+    fs
         Sampling frequency.
-    rp : float (default 0.1)
+    rp
         Pass-band ripple. Used only for Chebyshev I and elliptic filters.
-    rs : float (default 20)
+    rs
         Stop-band ripple. Used only for Chebyshev II and elliptic filters.
-    norm : ``'phase'`` or ``'mag'`` or ``'delay'`` (default ``'phase'``)
+    norm
         Critical frequency normalisation. Consult the ``scipy.signal.bessel``
         documentation for details.
     """
@@ -101,6 +103,14 @@ class IIRFilterSpec(eqx.Module):
         self.initialise_coefs()
 
     def initialise_coefs(self):
+        """
+        Compute the filter coefficients of the specification into ``coefs``.
+
+        Raises
+        ------
+        ValueError
+            If ``ftype`` is not a supported filter type.
+        """
         if self.ftype == 'butter':
             iirfilter = signal.butter
             filter_params = {}
@@ -139,6 +149,31 @@ def iirfilter_coefs(
     fs=None,
     filter_params=None,
 ) -> Tuple[Tensor, Tensor]:
+    """
+    Design IIR filters for each order and critical frequency.
+
+    Parameters
+    ----------
+    iirfilter
+        Filter design function of :mod:`scipy.signal`, such as
+        ``scipy.signal.butter``.
+    N
+        Filter order, or one order per filter.
+    Wn
+        Critical frequencies, one per filter; pairs for ``'bandpass'`` and
+        ``'bandstop'``.
+    btype
+        Filter pass-band type.
+    fs
+        Sampling frequency.
+    filter_params
+        Further keyword arguments of ``iirfilter``.
+
+    Returns
+    -------
+    tuple
+        Numerator and denominator coefficients ``(b, a)`` of each filter.
+    """
     filter_params = filter_params or {}
     N = jnp.atleast_1d(N).astype(int)
     Wn = jnp.atleast_1d(Wn).astype(float)
@@ -153,6 +188,25 @@ def iirfilter_coefs(
 # TODO: this is not correctly implemented. See
 # https://dafx2020.mdw.ac.at/proceedings/papers/DAFx2020_paper_52.pdf
 def kuznetsov_init(N, btype='bandpass'):
+    """
+    Sample random IIR filter coefficients.
+
+    Parameters
+    ----------
+    N
+        Filter order.
+    btype
+        Filter pass-band type. ``'bandpass'`` and ``'bandstop'`` double the
+        order.
+
+    Returns
+    -------
+    tuple
+        Numerator coefficients ``b`` drawn uniformly from :math:`[-1, 1)` and
+        denominator coefficients ``a`` drawn uniformly from :math:`[-0.5, 0.5)`
+        with ``a[0] = 1``, each of length ``N * m + 1`` for the multiplier
+        ``m``.
+    """
     multiplier = 1
     if btype in ('bandpass', 'bandstop'):
         multiplier = 2
