@@ -222,7 +222,7 @@ def complex_recompose(ampl: Tensor, phase: Tensor) -> Tensor:
 
 def amplitude_apply(func: Callable) -> Callable:
     """
-    Return ``func`` applied to the amplitude of a complex tensor.
+    Return a function applying ``func`` to the amplitude of a complex tensor.
     """
 
     def wrapper(complex: Tensor) -> Tensor:

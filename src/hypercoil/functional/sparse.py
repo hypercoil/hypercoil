@@ -1276,7 +1276,7 @@ def _diag_indices(W: Tensor) -> Tensor:
 
 def random_sparse_batchfinal(key, shape, density=0.1):
     """
-    Generate a random sparse matrix in batch-final COO format.
+    Return a random BCOO array of ``shape``, with ``density`` normal entries.
     """
     n = jnp.prod(jnp.array(shape))
     nse = int(density * n)

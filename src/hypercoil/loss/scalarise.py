@@ -25,7 +25,7 @@ from .functional import identity
 
 def document_scalarisation_map(func: Callable) -> Callable:
     """
-    Decorator for documenting scalarisation maps.
+    Fill the shared templates in the docstring of ``func``.
     """
     long_description_scalarise = """
     .. note::
